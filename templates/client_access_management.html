@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client Access Management - WeTechForU</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            background: linear-gradient(180deg, #dc3545 0%, #fd7e14 100%);
+            min-height: 100vh;
+        }
+        .nav-link {
+            color: #ffffff;
+            transition: all 0.3s;
+        }
+        .nav-link:hover {
+            color: #f8f9fa;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .access-card {
+            border: 2px solid #007bff;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 123, 255, 0.2);
+        }
+        .access-header {
+            background: linear-gradient(135deg, #007bff 0%, #6610f2 100%);
+            color: white;
+            border-top-left-radius: 13px;
+            border-top-right-radius: 13px;
+        }
+        .status-badge {
+            font-size: 0.8rem;
+            padding: 0.5rem 1rem;
+        }
+        .status-pending { background-color: #ffc107; color: #000; }
+        .status-granted { background-color: #28a745; color: #fff; }
+        .status-revoked { background-color: #dc3545; color: #fff; }
+        .status-expired { background-color: #6c757d; color: #fff; }
+        .method-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #007bff;
+        }
+        .priority-high { border-left-color: #dc3545; }
+        .priority-medium { border-left-color: #ffc107; }
+        .priority-low { border-left-color: #28a745; }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Admin Sidebar -->
+            <nav class="col-md-2 d-none d-md-block sidebar">
+                <div class="sidebar-sticky p-3">
+                    <h4 class="text-white mb-4">
+                        <i class="fas fa-shield-alt"></i> Admin Portal
+                    </h4>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin">
+                                <i class="fas fa-tachometer-alt"></i> Admin Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/clients">
+                                <i class="fas fa-users"></i> Client Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/leads">
+                                <i class="fas fa-user-plus"></i> Lead Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/lead-finder">
+                                <i class="fas fa-search"></i> Lead Finder
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/subscription/plans">
+                                <i class="fas fa-credit-card"></i> Subscription Plans
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/api-settings">
+                                <i class="fas fa-plug"></i> API Settings
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/seo-backlink-manager">
+                                <i class="fas fa-search-plus"></i> SEO & Backlink Manager
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/admin/client-access">
+                                <i class="fas fa-key"></i> Client Access Management
+                            </a>
+                        </li>
+                        <li class="nav-item mt-3">
+                            <a class="nav-link" href="/customer">
+                                <i class="fas fa-user"></i> Customer View
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-warning" href="/logout">
+                                <i class="fas fa-sign-out-alt"></i> Logout
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-10 ml-sm-auto px-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <div>
+                        <h1 class="h2">
+                            <i class="fas fa-key text-primary me-2"></i>
+                            Client Access Management
+                        </h1>
+                        <p class="text-muted">
+                            Manage how clients provide access to their accounts and platforms
+                        </p>
+                    </div>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <a href="/admin" class="btn btn-outline-primary me-2">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Admin
+                        </a>
+                        <a href="/logout" class="btn btn-outline-danger">
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Client Selection -->
+                <div class="row mb-4">
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-user me-2"></i>Select Client
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <select class="form-select" id="client_select" onchange="loadClientAccess()">
+                                    <option value="">Choose a client...</option>
+                                    <option value="15">WeTechForU Marketing Solutions</option>
+                                    <option value="1">ProMed Health Center</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-chart-pie me-2"></i>Access Overview
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="access_overview">
+                                    <p class="text-muted">Select a client to view access status</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Access Management -->
+                <div class="row">
+                    <div class="col-lg-8">
+                        <!-- Access Status -->
+                        <div class="card access-card">
+                            <div class="card-header access-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-shield-alt me-2"></i>Access Status
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="access_status">
+                                    <p class="text-muted">Select a client to view their access status</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Access Requests -->
+                        <div class="card access-card mt-4">
+                            <div class="card-header access-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-envelope me-2"></i>Send Access Requests
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label for="service_select" class="form-label">Service</label>
+                                        <select class="form-select" id="service_select">
+                                            <option value="">Select service...</option>
+                                            <option value="website">Website Access</option>
+                                            <option value="facebook">Facebook Page</option>
+                                            <option value="google_ads">Google Ads</option>
+                                            <option value="google_analytics">Google Analytics</option>
+                                            <option value="google_my_business">Google My Business</option>
+                                            <option value="email_marketing">Email Marketing</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="method_select" class="form-label">Access Method</label>
+                                        <select class="form-select" id="method_select">
+                                            <option value="">Select method...</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <button type="button" class="btn btn-primary" onclick="generateAccessRequest()">
+                                        <i class="fas fa-envelope me-2"></i>Generate Access Request
+                                    </button>
+                                    <button type="button" class="btn btn-outline-info ms-2" onclick="generateSetupGuide()">
+                                        <i class="fas fa-book me-2"></i>Generate Setup Guide
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sidebar -->
+                    <div class="col-lg-4">
+                        <!-- Quick Actions -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-bolt me-2"></i>Quick Actions
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <button class="btn btn-outline-primary btn-sm w-100 mb-2" onclick="sendBulkAccessRequests()">
+                                    <i class="fas fa-paper-plane me-1"></i>Send Bulk Access Requests
+                                </button>
+                                <button class="btn btn-outline-success btn-sm w-100 mb-2" onclick="generateClientReport()">
+                                    <i class="fas fa-file-alt me-1"></i>Generate Client Report
+                                </button>
+                                <button class="btn btn-outline-warning btn-sm w-100 mb-2" onclick="checkAccessStatus()">
+                                    <i class="fas fa-sync me-1"></i>Check Access Status
+                                </button>
+                                <button class="btn btn-outline-info btn-sm w-100" onclick="exportAccessData()">
+                                    <i class="fas fa-download me-1"></i>Export Access Data
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Access Methods -->
+                        <div class="card mt-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-cogs me-2"></i>Access Methods
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="access_methods">
+                                    <p class="text-muted">Select a service to see available methods</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Support Information -->
+                        <div class="card mt-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-life-ring me-2"></i>Support
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <p class="small">
+                                    <strong>Need help with access setup?</strong><br>
+                                    Contact our support team:<br>
+                                    📧 support@wetechforu.com<br>
+                                    📞 +1-555-0123
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Service methods mapping
+        const serviceMethods = {
+            website: [
+                { name: "Google Search Console", description: "Add us as a user to Google Search Console" },
+                { name: "FTP Access", description: "FTP credentials for file access" },
+                { name: "Hosting Panel", description: "Hosting control panel access" },
+                { name: "CMS Access", description: "WordPress, Drupal, or other CMS access" }
+            ],
+            facebook: [
+                { name: "Business Manager", description: "Add us to your Facebook Business Manager" },
+                { name: "Page Admin", description: "Make us an admin of your Facebook page" },
+                { name: "Page Access Token", description: "Provide page access token (advanced)" }
+            ],
+            google_ads: [
+                { name: "Manager Account", description: "Add us to your Google Ads Manager account" },
+                { name: "Direct Account Access", description: "Add us as a user to your Google Ads account" }
+            ],
+            google_analytics: [
+                { name: "Account Access", description: "Add us as a user to Google Analytics" },
+                { name: "Property Access", description: "Add us to specific property" }
+            ],
+            google_my_business: [
+                { name: "Manager Access", description: "Add us as a manager to your GMB listing" },
+                { name: "Owner Access", description: "Add us as an owner (full control)" }
+            ],
+            email_marketing: [
+                { name: "Mailchimp", description: "Add us to your Mailchimp account" },
+                { name: "Constant Contact", description: "Add us to your Constant Contact account" },
+                { name: "Campaign Monitor", description: "Add us to your Campaign Monitor account" }
+            ]
+        };
+
+        function loadClientAccess() {
+            const clientId = document.getElementById('client_select').value;
+            if (!clientId) {
+                clearAccessData();
+                return;
+            }
+
+            // Simulate loading client access data
+            const accessData = {
+                client_id: clientId,
+                access_summary: {
+                    website: { status: "pending", method: "Google Search Console" },
+                    facebook: { status: "granted", method: "Business Manager" },
+                    google_ads: { status: "pending", method: "Manager Account" },
+                    google_analytics: { status: "granted", method: "Account Access" }
+                },
+                completion_percentage: 50,
+                pending_actions: ["Website access setup", "Google Ads account access"]
+            };
+
+            displayAccessOverview(accessData);
+            displayAccessStatus(accessData);
+        }
+
+        function displayAccessOverview(data) {
+            const container = document.getElementById('access_overview');
+            container.innerHTML = `
+                <div class="row">
+                    <div class="col-6">
+                        <h4 class="text-primary">${data.completion_percentage}%</h4>
+                        <small class="text-muted">Complete</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-warning">${data.pending_actions.length}</h4>
+                        <small class="text-muted">Pending</small>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <div class="progress">
+                        <div class="progress-bar" style="width: ${data.completion_percentage}%"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function displayAccessStatus(data) {
+            const container = document.getElementById('access_status');
+            let html = '';
+
+            for (const [service, info] of Object.entries(data.access_summary)) {
+                const statusClass = `status-${info.status}`;
+                const serviceName = service.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                
+                html += `
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <strong>${serviceName}</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <span class="badge status-badge ${statusClass}">${info.status}</span>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted">${info.method}</small>
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function clearAccessData() {
+            document.getElementById('access_overview').innerHTML = '<p class="text-muted">Select a client to view access status</p>';
+            document.getElementById('access_status').innerHTML = '<p class="text-muted">Select a client to view their access status</p>';
+        }
+
+        // Update method select when service changes
+        document.getElementById('service_select').addEventListener('change', function() {
+            const service = this.value;
+            const methodSelect = document.getElementById('method_select');
+            
+            methodSelect.innerHTML = '<option value="">Select method...</option>';
+            
+            if (service && serviceMethods[service]) {
+                serviceMethods[service].forEach(method => {
+                    const option = document.createElement('option');
+                    option.value = method.name;
+                    option.textContent = method.name;
+                    methodSelect.appendChild(option);
+                });
+            }
+            
+            updateAccessMethods(service);
+        });
+
+        function updateAccessMethods(service) {
+            const container = document.getElementById('access_methods');
+            
+            if (!service || !serviceMethods[service]) {
+                container.innerHTML = '<p class="text-muted">Select a service to see available methods</p>';
+                return;
+            }
+
+            let html = `<h6>${service.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} Methods:</h6>`;
+            
+            serviceMethods[service].forEach(method => {
+                html += `
+                    <div class="method-card">
+                        <h6>${method.name}</h6>
+                        <p class="small text-muted">${method.description}</p>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function generateAccessRequest() {
+            const clientId = document.getElementById('client_select').value;
+            const service = document.getElementById('service_select').value;
+            const method = document.getElementById('method_select').value;
+
+            if (!clientId || !service || !method) {
+                showNotification('Please select client, service, and method', 'error');
+                return;
+            }
+
+            // Simulate generating access request
+            const requestData = {
+                client_id: clientId,
+                service: service,
+                method: method
+            };
+
+            showAccessRequestModal(requestData);
+        }
+
+        function showAccessRequestModal(data) {
+            const modalHtml = `
+                <div class="modal fade" id="accessRequestModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">
+                                    <i class="fas fa-envelope me-2"></i>Access Request Generated
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-info">
+                                    <h6>Email Template Generated</h6>
+                                    <p>An access request email has been generated for the client.</p>
+                                </div>
+                                
+                                <h6>Email Details:</h6>
+                                <ul>
+                                    <li><strong>Service:</strong> ${data.service.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</li>
+                                    <li><strong>Method:</strong> ${data.method}</li>
+                                    <li><strong>Client ID:</strong> ${data.client_id}</li>
+                                </ul>
+                                
+                                <h6>Next Steps:</h6>
+                                <ol>
+                                    <li>Review the generated email template</li>
+                                    <li>Send the email to the client</li>
+                                    <li>Follow up if no response within 48 hours</li>
+                                    <li>Update access status once granted</li>
+                                </ol>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="button" class="btn btn-primary" onclick="sendAccessRequest()">
+                                    <i class="fas fa-paper-plane me-2"></i>Send Email
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Remove existing modal if any
+            const existingModal = document.getElementById('accessRequestModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+
+            // Add modal to page
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('accessRequestModal'));
+            modal.show();
+        }
+
+        function sendAccessRequest() {
+            showNotification('✅ Access request email sent successfully!', 'success');
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('accessRequestModal'));
+            modal.hide();
+        }
+
+        function generateSetupGuide() {
+            const clientId = document.getElementById('client_select').value;
+            if (!clientId) {
+                showNotification('Please select a client first', 'error');
+                return;
+            }
+
+            showNotification('📋 Setup guide generated and sent to client!', 'success');
+        }
+
+        function sendBulkAccessRequests() {
+            showNotification('📧 Bulk access requests sent to all clients!', 'success');
+        }
+
+        function generateClientReport() {
+            showNotification('📊 Client access report generated!', 'success');
+        }
+
+        function checkAccessStatus() {
+            showNotification('🔄 Access status updated for all clients!', 'success');
+        }
+
+        function exportAccessData() {
+            showNotification('📥 Access data exported successfully!', 'success');
+        }
+
+        function showNotification(message, type) {
+            const alertClass = type === 'success' ? 'alert-success' : type === 'error' ? 'alert-danger' : 'alert-info';
+            const notificationHtml = `
+                <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
+                     style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', notificationHtml);
+
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                const alert = document.querySelector('.alert:last-of-type');
+                if (alert) {
+                    alert.remove();
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Approval Workflow</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .workflow-step {
+            border-left: 4px solid #007bff;
+            padding-left: 20px;
+            margin-bottom: 30px;
+        }
+        .workflow-step.completed {
+            border-left-color: #28a745;
+        }
+        .workflow-step.pending {
+            border-left-color: #ffc107;
+        }
+        .workflow-step.rejected {
+            border-left-color: #dc3545;
+        }
+        
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        .checklist-item.checked {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+        .checklist-item.unchecked {
+            background-color: #fff3cd;
+            border-color: #ffeaa7;
+        }
+        
+        .approval-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .status-draft { background-color: #6c757d; color: white; }
+        .status-review { background-color: #ffc107; color: #212529; }
+        .status-approved { background-color: #28a745; color: white; }
+        .status-rejected { background-color: #dc3545; color: white; }
+        .status-published { background-color: #17a2b8; color: white; }
+        
+        .content-preview {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .comment-section {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-8">
+                <!-- Content Preview -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5><i class="fas fa-eye"></i> Content Preview</h5>
+                        <span class="approval-badge status-{{ content.status }}">{{ content.status.title() }}</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="content-preview">
+                            <h4>{{ content.content_title }}</h4>
+                            <p><strong>Platform:</strong> {{ content.platform.title() if content.platform else 'N/A' }}</p>
+                            <p><strong>Type:</strong> {{ content.content_type.title() }}</p>
+                            <div class="mt-3">
+                                <h6>Content:</h6>
+                                <div class="border p-3 bg-white">
+                                    {{ content.content_body | safe }}
+                                </div>
+                            </div>
+                            {% if content.image_url %}
+                            <div class="mt-3">
+                                <h6>Image:</h6>
+                                <img src="{{ content.image_url }}" alt="Content Image" class="img-fluid" style="max-height: 300px;">
+                            </div>
+                            {% endif %}
+                            {% if content.scheduled_date %}
+                            <div class="mt-3">
+                                <p><strong>Scheduled for:</strong> {{ content.scheduled_date.strftime('%Y-%m-%d %H:%M') }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Approval Workflow -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5><i class="fas fa-tasks"></i> Approval Workflow</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Step 1: Content Creation -->
+                        <div class="workflow-step completed">
+                            <h6><i class="fas fa-edit text-success"></i> Step 1: Content Creation</h6>
+                            <p class="text-muted">Content created by admin on {{ content.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                        </div>
+
+                        <!-- Step 2: Quality Checklist -->
+                        <div class="workflow-step {{ 'completed' if content.quality_approved else 'pending' }}">
+                            <h6><i class="fas fa-clipboard-check {{ 'text-success' if content.quality_approved else 'text-warning' }}"></i> Step 2: Quality Checklist</h6>
+                            <p class="text-muted">Review content against platform-specific quality standards</p>
+                            
+                            <div class="mt-3">
+                                <h6>Platform: {{ content.platform.title() if content.platform else 'General' }}</h6>
+                                <div id="qualityChecklist">
+                                    <!-- Quality checklist items will be loaded here -->
+                                </div>
+                                <button class="btn btn-sm btn-primary mt-2" onclick="runQualityCheck()">
+                                    <i class="fas fa-check"></i> Run Quality Check
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Step 3: Client Approval -->
+                        <div class="workflow-step {{ 'completed' if content.client_approved else 'pending' }}">
+                            <h6><i class="fas fa-user-check {{ 'text-success' if content.client_approved else 'text-warning' }}"></i> Step 3: Client Approval</h6>
+                            <p class="text-muted">Send to client for approval before publishing</p>
+                            
+                            {% if not content.client_approved %}
+                            <div class="mt-3">
+                                <button class="btn btn-warning" onclick="requestClientApproval()">
+                                    <i class="fas fa-paper-plane"></i> Send to Client for Approval
+                                </button>
+                            </div>
+                            {% else %}
+                            <p class="text-success"><i class="fas fa-check"></i> Client approved on {{ content.client_approved_date.strftime('%Y-%m-%d %H:%M') if content.client_approved_date else 'N/A' }}</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Step 4: Final Review -->
+                        <div class="workflow-step {{ 'completed' if content.final_approved else 'pending' }}">
+                            <h6><i class="fas fa-eye {{ 'text-success' if content.final_approved else 'text-warning' }}"></i> Step 4: Final Review</h6>
+                            <p class="text-muted">Final admin review before publishing</p>
+                            
+                            {% if content.quality_approved and content.client_approved and not content.final_approved %}
+                            <div class="mt-3">
+                                <button class="btn btn-success" onclick="finalApproval()">
+                                    <i class="fas fa-check-double"></i> Final Approval
+                                </button>
+                                <button class="btn btn-danger ms-2" onclick="rejectContent()">
+                                    <i class="fas fa-times"></i> Reject
+                                </button>
+                            </div>
+                            {% elif content.final_approved %}
+                            <p class="text-success"><i class="fas fa-check"></i> Final approval completed on {{ content.final_approved_date.strftime('%Y-%m-%d %H:%M') if content.final_approved_date else 'N/A' }}</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Step 5: Publishing -->
+                        <div class="workflow-step {{ 'completed' if content.status == 'published' else 'pending' }}">
+                            <h6><i class="fas fa-rocket {{ 'text-success' if content.status == 'published' else 'text-warning' }}"></i> Step 5: Publishing</h6>
+                            <p class="text-muted">Publish content to the platform</p>
+                            
+                            {% if content.final_approved and content.status != 'published' %}
+                            <div class="mt-3">
+                                <button class="btn btn-primary" onclick="publishContent()">
+                                    <i class="fas fa-rocket"></i> Publish Now
+                                </button>
+                                {% if content.scheduled_date %}
+                                <button class="btn btn-outline-primary ms-2" onclick="schedulePublish()">
+                                    <i class="fas fa-clock"></i> Schedule Publish
+                                </button>
+                                {% endif %}
+                            </div>
+                            {% elif content.status == 'published' %}
+                            <p class="text-success"><i class="fas fa-check"></i> Published on {{ content.published_date.strftime('%Y-%m-%d %H:%M') if content.published_date else 'N/A' }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comments Section -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5><i class="fas fa-comments"></i> Comments & Notes</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="comment-section">
+                            <div id="commentsList">
+                                <!-- Comments will be loaded here -->
+                            </div>
+                            <div class="mt-3">
+                                <textarea class="form-control" id="newComment" rows="3" placeholder="Add a comment or note..."></textarea>
+                                <button class="btn btn-primary mt-2" onclick="addComment()">
+                                    <i class="fas fa-plus"></i> Add Comment
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <!-- Content Details -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-info-circle"></i> Content Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>ID:</strong></td>
+                                <td>{{ content.id }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Client:</strong></td>
+                                <td>{{ client.clinic_name }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Created:</strong></td>
+                                <td>{{ content.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Updated:</strong></td>
+                                <td>{{ content.updated_at.strftime('%Y-%m-%d %H:%M') if content.updated_at else 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Keywords:</strong></td>
+                                <td>{{ content.keywords or 'N/A' }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Approval History -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5><i class="fas fa-history"></i> Approval History</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline">
+                            <div class="timeline-item">
+                                <div class="timeline-marker bg-primary"></div>
+                                <div class="timeline-content">
+                                    <h6>Content Created</h6>
+                                    <small class="text-muted">{{ content.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </div>
+                            </div>
+                            {% if content.quality_approved_date %}
+                            <div class="timeline-item">
+                                <div class="timeline-marker bg-success"></div>
+                                <div class="timeline-content">
+                                    <h6>Quality Approved</h6>
+                                    <small class="text-muted">{{ content.quality_approved_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% if content.client_approved_date %}
+                            <div class="timeline-item">
+                                <div class="timeline-marker bg-warning"></div>
+                                <div class="timeline-content">
+                                    <h6>Client Approved</h6>
+                                    <small class="text-muted">{{ content.client_approved_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% if content.final_approved_date %}
+                            <div class="timeline-item">
+                                <div class="timeline-marker bg-info"></div>
+                                <div class="timeline-content">
+                                    <h6>Final Approved</h6>
+                                    <small class="text-muted">{{ content.final_approved_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% if content.published_date %}
+                            <div class="timeline-item">
+                                <div class="timeline-marker bg-success"></div>
+                                <div class="timeline-content">
+                                    <h6>Published</h6>
+                                    <small class="text-muted">{{ content.published_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5><i class="fas fa-bolt"></i> Quick Actions</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-primary" onclick="editContent()">
+                                <i class="fas fa-edit"></i> Edit Content
+                            </button>
+                            <button class="btn btn-outline-info" onclick="duplicateContent()">
+                                <i class="fas fa-copy"></i> Duplicate
+                            </button>
+                            <button class="btn btn-outline-warning" onclick="scheduleContent()">
+                                <i class="fas fa-clock"></i> Schedule
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="deleteContent()">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Platform-specific quality checklists
+        const qualityChecklists = {
+            facebook: [
+                { id: 'fb_1', text: 'Content follows Facebook Community Standards', required: true },
+                { id: 'fb_2', text: 'Hashtags are relevant and not excessive (max 3-5)', required: true },
+                { id: 'fb_3', text: 'Image meets Facebook size requirements (1200x630px)', required: true },
+                { id: 'fb_4', text: 'Content is engaging and encourages interaction', required: true },
+                { id: 'fb_5', text: 'No misleading or false information', required: true },
+                { id: 'fb_6', text: 'Call-to-action is clear and appropriate', required: false },
+                { id: 'fb_7', text: 'Content is mobile-friendly', required: true },
+                { id: 'fb_8', text: 'No spam or repetitive content', required: true }
+            ],
+            instagram: [
+                { id: 'ig_1', text: 'Content follows Instagram Community Guidelines', required: true },
+                { id: 'ig_2', text: 'Hashtags are relevant (max 30, optimal 5-10)', required: true },
+                { id: 'ig_3', text: 'Image is high quality and visually appealing', required: true },
+                { id: 'ig_4', text: 'Content fits brand aesthetic', required: true },
+                { id: 'ig_5', text: 'Caption is engaging and tells a story', required: true },
+                { id: 'ig_6', text: 'No inappropriate or offensive content', required: true },
+                { id: 'ig_7', text: 'Content encourages engagement', required: false },
+                { id: 'ig_8', text: 'Proper use of emojis (not excessive)', required: false }
+            ],
+            google_ads: [
+                { id: 'ga_1', text: 'Ad copy follows Google Ads policies', required: true },
+                { id: 'ga_2', text: 'Headlines are compelling and relevant', required: true },
+                { id: 'ga_3', text: 'Descriptions provide clear value proposition', required: true },
+                { id: 'ga_4', text: 'Keywords are relevant to ad content', required: true },
+                { id: 'ga_5', text: 'No misleading claims or false information', required: true },
+                { id: 'ga_6', text: 'Call-to-action is clear and actionable', required: true },
+                { id: 'ga_7', text: 'Landing page matches ad content', required: true },
+                { id: 'ga_8', text: 'Ad is mobile-optimized', required: true }
+            ],
+            blog: [
+                { id: 'blog_1', text: 'Content is original and not plagiarized', required: true },
+                { id: 'blog_2', text: 'Title is SEO-optimized and compelling', required: true },
+                { id: 'blog_3', text: 'Content provides value to readers', required: true },
+                { id: 'blog_4', text: 'Proper heading structure (H1, H2, H3)', required: true },
+                { id: 'blog_5', text: 'Images have alt text for accessibility', required: true },
+                { id: 'blog_6', text: 'Content is well-formatted and readable', required: true },
+                { id: 'blog_7', text: 'Internal and external links are relevant', required: false },
+                { id: 'blog_8', text: 'Content is fact-checked and accurate', required: true }
+            ],
+            general: [
+                { id: 'gen_1', text: 'Content is grammatically correct', required: true },
+                { id: 'gen_2', text: 'Content is relevant to target audience', required: true },
+                { id: 'gen_3', text: 'Content aligns with brand voice and tone', required: true },
+                { id: 'gen_4', text: 'No spelling errors', required: true },
+                { id: 'gen_5', text: 'Content is professional and appropriate', required: true }
+            ]
+        };
+
+        function loadQualityChecklist() {
+            const platform = '{{ content.platform }}' || 'general';
+            const checklist = qualityChecklists[platform] || qualityChecklists.general;
+            const container = document.getElementById('qualityChecklist');
+            
+            container.innerHTML = '';
+            
+            checklist.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'checklist-item unchecked';
+                div.innerHTML = `
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="${item.id}" ${item.required ? 'required' : ''}>
+                        <label class="form-check-label" for="${item.id}">
+                            ${item.text} ${item.required ? '<span class="text-danger">*</span>' : ''}
+                        </label>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function runQualityCheck() {
+            const checkboxes = document.querySelectorAll('#qualityChecklist input[type="checkbox"]');
+            let allChecked = true;
+            let requiredChecked = true;
+            
+            checkboxes.forEach(checkbox => {
+                const item = checkbox.closest('.checklist-item');
+                if (checkbox.checked) {
+                    item.className = 'checklist-item checked';
+                } else {
+                    item.className = 'checklist-item unchecked';
+                    allChecked = false;
+                    if (checkbox.required) {
+                        requiredChecked = false;
+                    }
+                }
+            });
+            
+            if (requiredChecked) {
+                // Update content status
+                fetch('/admin/content/{{ content.id }}/quality-approve', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Quality check passed! Content approved for next step.');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                });
+            } else {
+                alert('Please complete all required checklist items before proceeding.');
+            }
+        }
+
+        function requestClientApproval() {
+            if (confirm('Send this content to the client for approval?')) {
+                fetch('/admin/content/{{ content.id }}/request-client-approval', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Approval request sent to client!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                });
+            }
+        }
+
+        function finalApproval() {
+            if (confirm('Give final approval for this content?')) {
+                fetch('/admin/content/{{ content.id }}/final-approve', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Content approved for publishing!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                });
+            }
+        }
+
+        function rejectContent() {
+            const reason = prompt('Please provide a reason for rejection:');
+            if (reason) {
+                fetch('/admin/content/{{ content.id }}/reject', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ reason: reason })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Content rejected. Reason: ' + reason);
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                });
+            }
+        }
+
+        function publishContent() {
+            if (confirm('Publish this content now?')) {
+                fetch('/admin/content/{{ content.id }}/publish', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Content published successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                });
+            }
+        }
+
+        function addComment() {
+            const comment = document.getElementById('newComment').value;
+            if (comment.trim()) {
+                fetch('/admin/content/{{ content.id }}/add-comment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ comment: comment })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('newComment').value = '';
+                        loadComments();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                });
+            }
+        }
+
+        function loadComments() {
+            // Load comments from server
+            fetch('/admin/content/{{ content.id }}/comments')
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById('commentsList');
+                container.innerHTML = '';
+                
+                data.comments.forEach(comment => {
+                    const div = document.createElement('div');
+                    div.className = 'border-bottom pb-2 mb-2';
+                    div.innerHTML = `
+                        <div class="d-flex justify-content-between">
+                            <strong>${comment.author}</strong>
+                            <small class="text-muted">${comment.date}</small>
+                        </div>
+                        <p class="mb-0">${comment.text}</p>
+                    `;
+                    container.appendChild(div);
+                });
+            });
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            loadQualityChecklist();
+            loadComments();
+        });
+    </script>
+</body>
+</html>
+
+

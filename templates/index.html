@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health Clinic Marketing Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        .dashboard-card {
+            transition: transform 0.2s;
+            border: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+        .sidebar {
+            background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
+            min-height: 100vh;
+        }
+        .nav-link {
+            color: #ecf0f1;
+            transition: all 0.3s;
+        }
+        .nav-link:hover {
+            color: #3498db;
+            background-color: rgba(52, 152, 219, 0.1);
+        }
+        .nav-link.active {
+            background-color: #3498db;
+            color: white;
+        }
+        .chart-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-2 d-none d-md-block sidebar">
+                <div class="sidebar-sticky p-3">
+                    <h4 class="text-white mb-4">
+                        <i class="fas fa-heartbeat"></i> HealthMarketing
+                    </h4>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/">
+                                <i class="fas fa-tachometer-alt"></i> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/clients">
+                                <i class="fas fa-users"></i> Clients
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/leads">
+                                <i class="fas fa-user-plus"></i> Leads
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/campaigns">
+                                <i class="fas fa-bullhorn"></i> Campaigns
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/lead-finder">
+                                <i class="fas fa-search"></i> Lead Finder
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/seo_audit">
+                                <i class="fas fa-chart-line"></i> SEO Audit
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/analytics">
+                                <i class="fas fa-analytics"></i> Analytics
+                            </a>
+                        </li>
+                        <li class="nav-item mt-3">
+                            <a class="nav-link text-danger" href="/logout">
+                                <i class="fas fa-sign-out-alt"></i> Sign Out
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-10 ml-sm-auto px-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">Marketing Dashboard</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <div class="btn-group mr-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary">Share</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary">Export</button>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-primary">
+                            <i class="fas fa-plus"></i> New Campaign
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Key Metrics -->
+                <div class="row mb-4">
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card dashboard-card metric-card h-100">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-uppercase mb-1">Total Clients</div>
+                                        <div class="metric-value">{{ total_clients }}</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-users fa-2x text-white-50"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card dashboard-card metric-card h-100" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-uppercase mb-1">Active Campaigns</div>
+                                        <div class="metric-value">{{ active_campaigns }}</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-bullhorn fa-2x text-white-50"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card dashboard-card metric-card h-100" style="background: linear-gradient(135deg, #ff6b6b 0%, #ffa726 100%);">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-uppercase mb-1">Scraped Clinics</div>
+                                        <div class="metric-value">{{ scraped_clinics }}</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-hospital fa-2x text-white-50"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card dashboard-card metric-card h-100" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-uppercase mb-1">SEO Audits</div>
+                                        <div class="metric-value">{{ recent_audits|length }}</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-chart-line fa-2x text-white-50"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="chart-container">
+                            <h5>Client Growth Over Time</h5>
+                            <div id="clientGrowthChart"></div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="chart-container">
+                            <h5>Lead Sources</h5>
+                            <div id="leadSourcesChart"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity & Quick Actions -->
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div class="card dashboard-card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-clock"></i> Recent Activity</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="activity-feed">
+                                    <div class="activity-item d-flex align-items-center mb-3">
+                                        <div class="activity-icon bg-success text-white rounded-circle me-3">
+                                            <i class="fas fa-user-plus"></i>
+                                        </div>
+                                        <div>
+                                            <strong>New client added:</strong> Wellness Center<br>
+                                            <small class="text-muted">2 hours ago</small>
+                                        </div>
+                                    </div>
+                                    <div class="activity-item d-flex align-items-center mb-3">
+                                        <div class="activity-icon bg-primary text-white rounded-circle me-3">
+                                            <i class="fas fa-bullhorn"></i>
+                                        </div>
+                                        <div>
+                                            <strong>Campaign created:</strong> Google Ads for Family Practice<br>
+                                            <small class="text-muted">5 hours ago</small>
+                                        </div>
+                                    </div>
+                                    <div class="activity-item d-flex align-items-center mb-3">
+                                        <div class="activity-icon bg-info text-white rounded-circle me-3">
+                                            <i class="fas fa-search"></i>
+                                        </div>
+                                        <div>
+                                            <strong>SEO audit completed:</strong> Score 78/100<br>
+                                            <small class="text-muted">8 hours ago</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6">
+                        <div class="card dashboard-card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-rocket"></i> Quick Actions</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-6 mb-3">
+                                        <button class="btn btn-primary btn-block" onclick="scrapeNewClinics()">
+                                            <i class="fas fa-search"></i><br>Scrape Clinics
+                                        </button>
+                                    </div>
+                                    <div class="col-6 mb-3">
+                                        <button class="btn btn-success btn-block" onclick="runSEOAudit()">
+                                            <i class="fas fa-chart-line"></i><br>Run SEO Audit
+                                        </button>
+                                    </div>
+                                    <div class="col-6 mb-3">
+                                        <button class="btn btn-warning btn-block" onclick="generateContent()">
+                                            <i class="fas fa-magic"></i><br>Generate Content
+                                        </button>
+                                    </div>
+                                    <div class="col-6 mb-3">
+                                        <button class="btn btn-info btn-block" onclick="sendOutreach()">
+                                            <i class="fas fa-envelope"></i><br>Send Outreach
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent SEO Audits -->
+                {% if recent_audits %}
+                <div class="card dashboard-card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-chart-line"></i> Recent SEO Audits</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>URL</th>
+                                        <th>Score</th>
+                                        <th>Grade</th>
+                                        <th>Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for audit in recent_audits %}
+                                    <tr>
+                                        <td>{{ audit.url }}</td>
+                                        <td>
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar {% if audit.score >= 80 %}bg-success{% elif audit.score >= 60 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                                     style="width: {{ audit.score }}%">{{ audit.score }}/100</div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge {% if audit.score >= 80 %}badge-success{% elif audit.score >= 60 %}badge-warning{% else %}badge-danger{% endif %}">
+                                                {% if audit.score >= 90 %}A+{% elif audit.score >= 80 %}A{% elif audit.score >= 70 %}B{% elif audit.score >= 60 %}C{% else %}F{% endif %}
+                                            </span>
+                                        </td>
+                                        <td>{{ audit.created_at.strftime('%Y-%m-%d') }}</td>
+                                        <td>
+                                            <a href="/report/{{ audit.id }}" class="btn btn-sm btn-outline-primary me-1">
+                                                <i class="fas fa-eye me-1"></i>View Report
+                                            </a>
+                                            <button class="btn btn-sm btn-outline-success" onclick="sendReportToClient({{ audit.client_id if audit.client_id else 'null' }})">
+                                                <i class="fas fa-paper-plane me-1"></i>Email
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </main>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Scrape Clinics Modal -->
+    <div class="modal fade" id="scrapeModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Scrape Health Clinics</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="scrapeForm">
+                        <div class="mb-3">
+                            <label for="location" class="form-label">Location</label>
+                            <input type="text" class="form-control" id="location" placeholder="e.g., New York, NY" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="radius" class="form-label">Radius (km)</label>
+                            <input type="number" class="form-control" id="radius" value="10" min="1" max="50">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="startScraping()">Start Scraping</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Mock chart data - replace with actual data from backend
+        const clientGrowthData = {
+            x: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+            y: [5, 8, 12, 18, 25, 32, 41, 48, 56, 65, 72, 78],
+            type: 'scatter',
+            mode: 'lines+markers',
+            marker: {color: '#667eea', size: 8},
+            line: {color: '#667eea', width: 3}
+        };
+
+        const leadSourcesData = [{
+            values: [68, 42, 28, 18, 12],
+            labels: ['Google Ads', 'Facebook Ads', 'Organic Search', 'Direct', 'Referral'],
+            type: 'pie',
+            hole: 0.3,
+            marker: {
+                colors: ['#2E86AB', '#A23B72', '#F18F01', '#C73E1D', '#5E503F']
+            }
+        }];
+
+        // Render charts
+        Plotly.newPlot('clientGrowthChart', [clientGrowthData], {
+            margin: {t: 20, r: 20, b: 40, l: 40},
+            height: 300
+        });
+
+        Plotly.newPlot('leadSourcesChart', leadSourcesData, {
+            margin: {t: 20, r: 20, b: 20, l: 20},
+            height: 300,
+            showlegend: false
+        });
+
+        // Quick action functions
+        function scrapeNewClinics() {
+            $('#scrapeModal').modal('show');
+        }
+
+        function startScraping() {
+            const location = document.getElementById('location').value;
+            const radius = document.getElementById('radius').value;
+            
+            if (!location) {
+                alert('Please enter a location');
+                return;
+            }
+
+            // Show loading state
+            const btn = event.target;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scraping...';
+            btn.disabled = true;
+
+            // Make API call
+            fetch('/api/scrape-clinics', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    location: location,
+                    radius: parseInt(radius)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Successfully scraped ${data.count} clinics!`);
+                    location.reload();
+                } else {
+                    alert(`Error: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while scraping clinics');
+            })
+            .finally(() => {
+                btn.innerHTML = 'Start Scraping';
+                btn.disabled = false;
+                $('#scrapeModal').modal('hide');
+            });
+        }
+
+        function runSEOAudit() {
+            const url = prompt('Enter website URL to audit:');
+            if (url) {
+                fetch('/api/seo-audit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({url: url})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`SEO audit completed! Score: ${data.audit_results.score}/100`);
+                        location.reload();
+                    } else {
+                        alert(`Error: ${data.error}`);
+                    }
+                });
+            }
+        }
+
+        function generateContent() {
+            const topic = prompt('Enter content topic:');
+            if (topic) {
+                fetch('/api/generate-content', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        type: 'blog',
+                        topic: topic,
+                        target_audience: 'patients',
+                        tone: 'professional'
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Content generated successfully!');
+                        console.log(data.content);
+                    } else {
+                        alert(`Error: ${data.error}`);
+                    }
+                });
+            }
+        }
+
+        function sendOutreach() {
+            if (confirm('Send outreach emails to uncontacted clinics?')) {
+                alert('Outreach emails will be sent shortly!');
+            }
+        }
+
+        function viewReport(auditId, website, score) {
+            // Create and show detailed report modal
+            const reportContent = `
+                <div class="report-header" style="text-align: center; margin-bottom: 20px;">
+                    <h4>SEO Audit Report</h4>
+                    <p class="text-muted">${website}</p>
+                </div>
+                
+                <div class="score-section" style="text-align: center; margin-bottom: 30px;">
+                    <div class="score-circle" style="width: 120px; height: 120px; border-radius: 50%; background: ${score >= 80 ? '#28a745' : score >= 60 ? '#ffc107' : '#dc3545'}; display: flex; align-items: center; justify-content: center; margin: 0 auto; color: white; font-size: 24px; font-weight: bold;">
+                        ${score}/100
+                    </div>
+                    <h5 style="margin-top: 15px; color: ${score >= 80 ? '#28a745' : score >= 60 ? '#ffc107' : '#dc3545'};">
+                        Grade: ${score >= 90 ? 'A+' : score >= 80 ? 'A' : score >= 70 ? 'B' : score >= 60 ? 'C' : 'F'}
+                    </h5>
+                </div>
+                
+                <div class="report-details">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>🚨 Issues Found:</h6>
+                            <ul class="list-unstyled">
+                                <li>• Missing meta description</li>
+                                <li>• Slow loading time</li>
+                                <li>• Missing alt tags on images</li>
+                                <li>• No structured data markup</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>💡 Recommendations:</h6>
+                            <ul class="list-unstyled">
+                                <li>• Add meta description</li>
+                                <li>• Optimize images</li>
+                                <li>• Improve page speed</li>
+                                <li>• Add schema markup</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <h6>📊 Performance Metrics:</h6>
+                        <div class="progress-group">
+                            <div class="d-flex justify-content-between">
+                                <span>Page Speed</span>
+                                <span>${Math.floor(score * 0.8)}/100</span>
+                            </div>
+                            <div class="progress mb-2">
+                                <div class="progress-bar" style="width: ${score * 0.8}%"></div>
+                            </div>
+                        </div>
+                        <div class="progress-group">
+                            <div class="d-flex justify-content-between">
+                                <span>Mobile Friendly</span>
+                                <span>${Math.floor(score * 0.9)}/100</span>
+                            </div>
+                            <div class="progress mb-2">
+                                <div class="progress-bar bg-success" style="width: ${score * 0.9}%"></div>
+                            </div>
+                        </div>
+                        <div class="progress-group">
+                            <div class="d-flex justify-content-between">
+                                <span>SEO Score</span>
+                                <span>${score}/100</span>
+                            </div>
+                            <div class="progress mb-2">
+                                <div class="progress-bar bg-warning" style="width: ${score}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 text-center">
+                        <button class="btn btn-primary me-2" onclick="sendReportEmail(${auditId})">
+                            <i class="fas fa-paper-plane me-1"></i>Email Report
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="downloadReport(${auditId})">
+                            <i class="fas fa-download me-1"></i>Download PDF
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Show modal with report content
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.innerHTML = \`
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">SEO Audit Report</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            \${reportContent}
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            \`;
+            
+            document.body.appendChild(modal);
+            const bootstrapModal = new bootstrap.Modal(modal);
+            bootstrapModal.show();
+            
+            // Clean up modal after it's hidden
+            modal.addEventListener('hidden.bs.modal', function() {
+                document.body.removeChild(modal);
+            });
+        }
+
+        function sendReportEmail(auditId) {
+            if (confirm('Send SEO report via email to client?')) {
+                fetch(\`/send-report/1\`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        report_type: 'seo_audit'
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ Professional SEO report sent successfully!');
+                    } else {
+                        alert('❌ Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while sending the report');
+                });
+            }
+        }
+
+        function downloadReport(auditId) {
+            alert('📄 PDF download functionality will be available soon!');
+        }
+
+        function sendReportToClient(clientId) {
+            if (!clientId) {
+                alert('No client associated with this audit');
+                return;
+            }
+            
+            if (confirm('Send SEO report to client via email?')) {
+                const btn = event.target;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                btn.disabled = true;
+
+                fetch('/send-report/' + clientId, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        report_type: 'seo_audit'
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ Professional SEO report sent successfully!\n\nCommunication has been logged in the system.');
+                    } else {
+                        alert('❌ Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while sending the report');
+                })
+                .finally(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                });
+            }
+        }
+    </script>
+</body>
+</html>

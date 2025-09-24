@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add New Client - WeTechForU AI Marketing Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            background: linear-gradient(180deg, #dc3545 0%, #fd7e14 100%);
+            min-height: 100vh;
+        }
+        .nav-link {
+            color: #ffffff;
+            transition: all 0.3s;
+        }
+        .nav-link:hover {
+            color: #f8f9fa;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .form-card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .form-card .card-header {
+            background: linear-gradient(45deg, #dc3545, #fd7e14);
+            color: white;
+            border-top-left-radius: 15px;
+            border-top-right-radius: 15px;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Admin Sidebar -->
+            <nav class="col-md-2 d-none d-md-block sidebar">
+                <div class="sidebar-sticky p-3">
+                    <h4 class="text-white mb-4">
+                        <i class="fas fa-shield-alt"></i> Admin Portal
+                    </h4>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin">
+                                <i class="fas fa-tachometer-alt"></i> Admin Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/clients">
+                                <i class="fas fa-users"></i> Client Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/leads">
+                                <i class="fas fa-user-plus"></i> Lead Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/lead-finder">
+                                <i class="fas fa-search"></i> Lead Finder
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/subscription/plans">
+                                <i class="fas fa-credit-card"></i> Subscription Plans
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/api-settings">
+                                <i class="fas fa-plug"></i> API Settings
+                            </a>
+                        </li>
+                        <li class="nav-item mt-3">
+                            <a class="nav-link" href="/customer">
+                                <i class="fas fa-user"></i> Customer View
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-warning" href="/logout">
+                                <i class="fas fa-sign-out-alt"></i> Logout
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-10 ml-sm-auto px-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <div>
+                        <h1 class="h2">
+                            <i class="fas fa-user-plus text-primary me-2"></i>Add New Client
+                        </h1>
+                        <p class="text-muted">Add a new client to the system</p>
+                    </div>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <a href="/clients" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Clients
+                        </a>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card form-card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-user-tie me-2"></i>Client Information
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="addClientForm">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Client Name *</label>
+                                                <input type="text" class="form-control" name="client_name" required>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Website URL</label>
+                                                <input type="url" class="form-control" name="website" placeholder="https://example.com">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Email *</label>
+                                                <input type="email" class="form-control" name="email" required>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Phone</label>
+                                                <input type="tel" class="form-control" name="phone">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Address</label>
+                                        <input type="text" class="form-control" name="address" placeholder="Street Address">
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label">City</label>
+                                                <input type="text" class="form-control" name="city">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label">State</label>
+                                                <input type="text" class="form-control" name="state">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label">ZIP Code</label>
+                                                <input type="text" class="form-control" name="zip_code">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Specialties/Services</label>
+                                        <textarea class="form-control" name="specialties" rows="3" placeholder="Describe the client's specialties and services..."></textarea>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Monthly Retainer ($)</label>
+                                                <input type="number" class="form-control" name="monthly_retainer" min="0" step="0.01" value="0">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Contract Start Date</label>
+                                                <input type="date" class="form-control" name="contract_start_date">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="is_active" checked>
+                                            <label class="form-check-label">Active Client</label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                        <button type="button" class="btn btn-secondary me-md-2" onclick="cancelAdd()">Cancel</button>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-save me-2"></i>Add Client
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- API Integration Section -->
+                                    <div class="mt-4 pt-4 border-top">
+                                        <h6 class="text-primary mb-3">
+                                            <i class="fas fa-plug me-2"></i>API Integration Setup
+                                        </h6>
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="card border-info">
+                                                    <div class="card-body text-center">
+                                                        <i class="fab fa-facebook text-primary fa-2x mb-2"></i>
+                                                        <h6>Facebook Page Access</h6>
+                                                        <p class="small text-muted">Request access to client's Facebook page</p>
+                                                        <button class="btn btn-outline-primary btn-sm" onclick="requestFacebookAccess()">
+                                                            <i class="fas fa-paper-plane me-1"></i>Send Request
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="card border-success">
+                                                    <div class="card-body text-center">
+                                                        <i class="fab fa-google text-success fa-2x mb-2"></i>
+                                                        <h6>Google My Business</h6>
+                                                        <p class="small text-muted">Connect to Google My Business</p>
+                                                        <button class="btn btn-outline-success btn-sm" onclick="requestGoogleBusinessAccess()">
+                                                            <i class="fas fa-paper-plane me-1"></i>Send Request
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="card border-warning">
+                                                    <div class="card-body text-center">
+                                                        <i class="fas fa-ad text-warning fa-2x mb-2"></i>
+                                                        <h6>Google Ads</h6>
+                                                        <p class="small text-muted">Connect to Google Ads account</p>
+                                                        <button class="btn btn-outline-warning btn-sm" onclick="requestGoogleAdsAccess()">
+                                                            <i class="fas fa-paper-plane me-1"></i>Send Request
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card form-card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>Quick Tips
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-unstyled">
+                                    <li class="mb-2">
+                                        <i class="fas fa-check text-success me-2"></i>
+                                        <strong>Required Fields:</strong> Clinic name and email
+                                    </li>
+                                    <li class="mb-2">
+                                        <i class="fas fa-globe text-info me-2"></i>
+                                        <strong>Website:</strong> Include full URL with https://
+                                    </li>
+                                    <li class="mb-2">
+                                        <i class="fas fa-dollar-sign text-warning me-2"></i>
+                                        <strong>Retainer:</strong> Set monthly marketing budget
+                                    </li>
+                                    <li class="mb-2">
+                                        <i class="fas fa-calendar text-primary me-2"></i>
+                                        <strong>Contract:</strong> Set start date for tracking
+                                    </li>
+                                </ul>
+                                
+                                <div class="alert alert-info mt-3">
+                                    <i class="fas fa-lightbulb me-2"></i>
+                                    <strong>Pro Tip:</strong> After adding the client, you can request Facebook page access and set up their marketing campaigns.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('addClientForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData.entries());
+            
+            // Here you would submit to your backend
+            alert('Client added successfully!');
+            
+            // Redirect to clients page
+            window.location.href = '/clients';
+        });
+        
+        function cancelAdd() {
+            if (confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
+                window.location.href = '/clients';
+            }
+        }
+        
+        // Facebook API Integration
+        function requestFacebookAccess() {
+            const email = document.querySelector('input[name="email"]').value;
+            const clientName = document.querySelector('input[name="client_name"]').value;
+            
+            if (!email || !clinicName) {
+                alert('Please fill in client email and clinic name first');
+                return;
+            }
+            
+            // Show Facebook access request modal
+            showFacebookAccessModal(email, clinicName);
+        }
+        
+        function showFacebookAccessModal(email, clinicName) {
+            const modalHtml = `
+                <div class="modal fade" id="facebookAccessModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header bg-primary text-white">
+                                <h5 class="modal-title">
+                                    <i class="fab fa-facebook me-2"></i>Facebook Page Access Request
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>Requesting access to ${clinicName}'s Facebook page</strong><br>
+                                    This will send an email to ${email} with instructions to grant access.
+                                </div>
+                                
+                                <form id="facebookAccessForm">
+                                    <div class="mb-3">
+                                        <label class="form-label">Facebook Page URL</label>
+                                        <input type="url" class="form-control" name="facebook_page_url" 
+                                               placeholder="https://facebook.com/yourclinic" required>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Access Method</label>
+                                        <select class="form-select" name="access_method" required>
+                                            <option value="">Select access method</option>
+                                            <option value="business_manager">Facebook Business Manager</option>
+                                            <option value="page_roles">Direct Page Roles</option>
+                                            <option value="marketing_api">Marketing API</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Custom Message (Optional)</label>
+                                        <textarea class="form-control" name="custom_message" rows="3" 
+                                                  placeholder="Add a personal message to the client..."></textarea>
+                                    </div>
+                                    
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" name="send_instructions" checked>
+                                        <label class="form-check-label">
+                                            Send detailed setup instructions via email
+                                        </label>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" onclick="sendFacebookAccessRequest()">
+                                    <i class="fas fa-paper-plane me-2"></i>Send Access Request
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove existing modal if any
+            const existingModal = document.getElementById('facebookAccessModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Add modal to body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('facebookAccessModal'));
+            modal.show();
+        }
+        
+        function sendFacebookAccessRequest() {
+            const form = document.getElementById('facebookAccessForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            // Add client info
+            data.client_email = document.querySelector('input[name="email"]').value;
+            data.client_name = document.querySelector('input[name="client_name"]').value;
+            
+            // Send request to backend
+            fetch('/api/facebook-access-request', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    alert('Facebook access request sent successfully!');
+                    bootstrap.Modal.getInstance(document.getElementById('facebookAccessModal')).hide();
+                } else {
+                    alert('Error sending request: ' + result.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error sending Facebook access request');
+            });
+        }
+        
+        // Google My Business API Integration
+        function requestGoogleBusinessAccess() {
+            const email = document.querySelector('input[name="email"]').value;
+            const clientName = document.querySelector('input[name="client_name"]').value;
+            
+            if (!email || !clinicName) {
+                alert('Please fill in client email and clinic name first');
+                return;
+            }
+            
+            showGoogleBusinessModal(email, clinicName);
+        }
+        
+        function showGoogleBusinessModal(email, clinicName) {
+            const modalHtml = `
+                <div class="modal fade" id="googleBusinessModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header bg-success text-white">
+                                <h5 class="modal-title">
+                                    <i class="fab fa-google me-2"></i>Google My Business Access Request
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-success">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>Requesting access to ${clinicName}'s Google My Business</strong><br>
+                                    This will send an email to ${email} with instructions to grant access.
+                                </div>
+                                
+                                <form id="googleBusinessForm">
+                                    <div class="mb-3">
+                                        <label class="form-label">Google My Business URL</label>
+                                        <input type="url" class="form-control" name="gmb_url" 
+                                               placeholder="https://business.google.com/yourclinic" required>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Access Level</label>
+                                        <select class="form-select" name="access_level" required>
+                                            <option value="">Select access level</option>
+                                            <option value="owner">Owner</option>
+                                            <option value="manager">Manager</option>
+                                            <option value="communicator">Communicator</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Custom Message (Optional)</label>
+                                        <textarea class="form-control" name="custom_message" rows="3" 
+                                                  placeholder="Add a personal message to the client..."></textarea>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-success" onclick="sendGoogleBusinessRequest()">
+                                    <i class="fas fa-paper-plane me-2"></i>Send Access Request
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove existing modal if any
+            const existingModal = document.getElementById('googleBusinessModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Add modal to body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('googleBusinessModal'));
+            modal.show();
+        }
+        
+        function sendGoogleBusinessRequest() {
+            const form = document.getElementById('googleBusinessForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            // Add client info
+            data.client_email = document.querySelector('input[name="email"]').value;
+            data.client_name = document.querySelector('input[name="client_name"]').value;
+            
+            // Send request to backend
+            fetch('/api/google-business-access-request', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    alert('Google My Business access request sent successfully!');
+                    bootstrap.Modal.getInstance(document.getElementById('googleBusinessModal')).hide();
+                } else {
+                    alert('Error sending request: ' + result.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error sending Google My Business access request');
+            });
+        }
+        
+        // Google Ads API Integration
+        function requestGoogleAdsAccess() {
+            const email = document.querySelector('input[name="email"]').value;
+            const clientName = document.querySelector('input[name="client_name"]').value;
+            
+            if (!email || !clinicName) {
+                alert('Please fill in client email and clinic name first');
+                return;
+            }
+            
+            showGoogleAdsModal(email, clinicName);
+        }
+        
+        function showGoogleAdsModal(email, clinicName) {
+            const modalHtml = `
+                <div class="modal fade" id="googleAdsModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header bg-warning text-dark">
+                                <h5 class="modal-title">
+                                    <i class="fas fa-ad me-2"></i>Google Ads Access Request
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>Requesting access to ${clinicName}'s Google Ads account</strong><br>
+                                    This will send an email to ${email} with instructions to grant access.
+                                </div>
+                                
+                                <form id="googleAdsForm">
+                                    <div class="mb-3">
+                                        <label class="form-label">Google Ads Customer ID</label>
+                                        <input type="text" class="form-control" name="customer_id" 
+                                               placeholder="123-456-7890" required>
+                                        <div class="form-text">Find this in your Google Ads account under Tools & Settings > Account > Account info</div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Access Level</label>
+                                        <select class="form-select" name="access_level" required>
+                                            <option value="">Select access level</option>
+                                            <option value="admin">Admin</option>
+                                            <option value="standard">Standard</option>
+                                            <option value="read_only">Read Only</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Custom Message (Optional)</label>
+                                        <textarea class="form-control" name="custom_message" rows="3" 
+                                                  placeholder="Add a personal message to the client..."></textarea>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-warning" onclick="sendGoogleAdsRequest()">
+                                    <i class="fas fa-paper-plane me-2"></i>Send Access Request
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove existing modal if any
+            const existingModal = document.getElementById('googleAdsModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Add modal to body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('googleAdsModal'));
+            modal.show();
+        }
+        
+        function sendGoogleAdsRequest() {
+            const form = document.getElementById('googleAdsForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            // Add client info
+            data.client_email = document.querySelector('input[name="email"]').value;
+            data.client_name = document.querySelector('input[name="client_name"]').value;
+            
+            // Send request to backend
+            fetch('/api/google-ads-access-request', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    alert('Google Ads access request sent successfully!');
+                    bootstrap.Modal.getInstance(document.getElementById('googleAdsModal')).hide();
+                } else {
+                    alert('Error sending request: ' + result.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error sending Google Ads access request');
+            });
+        }
+    </script>
+</body>
+</html>

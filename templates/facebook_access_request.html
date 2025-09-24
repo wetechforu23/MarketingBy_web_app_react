@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Page Access Request - WeTechForU AI Marketing Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            background: linear-gradient(180deg, #dc3545 0%, #fd7e14 100%);
+            min-height: 100vh;
+        }
+        .nav-link {
+            color: #ffffff;
+            transition: all 0.3s;
+        }
+        .nav-link:hover {
+            color: #f8f9fa;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .facebook-card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .facebook-card .card-header {
+            background: linear-gradient(45deg, #1877f2, #42a5f5);
+            color: white;
+            border-top-left-radius: 15px;
+            border-top-right-radius: 15px;
+        }
+        .access-method {
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+        .access-method:hover {
+            border-color: #1877f2;
+            box-shadow: 0 4px 15px rgba(24, 119, 242, 0.1);
+        }
+        .access-method.recommended {
+            border-color: #28a745;
+            background-color: rgba(40, 167, 69, 0.05);
+        }
+        .step-number {
+            background: #1877f2;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        .status-pending { background-color: #fff3cd; color: #856404; }
+        .status-approved { background-color: #d4edda; color: #155724; }
+        .status-denied { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Admin Sidebar -->
+            <nav class="col-md-2 d-none d-md-block sidebar">
+                <div class="sidebar-sticky p-3">
+                    <h4 class="text-white mb-4">
+                        <i class="fas fa-shield-alt"></i> Admin Portal
+                    </h4>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin">
+                                <i class="fas fa-tachometer-alt"></i> Admin Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/clients">
+                                <i class="fas fa-users"></i> Client Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/leads">
+                                <i class="fas fa-user-plus"></i> Lead Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/lead-finder">
+                                <i class="fas fa-search"></i> Lead Finder
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/subscription/plans">
+                                <i class="fas fa-credit-card"></i> Subscription Plans
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/api-settings">
+                                <i class="fas fa-plug"></i> API Settings
+                            </a>
+                        </li>
+                        <li class="nav-item mt-3">
+                            <a class="nav-link" href="/customer">
+                                <i class="fas fa-user"></i> Customer View
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-warning" href="/logout">
+                                <i class="fas fa-sign-out-alt"></i> Logout
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-10 ml-sm-auto px-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <div>
+                        <h1 class="h2">
+                            <i class="fab fa-facebook text-primary me-2"></i>Facebook Page Access Request
+                        </h1>
+                        <p class="text-muted">Request access to client's Facebook page for posting and management</p>
+                    </div>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <a href="/admin/client/{{ client_id }}" class="btn btn-outline-secondary me-2">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Client
+                        </a>
+                        <button class="btn btn-primary" onclick="showRequestModal()">
+                            <i class="fas fa-plus me-2"></i>New Access Request
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Client Info -->
+                <div class="card facebook-card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-user-tie me-2"></i>Client: WeTechForU Marketing Solutions
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Website:</strong> <a href="https://wetechforu.com" target="_blank">https://wetechforu.com</a></p>
+                                <p><strong>Email:</strong> info@wetechforu.com</p>
+                                <p><strong>Phone:</strong> (555) 123-4567</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Current Status:</strong> <span class="status-badge status-pending">Access Pending</span></p>
+                                <p><strong>Request Date:</strong> {{ request_date or 'Not requested yet' }}</p>
+                                <p><strong>Last Updated:</strong> {{ last_updated or 'N/A' }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Access Methods -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="access-method recommended">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="step-number">1</div>
+                                <h5 class="mb-0">Facebook Business Manager (Recommended)</h5>
+                                <span class="badge bg-success ms-auto">Recommended</span>
+                            </div>
+                            <p class="text-muted">Professional way to manage client's Facebook page with full access to posting, analytics, and advertising.</p>
+                            
+                            <h6>Steps for Client:</h6>
+                            <ol>
+                                <li>Go to <a href="https://business.facebook.com" target="_blank">business.facebook.com</a></li>
+                                <li>Click "Business Settings" → "Partners"</li>
+                                <li>Click "Add" → "Give a partner access to your assets"</li>
+                                <li>Enter Partner Business ID: <code>123456789012345</code></li>
+                                <li>Select "Pages" and choose their page</li>
+                                <li>Assign "Admin" or "Editor" role</li>
+                                <li>Click "Save Changes"</li>
+                            </ol>
+                            
+                            <div class="mt-3">
+                                <button class="btn btn-success" onclick="sendBusinessManagerInstructions()">
+                                    <i class="fas fa-envelope me-2"></i>Send Instructions to Client
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="access-method">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="step-number">2</div>
+                                <h5 class="mb-0">Direct Page Admin Access</h5>
+                            </div>
+                            <p class="text-muted">Client adds you directly as a page admin or editor for immediate access.</p>
+                            
+                            <h6>Steps for Client:</h6>
+                            <ol>
+                                <li>Go to their Facebook page</li>
+                                <li>Click "Settings" → "Page Roles"</li>
+                                <li>Click "Add Person to This Page"</li>
+                                <li>Enter your email: <code>admin@wetechforu.com</code></li>
+                                <li>Select "Admin" or "Editor" role</li>
+                                <li>Click "Add" and confirm</li>
+                            </ol>
+                            
+                            <div class="mt-3">
+                                <button class="btn btn-primary" onclick="sendPageAdminInstructions()">
+                                    <i class="fas fa-envelope me-2"></i>Send Instructions to Client
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Access Method -->
+                <div class="row mt-4">
+                    <div class="col-md-12">
+                        <div class="access-method">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="step-number">3</div>
+                                <h5 class="mb-0">Facebook Marketing API Access</h5>
+                                <span class="badge bg-info ms-auto">Advanced</span>
+                            </div>
+                            <p class="text-muted">For automated posting and advanced analytics through our platform.</p>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>OAuth Flow Setup:</h6>
+                                    <ol>
+                                        <li>Client authorizes our app</li>
+                                        <li>We get access token</li>
+                                        <li>Store token securely</li>
+                                        <li>Use for automated posting</li>
+                                    </ol>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Required Permissions:</h6>
+                                    <ul>
+                                        <li><code>pages_manage_posts</code> - Post content</li>
+                                        <li><code>pages_read_engagement</code> - Read insights</li>
+                                        <li><code>pages_show_list</code> - List pages</li>
+                                        <li><code>ads_management</code> - Manage ads</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3">
+                                <button class="btn btn-info" onclick="initiateOAuthFlow()">
+                                    <i class="fab fa-facebook me-2"></i>Start OAuth Authorization
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Access History -->
+                <div class="card facebook-card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-history me-2"></i>Access Request History
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Method</th>
+                                        <th>Status</th>
+                                        <th>Client Response</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>2024-09-22</td>
+                                        <td>Business Manager</td>
+                                        <td><span class="status-badge status-pending">Pending</span></td>
+                                        <td>Instructions sent, awaiting response</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary" onclick="resendInstructions()">
+                                                <i class="fas fa-redo"></i> Resend
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>2024-09-20</td>
+                                        <td>Page Admin</td>
+                                        <td><span class="status-badge status-denied">Denied</span></td>
+                                        <td>Client prefers Business Manager method</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-success" onclick="retryRequest()">
+                                                <i class="fas fa-retry"></i> Retry
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Request Modal -->
+    <div class="modal fade" id="requestModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">New Facebook Access Request</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="accessRequestForm">
+                        <div class="mb-3">
+                            <label class="form-label">Access Method *</label>
+                            <select class="form-select" name="access_method" required>
+                                <option value="">Select Method</option>
+                                <option value="business_manager">Facebook Business Manager</option>
+                                <option value="page_admin">Direct Page Admin</option>
+                                <option value="api_oauth">Marketing API OAuth</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Client Email *</label>
+                            <input type="email" class="form-control" name="client_email" value="info@wetechforu.com" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Facebook Page URL</label>
+                            <input type="url" class="form-control" name="page_url" placeholder="https://facebook.com/yourpage">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Request Message</label>
+                            <textarea class="form-control" name="message" rows="4" placeholder="Custom message to client..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="send_instructions" checked>
+                                <label class="form-check-label">Send detailed instructions to client</label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="submitAccessRequest()">Send Request</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function showRequestModal() {
+            new bootstrap.Modal(document.getElementById('requestModal')).show();
+        }
+
+        function sendBusinessManagerInstructions() {
+            const instructions = `
+Dear WeTechForU Team,
+
+To grant us access to your Facebook page through Business Manager, please follow these steps:
+
+1. Go to https://business.facebook.com
+2. Click "Business Settings" → "Partners"
+3. Click "Add" → "Give a partner access to your assets"
+4. Enter our Partner Business ID: 123456789012345
+5. Select "Pages" and choose your page
+6. Assign "Admin" or "Editor" role
+7. Click "Save Changes"
+
+This will allow us to:
+- Post content on your behalf
+- Manage your page settings
+- Access analytics and insights
+- Run advertising campaigns
+
+If you have any questions, please don't hesitate to contact us.
+
+Best regards,
+WeTechForU AI Marketing Team
+            `;
+            
+            // Here you would send this via email
+            alert('Business Manager instructions sent to client!');
+        }
+
+        function sendPageAdminInstructions() {
+            const instructions = `
+Dear WeTechForU Team,
+
+To add us as a page admin, please follow these steps:
+
+1. Go to your Facebook page
+2. Click "Settings" → "Page Roles"
+3. Click "Add Person to This Page"
+4. Enter our email: admin@wetechforu.com
+5. Select "Admin" or "Editor" role
+6. Click "Add" and confirm
+
+This will give us immediate access to manage your page.
+
+Best regards,
+WeTechForU AI Marketing Team
+            `;
+            
+            alert('Page admin instructions sent to client!');
+        }
+
+        function initiateOAuthFlow() {
+            // This would redirect to Facebook OAuth
+            const oauthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=${encodeURIComponent(window.location.origin + '/admin/facebook/callback')}&scope=pages_manage_posts,pages_read_engagement,pages_show_list,ads_management&response_type=code&state=client_${client_id}`;
+            
+            if (confirm('This will redirect to Facebook for authorization. Continue?')) {
+                window.open(oauthUrl, '_blank');
+            }
+        }
+
+        function submitAccessRequest() {
+            const form = document.getElementById('accessRequestForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            // Here you would submit to your backend
+            alert('Access request sent to client!');
+            bootstrap.Modal.getInstance(document.getElementById('requestModal')).hide();
+            form.reset();
+        }
+
+        function resendInstructions() {
+            alert('Instructions resent to client!');
+        }
+
+        function retryRequest() {
+            alert('Retrying access request...');
+        }
+    </script>
+</body>
+</html>
+

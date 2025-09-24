@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Keyword Suggestions - WeTechForU AI Marketing</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .keyword-card {
+            transition: all 0.3s ease;
+            border: 1px solid #e9ecef;
+        }
+        .keyword-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .keyword-tag {
+            display: inline-block;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 15px;
+            padding: 4px 12px;
+            margin: 2px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .keyword-tag:hover {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        .keyword-tag.selected {
+            background: #28a745;
+            color: white;
+            border-color: #28a745;
+        }
+        .address-input {
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .address-input:hover {
+            border-color: #007bff;
+            background: #e3f2fd;
+        }
+        .industry-card {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .industry-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        .industry-card.selected {
+            border-color: #007bff;
+            background: #e3f2fd;
+        }
+        .results-section {
+            display: none;
+        }
+        .results-section.show {
+            display: block;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .keyword-card:hover .copy-btn {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-lightbulb text-warning me-2"></i>
+                        Enhanced Keyword Suggestions
+                    </h1>
+                    <a href="/admin" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Admin
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 1: Business Information -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-building me-2"></i>Step 1: Business Information
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="businessType" class="form-label">Business Type</label>
+                                <input type="text" class="form-control" id="businessType" 
+                                       placeholder="e.g., Family Medicine Clinic, Personal Injury Law Firm">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="businessName" class="form-label">Business Name (Optional)</label>
+                                <input type="text" class="form-control" id="businessName" 
+                                       placeholder="e.g., ABC Family Medicine">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Address Input -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-map-marker-alt me-2"></i>Step 2: Location & Address
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <label for="fullAddress" class="form-label">Full Address</label>
+                                <input type="text" class="form-control" id="fullAddress" 
+                                       placeholder="e.g., 123 Main Street, New York, NY 10001">
+                                <div class="form-text">Enter the complete address for location-based keyword suggestions</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="city" class="form-label">City (Alternative)</label>
+                                <input type="text" class="form-control" id="city" 
+                                       placeholder="e.g., New York">
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <button class="btn btn-success" onclick="parseAddress()">
+                                    <i class="fas fa-search me-2"></i>Parse Address
+                                </button>
+                                <button class="btn btn-outline-primary" onclick="getRecommendations()">
+                                    <i class="fas fa-magic me-2"></i>Get Smart Recommendations
+                                </button>
+                            </div>
+                        </div>
+                        <div id="parsedAddress" class="mt-3" style="display: none;">
+                            <div class="alert alert-info">
+                                <h6>Parsed Address:</h6>
+                                <div id="addressDetails"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Industry Selection -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-industry me-2"></i>Step 3: Select Industry Category
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="industryCategories" class="row">
+                            <!-- Industry categories will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Subcategory Selection -->
+        <div class="row mb-4" id="subcategorySection" style="display: none;">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list me-2"></i>Step 4: Select Subcategory
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="subcategories" class="row">
+                            <!-- Subcategories will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 5: Keyword Suggestions -->
+        <div class="row mb-4" id="keywordSection" style="display: none;">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-key me-2"></i>Step 5: Keyword Suggestions
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Base Keywords</h6>
+                                <div id="baseKeywords" class="mb-3">
+                                    <!-- Base keywords will be loaded here -->
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Location-Based Keywords</h6>
+                                <div id="localKeywords" class="mb-3">
+                                    <!-- Local keywords will be loaded here -->
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <h6>Selected Keywords</h6>
+                                <div id="selectedKeywords" class="mb-3">
+                                    <p class="text-muted">Click on keywords above to select them</p>
+                                </div>
+                                <button class="btn btn-primary" onclick="exportKeywords()">
+                                    <i class="fas fa-download me-2"></i>Export Selected Keywords
+                                </button>
+                                <button class="btn btn-success" onclick="useForCampaign()">
+                                    <i class="fas fa-rocket me-2"></i>Use for Campaign
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search Keywords -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-search me-2"></i>Search Keywords
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <input type="text" class="form-control" id="searchQuery" 
+                                       placeholder="Search for specific keywords...">
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-secondary" onclick="searchKeywords()">
+                                    <i class="fas fa-search me-2"></i>Search
+                                </button>
+                            </div>
+                        </div>
+                        <div id="searchResults" class="mt-3">
+                            <!-- Search results will be displayed here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let selectedKeywords = new Set();
+        let currentCategory = null;
+        let currentSubcategory = null;
+        let currentLocation = null;
+
+        // Load industry categories on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadIndustryCategories();
+        });
+
+        async function loadIndustryCategories() {
+            try {
+                const response = await fetch('/api/keywords/industries');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayIndustryCategories(data.categories);
+                } else {
+                    showAlert('Error loading industry categories: ' + data.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Error loading industry categories: ' + error.message, 'danger');
+            }
+        }
+
+        function displayIndustryCategories(categories) {
+            const container = document.getElementById('industryCategories');
+            container.innerHTML = '';
+            
+            categories.forEach(category => {
+                const card = document.createElement('div');
+                card.className = 'col-md-4 mb-3';
+                card.innerHTML = `
+                    <div class="card industry-card h-100" onclick="selectCategory('${category.name}')">
+                        <div class="card-body text-center">
+                            <i class="${category.icon} fa-3x text-primary mb-3"></i>
+                            <h6 class="card-title">${category.name}</h6>
+                            <p class="card-text small text-muted">${category.description}</p>
+                            <small class="text-muted">${category.subcategory_count} subcategories</small>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function selectCategory(categoryName) {
+            currentCategory = categoryName;
+            
+            // Update UI
+            document.querySelectorAll('.industry-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+            
+            // Load subcategories
+            try {
+                const response = await fetch(`/api/keywords/subcategories/${encodeURIComponent(categoryName)}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displaySubcategories(data.subcategories);
+                    document.getElementById('subcategorySection').style.display = 'block';
+                } else {
+                    showAlert('Error loading subcategories: ' + data.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Error loading subcategories: ' + error.message, 'danger');
+            }
+        }
+
+        function displaySubcategories(subcategories) {
+            const container = document.getElementById('subcategories');
+            container.innerHTML = '';
+            
+            subcategories.forEach(subcategory => {
+                const card = document.createElement('div');
+                card.className = 'col-md-6 mb-3';
+                card.innerHTML = `
+                    <div class="card keyword-card" onclick="selectSubcategory('${subcategory.name}')">
+                        <div class="card-body">
+                            <h6 class="card-title">${subcategory.name}</h6>
+                            <p class="card-text small text-muted">
+                                ${subcategory.keyword_count} base keywords, 
+                                ${subcategory.local_keyword_count} local keywords
+                            </p>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function selectSubcategory(subcategoryName) {
+            currentSubcategory = subcategoryName;
+            
+            // Update UI
+            document.querySelectorAll('.keyword-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+            
+            // Get location
+            const fullAddress = document.getElementById('fullAddress').value;
+            const city = document.getElementById('city').value;
+            currentLocation = fullAddress || city;
+            
+            // Load keyword suggestions
+            try {
+                const response = await fetch('/api/keywords/suggestions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        category: currentCategory,
+                        subcategory: currentSubcategory,
+                        location: currentLocation,
+                        include_local: true
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayKeywordSuggestions(data.suggestions);
+                    document.getElementById('keywordSection').style.display = 'block';
+                } else {
+                    showAlert('Error loading keyword suggestions: ' + data.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Error loading keyword suggestions: ' + error.message, 'danger');
+            }
+        }
+
+        function displayKeywordSuggestions(suggestions) {
+            // Display base keywords
+            const baseContainer = document.getElementById('baseKeywords');
+            baseContainer.innerHTML = '';
+            suggestions.base_keywords.forEach(keyword => {
+                const tag = createKeywordTag(keyword, 'base');
+                baseContainer.appendChild(tag);
+            });
+            
+            // Display local keywords
+            const localContainer = document.getElementById('localKeywords');
+            localContainer.innerHTML = '';
+            suggestions.local_keywords.forEach(keyword => {
+                const tag = createKeywordTag(keyword, 'local');
+                localContainer.appendChild(tag);
+            });
+        }
+
+        function createKeywordTag(keyword, type) {
+            const tag = document.createElement('span');
+            tag.className = 'keyword-tag';
+            tag.textContent = keyword;
+            tag.onclick = () => toggleKeyword(keyword, tag);
+            return tag;
+        }
+
+        function toggleKeyword(keyword, element) {
+            if (selectedKeywords.has(keyword)) {
+                selectedKeywords.delete(keyword);
+                element.classList.remove('selected');
+            } else {
+                selectedKeywords.add(keyword);
+                element.classList.add('selected');
+            }
+            updateSelectedKeywordsDisplay();
+        }
+
+        function updateSelectedKeywordsDisplay() {
+            const container = document.getElementById('selectedKeywords');
+            if (selectedKeywords.size === 0) {
+                container.innerHTML = '<p class="text-muted">Click on keywords above to select them</p>';
+            } else {
+                container.innerHTML = '';
+                selectedKeywords.forEach(keyword => {
+                    const tag = document.createElement('span');
+                    tag.className = 'keyword-tag selected';
+                    tag.textContent = keyword;
+                    tag.onclick = () => toggleKeyword(keyword, tag);
+                    container.appendChild(tag);
+                });
+            }
+        }
+
+        async function parseAddress() {
+            const address = document.getElementById('fullAddress').value;
+            if (!address) {
+                showAlert('Please enter an address to parse', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/keywords/parse-address', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ address: address })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayParsedAddress(data.parsed_address);
+                } else {
+                    showAlert('Error parsing address: ' + data.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Error parsing address: ' + error.message, 'danger');
+            }
+        }
+
+        function displayParsedAddress(parsed) {
+            const container = document.getElementById('addressDetails');
+            container.innerHTML = `
+                <div class="row">
+                    <div class="col-md-3"><strong>Street:</strong> ${parsed.street || 'N/A'}</div>
+                    <div class="col-md-3"><strong>City:</strong> ${parsed.city || 'N/A'}</div>
+                    <div class="col-md-3"><strong>State:</strong> ${parsed.state || 'N/A'}</div>
+                    <div class="col-md-3"><strong>ZIP:</strong> ${parsed.zip_code || 'N/A'}</div>
+                </div>
+            `;
+            document.getElementById('parsedAddress').style.display = 'block';
+        }
+
+        async function getRecommendations() {
+            const businessType = document.getElementById('businessType').value;
+            const location = document.getElementById('fullAddress').value || document.getElementById('city').value;
+            
+            if (!businessType) {
+                showAlert('Please enter a business type', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/keywords/recommendations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        business_type: businessType,
+                        location: location
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayRecommendations(data.recommendations);
+                } else {
+                    showAlert('Error getting recommendations: ' + data.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Error getting recommendations: ' + error.message, 'danger');
+            }
+        }
+
+        function displayRecommendations(recommendations) {
+            showAlert(`Smart recommendations found! Matched category: ${recommendations.matched_category}`, 'success');
+            
+            // Auto-select the matched category
+            currentCategory = recommendations.matched_category;
+            selectCategory(currentCategory);
+        }
+
+        async function searchKeywords() {
+            const query = document.getElementById('searchQuery').value;
+            if (!query) {
+                showAlert('Please enter a search query', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/keywords/search?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displaySearchResults(data.results);
+                } else {
+                    showAlert('Error searching keywords: ' + data.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Error searching keywords: ' + error.message, 'danger');
+            }
+        }
+
+        function displaySearchResults(results) {
+            const container = document.getElementById('searchResults');
+            if (results.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">No keywords found matching your search.</div>';
+                return;
+            }
+            
+            let html = '<div class="alert alert-success">Search Results:</div>';
+            results.forEach(result => {
+                html += `
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6>${result.category} - ${result.subcategory}</h6>
+                            <p class="mb-2"><strong>Matching Keywords:</strong></p>
+                            ${result.matching_keywords.map(kw => `<span class="keyword-tag">${kw}</span>`).join('')}
+                            ${result.matching_local_keywords.length > 0 ? `
+                                <p class="mb-2 mt-2"><strong>Matching Local Keywords:</strong></p>
+                                ${result.matching_local_keywords.map(kw => `<span class="keyword-tag">${kw}</span>`).join('')}
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function exportKeywords() {
+            if (selectedKeywords.size === 0) {
+                showAlert('Please select some keywords first', 'warning');
+                return;
+            }
+            
+            const keywordsArray = Array.from(selectedKeywords);
+            const data = {
+                category: currentCategory,
+                subcategory: currentSubcategory,
+                location: currentLocation,
+                keywords: keywordsArray,
+                export_date: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `keywords_${currentCategory}_${currentSubcategory}_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showAlert('Keywords exported successfully!', 'success');
+        }
+
+        function useForCampaign() {
+            if (selectedKeywords.size === 0) {
+                showAlert('Please select some keywords first', 'warning');
+                return;
+            }
+            
+            const keywordsArray = Array.from(selectedKeywords);
+            const campaignData = {
+                category: currentCategory,
+                subcategory: currentSubcategory,
+                location: currentLocation,
+                keywords: keywordsArray,
+                business_type: document.getElementById('businessType').value,
+                business_name: document.getElementById('businessName').value
+            };
+            
+            // Store in sessionStorage for use in campaign creation
+            sessionStorage.setItem('selectedKeywords', JSON.stringify(campaignData));
+            
+            showAlert('Keywords saved! You can now use them in campaign creation.', 'success');
+        }
+
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            // Insert at the top of the container
+            const container = document.querySelector('.container-fluid');
+            container.insertBefore(alertDiv, container.firstChild);
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

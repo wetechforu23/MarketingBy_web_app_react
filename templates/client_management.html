@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client Management - {{ client.client_name if client else 'Client' }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            background: linear-gradient(180deg, #dc3545 0%, #fd7e14 100%);
+            min-height: 100vh;
+        }
+        .nav-link {
+            color: #ffffff;
+            transition: all 0.3s;
+        }
+        .nav-link:hover {
+            color: #f8f9fa;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .client-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+        }
+        .metric-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            box-shadow: 0 4px 15px rgba(240, 147, 251, 0.2);
+        }
+        .action-card {
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+        .action-card:hover {
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Admin Sidebar -->
+            <nav class="col-md-2 d-none d-md-block sidebar">
+                <div class="sidebar-sticky p-3">
+                    <h4 class="text-white mb-4">
+                        <i class="fas fa-shield-alt"></i> Admin Portal
+                    </h4>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin">
+                                <i class="fas fa-tachometer-alt"></i> Admin Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/clients">
+                                <i class="fas fa-users"></i> Client Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/leads">
+                                <i class="fas fa-user-plus"></i> Lead Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/lead-finder">
+                                <i class="fas fa-search"></i> Lead Finder
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/subscription/plans">
+                                <i class="fas fa-credit-card"></i> Subscription Plans
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/api-settings">
+                                <i class="fas fa-plug"></i> API Settings
+                            </a>
+                        </li>
+                        <li class="nav-item mt-3">
+                            <a class="nav-link" href="/customer">
+                                <i class="fas fa-user"></i> Customer View
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-warning" href="/logout">
+                                <i class="fas fa-sign-out-alt"></i> Logout
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-10 ml-sm-auto px-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <div>
+                        <h1 class="h2">
+                            <i class="fas fa-crown text-warning me-2"></i>
+                            {% if client %}
+                                Super Admin: {{ client.client_name }}
+                            {% else %}
+                                Client Management
+                            {% endif %}
+                        </h1>
+                        <p class="text-muted">
+                            {% if client %}
+                                <strong>Admin Control Panel</strong> - Create posts, manage campaigns, and control all marketing activities for {{ client.client_name }}
+                            {% else %}
+                                Select a client to manage
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <a href="/clients" class="btn btn-outline-primary me-2">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Clients
+                        </a>
+                        <a href="/admin" class="btn btn-outline-secondary me-2">
+                            <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                        </a>
+                        <a href="/admin/client/{{ client.id }}/facebook-access" class="btn btn-info">
+                            <i class="fab fa-facebook me-2"></i>Facebook Access
+                        </a>
+                        <a href="/logout" class="btn btn-outline-danger">
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout
+                        </a>
+                    </div>
+                </div>
+
+                {% if client %}
+                <!-- Google Ads Authorization Panel -->
+                <div class="card border-info mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="fab fa-google me-2"></i>Google Ads Authorization
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <p class="mb-2">
+                                    <strong>Client Google Ads Access:</strong> 
+                                    <span id="google-ads-status" class="badge bg-secondary">Checking...</span>
+                                </p>
+                                <p class="text-muted small mb-0">
+                                    Authorize access to manage {{ client.client_name }}'s Google Ads account. 
+                                    This allows you to create campaigns, manage keywords, and track performance.
+                                </p>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <button id="google-ads-auth-btn" class="btn btn-outline-primary" onclick="authorizeGoogleAds({{ client.id }})" disabled>
+                                    <i class="fab fa-google me-2"></i>Authorize Google Ads
+                                </button>
+                                <button id="google-ads-revoke-btn" class="btn btn-outline-danger ms-2" onclick="revokeGoogleAds({{ client.id }})" style="display: none;">
+                                    <i class="fas fa-ban me-2"></i>Revoke Access
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Client Information -->
+                <div class="card client-card mb-4">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h3 class="mb-1">{{ client.client_name }}</h3>
+                                <p class="mb-1">
+                                    <i class="fas fa-globe me-2"></i>{{ client.website }}
+                                </p>
+                                <p class="mb-1">
+                                    <i class="fas fa-envelope me-2"></i>{{ client.email }}
+                                </p>
+                                <p class="mb-0">
+                                    <i class="fas fa-phone me-2"></i>{{ client.phone }}
+                                </p>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <div class="mb-2">
+                                    <span class="badge bg-light text-dark fs-6">
+                                        Monthly: ${{ "{:,.2f}".format(client.monthly_retainer) if client.monthly_retainer else '0.00' }}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span class="badge bg-success fs-6">
+                                        {% if client.is_active %}Active{% else %}Inactive{% endif %}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Client API Integration Status -->
+                <div class="card border-success mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-plug me-2"></i>{{ client.client_name }} - API Integration Status
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="text-center p-3 border rounded">
+                                    <i class="fab fa-google fa-2x text-danger mb-2"></i>
+                                    <h6>Google My Business</h6>
+                                    <span class="badge bg-warning">Setup Required</span>
+                                    <p class="small text-muted mt-2">FREE - Local SEO boost</p>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="setupGoogleMyBusiness({{ client.id }})">
+                                        Setup
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center p-3 border rounded">
+                                    <i class="fab fa-facebook fa-2x text-primary mb-2"></i>
+                                    <h6>Facebook Business</h6>
+                                    <span class="badge bg-warning">Setup Required</span>
+                                    <p class="small text-muted mt-2">FREE - Social media</p>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="setupFacebookBusiness({{ client.id }})">
+                                        Setup
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center p-3 border rounded">
+                                    <i class="fas fa-envelope fa-2x text-success mb-2"></i>
+                                    <h6>Email Marketing</h6>
+                                    <span class="badge bg-success">Working</span>
+                                    <p class="small text-muted mt-2">Professional reports</p>
+                                    <button class="btn btn-sm btn-outline-success" disabled>
+                                        Active
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center p-3 border rounded">
+                                    <i class="fab fa-google fa-2x text-info mb-2"></i>
+                                    <h6>Google Ads</h6>
+                                    <span id="google-ads-integration-status" class="badge bg-warning">Setup Required</span>
+                                    <p class="small text-muted mt-2">Paid advertising</p>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="authorizeGoogleAds({{ client.id }})">
+                                        Authorize
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center mt-4">
+                            <button class="btn btn-success btn-lg" onclick="setupAllAPIs({{ client.id }})">
+                                <i class="fas fa-rocket me-2"></i>Setup All APIs for {{ client.client_name }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin Content Creation Panel -->
+                <div class="card border-warning mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">
+                            <i class="fas fa-crown me-2"></i>Admin Content Creation Panel
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <div class="d-grid">
+                                    <button class="btn btn-primary btn-lg" onclick="createFacebookPost({{ client.id }})">
+                                        <i class="fab fa-facebook me-2"></i>Create Facebook Post
+                                    </button>
+                                </div>
+                                <small class="text-muted">Create and schedule Facebook content</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="d-grid">
+                                    <button class="btn btn-success btn-lg" onclick="createGoogleAd({{ client.id }})">
+                                        <i class="fab fa-google me-2"></i>Create Google Ad
+                                    </button>
+                                </div>
+                                <small class="text-muted">Set up Google Ads campaigns</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="d-grid">
+                                    <button class="btn btn-info btn-lg" onclick="createEmailCampaign({{ client.id }})">
+                                        <i class="fas fa-envelope me-2"></i>Create Email Campaign
+                                    </button>
+                                </div>
+                                <small class="text-muted">Design email marketing campaigns</small>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <div class="d-grid">
+                                    <button class="btn btn-warning btn-lg" onclick="generateSEOContent({{ client.id }})">
+                                        <i class="fas fa-chart-line me-2"></i>Generate SEO Content
+                                    </button>
+                                </div>
+                                <small class="text-muted">AI-powered SEO content creation</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="d-grid">
+                                    <button class="btn btn-secondary btn-lg" onclick="requestClientApproval({{ client.id }})">
+                                        <i class="fas fa-check-circle me-2"></i>Send for Approval
+                                    </button>
+                                </div>
+                                <small class="text-muted">Send content to client for approval</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="d-grid">
+                                    <button class="btn btn-dark btn-lg" onclick="scheduleContent({{ client.id }})">
+                                        <i class="fas fa-calendar me-2"></i>Schedule Content
+                                    </button>
+                                </div>
+                                <small class="text-muted">Schedule posts for optimal timing</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Content Approval Status -->
+                <div class="card border-info mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-check-circle me-2"></i>{{ client.client_name }} - Content Approval Status
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="text-center p-3 border rounded">
+                                    <i class="fas fa-clock fa-2x text-warning mb-2"></i>
+                                    <h6>Pending Approval</h6>
+                                    <span class="badge bg-warning">{{ content_approvals|selectattr('status', 'equalto', 'pending')|list|length or 0 }}</span>
+                                    <p class="small text-muted mt-2">Awaiting client approval</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center p-3 border rounded">
+                                    <i class="fas fa-check fa-2x text-success mb-2"></i>
+                                    <h6>Approved</h6>
+                                    <span class="badge bg-success">{{ content_approvals|selectattr('status', 'equalto', 'approved')|list|length or 0 }}</span>
+                                    <p class="small text-muted mt-2">Client approved content</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center p-3 border rounded">
+                                    <i class="fas fa-times fa-2x text-danger mb-2"></i>
+                                    <h6>Rejected</h6>
+                                    <span class="badge bg-danger">{{ content_approvals|selectattr('status', 'equalto', 'rejected')|list|length or 0 }}</span>
+                                    <p class="small text-muted mt-2">Client rejected content</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center p-3 border rounded">
+                                    <i class="fas fa-paper-plane fa-2x text-primary mb-2"></i>
+                                    <h6>Published</h6>
+                                    <span class="badge bg-primary">{{ content_approvals|selectattr('status', 'equalto', 'published')|list|length or 0 }}</span>
+                                    <p class="small text-muted mt-2">Successfully published</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <h6>Recent Content Submissions:</h6>
+                            {% if content_approvals %}
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Content Type</th>
+                                            <th>Title</th>
+                                            <th>Status</th>
+                                            <th>Created</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for approval in content_approvals[:5] %}
+                                        <tr>
+                                            <td>
+                                                {% if approval.content_type == 'facebook_post' %}
+                                                    <i class="fab fa-facebook text-primary"></i> Facebook
+                                                {% elif approval.content_type == 'google_ad' %}
+                                                    <i class="fab fa-google text-success"></i> Google Ad
+                                                {% elif approval.content_type == 'email' %}
+                                                    <i class="fas fa-envelope text-info"></i> Email
+                                                {% else %}
+                                                    <i class="fas fa-file text-secondary"></i> {{ approval.content_type }}
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ approval.content_title[:30] }}{% if approval.content_title|length > 30 %}...{% endif %}</td>
+                                            <td>
+                                                <span class="badge 
+                                                    {% if approval.status == 'pending' %}bg-warning
+                                                    {% elif approval.status == 'approved' %}bg-success
+                                                    {% elif approval.status == 'rejected' %}bg-danger
+                                                    {% elif approval.status == 'published' %}bg-primary
+                                                    {% else %}bg-secondary{% endif %}">
+                                                    {{ approval.status.title() }}
+                                                </span>
+                                            </td>
+                                            <td>{{ approval.created_at.strftime('%m/%d %H:%M') }}</td>
+                                            <td>
+                                                <a href="/customer/content-approval" class="btn btn-sm btn-outline-primary" target="_blank">
+                                                    <i class="fas fa-eye"></i> View
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="text-center py-3">
+                                <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
+                                <p class="text-muted">No content submissions yet</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="text-center mt-4">
+                            <a href="/customer/content-approval" class="btn btn-info btn-lg" target="_blank">
+                                <i class="fas fa-external-link-alt me-2"></i>View Client Approval Portal
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="row mb-4">
+                    <div class="col-md-3 mb-3">
+                        <div class="card action-card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-search fa-2x text-primary mb-3"></i>
+                                <h5>SEO Audit</h5>
+                                <p class="text-muted">Run comprehensive SEO analysis</p>
+                                <button class="btn btn-primary btn-sm">Run Audit</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card action-card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-key fa-2x text-success mb-3"></i>
+                                <h5>Keyword Research</h5>
+                                <p class="text-muted">Find target keywords</p>
+                                <button class="btn btn-success btn-sm">Research Keywords</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card action-card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-bullhorn fa-2x text-info mb-3"></i>
+                                <h5>Create Campaign</h5>
+                                <p class="text-muted">Launch marketing campaign</p>
+                                <button class="btn btn-info btn-sm">Create Campaign</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card action-card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-edit fa-2x text-warning mb-3"></i>
+                                <h5>Create Content</h5>
+                                <p class="text-muted">Generate marketing content</p>
+                                <button class="btn btn-warning btn-sm">Create Content</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Client Metrics -->
+                <div class="row mb-4">
+                    <div class="col-md-3 mb-3">
+                        <div class="card metric-card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-chart-line fa-2x mb-2"></i>
+                                <h4>{{ seo_audits|length }}</h4>
+                                <p class="mb-0">SEO Audits</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card metric-card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-bullhorn fa-2x mb-2"></i>
+                                <h4>{{ campaigns|length }}</h4>
+                                <p class="mb-0">Active Campaigns</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card metric-card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-user-plus fa-2x mb-2"></i>
+                                <h4>{{ leads|length }}</h4>
+                                <p class="mb-0">Generated Leads</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card metric-card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-check-circle fa-2x mb-2"></i>
+                                <h4>{{ content_approvals|length }}</h4>
+                                <p class="mb-0">Content Items</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs for different sections -->
+                <ul class="nav nav-tabs" id="clientTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="seo-tab" data-bs-toggle="tab" data-bs-target="#seo" type="button" role="tab">
+                            <i class="fas fa-search me-2"></i>SEO & Keywords
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="campaigns-tab" data-bs-toggle="tab" data-bs-target="#campaigns" type="button" role="tab">
+                            <i class="fas fa-bullhorn me-2"></i>Campaigns
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="content-tab" data-bs-toggle="tab" data-bs-target="#content" type="button" role="tab">
+                            <i class="fas fa-edit me-2"></i>Content Approval
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="leads-tab" data-bs-toggle="tab" data-bs-target="#leads" type="button" role="tab">
+                            <i class="fas fa-user-plus me-2"></i>Leads & Performance
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="clientTabsContent">
+                    <!-- SEO & Keywords Tab -->
+                    <div class="tab-pane fade show active" id="seo" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-search me-2"></i>SEO Audits & Keyword Management
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                {% if seo_audits %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>SEO Score</th>
+                                                <th>Page Speed</th>
+                                                <th>Mobile Friendly</th>
+                                                <th>Issues Found</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for audit in seo_audits %}
+                                            <tr>
+                                                <td>{{ audit.created_at.strftime('%m/%d/%Y') }}</td>
+                                                <td>
+                                                    <span class="badge bg-{% if audit.seo_score >= 80 %}success{% elif audit.seo_score >= 60 %}warning{% else %}danger{% endif %}">
+                                                        {{ audit.seo_score }}%
+                                                    </span>
+                                                </td>
+                                                <td>{{ audit.page_speed_score }}%</td>
+                                                <td>{{ audit.mobile_friendly_score }}%</td>
+                                                <td>{{ audit.issues_found or 0 }}</td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-outline-primary">View Report</button>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% else %}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                                    <h5>No SEO Audits Yet</h5>
+                                    <p class="text-muted">Run your first SEO audit to get started.</p>
+                                    <button class="btn btn-primary">Run SEO Audit</button>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Campaigns Tab -->
+                    <div class="tab-pane fade" id="campaigns" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-bullhorn me-2"></i>Marketing Campaigns
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                {% if campaigns %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Campaign Name</th>
+                                                <th>Type</th>
+                                                <th>Status</th>
+                                                <th>Budget</th>
+                                                <th>Start Date</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for campaign in campaigns %}
+                                            <tr>
+                                                <td>{{ campaign.name }}</td>
+                                                <td>
+                                                    <span class="badge bg-{% if campaign.campaign_type == 'seo' %}primary{% elif campaign.campaign_type == 'ppc' %}success{% elif campaign.campaign_type == 'social' %}info{% else %}secondary{% endif %}">
+                                                        {{ campaign.campaign_type.upper() }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-{% if campaign.status == 'active' %}success{% elif campaign.status == 'paused' %}warning{% else %}secondary{% endif %}">
+                                                        {{ campaign.status.title() }}
+                                                    </span>
+                                                </td>
+                                                <td>${{ "{:,.2f}".format(campaign.budget) if campaign.budget else '0.00' }}</td>
+                                                <td>{{ campaign.start_date.strftime('%m/%d/%Y') if campaign.start_date else 'N/A' }}</td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-outline-primary">View</button>
+                                                    <button class="btn btn-sm btn-outline-success">Edit</button>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% else %}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-bullhorn fa-3x text-muted mb-3"></i>
+                                    <h5>No Campaigns Yet</h5>
+                                    <p class="text-muted">Create your first marketing campaign.</p>
+                                    <button class="btn btn-primary">Create Campaign</button>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Content Approval Tab -->
+                    <div class="tab-pane fade" id="content" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-edit me-2"></i>Content Approval Queue
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                {% if content_approvals %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Content Title</th>
+                                                <th>Type</th>
+                                                <th>Platform</th>
+                                                <th>Status</th>
+                                                <th>Created</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for content in content_approvals %}
+                                            <tr>
+                                                <td>{{ content.content_title }}</td>
+                                                <td>{{ content.content_type.title() }}</td>
+                                                <td>{{ content.platform.title() if content.platform else 'N/A' }}</td>
+                                                <td>
+                                                    <span class="badge bg-{% if content.status == 'approved' %}success{% elif content.status == 'pending' %}warning{% elif content.status == 'rejected' %}danger{% else %}secondary{% endif %}">
+                                                        {{ content.status.title() }}
+                                                    </span>
+                                                </td>
+                                                <td>{{ content.created_at.strftime('%m/%d/%Y') }}</td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-outline-primary">Review</button>
+                                                    <button class="btn btn-sm btn-outline-success">Approve</button>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% else %}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-edit fa-3x text-muted mb-3"></i>
+                                    <h5>No Content Pending</h5>
+                                    <p class="text-muted">Create content to see it here.</p>
+                                    <button class="btn btn-primary">Create Content</button>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Leads & Performance Tab -->
+                    <div class="tab-pane fade" id="leads" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-user-plus me-2"></i>Leads & Marketing Performance
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                {% if leads %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Lead Name</th>
+                                                <th>Source</th>
+                                                <th>Status</th>
+                                                <th>Contact Info</th>
+                                                <th>Created</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for lead in leads %}
+                                            <tr>
+                                                <td>{{ lead.name }}</td>
+                                                <td>{{ lead.source.title() if lead.source else 'N/A' }}</td>
+                                                <td>
+                                                    <span class="badge bg-{% if lead.status == 'converted' %}success{% elif lead.status == 'contacted' %}info{% elif lead.status == 'new' %}primary{% else %}secondary{% endif %}">
+                                                        {{ lead.status.title() }}
+                                                    </span>
+                                                </td>
+                                                <td>{{ lead.email or lead.phone or 'N/A' }}</td>
+                                                <td>{{ lead.created_at.strftime('%m/%d/%Y') }}</td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-outline-primary">View</button>
+                                                    <button class="btn btn-sm btn-outline-success">Contact</button>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% else %}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-user-plus fa-3x text-muted mb-3"></i>
+                                    <h5>No Leads Yet</h5>
+                                    <p class="text-muted">Leads will appear here when generated from campaigns.</p>
+                                    <button class="btn btn-primary">View Lead Finder</button>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% else %}
+                <!-- No client selected -->
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-user-md fa-4x text-muted mb-4"></i>
+                        <h3>No Client Selected</h3>
+                        <p class="text-muted">Please select a client from the client management page to view their details.</p>
+                        <a href="/clients" class="btn btn-primary">
+                            <i class="fas fa-users me-2"></i>Go to Client Management
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Admin Content Creation Functions
+        function createFacebookPost(clientId) {
+            // Redirect to Facebook post creation page
+            window.location.href = '/admin/client/' + clientId + '/facebook-post';
+        }
+
+        function createGoogleAd(clientId) {
+            // Check if Google Ads is authorized first
+            checkGoogleAdsStatus(clientId).then(status => {
+                if (status.authorized) {
+                    window.location.href = `/admin/client/${clientId}/create-google-ad`;
+                } else {
+                    alert('⚠️ Google Ads Authorization Required\n\nPlease authorize Google Ads access for this client first before creating ads.');
+                }
+            });
+        }
+
+        // Google Ads Authorization Functions
+        function checkGoogleAdsStatus(clientId) {
+            return fetch(`/client/google/ads/status/${clientId}`)
+                .then(response => response.json())
+                .then(data => {
+                    updateGoogleAdsUI(data);
+                    return data;
+                })
+                .catch(error => {
+                    console.error('Error checking Google Ads status:', error);
+                    updateGoogleAdsUI({ authorized: false, error: error.message });
+                    return { authorized: false };
+                });
+        }
+
+        function updateGoogleAdsUI(status) {
+            const statusBadge = document.getElementById('google-ads-status');
+            const authBtn = document.getElementById('google-ads-auth-btn');
+            const revokeBtn = document.getElementById('google-ads-revoke-btn');
+            const integrationStatusBadge = document.getElementById('google-ads-integration-status');
+
+            if (status.authorized) {
+                statusBadge.textContent = 'Authorized';
+                statusBadge.className = 'badge bg-success';
+                authBtn.style.display = 'none';
+                revokeBtn.style.display = 'inline-block';
+                
+                // Update integration status
+                if (integrationStatusBadge) {
+                    integrationStatusBadge.textContent = 'Connected';
+                    integrationStatusBadge.className = 'badge bg-success';
+                }
+            } else {
+                statusBadge.textContent = 'Not Authorized';
+                statusBadge.className = 'badge bg-danger';
+                authBtn.style.display = 'inline-block';
+                authBtn.disabled = false;
+                revokeBtn.style.display = 'none';
+                
+                // Update integration status
+                if (integrationStatusBadge) {
+                    integrationStatusBadge.textContent = 'Setup Required';
+                    integrationStatusBadge.className = 'badge bg-warning';
+                }
+            }
+        }
+
+        function authorizeGoogleAds(clientId) {
+            if (confirm('🔐 Authorize Google Ads Access\n\nThis will redirect you to Google to authorize access to manage this client\'s Google Ads account.\n\nContinue?')) {
+                window.location.href = `/client/google/ads/authorize/${clientId}`;
+            }
+        }
+
+        function revokeGoogleAds(clientId) {
+            if (confirm('⚠️ Revoke Google Ads Access\n\nThis will revoke your access to manage this client\'s Google Ads account.\n\nAre you sure?')) {
+                window.location.href = `/client/google/ads/revoke/${clientId}`;
+            }
+        }
+
+        // API Setup Functions
+        function setupGoogleMyBusiness(clientId) {
+            alert('🏢 Setting up Google My Business for Client ID: ' + clientId + '\n\nThis will:\n• Request Google My Business access\n• Set up local SEO optimization\n• Enable review management\n• Configure business hours\n• Add location data');
+        }
+
+        function setupFacebookBusiness(clientId) {
+            alert('📘 Setting up Facebook Business for Client ID: ' + clientId + '\n\nThis will:\n• Request Facebook Page access\n• Set up social media posting\n• Enable audience targeting\n• Configure ad campaigns\n• Set up analytics tracking');
+        }
+
+        function setupAllAPIs(clientId) {
+            if (confirm('🚀 Setup All APIs for Client ID: ' + clientId + '\n\nThis will set up:\n• Google My Business\n• Facebook Business\n• Google Ads\n• Email Marketing\n\nContinue with setup?')) {
+                alert('✅ API Setup Initiated!\n\nYou will be guided through the setup process for each platform. This may require:\n• Client authorization\n• API key configuration\n• Permission grants\n• Account verification');
+            }
+        }
+
+        function createEmailCampaign(clientId) {
+            alert('📧 Creating Email Campaign for Client ID: ' + clientId + '\n\nThis will open the email campaign builder where you can:\n• Design email templates\n• Create subscriber lists\n• Set automation rules\n• Schedule send times\n• Track open rates');
+        }
+
+        function generateSEOContent(clientId) {
+            alert('🔍 Generating SEO Content for Client ID: ' + clientId + '\n\nThis will use AI to create:\n• SEO-optimized blog posts\n• Meta descriptions\n• Title tags\n• Keyword-rich content\n• Local SEO optimization');
+        }
+
+        function requestClientApproval(clientId) {
+            alert('✅ Sending Content for Client Approval - Client ID: ' + clientId + '\n\nThis will:\n• Compile all pending content\n• Send email to client\n• Create approval workflow\n• Track approval status\n• Notify when approved');
+        }
+
+        function scheduleContent(clientId) {
+            alert('📅 Scheduling Content for Client ID: ' + clientId + '\n\nThis will open the content scheduler where you can:\n• Choose posting times\n• Set recurring schedules\n• Optimize for engagement\n• Coordinate across platforms\n• Monitor performance');
+        }
+
+        // Existing functions
+        function editClient(clientId) {
+            alert('Edit client functionality for ID: ' + clientId + ' (Coming Soon)');
+        }
+
+        function runSEOAudit(websiteUrl, clientId) {
+            alert('Running SEO audit for ' + websiteUrl + ' (Client ID: ' + clientId + ') - Coming Soon');
+        }
+
+        function manageCampaigns(clientId) {
+            alert('Manage campaigns for Client ID: ' + clientId + ' (Coming Soon)');
+        }
+
+        function viewLeads(clientId) {
+            alert('View leads for Client ID: ' + clientId + ' (Coming Soon)');
+        }
+
+        function viewSEOReport(auditId) {
+            alert('View SEO Report for Audit ID: ' + auditId + ' (Coming Soon)');
+        }
+
+        function viewCampaignDetails(campaignId) {
+            alert('View Campaign Details for Campaign ID: ' + campaignId + ' (Coming Soon)');
+        }
+
+        function createCampaign(clientId) {
+            alert('Create New Campaign for Client ID: ' + clientId + ' (Coming Soon)');
+        }
+
+        function approveContent(contentId) {
+            alert('Approve Content ID: ' + contentId + ' (Coming Soon)');
+        }
+
+        function rejectContent(contentId) {
+            alert('Reject Content ID: ' + contentId + ' (Coming Soon)');
+        }
+
+        function createContent(clientId) {
+            alert('Create New Content for Client ID: ' + clientId + ' (Coming Soon)');
+        }
+
+        function viewLeadDetails(leadId) {
+            alert('View Lead Details for Lead ID: ' + leadId + ' (Coming Soon)');
+        }
+
+        // Initialize Google Ads status check when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            {% if client %}
+            checkGoogleAdsStatus({{ client.id }});
+            {% endif %}
+        });
+    </script>
+</body>
+</html>

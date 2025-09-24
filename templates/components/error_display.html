@@ -1,0 +1,143 @@
+<!-- Error Display Component -->
+<div id="errorDisplay" class="error-display" style="display: none;">
+    <div class="error-header">
+        <h5><i class="fas fa-exclamation-triangle text-warning"></i> Error Details</h5>
+        <button type="button" class="btn-close" onclick="hideError()" aria-label="Close"></button>
+    </div>
+    <div class="error-content">
+        <div class="error-message" id="errorMessage"></div>
+        <div class="error-actions mt-3">
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="copyError()">
+                <i class="fas fa-copy"></i> Copy Error
+            </button>
+            <button type="button" class="btn btn-outline-primary btn-sm" onclick="hideError()">
+                <i class="fas fa-times"></i> Close
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+.error-display {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 400px;
+    max-width: 90vw;
+    background: #fff;
+    border: 1px solid #dc3545;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 9999;
+    font-family: 'Courier New', monospace;
+}
+
+.error-header {
+    background: #dc3545;
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.error-header h5 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.error-content {
+    padding: 16px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.error-message {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #495057;
+}
+
+.error-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-close:hover {
+    opacity: 0.8;
+}
+</style>
+
+<script>
+function showError(message, title = 'Error') {
+    const errorDisplay = document.getElementById('errorDisplay');
+    const errorMessage = document.getElementById('errorMessage');
+    const errorHeader = errorDisplay.querySelector('h5');
+    
+    errorHeader.innerHTML = `<i class="fas fa-exclamation-triangle text-warning"></i> ${title}`;
+    errorMessage.textContent = message;
+    errorDisplay.style.display = 'block';
+    
+    // Auto-hide after 10 seconds
+    setTimeout(() => {
+        hideError();
+    }, 10000);
+}
+
+function hideError() {
+    document.getElementById('errorDisplay').style.display = 'none';
+}
+
+function copyError() {
+    const errorMessage = document.getElementById('errorMessage').textContent;
+    navigator.clipboard.writeText(errorMessage).then(() => {
+        // Show brief success message
+        const copyBtn = event.target.closest('button');
+        const originalText = copyBtn.innerHTML;
+        copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        copyBtn.classList.remove('btn-outline-secondary');
+        copyBtn.classList.add('btn-success');
+        
+        setTimeout(() => {
+            copyBtn.innerHTML = originalText;
+            copyBtn.classList.remove('btn-success');
+            copyBtn.classList.add('btn-outline-secondary');
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy error: ', err);
+        showError('Failed to copy error to clipboard', 'Copy Error');
+    });
+}
+
+// Global error handler for unhandled errors
+window.addEventListener('error', function(e) {
+    showError(`${e.message}\n\nFile: ${e.filename}\nLine: ${e.lineno}\nColumn: ${e.colno}`, 'JavaScript Error');
+});
+
+// Global error handler for unhandled promise rejections
+window.addEventListener('unhandledrejection', function(e) {
+    showError(`Unhandled Promise Rejection: ${e.reason}`, 'Promise Error');
+});
+</script>

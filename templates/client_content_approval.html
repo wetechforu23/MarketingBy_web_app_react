@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Approval - {{ client.clinic_name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .approval-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .content-preview {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 30px;
+            margin: 20px 0;
+        }
+        .approval-actions {
+            background-color: #fff;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            padding: 30px;
+            margin: 20px 0;
+        }
+        .btn-approve {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+        .btn-reject {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+        .client-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .content-meta {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="approval-container">
+        <!-- Client Header -->
+        <div class="client-header text-center">
+            <h2><i class="fas fa-user-md"></i> {{ client.clinic_name }}</h2>
+            <p class="mb-0">Content Approval Request</p>
+        </div>
+
+        <!-- Content Preview -->
+        <div class="content-preview">
+            <h3><i class="fas fa-eye"></i> Content Preview</h3>
+            
+            <div class="content-meta">
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>Title:</strong> {{ content.content_title }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Platform:</strong> {{ content.platform.title() if content.platform else 'N/A' }}
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-6">
+                        <strong>Type:</strong> {{ content.content_type.title() }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Created:</strong> {{ content.created_at.strftime('%Y-%m-%d %H:%M') }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <h5>Content:</h5>
+                <div class="border p-3 bg-white rounded">
+                    {{ content.content_body | safe }}
+                </div>
+            </div>
+
+            {% if content.content_image_url %}
+            <div class="mt-4">
+                <h5>Image:</h5>
+                <img src="{{ content.content_image_url }}" alt="Content Image" class="img-fluid rounded" style="max-height: 400px;">
+            </div>
+            {% endif %}
+
+            {% if content.scheduled_date %}
+            <div class="mt-4">
+                <div class="alert alert-info">
+                    <i class="fas fa-clock"></i> <strong>Scheduled for:</strong> {{ content.scheduled_date.strftime('%Y-%m-%d at %H:%M') }}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Approval Actions -->
+        <div class="approval-actions">
+            <h4 class="text-center mb-4">
+                <i class="fas fa-check-circle text-success"></i> 
+                Please Review and Approve This Content
+            </h4>
+            
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>Important:</strong> Please review this content carefully before approving. 
+                Once approved, it will be published to {{ content.platform.title() if content.platform else 'the platform' }}.
+            </div>
+
+            <form id="approvalForm">
+                <input type="hidden" name="token" value="{{ request.args.get('token') }}">
+                
+                <div class="mb-4">
+                    <label for="comment" class="form-label">
+                        <i class="fas fa-comment"></i> Comments or Feedback (Optional)
+                    </label>
+                    <textarea class="form-control" id="comment" name="comment" rows="4" 
+                              placeholder="Add any comments, suggestions, or feedback about this content..."></textarea>
+                </div>
+
+                <div class="text-center">
+                    <button type="button" class="btn btn-approve me-3" onclick="approveContent()">
+                        <i class="fas fa-check"></i> Approve Content
+                    </button>
+                    <button type="button" class="btn btn-reject" onclick="rejectContent()">
+                        <i class="fas fa-times"></i> Request Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Instructions -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> Instructions</h5>
+            </div>
+            <div class="card-body">
+                <ul class="mb-0">
+                    <li><strong>Approve Content:</strong> Click "Approve Content" if you're satisfied with the content and want it to be published.</li>
+                    <li><strong>Request Changes:</strong> Click "Request Changes" if you want modifications before publishing.</li>
+                    <li><strong>Comments:</strong> Use the comment box to provide specific feedback or suggestions.</li>
+                    <li><strong>Timeline:</strong> This approval request expires in 7 days from the request date.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Contact Information -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="fas fa-phone"></i> Need Help?</h5>
+            </div>
+            <div class="card-body">
+                <p>If you have any questions about this content or need assistance, please contact our team:</p>
+                <ul class="mb-0">
+                    <li><strong>Email:</strong> support@wetechforu.com</li>
+                    <li><strong>Phone:</strong> (555) 123-4567</li>
+                    <li><strong>Hours:</strong> Monday - Friday, 9:00 AM - 6:00 PM</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function approveContent() {
+            if (confirm('Are you sure you want to approve this content? It will be published to {{ content.platform.title() if content.platform else "the platform" }}.')) {
+                submitApproval('approve');
+            }
+        }
+
+        function rejectContent() {
+            const comment = document.getElementById('comment').value;
+            if (confirm('Are you sure you want to request changes for this content?')) {
+                submitApproval('reject');
+            }
+        }
+
+        function submitApproval(action) {
+            const form = document.getElementById('approvalForm');
+            const formData = new FormData(form);
+            formData.append('action', action);
+
+            // Show loading state
+            const buttons = document.querySelectorAll('button[type="button"]');
+            buttons.forEach(btn => {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            });
+
+            fetch('/client/content/{{ content.id }}/approve-action', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (action === 'approve') {
+                        showSuccessMessage('Content approved successfully! Thank you for your approval.');
+                    } else {
+                        showSuccessMessage('Change request submitted successfully! Our team will review your feedback and make the necessary changes.');
+                    }
+                } else {
+                    showErrorMessage('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                showErrorMessage('An error occurred. Please try again.');
+                console.error('Error:', error);
+            })
+            .finally(() => {
+                // Re-enable buttons
+                buttons.forEach(btn => {
+                    btn.disabled = false;
+                });
+                document.querySelector('.btn-approve').innerHTML = '<i class="fas fa-check"></i> Approve Content';
+                document.querySelector('.btn-reject').innerHTML = '<i class="fas fa-times"></i> Request Changes';
+            });
+        }
+
+        function showSuccessMessage(message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-success alert-dismissible fade show';
+            alertDiv.innerHTML = `
+                <i class="fas fa-check-circle"></i> ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            const container = document.querySelector('.approval-container');
+            container.insertBefore(alertDiv, container.firstChild);
+            
+            // Hide the approval form
+            document.querySelector('.approval-actions').style.display = 'none';
+        }
+
+        function showErrorMessage(message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+            alertDiv.innerHTML = `
+                <i class="fas fa-exclamation-triangle"></i> ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            const container = document.querySelector('.approval-container');
+            container.insertBefore(alertDiv, container.firstChild);
+        }
+
+        // Check if approval link has expired
+        document.addEventListener('DOMContentLoaded', function() {
+            // You can add client-side expiration check here if needed
+            console.log('Content approval page loaded');
+        });
+    </script>
+</body>
+</html>
+
+

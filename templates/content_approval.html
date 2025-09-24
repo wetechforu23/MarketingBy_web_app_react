@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Approval - WeTechForU AI Marketing Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .approval-card {
+            border-left: 4px solid #007bff;
+            transition: all 0.3s ease;
+        }
+        .approval-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .status-pending {
+            border-left-color: #ffc107;
+        }
+        .status-approved {
+            border-left-color: #28a745;
+        }
+        .status-rejected {
+            border-left-color: #dc3545;
+        }
+        .content-preview {
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
+                <div class="position-sticky pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/">
+                                <i class="fas fa-tachometer-alt"></i> Admin Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/clients">
+                                <i class="fas fa-users"></i> Client Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/leads">
+                                <i class="fas fa-user-plus"></i> Lead Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/admin/content-approval">
+                                <i class="fas fa-check-circle"></i> Content Approval
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/subscription-plans">
+                                <i class="fas fa-credit-card"></i> Subscription Plans
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/api-settings">
+                                <i class="fas fa-cog"></i> API Settings
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/logout">
+                                <i class="fas fa-sign-out-alt"></i> Logout
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">
+                        <i class="fas fa-check-circle text-primary"></i> Content Approval
+                    </h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <div class="btn-group me-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshContent()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistics Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card text-white bg-warning">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h4 class="card-title">{{ pending_content|length }}</h4>
+                                        <p class="card-text">Pending Approval</p>
+                                    </div>
+                                    <div class="align-self-center">
+                                        <i class="fas fa-clock fa-2x"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-white bg-success">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h4 class="card-title">{{ all_content|selectattr('status', 'equalto', 'approved')|list|length }}</h4>
+                                        <p class="card-text">Approved</p>
+                                    </div>
+                                    <div class="align-self-center">
+                                        <i class="fas fa-check fa-2x"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-white bg-danger">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h4 class="card-title">{{ all_content|selectattr('status', 'equalto', 'rejected')|list|length }}</h4>
+                                        <p class="card-text">Rejected</p>
+                                    </div>
+                                    <div class="align-self-center">
+                                        <i class="fas fa-times fa-2x"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-white bg-info">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h4 class="card-title">{{ all_content|length }}</h4>
+                                        <p class="card-text">Total Content</p>
+                                    </div>
+                                    <div class="align-self-center">
+                                        <i class="fas fa-file-alt fa-2x"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pending Content Section -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-clock text-warning"></i> Pending Approval
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                {% if pending_content %}
+                                    <div class="row">
+                                        {% for content in pending_content %}
+                                        <div class="col-md-6 mb-3">
+                                            <div class="card approval-card status-pending">
+                                                <div class="card-body">
+                                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                                        <h6 class="card-title">
+                                                            <i class="fas fa-{{ 'facebook' if content.platform == 'facebook' else 'google' if content.platform == 'google' else 'envelope' }}"></i>
+                                                            {{ content.platform|title }} Post
+                                                        </h6>
+                                                        <span class="badge bg-warning">{{ content.status|title }}</span>
+                                                    </div>
+                                                    <p class="text-muted small mb-2">
+                                                        <strong>Client:</strong> {{ clients.get(content.client_id, 'Unknown') }}<br>
+                                                        <strong>Created:</strong> {{ content.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                                    </p>
+                                                    <div class="content-preview mb-3">
+                                                        <strong>Content:</strong><br>
+                                                        {{ content.content[:200] }}{% if content.content|length > 200 %}...{% endif %}
+                                                    </div>
+                                                    <div class="d-flex gap-2">
+                                                        <button class="btn btn-success btn-sm" onclick="approveContent({{ content.id }})">
+                                                            <i class="fas fa-check"></i> Approve
+                                                        </button>
+                                                        <button class="btn btn-danger btn-sm" onclick="rejectContent({{ content.id }})">
+                                                            <i class="fas fa-times"></i> Reject
+                                                        </button>
+                                                        <button class="btn btn-info btn-sm" onclick="viewContent({{ content.id }})">
+                                                            <i class="fas fa-eye"></i> View
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <div class="text-center py-4">
+                                        <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                                        <h5>No Pending Content</h5>
+                                        <p class="text-muted">All content has been reviewed and approved!</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Content History -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-history"></i> Recent Content History
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                {% if all_content %}
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Platform</th>
+                                                    <th>Client</th>
+                                                    <th>Content Preview</th>
+                                                    <th>Status</th>
+                                                    <th>Created</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for content in all_content %}
+                                                <tr>
+                                                    <td>
+                                                        <i class="fas fa-{{ 'facebook' if content.platform == 'facebook' else 'google' if content.platform == 'google' else 'envelope' }}"></i>
+                                                        {{ content.platform|title }}
+                                                    </td>
+                                                    <td>{{ clients.get(content.client_id, 'Unknown') }}</td>
+                                                    <td>{{ content.content[:50] }}{% if content.content|length > 50 %}...{% endif %}</td>
+                                                    <td>
+                                                        <span class="badge bg-{{ 'success' if content.status == 'approved' else 'danger' if content.status == 'rejected' else 'warning' }}">
+                                                            {{ content.status|title }}
+                                                        </span>
+                                                    </td>
+                                                    <td>{{ content.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                                    <td>
+                                                        <button class="btn btn-sm btn-outline-primary" onclick="viewContent({{ content.id }})">
+                                                            <i class="fas fa-eye"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <div class="text-center py-4">
+                                        <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+                                        <h5>No Content History</h5>
+                                        <p class="text-muted">Content will appear here once created.</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Content View Modal -->
+    <div class="modal fade" id="contentModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Content Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="contentModalBody">
+                    <!-- Content will be loaded here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function approveContent(contentId) {
+            if (confirm('Are you sure you want to approve this content?')) {
+                fetch(`/api/content-approval/${contentId}/approve`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Content approved successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Error approving content: ' + error);
+                });
+            }
+        }
+
+        function rejectContent(contentId) {
+            const reason = prompt('Please provide a reason for rejection:');
+            if (reason !== null) {
+                fetch(`/api/content-approval/${contentId}/reject`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ reason: reason })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Content rejected successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Error rejecting content: ' + error);
+                });
+            }
+        }
+
+        function viewContent(contentId) {
+            // For now, just show a simple alert
+            // In a real implementation, you'd fetch the full content details
+            alert('Viewing content ID: ' + contentId + '\n\nThis would show the full content details in a modal.');
+        }
+
+        function refreshContent() {
+            location.reload();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lead Finder - Multi-Industry Lead Generation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
+            min-height: 100vh;
+        }
+        .nav-link {
+            color: #ecf0f1;
+            transition: all 0.3s;
+        }
+        .nav-link:hover {
+            color: #3498db;
+            background-color: rgba(52, 152, 219, 0.1);
+        }
+        .nav-link.active {
+            background-color: #3498db;
+            color: white;
+        }
+        .category-card {
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+            height: 120px;
+        }
+        .category-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            border-color: #007bff;
+        }
+        .category-card.selected {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+        .keyword-tag {
+            display: inline-block;
+            background: #e9ecef;
+            color: #495057;
+            padding: 6px 12px;
+            margin: 3px;
+            border-radius: 15px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid #dee2e6;
+        }
+        .keyword-tag:hover {
+            background: #007bff;
+            color: white;
+            transform: scale(1.05);
+        }
+        .keyword-tag.selected {
+            background: #007bff;
+            color: white;
+            border-color: #0056b3;
+        }
+        .lead-preview {
+            border-left: 4px solid #007bff;
+            transition: all 0.3s;
+        }
+        .lead-preview:hover {
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-2 d-none d-md-block sidebar">
+                <div class="sidebar-sticky p-3">
+                    <h4 class="text-white mb-4">
+                        <i class="fas fa-heartbeat"></i> WeTechForU
+                    </h4>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/">
+                                <i class="fas fa-tachometer-alt"></i> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/clients">
+                                <i class="fas fa-users"></i> Clients
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/leads">
+                                <i class="fas fa-user-plus"></i> Leads
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/lead-finder">
+                                <i class="fas fa-search"></i> Lead Finder
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/campaigns">
+                                <i class="fas fa-bullhorn"></i> Campaigns
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/seo_audit">
+                                <i class="fas fa-chart-line"></i> SEO Audit
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/analytics">
+                                <i class="fas fa-analytics"></i> Analytics
+                            </a>
+                        </li>
+                        <li class="nav-item mt-3">
+                            <a class="nav-link text-danger" href="/logout">
+                                <i class="fas fa-sign-out-alt"></i> Sign Out
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-10 ml-sm-auto px-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <div>
+                        <h1 class="h2">
+                            <i class="fas fa-search text-primary me-2"></i>Lead Finder
+                        </h1>
+                        <p class="text-muted">Multi-industry lead generation with smart targeting</p>
+                    </div>
+                    <div class="btn-toolbar">
+                        <a href="/leads" class="btn btn-outline-primary me-2">
+                            <i class="fas fa-user-plus me-2"></i>Manage Leads
+                        </a>
+                        <button class="btn btn-success" onclick="exportResults()">
+                            <i class="fas fa-download me-2"></i>Export
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Industry Categories (Dynamic from Database) -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-industry me-2"></i>Select Target Industry</h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="industryCards" class="row">
+                            <!-- Loaded dynamically from database -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Smart Search Form -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-bullseye me-2"></i>Smart Lead Targeting</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="leadFinderForm">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="industry" class="form-label">Industry Category</label>
+                                        <select class="form-select" id="industry" onchange="loadSubcategories()">
+                                            <option value="">Select Industry...</option>
+                                            <!-- Loaded dynamically -->
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="subcategory" class="form-label">Subcategory</label>
+                                        <select class="form-select" id="subcategory" onchange="loadKeywords()">
+                                            <option value="">Select Subcategory...</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="location" class="form-label">Target Location</label>
+                                        <input type="text" class="form-control" id="location" 
+                                               placeholder="e.g., Dallas, TX" required>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        <label for="keywords" class="form-label">Search Keywords</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="keywords" 
+                                                   placeholder="Enter keywords or select from suggestions">
+                                            <button class="btn btn-outline-secondary" type="button" onclick="showKeywordSuggestions()">
+                                                <i class="fas fa-lightbulb"></i> Smart Suggest
+                                            </button>
+                                        </div>
+                                        <div id="keywordSuggestions" class="mt-2">
+                                            <!-- Keywords loaded dynamically from database -->
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="mb-3">
+                                        <label for="radius" class="form-label">Radius (miles)</label>
+                                        <input type="number" class="form-control" id="radius" value="15" min="1" max="50">
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="mb-3">
+                                        <label for="maxResults" class="form-label">Max Results</label>
+                                        <input type="number" class="form-control" id="maxResults" value="30" min="5" max="100">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between align-items-center">
+                                <button type="button" class="btn btn-primary btn-lg" onclick="startLeadSearch()">
+                                    <i class="fas fa-search me-2"></i>Find Qualified Leads
+                                </button>
+                                <div class="text-muted small">
+                                    <i class="fas fa-database me-1"></i>
+                                    Powered by smart database targeting
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Results Container -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-users me-2"></i>Lead Generation Results</h5>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary" onclick="viewAllLeads()">
+                                <i class="fas fa-list me-1"></i>View All
+                            </button>
+                            <button class="btn btn-outline-success" onclick="exportResults()">
+                                <i class="fas fa-download me-1"></i>Export
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="resultsContainer">
+                            <div class="text-center py-5">
+                                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                                <h5>Ready to Find Leads</h5>
+                                <p class="text-muted">Select an industry and location to discover qualified business prospects.</p>
+                                <div class="mt-3">
+                                    <small class="text-success">
+                                        <i class="fas fa-check me-1"></i>Multi-industry support
+                                    </small>
+                                    <small class="text-info ms-3">
+                                        <i class="fas fa-check me-1"></i>Smart keyword targeting
+                                    </small>
+                                    <small class="text-warning ms-3">
+                                        <i class="fas fa-check me-1"></i>Database-driven results
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables
+        let currentIndustries = [];
+        let currentSubcategories = [];
+        let currentKeywords = [];
+        
+        // Load initial data when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            loadIndustries();
+        });
+        
+        // ================================================================
+        // DATABASE-DRIVEN DYNAMIC LOADING
+        // ================================================================
+        
+        async function loadIndustries() {
+            try {
+                const response = await fetch('/api/industries');
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentIndustries = data.industries;
+                    renderIndustryCards(data.industries);
+                    populateIndustryDropdown(data.industries);
+                }
+            } catch (error) {
+                console.error('Error loading industries:', error);
+            }
+        }
+        
+        function renderIndustryCards(industries) {
+            const container = document.getElementById('industryCards');
+            container.innerHTML = industries.map(industry => `
+                <div class="col-md-3 mb-3">
+                    <div class="card text-center category-card" onclick="selectIndustry(${industry.id}, '${industry.name}')">
+                        <div class="card-body d-flex flex-column justify-content-center">
+                            <i class="${industry.icon} fa-2x mb-2" style="color: #007bff;"></i>
+                            <h6 class="mb-1">${industry.name}</h6>
+                            <small class="text-muted">${industry.subcategory_count} subcategories</small>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function populateIndustryDropdown(industries) {
+            const select = document.getElementById('industry');
+            select.innerHTML = '<option value="">Select Industry...</option>';
+            
+            industries.forEach(industry => {
+                const option = document.createElement('option');
+                option.value = industry.id;
+                option.textContent = industry.name;
+                option.dataset.name = industry.name;
+                select.appendChild(option);
+            });
+        }
+        
+        async function loadSubcategories() {
+            const industrySelect = document.getElementById('industry');
+            const industryId = industrySelect.value;
+            
+            if (!industryId) {
+                document.getElementById('subcategory').innerHTML = '<option value="">Select Subcategory...</option>';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/industries/${industryId}/subcategories`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentSubcategories = data.subcategories;
+                    populateSubcategoryDropdown(data.subcategories);
+                }
+            } catch (error) {
+                console.error('Error loading subcategories:', error);
+            }
+        }
+        
+        function populateSubcategoryDropdown(subcategories) {
+            const select = document.getElementById('subcategory');
+            select.innerHTML = '<option value="">Select Subcategory...</option>';
+            
+            subcategories.forEach(subcat => {
+                const option = document.createElement('option');
+                option.value = subcat.id;
+                option.textContent = subcat.name;
+                option.dataset.name = subcat.name;
+                select.appendChild(option);
+            });
+        }
+        
+        async function loadKeywords() {
+            const subcategorySelect = document.getElementById('subcategory');
+            const subcategoryId = subcategorySelect.value;
+            
+            if (!subcategoryId) {
+                document.getElementById('keywordSuggestions').innerHTML = '';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/subcategories/${subcategoryId}/keywords`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentKeywords = data.keywords;
+                    renderKeywordSuggestions(data.keywords);
+                    
+                    // Auto-select top keyword
+                    if (data.keywords.length > 0) {
+                        document.getElementById('keywords').value = data.keywords[0].keyword;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading keywords:', error);
+            }
+        }
+        
+        function renderKeywordSuggestions(keywords) {
+            const container = document.getElementById('keywordSuggestions');
+            
+            if (keywords.length === 0) {
+                container.innerHTML = '<small class="text-muted">No keywords available for this subcategory</small>';
+                return;
+            }
+            
+            container.innerHTML = `
+                <small class="text-muted d-block mb-2">
+                    <i class="fas fa-lightbulb me-1"></i>Suggested keywords (ranked by effectiveness):
+                </small>
+                ${keywords.map(kw => `
+                    <span class="keyword-tag" onclick="selectKeyword('${kw.keyword}')" 
+                          title="Effectiveness: ${kw.effectiveness_score}/100">
+                        ${kw.keyword}
+                        <small class="ms-1 opacity-75">(${kw.effectiveness_score})</small>
+                    </span>
+                `).join('')}
+            `;
+        }
+        
+        // ================================================================
+        // USER INTERACTION FUNCTIONS
+        // ================================================================
+        
+        function selectIndustry(industryId, industryName) {
+            // Update visual selection
+            document.querySelectorAll('.category-card').forEach(card => card.classList.remove('selected'));
+            event.currentTarget.classList.add('selected');
+            
+            // Update dropdown
+            document.getElementById('industry').value = industryId;
+            loadSubcategories();
+        }
+        
+        function selectKeyword(keyword) {
+            document.getElementById('keywords').value = keyword;
+            
+            // Update visual selection
+            document.querySelectorAll('.keyword-tag').forEach(tag => tag.classList.remove('selected'));
+            event.target.classList.add('selected');
+        }
+        
+        function showKeywordSuggestions() {
+            const subcategorySelect = document.getElementById('subcategory');
+            if (subcategorySelect.value) {
+                loadKeywords();
+            } else {
+                alert('Please select a subcategory first to see keyword suggestions');
+            }
+        }
+        
+        // ================================================================
+        // LEAD SEARCH FUNCTIONALITY
+        // ================================================================
+        
+        async function startLeadSearch() {
+            const location = document.getElementById('location').value;
+            const industrySelect = document.getElementById('industry');
+            const subcategorySelect = document.getElementById('subcategory');
+            const keywords = document.getElementById('keywords').value;
+            const radius = document.getElementById('radius').value;
+            const maxResults = document.getElementById('maxResults').value;
+            
+            // Validation
+            if (!location) {
+                alert('Please enter a target location');
+                return;
+            }
+            
+            if (!keywords) {
+                alert('Please enter search keywords or select from suggestions');
+                return;
+            }
+            
+            // Get industry and subcategory names
+            const industryName = industrySelect.selectedOptions[0]?.dataset.name || '';
+            const subcategoryName = subcategorySelect.selectedOptions[0]?.dataset.name || '';
+            
+            // Show loading state
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Searching for leads...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/scrape-leads', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        location: location,
+                        industry: industryName,
+                        subcategory: subcategoryName,
+                        keywords: keywords,
+                        radius: parseInt(radius),
+                        max_results: parseInt(maxResults)
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayLeadResults(data);
+                    showSuccessMessage(data);
+                } else {
+                    alert(`Error: ${data.error}`);
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while searching for leads');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        function displayLeadResults(data) {
+            const container = document.getElementById('resultsContainer');
+            
+            let leadsHtml = '';
+            if (data.leads && data.leads.length > 0) {
+                leadsHtml = data.leads.map(lead => `
+                    <div class="col-md-6 mb-3">
+                        <div class="card lead-preview h-100">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="card-title mb-1">${lead.business_name}</h6>
+                                    <span class="badge bg-primary">${lead.rating || 'N/A'}</span>
+                                </div>
+                                <p class="text-muted small mb-1">
+                                    <i class="fas fa-map-marker-alt me-1"></i>${lead.address}
+                                </p>
+                                ${lead.phone ? `<p class="text-muted small mb-1">
+                                    <i class="fas fa-phone me-1"></i>${lead.phone}
+                                </p>` : ''}
+                                ${lead.website ? `<p class="text-muted small mb-1">
+                                    <i class="fas fa-globe me-1"></i><a href="${lead.website}" target="_blank">Website</a>
+                                </p>` : ''}
+                                <p class="small mb-2">
+                                    <strong>Services:</strong> ${lead.services || 'N/A'}
+                                </p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        <i class="fas fa-tag me-1"></i>${data.industry || 'Business'}
+                                    </small>
+                                    <div>
+                                        ${lead.website ? `
+                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="runSEOAudit('${lead.website}')">
+                                            <i class="fas fa-chart-line"></i> SEO
+                                        </button>
+                                        ` : ''}
+                                        <button class="btn btn-sm btn-success" onclick="contactLead('${lead.business_name}', '${lead.email || ''}')">
+                                            <i class="fas fa-envelope"></i> Contact
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            container.innerHTML = `
+                <div class="alert alert-success">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-check-circle me-2"></i>
+                            Found <strong>${data.count}</strong> ${data.industry || 'business'} leads! 
+                            Saved <strong>${data.new_count}</strong> new prospects to database.
+                        </div>
+                        <small class="text-muted">
+                            Keywords: "${data.keywords}" | Location: ${document.getElementById('location').value}
+                        </small>
+                    </div>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card text-center border-primary">
+                            <div class="card-body">
+                                <i class="fas fa-search fa-2x text-primary mb-2"></i>
+                                <h5 class="text-primary">${data.count}</h5>
+                                <p class="text-muted mb-0">Total Found</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center border-success">
+                            <div class="card-body">
+                                <i class="fas fa-plus fa-2x text-success mb-2"></i>
+                                <h5 class="text-success">${data.new_count}</h5>
+                                <p class="text-muted mb-0">New Leads</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center border-info">
+                            <div class="card-body">
+                                <i class="fas fa-envelope fa-2x text-info mb-2"></i>
+                                <h5 class="text-info">Ready</h5>
+                                <p class="text-muted mb-0">For Outreach</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center border-warning">
+                            <div class="card-body">
+                                <i class="fas fa-chart-line fa-2x text-warning mb-2"></i>
+                                <h5 class="text-warning">Analyze</h5>
+                                <p class="text-muted mb-0">SEO Opportunities</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                ${data.leads && data.leads.length > 0 ? `
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-eye me-2"></i>Preview - First ${data.leads.length} Results
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            ${leadsHtml}
+                        </div>
+                        <div class="text-center mt-4">
+                            <a href="/leads" class="btn btn-primary btn-lg me-2">
+                                <i class="fas fa-user-plus me-2"></i>Manage All Leads
+                            </a>
+                            <a href="/clients" class="btn btn-outline-primary btn-lg">
+                                <i class="fas fa-users me-2"></i>View Clients
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+            `;
+        }
+        
+        function showSuccessMessage(data) {
+            const message = `
+🎯 Lead Generation Complete!
+
+✅ Industry: ${data.industry || 'Multi-industry'}
+✅ Keywords: "${data.keywords}"
+✅ Location: ${document.getElementById('location').value}
+✅ Found: ${data.count} qualified prospects
+✅ New Leads: ${data.new_count} added to database
+✅ Duplicates: ${data.duplicate_count || 0} filtered out
+
+Ready for outreach and conversion!
+            `;
+            alert(message);
+        }
+        
+        // ================================================================
+        // LEAD INTERACTION FUNCTIONS
+        // ================================================================
+        
+        function runSEOAudit(website) {
+            if (!website) {
+                alert('No website available for SEO audit');
+                return;
+            }
+            
+            // Open SEO audit in new tab with pre-filled website
+            window.open(`/seo_audit?url=${encodeURIComponent(website)}`, '_blank');
+        }
+        
+        function contactLead(businessName, email) {
+            const subject = `Partnership Opportunity - Digital Marketing Services for ${businessName}`;
+            const body = `Dear ${businessName} Team,
+
+I hope this message finds you well. I'm reaching out from WeTechForU Marketing Solutions to discuss how we can help ${businessName} grow your business and improve your online presence.
+
+Our comprehensive digital marketing services include:
+• SEO optimization to improve Google search rankings
+• Social media management and customer engagement
+• Google Ads campaigns for targeted lead generation
+• Professional website development and maintenance
+• Online reputation management and review optimization
+
+We specialize in helping businesses like yours succeed in today's digital landscape with proven strategies that deliver measurable results.
+
+Would you be interested in a complimentary consultation to discuss how we can help ${businessName} attract more customers and grow your revenue?
+
+Best regards,
+WeTechForU Marketing Team
+Phone: (555) 123-TECH
+Email: contact@wetechforu.com
+Website: https://wetechforu.com`;
+
+            if (email) {
+                window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            } else {
+                navigator.clipboard.writeText(`${subject}\n\n${body}`).then(() => {
+                    alert('Professional outreach message copied to clipboard! You can paste it into your email client.');
+                });
+            }
+        }
+        
+        function viewAllLeads() {
+            window.location.href = '/leads';
+        }
+        
+        function exportResults() {
+            alert('Export functionality will download a CSV file with all lead data including contact information and industry classification');
+        }
+    </script>
+</body>
+</html>

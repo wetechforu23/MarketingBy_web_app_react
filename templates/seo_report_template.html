@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEO Analysis Report - {{ business_name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Error Display Component -->
+    {% include 'components/error_display.html' %}
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        .score-card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .overall-score {
+            font-size: 4em;
+            font-weight: bold;
+            margin: 0;
+        }
+        .score-excellent { color: #28a745; }
+        .score-good { color: #17a2b8; }
+        .score-fair { color: #ffc107; }
+        .score-poor { color: #dc3545; }
+        .score-label {
+            font-size: 1.2em;
+            color: #666;
+            margin-top: 10px;
+        }
+        .section {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .section h2 {
+            color: #495057;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .metric {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .metric-label {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        .recommendations {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .recommendation {
+            background: white;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 0 8px 8px 0;
+        }
+        .recommendation:last-child {
+            margin-bottom: 0;
+        }
+        .priority-high {
+            border-left-color: #dc3545;
+        }
+        .priority-critical {
+            border-left-color: #6f42c1;
+        }
+        .priority-medium {
+            border-left-color: #17a2b8;
+        }
+        .priority {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .priority-high { background: #f8d7da; color: #721c24; }
+        .priority-critical { background: #e2e3f1; color: #383d41; }
+        .priority-medium { background: #d1ecf1; color: #0c5460; }
+        .compliance-section {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .compliance-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .compliance-item:last-child {
+            margin-bottom: 0;
+        }
+        .checkmark {
+            color: #28a745;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .cross {
+            color: #dc3545;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .footer {
+            background: #495057;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin-top: 30px;
+        }
+        .footer p {
+            margin: 5px 0;
+        }
+        .website-link {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .website-link:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            .header h1 {
+                font-size: 2em;
+            }
+            .overall-score {
+                font-size: 3em;
+            }
+            .metric-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>SEO Analysis Report</h1>
+        <p>{{ business_name }} - {{ analysis_date }}</p>
+        <p>Website: <a href="{{ website_url }}" class="website-link" target="_blank">{{ website_url }}</a></p>
+    </div>
+
+    <div class="score-card">
+        <div class="overall-score {% if overall_score >= 80 %}score-excellent{% elif overall_score >= 60 %}score-good{% elif overall_score >= 40 %}score-fair{% else %}score-poor{% endif %}">
+            {{ overall_score }}
+        </div>
+        <div class="score-label">Overall SEO Score</div>
+        {% if overall_score >= 80 %}
+            <p style="color: #28a745; margin-top: 10px;">Excellent! Your website is well-optimized for search engines.</p>
+        {% elif overall_score >= 60 %}
+            <p style="color: #17a2b8; margin-top: 10px;">Good! Your website has solid SEO foundations with room for improvement.</p>
+        {% elif overall_score >= 40 %}
+            <p style="color: #ffc107; margin-top: 10px;">Fair. Your website needs several SEO improvements to perform better.</p>
+        {% else %}
+            <p style="color: #dc3545; margin-top: 10px;">Poor. Your website requires significant SEO optimization.</p>
+        {% endif %}
+    </div>
+
+    <div class="section">
+        <h2>🚀 Core Web Vitals (Google's Key Ranking Factors)</h2>
+        <div class="metric-grid">
+            <div class="metric">
+                <div class="metric-value">{{ analysis.core_web_vitals.largest_contentful_paint.score if analysis.core_web_vitals.largest_contentful_paint else 'N/A' }}</div>
+                <div class="metric-label">LCP (Loading)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.core_web_vitals.first_input_delay.score if analysis.core_web_vitals.first_input_delay else 'N/A' }}</div>
+                <div class="metric-label">FID (Interactivity)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.core_web_vitals.cumulative_layout_shift.score if analysis.core_web_vitals.cumulative_layout_shift else 'N/A' }}</div>
+                <div class="metric-label">CLS (Stability)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.core_web_vitals.overall_score if analysis.core_web_vitals else 'N/A' }}</div>
+                <div class="metric-label">Overall CWV</div>
+            </div>
+        </div>
+        <p><strong>Core Web Vitals Status:</strong> 
+            {% if analysis.core_web_vitals and analysis.core_web_vitals.overall_score >= 80 %}
+                <span style="color: #28a745;">✅ Good</span>
+            {% elif analysis.core_web_vitals and analysis.core_web_vitals.overall_score >= 60 %}
+                <span style="color: #ffc107;">⚠️ Needs Improvement</span>
+            {% else %}
+                <span style="color: #dc3545;">❌ Poor</span>
+            {% endif %}
+        </p>
+    </div>
+
+    <div class="section">
+        <h2>📊 Technical SEO Analysis</h2>
+        <div class="metric-grid">
+            <div class="metric">
+                <div class="metric-value">{{ analysis.technical_seo.title_tag.score if analysis.technical_seo and analysis.technical_seo.title_tag else 'N/A' }}</div>
+                <div class="metric-label">Title Tag</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.technical_seo.meta_description.score if analysis.technical_seo and analysis.technical_seo.meta_description else 'N/A' }}</div>
+                <div class="metric-label">Meta Description</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.technical_seo.heading_structure.score if analysis.technical_seo and analysis.technical_seo.heading_structure else 'N/A' }}</div>
+                <div class="metric-label">Heading Structure</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.technical_seo.images.score if analysis.technical_seo and analysis.technical_seo.images else 'N/A' }}</div>
+                <div class="metric-label">Image Optimization</div>
+            </div>
+        </div>
+        
+        {% if analysis.technical_seo and analysis.technical_seo.title_tag and analysis.technical_seo.title_tag.present %}
+            <p><strong>Title Tag:</strong> "{{ analysis.technical_seo.title_tag.content }}" ({{ analysis.technical_seo.title_tag.length }} characters)</p>
+        {% else %}
+            <p><strong>Title Tag:</strong> <span style="color: #dc3545;">Missing</span></p>
+        {% endif %}
+        
+        {% if analysis.technical_seo.meta_description.present %}
+            <p><strong>Meta Description:</strong> "{{ analysis.technical_seo.meta_description.content }}" ({{ analysis.technical_seo.meta_description.length }} characters)</p>
+        {% else %}
+            <p><strong>Meta Description:</strong> <span style="color: #dc3545;">Missing</span></p>
+        {% endif %}
+        
+        <p><strong>H1 Tags:</strong> {{ analysis.technical_seo.heading_structure.h1_count }} found
+        {% if analysis.technical_seo.heading_structure.h1_content %}
+            - "{{ analysis.technical_seo.heading_structure.h1_content }}"
+        {% endif %}
+        </p>
+        
+        <p><strong>Images:</strong> {{ analysis.technical_seo.images.with_alt if analysis.technical_seo and analysis.technical_seo.images else 'N/A' }} of {{ analysis.technical_seo.images.total if analysis.technical_seo and analysis.technical_seo.images else 'N/A' }} have alt text</p>
+        <p><strong>Internal Links:</strong> {{ analysis.technical_seo.internal_links.count if analysis.technical_seo and analysis.technical_seo.internal_links else 'N/A' }} | <strong>External Links:</strong> {{ analysis.technical_seo.external_links.count if analysis.technical_seo and analysis.technical_seo.external_links else 'N/A' }}</p>
+    </div>
+
+    <div class="section">
+        <h2>📝 Content Analysis</h2>
+        <div class="metric-grid">
+            <div class="metric">
+                <div class="metric-value">{{ analysis.content_analysis.word_count }}</div>
+                <div class="metric-label">Word Count</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.content_analysis.healthcare_keywords.count }}</div>
+                <div class="metric-label">Healthcare Keywords</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.content_analysis.services_mentioned.score }}</div>
+                <div class="metric-label">Services Score</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.content_analysis.contact_info.score }}</div>
+                <div class="metric-label">Contact Info</div>
+            </div>
+        </div>
+        
+        <p><strong>Healthcare Keywords Found:</strong> {{ analysis.content_analysis.healthcare_keywords.found | join(', ') }}</p>
+        <p><strong>Services Mentioned:</strong> {{ analysis.content_analysis.services_mentioned.found | join(', ') }}</p>
+        <p><strong>Business Name Mentions:</strong> {{ analysis.content_analysis.business_name_mentions }}</p>
+    </div>
+
+    <div class="section">
+        <h2>📱 Mobile & Performance</h2>
+        <div class="metric-grid">
+            <div class="metric">
+                <div class="metric-value">{{ analysis.mobile_optimization.mobile_friendly.score }}</div>
+                <div class="metric-label">Mobile Friendly</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.page_experience.loading_speed.score if analysis.page_experience and analysis.page_experience.loading_speed else 'N/A' }}</div>
+                <div class="metric-label">Page Speed</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.security_analysis.overall_score if analysis.security_analysis else 'N/A' }}</div>
+                <div class="metric-label">Security Score</div>
+            </div>
+        </div>
+        
+        <p><strong>Loading Speed Score:</strong> {{ analysis.page_experience.loading_speed.score if analysis.page_experience and analysis.page_experience.loading_speed else 'N/A' }}/100</p>
+        <p><strong>Interactivity Score:</strong> {{ analysis.page_experience.interactivity.score if analysis.page_experience and analysis.page_experience.interactivity else 'N/A' }}/100</p>
+        <p><strong>Visual Stability Score:</strong> {{ analysis.page_experience.visual_stability.score if analysis.page_experience and analysis.page_experience.visual_stability else 'N/A' }}/100</p>
+        <p><strong>HTTPS:</strong> {% if analysis.security_analysis and analysis.security_analysis.https and analysis.security_analysis.https.enabled %}✅ Enabled{% else %}❌ Not Enabled{% endif %}</p>
+        <p><strong>Security Headers:</strong> {{ analysis.security_analysis.security_headers.present | length if analysis.security_analysis and analysis.security_analysis.security_headers else 0 }} of 7 present</p>
+    </div>
+
+    <div class="section">
+        <h2>🎯 Page Experience Signals</h2>
+        <div class="metric-grid">
+            <div class="metric">
+                <div class="metric-value">{{ analysis.page_experience.loading_speed.score if analysis.page_experience and analysis.page_experience.loading_speed else 'N/A' }}</div>
+                <div class="metric-label">Loading Speed</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.page_experience.interactivity.score if analysis.page_experience and analysis.page_experience.interactivity else 'N/A' }}</div>
+                <div class="metric-label">Interactivity</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.page_experience.visual_stability.score if analysis.page_experience and analysis.page_experience.visual_stability else 'N/A' }}</div>
+                <div class="metric-label">Visual Stability</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.page_experience.overall_score if analysis.page_experience else 'N/A' }}</div>
+                <div class="metric-label">Overall Experience</div>
+            </div>
+        </div>
+        <p><strong>Page Experience Status:</strong> 
+            {% if analysis.page_experience and analysis.page_experience.overall_score >= 80 %}
+                <span style="color: #28a745;">✅ Good</span>
+            {% elif analysis.page_experience and analysis.page_experience.overall_score >= 60 %}
+                <span style="color: #ffc107;">⚠️ Needs Improvement</span>
+            {% else %}
+                <span style="color: #dc3545;">❌ Poor</span>
+            {% endif %}
+        </p>
+    </div>
+
+    <div class="compliance-section">
+        <h2>🏥 Healthcare Compliance</h2>
+        <div class="compliance-item">
+            <span class="{% if analysis.healthcare_compliance and analysis.healthcare_compliance.privacy_policy and analysis.healthcare_compliance.privacy_policy.present %}checkmark{% else %}cross{% endif %}">
+                {% if analysis.healthcare_compliance and analysis.healthcare_compliance.privacy_policy and analysis.healthcare_compliance.privacy_policy.present %}✓{% else %}✗{% endif %}
+            </span>
+            <span>Privacy Policy</span>
+        </div>
+        <div class="compliance-item">
+            <span class="{% if analysis.healthcare_compliance and analysis.healthcare_compliance.terms_of_service and analysis.healthcare_compliance.terms_of_service.present %}checkmark{% else %}cross{% endif %}">
+                {% if analysis.healthcare_compliance and analysis.healthcare_compliance.terms_of_service and analysis.healthcare_compliance.terms_of_service.present %}✓{% else %}✗{% endif %}
+            </span>
+            <span>Terms of Service</span>
+        </div>
+        <div class="compliance-item">
+            <span class="{% if analysis.healthcare_compliance and analysis.healthcare_compliance.hipaa_mention and analysis.healthcare_compliance.hipaa_mention.present %}checkmark{% else %}cross{% endif %}">
+                {% if analysis.healthcare_compliance and analysis.healthcare_compliance.hipaa_mention and analysis.healthcare_compliance.hipaa_mention.present %}✓{% else %}✗{% endif %}
+            </span>
+            <span>HIPAA Compliance Mention</span>
+        </div>
+        <div class="compliance-item">
+            <span class="{% if analysis.healthcare_compliance and analysis.healthcare_compliance.disclaimer and analysis.healthcare_compliance.disclaimer.present %}checkmark{% else %}cross{% endif %}">
+                {% if analysis.healthcare_compliance and analysis.healthcare_compliance.disclaimer and analysis.healthcare_compliance.disclaimer.present %}✓{% else %}✗{% endif %}
+            </span>
+            <span>Medical Disclaimer</span>
+        </div>
+        <p style="margin-top: 15px; font-weight: bold;">Compliance Score: {{ analysis.healthcare_compliance.overall_score if analysis.healthcare_compliance else 'N/A' }}/100</p>
+    </div>
+
+    <div class="section">
+        <h2>📍 Local SEO</h2>
+        <div class="metric-grid">
+            <div class="metric">
+                <div class="metric-value">{{ analysis.local_seo.overall_score if analysis.local_seo else 'N/A' }}</div>
+                <div class="metric-label">Local SEO Score</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.local_seo.address_mentions.count if analysis.local_seo and analysis.local_seo.address_mentions else 'N/A' }}</div>
+                <div class="metric-label">Address Mentions</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.local_seo.phone_mentions.count if analysis.local_seo and analysis.local_seo.phone_mentions else 'N/A' }}</div>
+                <div class="metric-label">Phone Mentions</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{% if analysis.local_seo and analysis.local_seo.google_maps and analysis.local_seo.google_maps.present %}100{% else %}0{% endif %}</div>
+                <div class="metric-label">Google Maps</div>
+            </div>
+        </div>
+        
+        <p><strong>Local Keywords:</strong> {{ analysis.local_seo.local_keywords.found | join(', ') if analysis.local_seo and analysis.local_seo.local_keywords and analysis.local_seo.local_keywords.found else 'N/A' }}</p>
+    </div>
+
+    <div class="section">
+        <h2>🔗 Backlink Analysis</h2>
+        <div class="metric-grid">
+            <div class="metric">
+                <div class="metric-value">{{ analysis.backlink_analysis.total_backlinks }}</div>
+                <div class="metric-label">Total Backlinks</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.backlink_analysis.domain_authority }}</div>
+                <div class="metric-label">Domain Authority</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.backlink_analysis.referring_domains }}</div>
+                <div class="metric-label">Referring Domains</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.backlink_analysis.overall_score }}</div>
+                <div class="metric-label">Link Quality Score</div>
+            </div>
+        </div>
+        
+        <p><strong>Link Quality Distribution:</strong></p>
+        <ul>
+            <li><span style="color: #28a745;">High Quality:</span> {{ analysis.backlink_analysis.link_quality.high }} links</li>
+            <li><span style="color: #ffc107;">Medium Quality:</span> {{ analysis.backlink_analysis.link_quality.medium }} links</li>
+            <li><span style="color: #dc3545;">Low Quality:</span> {{ analysis.backlink_analysis.link_quality.low }} links</li>
+        </ul>
+        <p><strong>Anchor Text Diversity:</strong> {{ analysis.backlink_analysis.anchor_text_diversity.score }}/100</p>
+        <p><strong>Link Velocity:</strong> {{ analysis.backlink_analysis.link_velocity.score }}/100</p>
+    </div>
+
+    <div class="section">
+        <h2>🔍 Keyword Analysis</h2>
+        <div class="metric-grid">
+            <div class="metric">
+                <div class="metric-value">{{ analysis.keyword_analysis.current_keywords.count if analysis.keyword_analysis and analysis.keyword_analysis.current_keywords else 'N/A' }}</div>
+                <div class="metric-label">Keywords Found</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.keyword_analysis.keyword_density.score if analysis.keyword_analysis and analysis.keyword_analysis.keyword_density else 'N/A' }}</div>
+                <div class="metric-label">Density Score</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.keyword_analysis.keyword_placement.score if analysis.keyword_analysis and analysis.keyword_analysis.keyword_placement else 'N/A' }}</div>
+                <div class="metric-label">Placement Score</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.keyword_analysis.overall_score if analysis.keyword_analysis else 'N/A' }}</div>
+                <div class="metric-label">Overall Score</div>
+            </div>
+        </div>
+        
+        <p><strong>Current Keywords:</strong> {{ analysis.keyword_analysis.current_keywords.found | join(', ') if analysis.keyword_analysis and analysis.keyword_analysis.current_keywords and analysis.keyword_analysis.current_keywords.found else 'N/A' }}</p>
+        
+        {% if analysis.keyword_analysis and analysis.keyword_analysis.recommended_keywords %}
+        <p><strong>Recommended Keywords:</strong></p>
+        <ul>
+            {% for keyword in analysis.keyword_analysis.recommended_keywords[:8] %}
+            <li>{{ keyword }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        
+        {% if analysis.keyword_analysis and analysis.keyword_analysis.keyword_opportunities %}
+        <p><strong>Keyword Opportunities:</strong></p>
+        <ul>
+            {% for keyword in analysis.keyword_analysis.keyword_opportunities[:5] %}
+            <li>{{ keyword }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        
+        <p><strong>Keyword Placement:</strong></p>
+        <ul>
+            <li><strong>Title:</strong> {{ analysis.keyword_analysis.keyword_placement.title if analysis.keyword_analysis and analysis.keyword_analysis.keyword_placement else 'N/A' }}/100</li>
+            <li><strong>Headings:</strong> {{ analysis.keyword_analysis.keyword_placement.headings if analysis.keyword_analysis and analysis.keyword_analysis.keyword_placement else 'N/A' }}/100</li>
+            <li><strong>Content:</strong> {{ analysis.keyword_analysis.keyword_placement.content if analysis.keyword_analysis and analysis.keyword_analysis.keyword_placement else 'N/A' }}/100</li>
+        </ul>
+    </div>
+
+    {% if analysis.recommendations %}
+    <div class="section">
+        <h2>🎯 Recommendations</h2>
+        <div class="recommendations">
+            {% for rec in analysis.recommendations %}
+            <div class="recommendation priority-{{ rec.priority.lower() }}">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h4 style="margin: 0;">{{ rec.title }}</h4>
+                    <span class="priority priority-{{ rec.priority.lower() }}">{{ rec.priority }}</span>
+                </div>
+                <p style="margin: 5px 0;"><strong>Issue:</strong> {{ rec.description }}</p>
+                <p style="margin: 5px 0;"><strong>Action:</strong> {{ rec.action }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="section">
+        <h2>📧 Share This Report</h2>
+        <div style="background: #e3f2fd; padding: 20px; border-radius: 8px; text-align: center;">
+            <p style="margin-bottom: 15px;">Send this comprehensive SEO report to your team or clients</p>
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                <button onclick="sendEmailReport()" style="background: #1976d2; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">
+                    📧 Send via Email
+                </button>
+                <button onclick="window.print()" style="background: #388e3c; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">
+                    🖨️ Print Report
+                </button>
+                <button onclick="downloadPDF()" style="background: #f57c00; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">
+                    📄 Download PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p><strong>Healthcare Marketing AI Platform</strong></p>
+        <p>This report was generated on {{ analysis_date }}</p>
+        <p>For questions about this report, please contact your marketing team.</p>
+        <p style="font-size: 0.9em; opacity: 0.8;">
+            This analysis is for informational purposes only and should not be considered as medical or legal advice.
+        </p>
+    </div>
+
+    <script>
+        function sendEmailReport() {
+            const email = prompt('Enter email address to send the report to:');
+            if (email && email.includes('@')) {
+                // Get the current URL to extract lead_id and audit_id
+                const pathParts = window.location.pathname.split('/');
+                const leadId = pathParts[3];
+                const auditId = pathParts[5];
+                
+                fetch(`/admin/leads/${leadId}/seo-report/${auditId}/email`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        subject: `SEO Analysis Report - {{ business_name }}`
+                    })
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        showError('Report sent successfully to ' + email, 'Email Sent Successfully');
+                    } else {
+                        showError('Error: ' + result.message, 'Email Send Failed');
+                    }
+                })
+                .catch(error => {
+                    showError('Error sending email: ' + error, 'Email Send Failed');
+                });
+            } else if (email) {
+                showError('Please enter a valid email address.', 'Invalid Email');
+            }
+        }
+        
+        function downloadPDF() {
+            showError('PDF download feature coming soon! For now, you can use your browser\'s print function and save as PDF.', 'Feature Coming Soon');
+        }
+    </script>
+</body>
+</html>

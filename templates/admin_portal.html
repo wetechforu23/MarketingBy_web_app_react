@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Portal - Health Clinic Marketing</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            background: linear-gradient(180deg, #dc3545 0%, #fd7e14 100%);
+            min-height: 100vh;
+        }
+        .nav-link {
+            color: #ffffff;
+            transition: all 0.3s;
+        }
+        .nav-link:hover {
+            color: #f8f9fa;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .admin-card {
+            background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+            color: white;
+            border: none;
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.2);
+        }
+        .activity-item {
+            border-left: 4px solid #dc3545;
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Admin Sidebar -->
+            <nav class="col-md-2 d-none d-md-block sidebar">
+                <div class="sidebar-sticky p-3">
+                    <h4 class="text-white mb-4">
+                        <i class="fas fa-shield-alt"></i> Admin Portal
+                    </h4>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/admin">
+                                <i class="fas fa-tachometer-alt"></i> Admin Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/clients">
+                                <i class="fas fa-users"></i> Client Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/leads">
+                                <i class="fas fa-user-plus"></i> Lead Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/lead-finder">
+                                <i class="fas fa-search"></i> Lead Finder
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/quota-monitor">
+                                <i class="fas fa-chart-line"></i> API Quota Monitor
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/subscription/plans">
+                                <i class="fas fa-credit-card"></i> Subscription Plans
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/api-settings">
+                                <i class="fas fa-plug"></i> API Settings
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/seo-backlink-manager">
+                                <i class="fas fa-search-plus"></i> SEO & Backlink Manager
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/client-access">
+                                <i class="fas fa-key"></i> Client Access Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/keyword-suggestions">
+                                <i class="fas fa-lightbulb"></i> Enhanced Keyword Suggestions
+                            </a>
+                        </li>
+                        <li class="nav-item mt-3">
+                            <a class="nav-link" href="/customer">
+                                <i class="fas fa-user"></i> Customer View
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-warning" href="/logout">
+                                <i class="fas fa-sign-out-alt"></i> Logout
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-10 ml-sm-auto px-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <div>
+                        <h1 class="h2">
+                            <i class="fas fa-shield-alt text-danger me-2"></i>Admin Portal
+                        </h1>
+                        <p class="text-muted">Complete system administration and management</p>
+                    </div>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <a href="/customer" class="btn btn-outline-success me-2">
+                            <i class="fas fa-user me-2"></i>Customer View
+                        </a>
+                        <button class="btn btn-warning me-2" onclick="setupAPIs()">
+                            <i class="fas fa-plug me-2"></i>Setup APIs
+                        </button>
+                        <a href="/logout" class="btn btn-outline-danger">
+                            <i class="fas fa-sign-out-alt me-2"></i>Sign Out
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Admin Metrics -->
+                <div class="row mb-4">
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card admin-card h-100">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-uppercase mb-1">Total Clients</div>
+                                        <div class="h5 mb-0 font-weight-bold">{{ total_clients }}</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-users fa-2x text-white-50"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card admin-card h-100">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-uppercase mb-1">SEO Audits</div>
+                                        <div class="h5 mb-0 font-weight-bold">{{ total_audits }}</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-chart-line fa-2x text-white-50"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card admin-card h-100">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-uppercase mb-1">Communications</div>
+                                        <div class="h5 mb-0 font-weight-bold">{{ total_communications }}</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-comments fa-2x text-white-50"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card admin-card h-100">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-uppercase mb-1">System Status</div>
+                                        <div class="h5 mb-0 font-weight-bold">Online</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-server fa-2x text-white-50"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-danger">
+                            <i class="fas fa-bolt me-2"></i>Quick Actions
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <a href="/clients" class="btn btn-outline-primary btn-block mb-2">
+                                    <i class="fas fa-users me-2"></i>Manage Clients
+                                </a>
+                            </div>
+                            <div class="col-md-3">
+                                <a href="/leads" class="btn btn-outline-success btn-block mb-2">
+                                    <i class="fas fa-search me-2"></i>Find Leads
+                                </a>
+                            </div>
+                            <div class="col-md-3">
+                                <a href="/admin/subscription/plans" class="btn btn-outline-warning btn-block mb-2">
+                                    <i class="fas fa-credit-card me-2"></i>Subscription Plans
+                                </a>
+                            </div>
+                            <div class="col-md-3">
+                                <a href="/admin/api-settings" class="btn btn-outline-info btn-block mb-2">
+                                    <i class="fas fa-cog me-2"></i>API Settings
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activities -->
+                <div class="card shadow">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-danger">
+                            <i class="fas fa-history me-2"></i>Recent System Activities
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        {% if recent_activities %}
+                        {% for activity in recent_activities %}
+                        <div class="activity-item">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <strong>{{ activity.communication_type.title() }}:</strong> {{ activity.subject }}
+                                    <br>
+                                    <small class="text-muted">Client ID: {{ activity.client_id }}</small>
+                                </div>
+                                <div class="text-end">
+                                    <small class="text-muted">{{ activity.created_at.strftime('%m/%d/%Y %I:%M %p') }}</small>
+                                    <br>
+                                    <span class="badge 
+                                        {% if activity.status == 'completed' %}bg-success
+                                        {% elif activity.status == 'sent' %}bg-primary
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ activity.status.title() }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                            <h5>No Recent Activities</h5>
+                            <p class="text-muted">System activities will appear here.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function setupAPIs() {
+            const apiGuide = `
+🔧 API SETUP GUIDE - NO DOMAIN REQUIRED!
+
+✅ GOOGLE MY BUSINESS API (FREE):
+1. Go to: https://console.cloud.google.com/
+2. Create project: "Health Marketing"
+3. Enable: Google My Business API
+4. Create service account key
+5. Download JSON file
+
+✅ FACEBOOK BUSINESS API (FREE):
+1. Go to: https://developers.facebook.com/
+2. Create app: "Health Marketing"  
+3. Add Business Manager product
+4. Get App ID and App Secret
+5. Generate access token
+
+✅ MAILCHIMP API (FREE):
+1. Go to: https://mailchimp.com/
+2. Create free account (2,000 contacts)
+3. Go to Account → Extras → API keys
+4. Generate new API key
+
+💡 NO DOMAIN REQUIRED FOR TESTING!
+All APIs work with localhost for development.
+
+Ready to set up these FREE APIs?
+            `;
+            
+            alert(apiGuide);
+        }
+    </script>
+</body>
+</html>

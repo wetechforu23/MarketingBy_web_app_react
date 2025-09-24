@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Delivery Details - WeTechForU Healthcare Marketing</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .delivery-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .metric-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #0078d4;
+        }
+        .metric-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        .engagement-rate {
+            color: #28a745;
+        }
+        .click-rate {
+            color: #ffc107;
+        }
+        .conversion-rate {
+            color: #dc3545;
+        }
+        .timeline-item {
+            border-left: 3px solid #0078d4;
+            padding-left: 20px;
+            margin-bottom: 20px;
+        }
+        .timeline-time {
+            color: #666;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="delivery-card">
+                    <h1><i class="fas fa-envelope-open"></i> Email Delivery Details</h1>
+                    <p class="mb-0">WeTechForU Healthcare Marketing Platform</p>
+                </div>
+            </div>
+        </div>
+
+        {% if delivery %}
+        <div class="row">
+            <div class="col-md-6">
+                <div class="metric-card">
+                    <h5><i class="fas fa-info-circle"></i> Delivery Information</h5>
+                    <table class="table table-borderless">
+                        <tr>
+                            <td><strong>Delivery ID:</strong></td>
+                            <td>{{ delivery.id }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Message ID:</strong></td>
+                            <td><code>{{ delivery.message_id }}</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Recipient:</strong></td>
+                            <td>{{ delivery.to_email }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Subject:</strong></td>
+                            <td>{{ delivery.subject }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Status:</strong></td>
+                            <td><span class="badge bg-success">{{ delivery.status }}</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Sent At:</strong></td>
+                            <td>{{ delivery.sent_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="metric-card">
+                    <h5><i class="fas fa-chart-bar"></i> Engagement Metrics</h5>
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="metric-value engagement-rate">{{ total_opens }}</div>
+                            <div class="metric-label">Total Opens</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="metric-value click-rate">{{ total_clicks }}</div>
+                            <div class="metric-label">Total Clicks</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="metric-value conversion-rate">{{ total_opens + total_clicks }}</div>
+                            <div class="metric-label">Total Engagement</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if opens %}
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-eye"></i> Email Opens ({{ total_opens }})</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Opened At</th>
+                                        <th>IP Address</th>
+                                        <th>Location</th>
+                                        <th>User Agent</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for open in opens %}
+                                    <tr>
+                                        <td>{{ loop.index }}</td>
+                                        <td>{{ open.opened_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                        <td><code>{{ open.ip_address or 'N/A' }}</code></td>
+                                        <td>{{ open.location or 'N/A' }}</td>
+                                        <td><small>{{ open.user_agent[:50] or 'N/A' }}...</small></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if clicks %}
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-mouse-pointer"></i> Link Clicks ({{ total_clicks }})</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Clicked At</th>
+                                        <th>Link Text</th>
+                                        <th>URL</th>
+                                        <th>IP Address</th>
+                                        <th>Location</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for click in clicks %}
+                                    <tr>
+                                        <td>{{ loop.index }}</td>
+                                        <td>{{ click.clicked_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                        <td><strong>{{ click.link_text or 'N/A' }}</strong></td>
+                                        <td><a href="{{ click.link_url }}" target="_blank" class="text-decoration-none">
+                                            {{ click.link_url[:50] }}...
+                                        </a></td>
+                                        <td><code>{{ click.ip_address or 'N/A' }}</code></td>
+                                        <td>{{ click.location or 'N/A' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if engagement %}
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-timeline"></i> Engagement Timeline</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline-item">
+                            <h6><i class="fas fa-paper-plane"></i> Email Sent</h6>
+                            <p class="timeline-time">{{ delivery.sent_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                            <p>Email was successfully sent to {{ delivery.to_email }}</p>
+                        </div>
+                        
+                        {% if engagement.first_opened_at %}
+                        <div class="timeline-item">
+                            <h6><i class="fas fa-eye"></i> First Email Open</h6>
+                            <p class="timeline-time">{{ engagement.first_opened_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                            <p>Email was opened for the first time ({{ engagement.time_to_open }} seconds after sending)</p>
+                        </div>
+                        {% endif %}
+                        
+                        {% if engagement.first_clicked_at %}
+                        <div class="timeline-item">
+                            <h6><i class="fas fa-mouse-pointer"></i> First Link Click</h6>
+                            <p class="timeline-time">{{ engagement.first_clicked_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                            <p>First link was clicked ({{ engagement.time_to_click }} seconds after sending)</p>
+                        </div>
+                        {% endif %}
+                        
+                        {% if engagement.last_opened_at %}
+                        <div class="timeline-item">
+                            <h6><i class="fas fa-eye"></i> Last Email Open</h6>
+                            <p class="timeline-time">{{ engagement.last_opened_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                            <p>Email was opened {{ engagement.open_count }} times total</p>
+                        </div>
+                        {% endif %}
+                        
+                        {% if engagement.last_clicked_at %}
+                        <div class="timeline-item">
+                            <h6><i class="fas fa-mouse-pointer"></i> Last Link Click</h6>
+                            <p class="timeline-time">{{ engagement.last_clicked_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                            <p>{{ engagement.click_count }} total clicks recorded</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                        <h4>Email Delivery Not Found</h4>
+                        <p class="text-muted">The requested email delivery could not be found.</p>
+                        <a href="/admin/email-analytics" class="btn btn-primary">
+                            <i class="fas fa-arrow-left"></i> Back to Email Analytics
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-cog"></i> Quick Actions</h5>
+                    </div>
+                    <div class="card-body">
+                        <a href="/admin/email-analytics" class="btn btn-primary">
+                            <i class="fas fa-arrow-left"></i> Back to Email Analytics
+                        </a>
+                        <a href="/admin" class="btn btn-secondary">
+                            <i class="fas fa-home"></i> Admin Dashboard
+                        </a>
+                        <button onclick="location.reload()" class="btn btn-info">
+                            <i class="fas fa-sync"></i> Refresh Data
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
