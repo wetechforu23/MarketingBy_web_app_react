@@ -1643,3 +1643,70 @@ def send_test_email():
 def email_config_test_page():
     """Email configuration test page"""
     return render_template('email_config_test.html')
+
+@admin_bp.route('/client/<int:client_id>/google-ads')
+@login_required
+def client_google_ads_management(client_id):
+    """Client Google Ads management page"""
+    client = Client.query.get_or_404(client_id)
+    
+    # Get Google Ads data for the client
+    google_ads_data = {
+        'campaigns': [],
+        'performance': {
+            'impressions': 0,
+            'clicks': 0,
+            'conversions': 0,
+            'cost': 0
+        }
+    }
+    
+    return render_template('client_google_ads_management.html', 
+                         client=client,
+                         google_ads_data=google_ads_data)
+
+@admin_bp.route('/client/<int:client_id>/facebook')
+@login_required
+def client_facebook_management(client_id):
+    """Client Facebook management page"""
+    client = Client.query.get_or_404(client_id)
+    
+    # Get Facebook data for the client
+    facebook_data = {
+        'posts': [],
+        'insights': {
+            'page_likes': 0,
+            'post_reach': 0,
+            'engagement': 0
+        }
+    }
+    
+    return render_template('client_facebook_management.html', 
+                         client=client,
+                         facebook_data=facebook_data)
+
+@admin_bp.route('/client/<int:client_id>/seo')
+@login_required
+def client_seo_management(client_id):
+    """Client SEO management page"""
+    client = Client.query.get_or_404(client_id)
+    
+    # Get SEO data for the client
+    seo_audits = SEOAudit.query.filter_by(client_id=client_id).order_by(SEOAudit.audit_date.desc()).all()
+    
+    return render_template('client_seo_management.html', 
+                         client=client,
+                         seo_audits=seo_audits)
+
+@admin_bp.route('/client/<int:client_id>/campaigns')
+@login_required
+def client_campaign_management(client_id):
+    """Client campaign management page"""
+    client = Client.query.get_or_404(client_id)
+    
+    # Get campaign data for the client
+    campaigns = Campaign.query.filter_by(client_id=client_id).all()
+    
+    return render_template('client_campaign_management.html', 
+                         client=client,
+                         campaigns=campaigns)

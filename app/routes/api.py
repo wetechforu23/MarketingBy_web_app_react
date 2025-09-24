@@ -1333,3 +1333,77 @@ def parse_address():
             'success': False,
             'error': str(e)
         }), 500
+
+@api_bp.route('/health')
+def health_check():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.utcnow().isoformat(),
+        'service': 'WeTechForU Healthcare Marketing Platform'
+    })
+
+@api_bp.route('/leads')
+@login_required
+def get_leads():
+    """Get all leads"""
+    try:
+        leads = Lead.query.order_by(Lead.created_at.desc()).all()
+        leads_data = []
+        
+        for lead in leads:
+            leads_data.append({
+                'id': lead.id,
+                'clinic_name': lead.clinic_name,
+                'website_url': lead.website_url,
+                'email': lead.email,
+                'phone': lead.phone,
+                'address': lead.address,
+                'status': lead.status,
+                'industry_category': lead.industry_category,
+                'industry_subcategory': lead.industry_subcategory,
+                'created_at': lead.created_at.isoformat() if lead.created_at else None
+            })
+        
+        return jsonify({
+            'success': True,
+            'leads': leads_data,
+            'total': len(leads_data)
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/clients')
+@login_required
+def get_clients():
+    """Get all clients"""
+    try:
+        from app.models.client import Client
+        clients = Client.query.all()
+        clients_data = []
+        
+        for client in clients:
+            clients_data.append({
+                'id': client.id,
+                'name': client.name,
+                'website': client.website,
+                'email': client.email,
+                'phone': client.phone,
+                'address': client.address,
+                'is_active': client.is_active,
+                'created_at': client.created_at.isoformat() if client.created_at else None
+            })
+        
+        return jsonify({
+            'success': True,
+            'clients': clients_data,
+            'total': len(clients_data)
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
