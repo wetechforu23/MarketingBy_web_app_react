@@ -6,7 +6,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from app import db
 from app.models.subscription import SubscriptionPlan, Feature, PlanFeature, ClientSubscription
 from app.models.client import Client
-from services.subscription_service import SubscriptionService
+from app.services.subscription_service import SubscriptionService
 from app.utils.feature_flags import require_feature
 import json
 

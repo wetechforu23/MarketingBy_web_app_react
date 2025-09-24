@@ -13,7 +13,7 @@ from app.models.marketing_performance import MarketingPerformance
 from app import db
 from functools import wraps
 from app.utils.feature_flags import require_feature, check_feature_access, get_client_features, get_plan_info, get_features_by_category
-from services.subscription_service import SubscriptionService
+from app.services.subscription_service import SubscriptionService
 
 customer_bp = Blueprint('customer', __name__)
 

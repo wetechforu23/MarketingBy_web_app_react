@@ -4,7 +4,7 @@ Feature Flag System for Subscription Plans
 
 from functools import wraps
 from flask import session, redirect, url_for, flash, jsonify, request
-from services.subscription_service import SubscriptionService
+from app.services.subscription_service import SubscriptionService
 
 def require_feature(feature_name, redirect_url=None, error_message=None):
     """
@@ -27,7 +27,8 @@ def require_feature(feature_name, redirect_url=None, error_message=None):
                 return jsonify({'error': 'Authentication required'}), 401
             
             # Check if client has access to the feature
-            has_access = SubscriptionService.check_feature_access(client_id, feature_name)
+            subscription_service = SubscriptionService()
+            has_access = subscription_service.has_feature_access(client_id, feature_name)
             
             if not has_access:
                 if redirect_url:
@@ -55,7 +56,8 @@ def check_feature_access(feature_name):
     if not client_id:
         return False
     
-    return SubscriptionService.check_feature_access(client_id, feature_name)
+    subscription_service = SubscriptionService()
+    return subscription_service.has_feature_access(client_id, feature_name)
 
 def get_client_features():
     """
@@ -68,7 +70,9 @@ def get_client_features():
     if not client_id:
         return []
     
-    return SubscriptionService.get_client_features(client_id)
+    subscription_service = SubscriptionService()
+    features = subscription_service.get_client_features(client_id)
+    return [feature.name for feature in features]
 
 def track_feature_usage(feature_name, usage_count=1):
     """
@@ -82,7 +86,8 @@ def track_feature_usage(feature_name, usage_count=1):
     if not client_id:
         return False
     
-    return SubscriptionService.track_feature_usage(client_id, feature_name, usage_count)
+    subscription_service = SubscriptionService()
+    return subscription_service.record_feature_usage(client_id, feature_name, {'usage_count': usage_count})
 
 def get_plan_info():
     """
@@ -95,7 +100,16 @@ def get_plan_info():
     if not client_id:
         return {}
     
-    return SubscriptionService.get_client_plan_info(client_id)
+    subscription_service = SubscriptionService()
+    subscription = subscription_service.get_client_subscription(client_id)
+    if subscription and subscription.plan:
+        return {
+            'plan_name': subscription.plan.name,
+            'plan_price': subscription.plan.price,
+            'billing_cycle': subscription.plan.billing_cycle,
+            'features': [f.name for f in subscription_service.get_client_features(client_id)]
+        }
+    return {}
 
 class FeatureFlagMiddleware:
     """Middleware to inject feature flags into template context"""
@@ -118,12 +132,13 @@ class FeatureFlagMiddleware:
                 'plan_info': {}
             }
         
-        features = SubscriptionService.get_client_features(client_id)
-        plan_info = SubscriptionService.get_client_plan_info(client_id)
+        subscription_service = SubscriptionService()
+        features = subscription_service.get_client_features(client_id)
+        plan_info = get_plan_info()
         
         return {
-            'has_feature': lambda feature_name: feature_name in features,
-            'client_features': features,
+            'has_feature': lambda feature_name: any(f.name == feature_name for f in features),
+            'client_features': [f.name for f in features],
             'plan_info': plan_info
         }
 

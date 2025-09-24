@@ -336,7 +336,7 @@ def post_to_facebook():
         import sys
         import os
         sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        from services.facebook_service import FacebookService
+        from app.services.facebook_service import FacebookService
         
         # Get form data
         message = data.get('message', '')
@@ -422,7 +422,7 @@ def test_facebook_connection():
         import sys
         import os
         sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        from services.facebook_service import FacebookService
+        from app.services.facebook_service import FacebookService
         
         facebook_service = FacebookService()
         result = facebook_service.test_connection()
@@ -446,7 +446,7 @@ def generate_ai_facebook_post():
         import sys
         import os
         sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        from services.free_ai_content_service import FreeAIContentService
+        from app.services.free_ai_content_service import FreeAIContentService
         
         # Get parameters
         client_id = data.get('client_id')
@@ -512,7 +512,7 @@ def generate_multiple_ai_posts():
         import sys
         import os
         sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        from services.free_ai_content_service import FreeAIContentService
+        from app.services.free_ai_content_service import FreeAIContentService
         
         # Get parameters
         client_id = data.get('client_id')
@@ -714,7 +714,7 @@ def get_content_suggestions():
         import sys
         import os
         sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        from services.free_ai_content_service import FreeAIContentService
+        from app.services.free_ai_content_service import FreeAIContentService
         
         # Get business type from query parameters
         business_type = request.args.get('business_type', 'healthcare')
@@ -744,7 +744,7 @@ def analyze_domain_seo():
         import sys
         import os
         sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        from services.godaddy_seo_service import GoDaddySEOService
+        from app.services.godaddy_seo_service import GoDaddySEOService
         
         domain = data.get('domain', '')
         if not domain:
@@ -787,7 +787,7 @@ def generate_backlink_strategy():
         import sys
         import os
         sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        from services.godaddy_seo_service import GoDaddySEOService
+        from app.services.godaddy_seo_service import GoDaddySEOService
         
         domain = data.get('domain', '')
         industry = data.get('industry', 'healthcare')
@@ -832,7 +832,7 @@ def get_domain_suggestions():
         import sys
         import os
         sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        from services.godaddy_seo_service import GoDaddySEOService
+        from app.services.godaddy_seo_service import GoDaddySEOService
         
         keyword = data.get('keyword', '')
         if not keyword:
@@ -873,7 +873,7 @@ def get_seo_tools():
         import sys
         import os
         sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        from services.godaddy_seo_service import GoDaddySEOService
+        from app.services.godaddy_seo_service import GoDaddySEOService
         
         godaddy_service = GoDaddySEOService()
         tools = godaddy_service.get_seo_tools_integration()
@@ -966,7 +966,7 @@ def create_google_ad():
     try:
         from app.models.client import Client
         from app.models.campaign import Campaign
-        from services.google_ads_service import GoogleAdsService
+        from app.services.google_ads_service import GoogleAdsService
         from datetime import datetime
         
         data = request.get_json()
@@ -1128,7 +1128,7 @@ def create_mock_google_ad_campaign(client_id, data):
 def get_keyword_industry_categories():
     """Get all available industry categories"""
     try:
-        from services.enhanced_keyword_service import EnhancedKeywordService
+        from app.services.enhanced_keyword_service import EnhancedKeywordService
         service = EnhancedKeywordService()
         categories = service.get_industry_categories()
         
@@ -1146,7 +1146,7 @@ def get_keyword_industry_categories():
 def get_subcategories(category_name):
     """Get subcategories for a specific industry category"""
     try:
-        from services.enhanced_keyword_service import EnhancedKeywordService
+        from app.services.enhanced_keyword_service import EnhancedKeywordService
         service = EnhancedKeywordService()
         subcategories = service.get_subcategories(category_name)
         
@@ -1165,7 +1165,7 @@ def get_subcategories(category_name):
 def get_keyword_suggestions():
     """Get keyword suggestions for a category and subcategory"""
     try:
-        from services.enhanced_keyword_service import EnhancedKeywordService
+        from app.services.enhanced_keyword_service import EnhancedKeywordService
         service = EnhancedKeywordService()
         
         data = request.get_json()
@@ -1204,7 +1204,7 @@ def get_keyword_suggestions():
 def get_location_based_keywords():
     """Get keywords based on a specific address/location"""
     try:
-        from services.enhanced_keyword_service import EnhancedKeywordService
+        from app.services.enhanced_keyword_service import EnhancedKeywordService
         service = EnhancedKeywordService()
         
         data = request.get_json()
@@ -1240,7 +1240,7 @@ def get_location_based_keywords():
 def search_keywords():
     """Search for keywords across categories"""
     try:
-        from services.enhanced_keyword_service import EnhancedKeywordService
+        from app.services.enhanced_keyword_service import EnhancedKeywordService
         service = EnhancedKeywordService()
         
         query = request.args.get('q', '')
@@ -1269,7 +1269,7 @@ def search_keywords():
 def get_recommended_keywords():
     """Get recommended keywords based on business type and location"""
     try:
-        from services.enhanced_keyword_service import EnhancedKeywordService
+        from app.services.enhanced_keyword_service import EnhancedKeywordService
         service = EnhancedKeywordService()
         
         data = request.get_json()
@@ -1304,7 +1304,7 @@ def get_recommended_keywords():
 def parse_address():
     """Parse a full address into components"""
     try:
-        from services.enhanced_keyword_service import EnhancedKeywordService
+        from app.services.enhanced_keyword_service import EnhancedKeywordService
         service = EnhancedKeywordService()
         
         data = request.get_json()

@@ -181,7 +181,7 @@ def create_app():
         
         # Initialize default data
         from app.utils.init_data import create_default_users, create_industry_data, create_sample_data
-        from services.subscription_service import SubscriptionService
+        from app.services.subscription_service import SubscriptionService
         create_default_users()
         create_industry_data()
         create_sample_data()

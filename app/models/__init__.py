@@ -2,6 +2,11 @@
 Database Models Package
 """
 
+from flask_sqlalchemy import SQLAlchemy
+
+# Initialize database
+db = SQLAlchemy()
+
 from .user import User
 from .client import Client
 from .lead import Lead, IndustryCategory, IndustrySubcategory, SearchKeyword
@@ -21,7 +26,7 @@ from .subscription import (
 from .client_google_ads import ClientGoogleAds
 
 __all__ = [
-    'User', 'Client', 'Lead', 'IndustryCategory', 'IndustrySubcategory', 'SearchKeyword',
+    'db', 'User', 'Client', 'Lead', 'IndustryCategory', 'IndustrySubcategory', 'SearchKeyword',
     'SEOAudit', 'ContentApproval', 'Campaign', 'Communication', 'MarketingPerformance',
     'KeywordAnalysis', 'CompetitorAnalysis', 'KeywordRecommendation',
     'KeywordCampaign', 'BacklinkCampaign', 'GoogleAdsCampaign', 'ClientAcquisition',
