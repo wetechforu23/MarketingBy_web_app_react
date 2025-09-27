@@ -10,7 +10,9 @@ Flask-Migrate==4.0.5
 
 # Database
 psycopg2-binary==2.9.9
-SQLAlchemy==2.0.21
+SQLAlchemy==2.0.23
+psycopg2==2.9.9
+pg8000==1.30.3
 
 # Security
 Werkzeug==2.3.7

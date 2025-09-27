@@ -22,7 +22,11 @@ def create_app():
     
     # Configuration
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/health_clinic_marketing')
+    # Handle Heroku's postgres:// URLs (convert to postgresql://)
+    database_url = os.getenv('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/health_clinic_marketing')
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['DEDICATED_PORT'] = int(os.getenv('FLASK_PORT', 9000))
     

@@ -1,2 +1,2 @@
 web: gunicorn main:app
-release: python scripts/migrate.py
+release: python scripts/simple_migrate.py
