@@ -14,8 +14,26 @@ def migrate():
         app = create_app()
         
         with app.app_context():
-            # Import models after app context is created
-            from app.models import *
+            # Import all models individually to ensure they're registered
+            from app.models.user import User
+            from app.models.client import Client
+            from app.models.lead import Lead, IndustryCategory, IndustrySubcategory, SearchKeyword
+            from app.models.seo_audit import SEOAudit
+            from app.models.content_approval import ContentApproval
+            from app.models.campaign import Campaign
+            from app.models.communication import Communication
+            from app.models.marketing_performance import MarketingPerformance
+            from app.models.keyword_analysis import (
+                KeywordAnalysis, CompetitorAnalysis, KeywordRecommendation,
+                KeywordCampaign, BacklinkCampaign, GoogleAdsCampaign, ClientAcquisition
+            )
+            from app.models.subscription import (
+                SubscriptionPlan, Feature, PlanFeature, ClientSubscription, FeatureUsage
+            )
+            from app.models.client_google_ads import ClientGoogleAds
+            from app.models.email_template import EmailTemplate
+            from app.models.secure_link import SecureLink
+            from app.models.email_tracking import EmailTracking
             
             # Create all tables
             db.create_all()
