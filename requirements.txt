@@ -23,8 +23,7 @@ urllib3==2.0.4
 # Environment
 python-dotenv==1.0.0
 
-# Email
-smtplib2==0.2.1
+# Email (smtplib is built into Python, no need to install)
 
 # Data Processing
 pandas==2.1.1
