@@ -33,8 +33,7 @@ def migrate():
             from app.models.client_google_ads import ClientGoogleAds
             from app.models.email_template import EmailTemplate
             from app.models.secure_link import SecureLink
-            # EmailTracking model temporarily commented out due to import issues
-            # from app.models.email_tracking import EmailTracking
+            from app.models.email_tracking import EmailDelivery, EmailOpen, EmailClick
             
             # Create all tables
             db.create_all()
