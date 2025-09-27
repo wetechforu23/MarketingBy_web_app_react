@@ -49,8 +49,9 @@ def create_app():
     from app.routes.client_google_oauth import client_google_oauth_bp
     from app.routes.marketplace_api import marketplace_api_bp
     from app.routes.lead_management import lead_mgmt_bp
-    from app.routes.secure_links import secure_links_bp
-    from app.routes.email_tracking import email_tracking_bp
+    # Temporarily commented out to fix startup issues
+    # from app.routes.secure_links import secure_links_bp
+    # from app.routes.email_tracking import email_tracking_bp
     
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(admin_bp, url_prefix='/admin')
@@ -61,8 +62,9 @@ def create_app():
     app.register_blueprint(client_google_oauth_bp)
     app.register_blueprint(marketplace_api_bp)
     app.register_blueprint(lead_mgmt_bp, url_prefix='/admin')
-    app.register_blueprint(secure_links_bp)
-    app.register_blueprint(email_tracking_bp)
+    # Temporarily commented out to fix startup issues
+    # app.register_blueprint(secure_links_bp)
+    # app.register_blueprint(email_tracking_bp)
     
     # Root route
     @app.route('/')
