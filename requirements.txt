@@ -9,7 +9,7 @@ Flask-WTF==1.1.1
 Flask-Migrate==4.0.5
 
 # Database
-psycopg2-binary==2.9.7
+psycopg2-binary==2.9.9
 SQLAlchemy==2.0.21
 
 # Security
