@@ -6,7 +6,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import create_app, db
-from app.models import user, client, lead, seo_audit, content_approval, campaign, communication, marketing_performance, subscription, client_google_ads, email_template, secure_link, email_tracking, compliance, compliance_settings
+from app.models import user, client, lead, seo_audit, content_approval, campaign, communication, marketing_performance, subscription, client_google_ads, email_template, secure_link, email_tracking
 
 def migrate():
     """Run database migrations"""
