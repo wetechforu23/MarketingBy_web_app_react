@@ -181,16 +181,7 @@ def create_app():
             # If no user found, redirect to admin client management
             return redirect(f'/admin/client/{client_id}')
     
-    # Create tables
-    with app.app_context():
-        db.create_all()
-        
-        # Initialize default data
-        from app.utils.init_data import create_default_users, create_industry_data, create_sample_data
-        from app.services.subscription_service import SubscriptionService
-        create_default_users()
-        create_industry_data()
-        create_sample_data()
-        SubscriptionService.create_default_plans()
+    # Database tables will be created by the migration script
+    # No need to create them here during app initialization
     
     return app
