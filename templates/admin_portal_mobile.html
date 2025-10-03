@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Portal - WeTechForU Healthcare Marketing{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Mobile-First Admin Portal Styles */
+    .admin-header {
+        background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-teal) 100%);
+        color: white;
+        padding: 2rem 1rem;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    
+    .admin-header h1 {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .admin-header p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+    }
+    
+    .stats-mobile {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border: 1px solid #e5e7eb;
+    }
+    
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: var(--primary-blue);
+        margin-bottom: 0.5rem;
+    }
+    
+    .stat-label {
+        color: var(--professional-gray);
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    
+    .quick-actions-mobile {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .action-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border: 1px solid #e5e7eb;
+        text-decoration: none;
+        color: inherit;
+        transition: all 0.3s ease;
+    }
+    
+    .action-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.15);
+        color: inherit;
+    }
+    
+    .action-icon {
+        font-size: 2.5rem;
+        color: var(--primary-blue);
+        margin-bottom: 1rem;
+    }
+    
+    .action-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: var(--text-dark);
+    }
+    
+    .action-description {
+        color: var(--medium-gray);
+        font-size: 0.9rem;
+    }
+    
+    .system-status {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border: 1px solid #e5e7eb;
+    }
+    
+    .status-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f3f4f6;
+    }
+    
+    .status-item:last-child {
+        border-bottom: none;
+    }
+    
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    
+    .status-online {
+        background: #d1fae5;
+        color: #065f46;
+    }
+    
+    .status-offline {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+    
+    /* Tablet styles */
+    @media (min-width: 768px) {
+        .stats-mobile {
+            grid-template-columns: repeat(4, 1fr);
+        }
+        
+        .quick-actions-mobile {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .admin-header h1 {
+            font-size: 2.5rem;
+        }
+    }
+    
+    /* Desktop styles */
+    @media (min-width: 992px) {
+        .quick-actions-mobile {
+            grid-template-columns: repeat(4, 1fr);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Mobile-First Admin Header -->
+<div class="admin-header">
+    <h1>
+        <i class="fas fa-shield-alt me-2"></i>
+        Admin Dashboard
+    </h1>
+    <p>WeTechForU Healthcare Marketing Platform</p>
+    <div class="trust-indicator mt-2">
+        <i class="fas fa-check-circle me-2"></i>
+        HIPAA Compliant • Secure • Professional
+    </div>
+</div>
+
+<!-- Mobile Stats Grid -->
+<div class="stats-mobile">
+    <div class="stat-card">
+        <div class="stat-number">{{ total_leads or 0 }}</div>
+        <div class="stat-label">
+            <i class="fas fa-users me-1"></i>
+            Total Leads
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-number">{{ total_clients or 0 }}</div>
+        <div class="stat-label">
+            <i class="fas fa-user-md me-1"></i>
+            Active Clients
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-number">{{ total_campaigns or 0 }}</div>
+        <div class="stat-label">
+            <i class="fas fa-bullhorn me-1"></i>
+            Campaigns
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-number">{{ conversion_rate or '0%' }}</div>
+        <div class="stat-label">
+            <i class="fas fa-chart-line me-1"></i>
+            Conversion Rate
+        </div>
+    </div>
+</div>
+
+<!-- Mobile Quick Actions -->
+<div class="quick-actions-mobile">
+    <a href="/leads" class="action-card">
+        <div class="action-icon">
+            <i class="fas fa-users"></i>
+        </div>
+        <div class="action-title">Manage Leads</div>
+        <div class="action-description">View and manage healthcare leads</div>
+    </a>
+    
+    <a href="/clients" class="action-card">
+        <div class="action-icon">
+            <i class="fas fa-user-md"></i>
+        </div>
+        <div class="action-title">Client Portal</div>
+        <div class="action-description">Access client management</div>
+    </a>
+    
+    <a href="/campaigns" class="action-card">
+        <div class="action-icon">
+            <i class="fas fa-bullhorn"></i>
+        </div>
+        <div class="action-title">Campaigns</div>
+        <div class="action-description">Create and manage campaigns</div>
+    </a>
+    
+    <a href="/seo_audit" class="action-card">
+        <div class="action-icon">
+            <i class="fas fa-search"></i>
+        </div>
+        <div class="action-title">SEO Analysis</div>
+        <div class="action-description">Run SEO audits and reports</div>
+    </a>
+</div>
+
+<!-- System Status -->
+<div class="system-status">
+    <h5 class="mb-3">
+        <i class="fas fa-cog me-2"></i>
+        System Status
+    </h5>
+    
+    <div class="status-item">
+        <span>Database</span>
+        <span class="status-badge status-online">Online</span>
+    </div>
+    
+    <div class="status-item">
+        <span>Email Service</span>
+        <span class="status-badge status-online">Active</span>
+    </div>
+    
+    <div class="status-item">
+        <span>API Services</span>
+        <span class="status-badge status-online">Running</span>
+    </div>
+    
+    <div class="status-item">
+        <span>Security</span>
+        <span class="status-badge status-online">Secure</span>
+    </div>
+</div>
+{% endblock %}
