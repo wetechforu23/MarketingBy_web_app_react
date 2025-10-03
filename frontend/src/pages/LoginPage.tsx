@@ -15,7 +15,7 @@ export default function LoginPage() {
     setError('')
 
     try {
-      const response = await api.post('/login', { email, password })
+      const response = await api.post('/auth/login', { email, password })
       if (response.data.success) {
         navigate('/app/admin')
       } else {
