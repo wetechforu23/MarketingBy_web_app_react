@@ -17,6 +17,111 @@
     <!-- Healthcare Theme CSS -->
     <link href="{{ url_for('static', filename='css/healthcare-theme.css') }}" rel="stylesheet">
     
+    <!-- Responsive Design Fixes -->
+    <style>
+        /* Mobile-First Responsive Design */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: -100%;
+                width: 280px;
+                height: 100vh;
+                transition: left 0.3s ease;
+                z-index: 1050;
+                background: linear-gradient(180deg, var(--trust-blue) 0%, var(--primary-blue) 100%);
+                box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            }
+            
+            .sidebar.show {
+                left: 0;
+            }
+            
+            .main-content {
+                margin-left: 0;
+                padding: 0;
+            }
+            
+            .navbar {
+                padding: 0.5rem 1rem;
+            }
+            
+            .navbar-brand {
+                font-size: 1.2rem;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .stats-card {
+                padding: 1rem;
+            }
+            
+            .stats-number {
+                font-size: 2rem;
+            }
+            
+            .quick-action-btn {
+                min-height: 100px;
+                padding: 1rem;
+            }
+            
+            .quick-action-icon {
+                font-size: 2rem;
+            }
+            
+            .card-body {
+                padding: 1rem;
+            }
+            
+            .btn {
+                padding: 0.75rem 1rem;
+                font-size: 0.9rem;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .container-fluid {
+                padding: 0.5rem;
+            }
+            
+            .stats-number {
+                font-size: 1.8rem;
+            }
+            
+            .quick-action-btn {
+                min-height: 80px;
+                padding: 0.75rem;
+            }
+            
+            .quick-action-icon {
+                font-size: 1.5rem;
+            }
+            
+            .navbar-brand {
+                font-size: 1rem;
+            }
+        }
+        
+        /* Ensure all devices can access the mobile menu */
+        .mobile-menu-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1040;
+        }
+        
+        .mobile-menu-overlay.show {
+            display: block;
+        }
+    </style>
+    
     <!-- Custom CSS -->
     {% block extra_css %}{% endblock %}
     
@@ -67,6 +172,9 @@
     </style>
 </head>
 <body>
+    <!-- Mobile Menu Overlay -->
+    <div class="mobile-menu-overlay" id="mobileOverlay" onclick="closeSidebar()"></div>
+    
     <!-- Mobile Sidebar Toggle -->
     <button class="sidebar-toggle" onclick="toggleSidebar()">
         <i class="fas fa-bars"></i>
@@ -79,17 +187,17 @@
                 <div class="sidebar-sticky">
                     <!-- Logo -->
                     <div class="text-center p-3 border-bottom border-light">
-                        <img src="{{ url_for('static', filename='images/wetechforu-logo.svg') }}" 
-                             alt="WeTechForU" class="img-fluid" style="max-height: 40px;">
-                        <h5 class="text-white mt-2 mb-0">WeTechForU</h5>
-                        <small class="text-light">Healthcare Marketing</small>
+                        <img src="{{ url_for('static', filename='images/logo-fallback.svg') }}" 
+                             alt="WeTechForU" class="img-fluid" style="max-height: 40px; max-width: 100%;">
+                        <h5 class="text-white mt-2 mb-0 d-none d-md-block">WeTechForU</h5>
+                        <small class="text-light d-none d-md-block">Healthcare Marketing</small>
                     </div>
                     
                     <!-- Navigation Menu -->
                     <ul class="nav flex-column p-3">
                         <li class="nav-item">
                             <a class="nav-link {% if request.endpoint == 'admin.admin_portal' %}active{% endif %}" 
-                               href="{{ url_for('admin.admin_portal') }}">
+                               href="/admin/">
                                 <i class="fas fa-tachometer-alt"></i>
                                 Dashboard
                             </a>
@@ -97,7 +205,7 @@
                         
                         <li class="nav-item">
                             <a class="nav-link {% if request.endpoint == 'lead_management.leads' %}active{% endif %}" 
-                               href="{{ url_for('lead_management.leads') }}">
+                               href="/leads">
                                 <i class="fas fa-users"></i>
                                 Leads
                             </a>
@@ -105,7 +213,7 @@
                         
                         <li class="nav-item">
                             <a class="nav-link {% if request.endpoint == 'customer.clients' %}active{% endif %}" 
-                               href="{{ url_for('customer.clients') }}">
+                               href="/clients">
                                 <i class="fas fa-user-md"></i>
                                 Clients
                             </a>
@@ -113,7 +221,7 @@
                         
                         <li class="nav-item">
                             <a class="nav-link {% if request.endpoint == 'campaigns' %}active{% endif %}" 
-                               href="{{ url_for('campaigns') }}">
+                               href="/campaigns">
                                 <i class="fas fa-bullhorn"></i>
                                 Campaigns
                             </a>
@@ -121,7 +229,7 @@
                         
                         <li class="nav-item">
                             <a class="nav-link {% if request.endpoint == 'seo_audit' %}active{% endif %}" 
-                               href="{{ url_for('seo_audit') }}">
+                               href="/seo_audit">
                                 <i class="fas fa-search"></i>
                                 SEO Audit
                             </a>
@@ -129,7 +237,7 @@
                         
                         <li class="nav-item">
                             <a class="nav-link {% if request.endpoint == 'billing.subscription_plans' %}active{% endif %}" 
-                               href="{{ url_for('billing.subscription_plans') }}">
+                               href="/admin/subscription/plans">
                                 <i class="fas fa-credit-card"></i>
                                 Billing
                             </a>
@@ -137,7 +245,7 @@
                         
                         <li class="nav-item">
                             <a class="nav-link {% if request.endpoint == 'admin.users' %}active{% endif %}" 
-                               href="{{ url_for('admin.users') }}">
+                               href="/admin/users">
                                 <i class="fas fa-user-cog"></i>
                                 Users
                             </a>
@@ -219,7 +327,18 @@
     <script>
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobileOverlay');
+            
             sidebar.classList.toggle('show');
+            overlay.classList.toggle('show');
+        }
+        
+        function closeSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobileOverlay');
+            
+            sidebar.classList.remove('show');
+            overlay.classList.remove('show');
         }
         
         // Close sidebar when clicking outside on mobile
@@ -229,8 +348,15 @@
             
             if (window.innerWidth <= 768) {
                 if (!sidebar.contains(event.target) && !toggle.contains(event.target)) {
-                    sidebar.classList.remove('show');
+                    closeSidebar();
                 }
+            }
+        });
+        
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            if (window.innerWidth > 768) {
+                closeSidebar();
             }
         });
         

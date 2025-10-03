@@ -4,260 +4,267 @@
 
 {% block extra_css %}
 <style>
-    .admin-card {
+    /* Mobile-First Admin Portal Styles */
+    .admin-header {
         background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-teal) 100%);
         color: white;
-        border: none;
-        box-shadow: var(--shadow-lg);
-        transition: all 0.3s ease;
-    }
-    
-    .admin-card:hover {
-        transform: translateY(-3px);
-        box-shadow: var(--shadow-xl);
-    }
-    
-    .activity-item {
-        border-left: 4px solid var(--primary-blue);
-        background: var(--light-gray);
-        padding: 1rem;
-        margin: 0.5rem 0;
-        border-radius: var(--radius-md);
-        transition: all 0.3s ease;
-    }
-    
-    .activity-item:hover {
-        background: var(--white);
-        box-shadow: var(--shadow-sm);
-        transform: translateX(5px);
-    }
-    
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1.5rem;
+        padding: 2rem 1rem;
+        text-align: center;
         margin-bottom: 2rem;
     }
     
-    .quick-action-btn {
-        min-height: 120px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
+    .admin-header h1 {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .admin-header p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+    }
+    
+    .stats-mobile {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border: 1px solid #e5e7eb;
+    }
+    
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: var(--primary-blue);
+        margin-bottom: 0.5rem;
+    }
+    
+    .stat-label {
+        color: var(--professional-gray);
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    
+    .quick-actions-mobile {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .action-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border: 1px solid #e5e7eb;
         text-decoration: none;
         color: inherit;
         transition: all 0.3s ease;
     }
     
-    .quick-action-btn:hover {
+    .action-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.15);
         color: inherit;
-        transform: translateY(-5px);
-        box-shadow: var(--shadow-lg);
     }
     
-    .quick-action-icon {
+    .action-icon {
         font-size: 2.5rem;
-        margin-bottom: 1rem;
         color: var(--primary-blue);
+        margin-bottom: 1rem;
+    }
+    
+    .action-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: var(--text-dark);
+    }
+    
+    .action-description {
+        color: var(--medium-gray);
+        font-size: 0.9rem;
+    }
+    
+    .system-status {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border: 1px solid #e5e7eb;
+    }
+    
+    .status-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f3f4f6;
+    }
+    
+    .status-item:last-child {
+        border-bottom: none;
+    }
+    
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    
+    .status-online {
+        background: #d1fae5;
+        color: #065f46;
+    }
+    
+    .status-offline {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+    
+    /* Tablet styles */
+    @media (min-width: 768px) {
+        .stats-mobile {
+            grid-template-columns: repeat(4, 1fr);
+        }
+        
+        .quick-actions-mobile {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .admin-header h1 {
+            font-size: 2.5rem;
+        }
+    }
+    
+    /* Desktop styles */
+    @media (min-width: 992px) {
+        .quick-actions-mobile {
+            grid-template-columns: repeat(4, 1fr);
+        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Dashboard Header -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="admin-card card">
-            <div class="card-body text-center">
-                <h1 class="card-title mb-3">
-                    <i class="fas fa-shield-alt me-3"></i>
-                    Admin Dashboard
-                </h1>
-                <p class="card-text fs-5">
-                    Welcome to WeTechForU Healthcare Marketing Platform
-                </p>
-                <div class="trust-indicator">
-                    <i class="fas fa-check-circle me-2"></i>
-                    HIPAA Compliant • Secure • Professional
-                </div>
-            </div>
-        </div>
+<!-- Mobile-First Admin Header -->
+<div class="admin-header">
+    <h1>
+        <i class="fas fa-shield-alt me-2"></i>
+        Admin Dashboard
+    </h1>
+    <p>WeTechForU Healthcare Marketing Platform</p>
+    <div class="trust-indicator mt-2">
+        <i class="fas fa-check-circle me-2"></i>
+        HIPAA Compliant • Secure • Professional
     </div>
 </div>
 
-<!-- Statistics Grid -->
-<div class="stats-grid">
-    <div class="stats-card">
-        <div class="stats-number">{{ total_leads or 0 }}</div>
-        <div class="stats-label">
-            <i class="fas fa-users me-2"></i>
+<!-- Mobile Stats Grid -->
+<div class="stats-mobile">
+    <div class="stat-card">
+        <div class="stat-number">{{ total_leads or 0 }}</div>
+        <div class="stat-label">
+            <i class="fas fa-users me-1"></i>
             Total Leads
         </div>
     </div>
     
-    <div class="stats-card">
-        <div class="stats-number">{{ total_clients or 0 }}</div>
-        <div class="stats-label">
-            <i class="fas fa-user-md me-2"></i>
+    <div class="stat-card">
+        <div class="stat-number">{{ total_clients or 0 }}</div>
+        <div class="stat-label">
+            <i class="fas fa-user-md me-1"></i>
             Active Clients
         </div>
     </div>
     
-    <div class="stats-card">
-        <div class="stats-number">{{ total_campaigns or 0 }}</div>
-        <div class="stats-label">
-            <i class="fas fa-bullhorn me-2"></i>
-            Running Campaigns
+    <div class="stat-card">
+        <div class="stat-number">{{ total_campaigns or 0 }}</div>
+        <div class="stat-label">
+            <i class="fas fa-bullhorn me-1"></i>
+            Campaigns
         </div>
     </div>
     
-    <div class="stats-card">
-        <div class="stats-number">{{ conversion_rate or '0%' }}</div>
-        <div class="stats-label">
-            <i class="fas fa-chart-line me-2"></i>
+    <div class="stat-card">
+        <div class="stat-number">{{ conversion_rate or '0%' }}</div>
+        <div class="stat-label">
+            <i class="fas fa-chart-line me-1"></i>
             Conversion Rate
         </div>
     </div>
 </div>
 
-<!-- Quick Actions -->
-<div class="row mb-4">
-    <div class="col-12">
-        <h3 class="mb-3">
-            <i class="fas fa-bolt me-2 healthcare-icon"></i>
-            Quick Actions
-        </h3>
-    </div>
+<!-- Mobile Quick Actions -->
+<div class="quick-actions-mobile">
+    <a href="/leads" class="action-card">
+        <div class="action-icon">
+            <i class="fas fa-users"></i>
+        </div>
+        <div class="action-title">Manage Leads</div>
+        <div class="action-description">View and manage healthcare leads</div>
+    </a>
     
-    <div class="col-md-3 mb-3">
-        <a href="{{ url_for('lead_management.leads') }}" class="quick-action-btn card">
-            <i class="fas fa-users quick-action-icon"></i>
-            <h5>Manage Leads</h5>
-            <p class="text-muted">View and manage healthcare leads</p>
-        </a>
-    </div>
+    <a href="/clients" class="action-card">
+        <div class="action-icon">
+            <i class="fas fa-user-md"></i>
+        </div>
+        <div class="action-title">Client Portal</div>
+        <div class="action-description">Access client management</div>
+    </a>
     
-    <div class="col-md-3 mb-3">
-        <a href="{{ url_for('customer.clients') }}" class="quick-action-btn card">
-            <i class="fas fa-user-md quick-action-icon"></i>
-            <h5>Client Portal</h5>
-            <p class="text-muted">Access client management</p>
-        </a>
-    </div>
+    <a href="/campaigns" class="action-card">
+        <div class="action-icon">
+            <i class="fas fa-bullhorn"></i>
+        </div>
+        <div class="action-title">Campaigns</div>
+        <div class="action-description">Create and manage campaigns</div>
+    </a>
     
-    <div class="col-md-3 mb-3">
-        <a href="{{ url_for('campaigns') }}" class="quick-action-btn card">
-            <i class="fas fa-bullhorn quick-action-icon"></i>
-            <h5>Campaigns</h5>
-            <p class="text-muted">Create and manage campaigns</p>
-        </a>
-    </div>
-    
-    <div class="col-md-3 mb-3">
-        <a href="{{ url_for('seo_audit') }}" class="quick-action-btn card">
-            <i class="fas fa-search quick-action-icon"></i>
-            <h5>SEO Analysis</h5>
-            <p class="text-muted">Run SEO audits and reports</p>
-        </a>
-    </div>
+    <a href="/seo_audit" class="action-card">
+        <div class="action-icon">
+            <i class="fas fa-search"></i>
+        </div>
+        <div class="action-title">SEO Analysis</div>
+        <div class="action-description">Run SEO audits and reports</div>
+    </a>
 </div>
 
-<!-- Recent Activity -->
-<div class="row">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-clock me-2"></i>
-                    Recent Activity
-                </h5>
-            </div>
-            <div class="card-body">
-                {% if recent_activities %}
-                    {% for activity in recent_activities %}
-                        <div class="activity-item">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <h6 class="mb-1">{{ activity.title }}</h6>
-                                    <p class="mb-1 text-muted">{{ activity.description }}</p>
-                                    <small class="text-muted">
-                                        <i class="fas fa-clock me-1"></i>
-                                        {{ activity.timestamp }}
-                                    </small>
-                                </div>
-                                <span class="badge badge-{{ activity.type }}">
-                                    {{ activity.status }}
-                                </span>
-                            </div>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="text-center py-4">
-                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                        <p class="text-muted">No recent activity</p>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
+<!-- System Status -->
+<div class="system-status">
+    <h5 class="mb-3">
+        <i class="fas fa-cog me-2"></i>
+        System Status
+    </h5>
+    
+    <div class="status-item">
+        <span>Database</span>
+        <span class="status-badge status-online">Online</span>
     </div>
     
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-cog me-2"></i>
-                    System Status
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span>Database</span>
-                    <span class="badge badge-success">Online</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span>Email Service</span>
-                    <span class="badge badge-success">Active</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span>API Services</span>
-                    <span class="badge badge-success">Running</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center">
-                    <span>Security</span>
-                    <span class="badge badge-success">Secure</span>
-                </div>
-            </div>
-        </div>
-        
-        <div class="card mt-3">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-chart-pie me-2"></i>
-                    Quick Stats
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between">
-                        <span>New Leads Today</span>
-                        <strong>{{ new_leads_today or 0 }}</strong>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between">
-                        <span>Emails Sent</span>
-                        <strong>{{ emails_sent or 0 }}</strong>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between">
-                        <span>Active Users</span>
-                        <strong>{{ active_users or 1 }}</strong>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="status-item">
+        <span>Email Service</span>
+        <span class="status-badge status-online">Active</span>
+    </div>
+    
+    <div class="status-item">
+        <span>API Services</span>
+        <span class="status-badge status-online">Running</span>
+    </div>
+    
+    <div class="status-item">
+        <span>Security</span>
+        <span class="status-badge status-online">Secure</span>
     </div>
 </div>
 {% endblock %}
