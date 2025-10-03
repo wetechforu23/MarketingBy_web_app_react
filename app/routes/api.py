@@ -13,6 +13,59 @@ from datetime import datetime
 
 api_bp = Blueprint('api', __name__)
 
+@api_bp.route('/login', methods=['POST'])
+def api_login():
+    """JSON login endpoint for React SPA"""
+    try:
+        data = request.get_json()
+        if not data or not data.get('email') or not data.get('password'):
+            return jsonify({'error': 'Email and password required'}), 400
+
+        user = User.query.filter_by(email=data['email']).first()
+        
+        if user and user.check_password(data['password']):
+            session['user_id'] = user.id
+            session['username'] = user.username
+            session['role'] = user.role
+            return jsonify({
+                'success': True,
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'username': user.username,
+                    'role': user.role
+                }
+            })
+        else:
+            return jsonify({'error': 'Invalid credentials'}), 401
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_bp.route('/logout', methods=['POST'])
+def api_logout():
+    """JSON logout endpoint for React SPA"""
+    session.clear()
+    return jsonify({'success': True})
+
+@api_bp.route('/me', methods=['GET'])
+def api_me():
+    """Get current user info"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    return jsonify({
+        'user': {
+            'id': user.id,
+            'email': user.email,
+            'username': user.username,
+            'role': user.role
+        }
+    })
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):

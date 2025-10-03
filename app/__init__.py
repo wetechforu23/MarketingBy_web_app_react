@@ -188,19 +188,33 @@ def create_app():
     from flask import send_from_directory
     import pathlib
 
+    # Serve React SPA and assets from Vite build dir
     @app.route('/app')
     @app.route('/app/<path:path>')
     def frontend_app(path: str = ''):
-        dist_dir = pathlib.Path(__file__).resolve().parents[2] / 'frontend' / 'dist'
+        # Repo root is one level above the 'app' directory
+        dist_dir = pathlib.Path(__file__).resolve().parents[1] / 'frontend' / 'dist'
         index_file = dist_dir / 'index.html'
+        # Directly serve files under /app (e.g., /app/index.html)
         if path and (dist_dir / path).exists():
             return send_from_directory(dist_dir, path)
+        # SPA fallback
         if index_file.exists():
             return send_from_directory(dist_dir, 'index.html')
-        # If build is missing, guide developer
-        return (
-            "React build not found. Run 'cd frontend && npm run build' and try again.",
-            500,
-        )
+        return ("React build not found. Run 'cd frontend && npm run build' and try again.", 500)
+
+    @app.route('/assets/<path:asset_path>')
+    def frontend_assets(asset_path: str):
+        dist_assets = pathlib.Path(__file__).resolve().parents[1] / 'frontend' / 'dist' / 'assets'
+        if (dist_assets / asset_path).exists():
+            return send_from_directory(dist_assets, asset_path)
+        return ("Asset not found", 404)
+
+    @app.route('/vite.svg')
+    def frontend_vite_svg():
+        dist_dir = pathlib.Path(__file__).resolve().parents[1] / 'frontend' / 'dist'
+        if (dist_dir / 'vite.svg').exists():
+            return send_from_directory(dist_dir, 'vite.svg')
+        return ("Not found", 404)
 
     return app
