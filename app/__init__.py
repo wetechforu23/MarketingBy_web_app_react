@@ -184,4 +184,23 @@ def create_app():
     # Database tables will be created by the migration script
     # No need to create them here during app initialization
     
+    # SPA fallback: serve React build for non-API routes (without altering existing views)
+    from flask import send_from_directory
+    import pathlib
+
+    @app.route('/app')
+    @app.route('/app/<path:path>')
+    def frontend_app(path: str = ''):
+        dist_dir = pathlib.Path(__file__).resolve().parents[2] / 'frontend' / 'dist'
+        index_file = dist_dir / 'index.html'
+        if path and (dist_dir / path).exists():
+            return send_from_directory(dist_dir, path)
+        if index_file.exists():
+            return send_from_directory(dist_dir, 'index.html')
+        # If build is missing, guide developer
+        return (
+            "React build not found. Run 'cd frontend && npm run build' and try again.",
+            500,
+        )
+
     return app
