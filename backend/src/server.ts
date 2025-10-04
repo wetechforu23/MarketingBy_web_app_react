@@ -9,6 +9,9 @@ import path from 'path';
 // Import routes
 import authRoutes from './routes/auth';
 import apiRoutes from './routes/api';
+import seoRoutes from './routes/seo';
+import emailRoutes from './routes/email';
+import complianceRoutes from './routes/compliance';
 
 dotenv.config();
 
@@ -49,6 +52,9 @@ app.get('/api/health', (req, res) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api', apiRoutes);
+app.use('/api/seo', seoRoutes);
+app.use('/api/email', emailRoutes);
+app.use('/api/compliance', complianceRoutes);
 
 // Serve React app in production
 if (process.env.NODE_ENV === 'production') {

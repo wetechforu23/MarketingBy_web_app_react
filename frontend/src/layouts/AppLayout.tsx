@@ -19,12 +19,17 @@ export default function AppLayout() {
             <Link className="nav-link" to="/app/campaigns">Campaigns</Link>
             <Link className="nav-link" to="/app/analytics">Analytics</Link>
           </div>
-          <div className="nav-group">
-            <div className="nav-group-title">SEO</div>
-            <div className="nav-tree">
-              <Link className="nav-link" to="/app/customer/seo-reports">Reports</Link>
-            </div>
-          </div>
+              <div className="nav-group">
+                <div className="nav-group-title">SEO</div>
+                <Link className="nav-link" to="/app/seo">SEO Analysis</Link>
+                <div className="nav-tree">
+                  <Link className="nav-link" to="/app/customer/seo-reports">Reports</Link>
+                </div>
+              </div>
+              <div className="nav-group">
+                <div className="nav-group-title">Calendar</div>
+                <Link className="nav-link" to="/app/calendar">Schedule Consultation</Link>
+              </div>
           <div className="nav-group">
             <div className="nav-group-title">Customer</div>
             <div className="nav-tree">

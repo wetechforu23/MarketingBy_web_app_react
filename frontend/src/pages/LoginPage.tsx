@@ -29,50 +29,93 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ maxWidth: 400, margin: '50px auto', padding: 20 }}>
-      <h2>Login</h2>
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>Email:</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{ width: '100%', padding: 8, border: '1px solid #ccc', borderRadius: 4 }}
-          />
+    <div style={{ 
+      minHeight: '100vh', 
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px'
+    }}>
+      <div className="card" style={{ 
+        maxWidth: 450, 
+        width: '100%',
+        background: 'rgba(255, 255, 255, 0.95)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255, 255, 255, 0.2)'
+      }}>
+        <div className="text-center mb-3">
+          <h1 style={{ 
+            color: 'var(--primary)', 
+            marginBottom: '8px',
+            fontSize: '2.5em',
+            fontWeight: '700'
+          }}>
+            WeTechForU
+          </h1>
+          <p className="text-muted">Healthcare Marketing Platform</p>
         </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>Password:</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={{ width: '100%', padding: 8, border: '1px solid #ccc', borderRadius: 4 }}
-          />
+        
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">Email Address</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="form-control"
+              placeholder="Enter your email"
+            />
+          </div>
+          
+          <div className="form-group">
+            <label className="form-label">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="form-control"
+              placeholder="Enter your password"
+            />
+          </div>
+          
+          {error && (
+            <div className="alert alert-danger">
+              <span>⚠️</span>
+              <span style={{ marginLeft: '8px' }}>{error}</span>
+            </div>
+          )}
+          
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn btn-primary"
+            style={{ width: '100%', marginBottom: '20px' }}
+          >
+            {loading ? (
+              <>
+                <div className="spinner"></div>
+                Signing in...
+              </>
+            ) : (
+              'Sign In'
+            )}
+          </button>
+        </form>
+        
+        <div className="card" style={{ 
+          background: 'rgba(46, 134, 171, 0.1)',
+          border: '1px solid rgba(46, 134, 171, 0.2)',
+          marginTop: '20px'
+        }}>
+          <h4 style={{ margin: '0 0 12px 0', color: 'var(--primary)' }}>Demo Access</h4>
+          <div style={{ fontSize: '14px', color: 'var(--text-light)' }}>
+            <p style={{ margin: '4px 0' }}><strong>Email:</strong> test@test.com</p>
+            <p style={{ margin: '4px 0' }}><strong>Password:</strong> password</p>
+          </div>
         </div>
-        {error && <div style={{ color: 'red', marginBottom: 16 }}>{error}</div>}
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            width: '100%',
-            padding: 12,
-            background: 'var(--primary)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 4,
-            cursor: loading ? 'not-allowed' : 'pointer'
-          }}
-        >
-          {loading ? 'Logging in...' : 'Login'}
-        </button>
-      </form>
-      <div style={{ marginTop: 16, fontSize: 14, color: '#666' }}>
-        <p>Demo credentials:</p>
-        <p>Email: admin@wetechforu.com</p>
-        <p>Password: admin123</p>
       </div>
     </div>
   )

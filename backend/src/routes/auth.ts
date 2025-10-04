@@ -1,5 +1,6 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import pool from '../config/database';
 
 const router = express.Router();
@@ -25,8 +26,27 @@ router.post('/login', async (req, res) => {
 
     const user = result.rows[0];
 
-    // Check password
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    // Check password - support both bcrypt and PBKDF2 formats
+    let isValidPassword = false;
+    
+    if (user.password_hash.startsWith('pbkdf2:')) {
+      // Handle PBKDF2 format from Flask
+      const parts = user.password_hash.split('$');
+      if (parts.length === 4) {
+        const algorithm = parts[0].split(':')[1]; // sha256
+        const iterations = parseInt(parts[1]); // 1000000
+        const salt = parts[2];
+        const hash = parts[3];
+        
+        const derivedKey = crypto.pbkdf2Sync(password, salt, iterations, 32, algorithm);
+        const derivedHash = derivedKey.toString('hex');
+        isValidPassword = derivedHash === hash;
+      }
+    } else {
+      // Handle bcrypt format
+      isValidPassword = await bcrypt.compare(password, user.password_hash);
+    }
+    
     if (!isValidPassword) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
