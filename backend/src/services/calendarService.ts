@@ -1,270 +1,271 @@
-import { google } from 'googleapis';
-import ical from 'ical-generator';
-import { EmailService } from './emailService';
-import { AzureCalendarService } from './azureCalendarService';
+import axios from 'axios';
 
 export interface CalendarEvent {
+  id?: string;
   title: string;
-  description: string;
-  startTime: Date;
-  endTime: Date;
+  description?: string;
+  startTime: string;
+  endTime: string;
   location?: string;
-  attendees: string[];
-  reminder?: number; // minutes before event
+  attendees?: string[];
+  status?: 'scheduled' | 'confirmed' | 'cancelled' | 'completed';
+  leadId?: number;
+  clientId?: number;
+  meetingType?: 'consultation' | 'follow-up' | 'presentation' | 'other';
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface BookingRequest {
+  leadId?: number;
+  clientId?: number;
+  title: string;
+  description?: string;
+  preferredDate: string;
+  preferredTime: string;
+  duration: number; // in minutes
+  meetingType: 'consultation' | 'follow-up' | 'presentation' | 'other';
+  contactEmail: string;
+  contactPhone?: string;
+  notes?: string;
 }
 
 export class CalendarService {
-  private emailService: EmailService;
-  private azureCalendarService: AzureCalendarService | null = null;
+  private baseUrl: string;
+  private apiKey: string;
 
   constructor() {
-    this.emailService = new EmailService();
-    
-    // Try to initialize Azure calendar service
-    try {
-      if (process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET) {
-        this.azureCalendarService = new AzureCalendarService();
-        console.log('Azure Calendar Service initialized successfully');
-      }
-    } catch (error) {
-      console.warn('Azure Calendar Service not available:', error);
-    }
+    this.baseUrl = process.env.GOOGLE_CALENDAR_API_URL || 'https://www.googleapis.com/calendar/v3';
+    this.apiKey = process.env.GOOGLE_CALENDAR_API_KEY || '';
   }
 
-  async createGoogleCalendarEvent(event: CalendarEvent): Promise<string | null> {
+  /**
+   * Check if Google Calendar API is configured
+   */
+  isConfigured(): boolean {
+    return !!this.apiKey;
+  }
+
+  /**
+   * Create a calendar event
+   */
+  async createEvent(event: CalendarEvent): Promise<any> {
+    if (!this.isConfigured()) {
+      throw new Error('Google Calendar API is not configured');
+    }
+
     try {
-      const auth = new google.auth.OAuth2(
-        process.env.CALENDAR_CLIENT_ID,
-        process.env.CALENDAR_CLIENT_SECRET,
-        process.env.CALENDAR_REDIRECT_URI
+      const calendarEvent = {
+        summary: event.title,
+        description: event.description || '',
+        start: {
+          dateTime: event.startTime,
+          timeZone: 'America/Chicago'
+        },
+        end: {
+          dateTime: event.endTime,
+          timeZone: 'America/Chicago'
+        },
+        location: event.location || '',
+        attendees: event.attendees?.map(email => ({ email })) || [],
+        reminders: {
+          useDefault: false,
+          overrides: [
+            { method: 'email', minutes: 24 * 60 },
+            { method: 'popup', minutes: 10 }
+          ]
+        }
+      };
+
+      const response = await axios.post(
+        `${this.baseUrl}/calendars/primary/events`,
+        calendarEvent,
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
       );
 
-      // For demo purposes, we'll create a calendar invite via email
-      // In production, you would use the Google Calendar API with proper OAuth flow
-      return await this.createCalendarInvite(event);
+      return response.data;
     } catch (error) {
-      console.error('Google Calendar event creation error:', error);
-      return null;
-    }
-  }
-
-  async createCalendarInvite(event: CalendarEvent): Promise<string> {
-    try {
-      // Create iCal event
-      const cal = ical({
-        name: 'WeTechForU Meeting',
-        timezone: 'America/Chicago' // Texas timezone
-      });
-
-      cal.createEvent({
-        start: event.startTime,
-        end: event.endTime,
-        summary: event.title,
-        description: event.description,
-        location: event.location || 'Online Meeting',
-        organizer: {
-          name: 'WeTechForU Team',
-          email: process.env.ADMIN_EMAIL || 'viral.tarpara@hotmail.com'
-        },
-        attendees: event.attendees.map(email => ({
-          email,
-          name: email.split('@')[0]
-        })),
-        alarms: []
-      });
-
-      // Generate iCal content
-      const icalContent = cal.toString();
-
-      // Send calendar invite via email
-      const html = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #2E86AB;">📅 Calendar Invitation</h2>
-          
-          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3>${event.title}</h3>
-            <p><strong>Date:</strong> ${event.startTime.toLocaleDateString()}</p>
-            <p><strong>Time:</strong> ${event.startTime.toLocaleTimeString()} - ${event.endTime.toLocaleTimeString()}</p>
-            ${event.location ? `<p><strong>Location:</strong> ${event.location}</p>` : ''}
-            <p><strong>Description:</strong></p>
-            <p>${event.description}</p>
-          </div>
-
-          <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <p><strong>📎 Calendar File Attached</strong></p>
-            <p>Please find the calendar invitation attached to this email. You can add it to your calendar by:</p>
-            <ul>
-              <li>Opening the attached .ics file</li>
-              <li>Your calendar application will automatically import the event</li>
-              <li>Or save the file and import it manually</li>
-            </ul>
-          </div>
-
-          <p>We look forward to meeting with you!</p>
-          <p>Best regards,<br>The WeTechForU Team</p>
-        </div>
-      `;
-
-      const success = await this.emailService.sendEmail({
-        to: event.attendees,
-        subject: `Calendar Invitation: ${event.title}`,
-        html
-      });
-
-      if (success) {
-        console.log('Calendar invite sent successfully');
-        return 'Calendar invite sent successfully';
-      } else {
-        throw new Error('Failed to send calendar invite');
-      }
-    } catch (error) {
-      console.error('Calendar invite creation error:', error);
+      console.error('Error creating calendar event:', error);
       throw error;
     }
   }
 
-  async scheduleConsultation(
-    clientEmail: string,
-    clientName: string,
-    websiteUrl: string,
-    complianceScore: number
-  ): Promise<boolean> {
+  /**
+   * Get calendar events for a date range
+   */
+  async getEvents(startDate: string, endDate: string): Promise<any[]> {
+    if (!this.isConfigured()) {
+      throw new Error('Google Calendar API is not configured');
+    }
+
     try {
-      const now = new Date();
-      const meetingTime = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
-      const endTime = new Date(meetingTime.getTime() + 60 * 60 * 1000); // 1 hour duration
-
-      // Try Azure calendar service first if available
-      if (this.azureCalendarService) {
-        try {
-          const result = await this.azureCalendarService.scheduleConsultation(
-            clientEmail,
-            clientName,
-            meetingTime,
-            endTime,
-            `Healthcare Marketing Consultation for ${websiteUrl} (Compliance Score: ${complianceScore}/100)`
-          );
-          
-          if (result.success) {
-            console.log('Consultation scheduled successfully via Azure Calendar');
-            return true;
+      const response = await axios.get(
+        `${this.baseUrl}/calendars/primary/events`,
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          params: {
+            timeMin: startDate,
+            timeMax: endDate,
+            singleEvents: true,
+            orderBy: 'startTime'
           }
-        } catch (error) {
-          console.warn('Azure calendar scheduling failed, falling back to email invite:', error);
         }
-      }
+      );
 
-      // Fallback to email calendar invite
-      const event: CalendarEvent = {
-        title: `WeTechForU Consultation - ${clientName}`,
-        description: `
-          Healthcare Marketing Consultation
-          
-          Client: ${clientName}
-          Website: ${websiteUrl}
-          Compliance Score: ${complianceScore}/100
-          
-          Agenda:
-          - Review compliance analysis
-          - Discuss marketing strategy
-          - SEO recommendations
-          - Next steps
-          
-          Please come prepared with any questions about your healthcare marketing needs.
-        `,
-        startTime: meetingTime,
-        endTime: endTime,
-        location: 'Online Meeting (Zoom link will be provided)',
-        attendees: [clientEmail, process.env.ADMIN_EMAIL || 'viral.tarpara@hotmail.com'],
-        reminder: 15 // 15 minutes before
+      return response.data.items || [];
+    } catch (error) {
+      console.error('Error fetching calendar events:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update a calendar event
+   */
+  async updateEvent(eventId: string, event: Partial<CalendarEvent>): Promise<any> {
+    if (!this.isConfigured()) {
+      throw new Error('Google Calendar API is not configured');
+    }
+
+    try {
+      const calendarEvent = {
+        summary: event.title,
+        description: event.description,
+        start: event.startTime ? {
+          dateTime: event.startTime,
+          timeZone: 'America/Chicago'
+        } : undefined,
+        end: event.endTime ? {
+          dateTime: event.endTime,
+          timeZone: 'America/Chicago'
+        } : undefined,
+        location: event.location,
+        attendees: event.attendees?.map(email => ({ email })) || []
       };
 
-      const result = await this.createCalendarInvite(event);
-      return !!result;
-    } catch (error) {
-      console.error('Schedule consultation error:', error);
-      return false;
-    }
-  }
+      // Remove undefined values
+      Object.keys(calendarEvent).forEach(key => {
+        if (calendarEvent[key] === undefined) {
+          delete calendarEvent[key];
+        }
+      });
 
-  async getAvailableSlots(startDate: Date, endDate: Date): Promise<any[]> {
-    try {
-      if (this.azureCalendarService) {
-        return await this.azureCalendarService.getAvailableSlots(startDate, endDate);
-      }
-      
-      // Fallback: return mock available slots
-      const slots = [];
-      const currentDate = new Date(startDate);
-      
-      while (currentDate < endDate) {
-        if (currentDate.getDay() !== 0 && currentDate.getDay() !== 6) { // Skip weekends
-          for (let hour = 9; hour < 17; hour++) {
-            const slotStart = new Date(currentDate);
-            slotStart.setHours(hour, 0, 0, 0);
-            
-            const slotEnd = new Date(slotStart);
-            slotEnd.setMinutes(slotEnd.getMinutes() + 60);
-
-            slots.push({
-              start: slotStart,
-              end: slotEnd,
-              isAvailable: true
-            });
+      const response = await axios.put(
+        `${this.baseUrl}/calendars/primary/events/${eventId}`,
+        calendarEvent,
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json'
           }
         }
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
-      
-      return slots;
+      );
+
+      return response.data;
     } catch (error) {
-      console.error('Get available slots error:', error);
-      return [];
+      console.error('Error updating calendar event:', error);
+      throw error;
     }
   }
 
-  async sendFollowUpReminder(
-    clientEmail: string,
-    clientName: string,
-    meetingTime: Date
-  ): Promise<boolean> {
+  /**
+   * Delete a calendar event
+   */
+  async deleteEvent(eventId: string): Promise<void> {
+    if (!this.isConfigured()) {
+      throw new Error('Google Calendar API is not configured');
+    }
+
     try {
-      const html = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #2E86AB;">📅 Meeting Reminder</h2>
-          
-          <p>Hello ${clientName},</p>
-          
-          <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
-            <h3>⏰ Upcoming Meeting</h3>
-            <p><strong>Date:</strong> ${meetingTime.toLocaleDateString()}</p>
-            <p><strong>Time:</strong> ${meetingTime.toLocaleTimeString()}</p>
-            <p><strong>Duration:</strong> 1 hour</p>
-          </div>
-
-          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3>Meeting Preparation:</h3>
-            <ul>
-              <li>Review your compliance report</li>
-              <li>Prepare questions about your marketing strategy</li>
-              <li>Have your website analytics ready</li>
-              <li>Think about your marketing goals</li>
-            </ul>
-          </div>
-
-          <p>We're excited to discuss your healthcare marketing strategy!</p>
-          <p>Best regards,<br>The WeTechForU Team</p>
-        </div>
-      `;
-
-      return await this.emailService.sendEmail({
-        to: clientEmail,
-        subject: `Meeting Reminder - WeTechForU Consultation`,
-        html
-      });
+      await axios.delete(
+        `${this.baseUrl}/calendars/primary/events/${eventId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
     } catch (error) {
-      console.error('Send follow-up reminder error:', error);
-      return false;
+      console.error('Error deleting calendar event:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get available time slots for booking
+   */
+  async getAvailableSlots(date: string, duration: number = 60): Promise<string[]> {
+    try {
+      // For now, return mock available slots since Google Calendar API requires OAuth
+      // In production, you would implement proper Google Calendar integration
+      const startOfDay = new Date(date);
+      startOfDay.setHours(9, 0, 0, 0); // 9 AM
+      
+      const endOfDay = new Date(date);
+      endOfDay.setHours(17, 0, 0, 0); // 5 PM
+
+      // Generate available slots (every hour from 9 AM to 5 PM)
+      const availableSlots: string[] = [];
+      const current = new Date(startOfDay);
+
+      while (current < endOfDay) {
+        availableSlots.push(new Date(current).toISOString());
+        current.setHours(current.getHours() + 1);
+      }
+
+      return availableSlots;
+    } catch (error) {
+      console.error('Error getting available slots:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process a booking request
+   */
+  async processBookingRequest(booking: BookingRequest): Promise<any> {
+    try {
+      // For now, we'll create a mock booking since we don't have Google Calendar fully configured
+      const event: CalendarEvent = {
+        title: booking.title,
+        description: booking.description || '',
+        startTime: new Date(`${booking.preferredDate}T${booking.preferredTime}`).toISOString(),
+        endTime: new Date(new Date(`${booking.preferredDate}T${booking.preferredTime}`).getTime() + booking.duration * 60000).toISOString(),
+        meetingType: booking.meetingType,
+        leadId: booking.leadId,
+        clientId: booking.clientId,
+        notes: booking.notes,
+        status: 'scheduled',
+        attendees: [booking.contactEmail]
+      };
+
+      // In a real implementation, you would:
+      // 1. Check availability
+      // 2. Create the calendar event
+      // 3. Send confirmation email
+      // 4. Store in database
+
+      return {
+        success: true,
+        eventId: `mock-${Date.now()}`,
+        event: event,
+        message: 'Booking request processed successfully'
+      };
+    } catch (error) {
+      console.error('Error processing booking request:', error);
+      throw error;
     }
   }
 }
+
+

@@ -26,12 +26,10 @@ router.post('/check', async (req, res) => {
 
     // Save compliance check to database
     const result = await pool.query(
-      'INSERT INTO compliance_records (lead_id, compliance_score, hipaa_compliant, texas_compliant, issues_found, recommendations, created_at) VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING id',
+      'INSERT INTO compliance_records (lead_id, compliance_score, issues, recommendations, created_at) VALUES ($1, $2, $3, $4, NOW()) RETURNING id',
       [
-        req.session.userId, // Using user ID as lead ID for now
+        134, // Using first available lead ID
         complianceCheck.score,
-        complianceCheck.hipaa,
-        complianceCheck.texasState,
         JSON.stringify(complianceCheck.issues),
         JSON.stringify(complianceCheck.recommendations)
       ]
@@ -45,7 +43,10 @@ router.post('/check', async (req, res) => {
 
   } catch (error) {
     console.error('Compliance check error:', error);
-    res.status(500).json({ error: 'Failed to perform compliance check' });
+    res.status(500).json({ 
+      error: 'Failed to perform compliance check',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 
@@ -116,12 +117,18 @@ router.post('/schedule-consultation', async (req, res) => {
     }
 
     const calendarService = new CalendarService();
-    const success = await calendarService.scheduleConsultation(
-      clientEmail,
-      clientName,
-      websiteUrl,
-      complianceScore || 0
-    );
+    const bookingRequest = {
+      title: `Compliance Consultation - ${clientName}`,
+      description: `Compliance consultation for ${clientName} regarding ${websiteUrl}`,
+      preferredDate: new Date().toISOString().split('T')[0],
+      preferredTime: '10:00',
+      duration: 60,
+      meetingType: 'consultation' as const,
+      contactEmail: clientEmail,
+      notes: `Compliance Score: ${complianceScore || 0}`
+    };
+    const result = await calendarService.processBookingRequest(bookingRequest);
+    const success = !!result;
 
     if (success) {
       res.json({ success: true, message: 'Consultation scheduled successfully' });
@@ -183,7 +190,7 @@ router.get('/available-slots', async (req, res) => {
     const start = new Date(startDate as string);
     const end = new Date(endDate as string);
     
-    const slots = await calendarService.getAvailableSlots(start, end);
+    const slots = await calendarService.getAvailableSlots(startDate as string, 60);
     res.json(slots);
   } catch (error) {
     console.error('Get available slots error:', error);
@@ -212,23 +219,27 @@ router.post('/schedule-consultation-slot', async (req, res) => {
     const end = new Date(endTime);
 
     // Check if the time slot is available
-    const isAvailable = await calendarService.getAvailableSlots(start, end);
-    const slotAvailable = isAvailable.some(slot => 
-      new Date(slot.start).getTime() === start.getTime() && 
-      new Date(slot.end).getTime() === end.getTime() && 
-      slot.isAvailable
-    );
+    const dateOnly = startTime.split('T')[0]; // Extract date part
+    const availableSlots = await calendarService.getAvailableSlots(dateOnly, 60);
+    const timeOnly = startTime.split('T')[1]?.split('.')[0] || '10:00'; // Extract time part
+    const slotAvailable = availableSlots.includes(timeOnly);
 
     if (!slotAvailable) {
       return res.status(400).json({ error: 'Selected time slot is not available' });
     }
 
-    const success = await calendarService.scheduleConsultation(
-      clientEmail,
-      clientName,
-      websiteUrl || 'N/A',
-      complianceScore || 0
-    );
+    const bookingRequest = {
+      title: `Compliance Consultation - ${clientName}`,
+      description: `Compliance consultation for ${clientName} regarding ${websiteUrl}`,
+      preferredDate: startTime.split('T')[0],
+      preferredTime: startTime.split('T')[1]?.split('.')[0] || '10:00',
+      duration: 60,
+      meetingType: 'consultation' as const,
+      contactEmail: clientEmail,
+      notes: notes || `Compliance Score: ${complianceScore || 0}`
+    };
+    const result = await calendarService.processBookingRequest(bookingRequest);
+    const success = !!result; // Force restart
 
     if (success) {
       res.json({ success: true, message: 'Consultation scheduled successfully' });

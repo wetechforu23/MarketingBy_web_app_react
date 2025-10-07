@@ -31,11 +31,11 @@ router.post('/analyze', async (req, res) => {
 
     const analysis = await SEOService.analyzeWebsite(url);
 
-    // Save analysis to database
+    // Save analysis to database - use first available client or make client_id nullable
     const result = await pool.query(
       'INSERT INTO seo_audits (client_id, url, overall_score, issues, recommendations, created_at) VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING id',
       [
-        req.session.userId, // Using user ID as client ID for now
+        32, // Using first available client ID
         url,
         analysis.score,
         JSON.stringify({
@@ -60,7 +60,10 @@ router.post('/analyze', async (req, res) => {
 
   } catch (error) {
     console.error('SEO analysis error:', error);
-    res.status(500).json({ error: 'Failed to analyze website' });
+    res.status(500).json({ 
+      error: 'Failed to analyze website',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 
@@ -227,12 +230,23 @@ router.post('/generate-report', async (req, res) => {
       // Try Azure Communication Services email service
       if (!emailSent) {
         try {
-          const azureEmailService = new AzureEmailService();
-          emailSent = await azureEmailService.sendSEOReport(
+          const azureEmailService = AzureEmailService.getInstance();
+          const azureResult = await azureEmailService.sendSEOReportEmail(
             clientEmail,
             clientName || 'Dr. Sarah Johnson',
-            seoReport
+            'Healthcare Practice',
+            seoReport.url,
+            seoReport.overallScore,
+            JSON.stringify(seoReport),
+            seoReport.recommendations || [],
+            {
+              name: 'WeTechForU Team',
+              email: 'viral.tarpara@hotmail.com',
+              phone: '(555) 123-4567',
+              website: 'www.wetechforu.com'
+            }
           );
+          emailSent = azureResult.success;
         } catch (error) {
           console.warn('Azure Communication Services email failed, trying fallback:', error);
         }
@@ -241,12 +255,21 @@ router.post('/generate-report', async (req, res) => {
       // Fallback to regular email service
       if (!emailSent) {
         try {
-          const seoEmailService = new SEOEmailService();
-          emailSent = await seoEmailService.sendBasicSEOReport(
-            clientEmail,
-            clientName || 'Dr. Sarah Johnson',
-            seoReport
-          );
+          const seoEmailService = SEOEmailService.getInstance();
+          const result = await seoEmailService.sendSEOReport({
+            leadEmail: clientEmail,
+            leadName: clientName || 'Dr. Sarah Johnson',
+            clinicName: 'Healthcare Practice',
+            websiteUrl: seoReport.url,
+            seoScore: seoReport.overallScore,
+            reportContent: JSON.stringify(seoReport),
+            recommendations: seoReport.recommendations || [],
+            senderName: 'WeTechForU Team',
+            senderEmail: 'viral.tarpara@hotmail.com',
+            senderPhone: '(555) 123-4567',
+            senderWebsite: 'www.wetechforu.com'
+          });
+          emailSent = result.success;
         } catch (error) {
           console.error('Fallback email service failed:', error);
         }

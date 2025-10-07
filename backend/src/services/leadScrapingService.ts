@@ -1,6 +1,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import dotenv from 'dotenv';
+import { SEOAnalysisService, SEOAnalysis } from './seoAnalysisService';
 
 dotenv.config();
 
@@ -19,6 +20,8 @@ export interface LeadData {
   city?: string;
   state?: string;
   zip_code?: string;
+  seo_analysis?: SEOAnalysis;
+  seo_report?: string;
 }
 
 export interface ScrapingOptions {
@@ -27,13 +30,15 @@ export interface ScrapingOptions {
   maxLeads: number;
   industry?: string;
   usePaidAPIs?: boolean;
+  includeSEO?: boolean;
+  keywords?: string[];
 }
 
 export class LeadScrapingService {
   private static readonly USER_AGENT = process.env.SCRAPING_USER_AGENT || 'Mozilla/5.0 (compatible; WeTechForU-Bot/1.0)';
   private static readonly DELAY = parseInt(process.env.SCRAPING_DELAY || '1000');
 
-  static async scrapeLeadsFromWebsite(url: string, maxLeads: number = 10): Promise<LeadData[]> {
+  static async scrapeLeadsFromWebsite(url: string, maxLeads: number = 10, includeSEO: boolean = true, keywords: string[] = []): Promise<LeadData[]> {
     try {
       console.log(`Scraping leads from website: ${url}`);
       
@@ -75,12 +80,30 @@ export class LeadScrapingService {
           zip_code: address.zip
         };
 
+        // Perform SEO analysis if requested
+        if (includeSEO) {
+          try {
+            console.log(`Performing SEO analysis for: ${url}`);
+            const seoService = SEOAnalysisService.getInstance();
+            const seoAnalysis = await seoService.analyzeWebsite(url, keywords);
+            const seoReport = await seoService.generateSEOReport(seoAnalysis, lead);
+            
+            lead.seo_analysis = seoAnalysis;
+            lead.seo_report = seoReport;
+            
+            console.log(`SEO analysis completed for ${url} - Score: ${seoAnalysis.score}/100`);
+          } catch (seoError) {
+            console.error(`SEO analysis failed for ${url}:`, seoError);
+            // Continue without SEO data if analysis fails
+          }
+        }
+
         leads.push(lead);
       }
 
       // If we need more leads, generate additional leads based on the website content
       if (leads.length < maxLeads) {
-        const additionalLeads = this.generateAdditionalLeads(url, clinicName, maxLeads - leads.length);
+        const additionalLeads = this.generateAdditionalLeads(url, clinicName, maxLeads - leads.length, includeSEO, keywords);
         leads.push(...additionalLeads);
       }
 
@@ -220,7 +243,7 @@ export class LeadScrapingService {
     return name.charAt(0).toUpperCase() + name.slice(1);
   }
 
-  private static generateAdditionalLeads(baseUrl: string, clinicName: string, count: number): LeadData[] {
+  private static generateAdditionalLeads(baseUrl: string, clinicName: string, count: number, includeSEO: boolean = false, keywords: string[] = []): LeadData[] {
     const leads: LeadData[] = [];
     
     for (let i = 1; i <= count; i++) {

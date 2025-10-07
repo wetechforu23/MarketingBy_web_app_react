@@ -2,13 +2,17 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import pool from '../config/database';
+import { EmailService } from '../services/emailService';
 
 const router = express.Router();
+
+// Store OTPs temporarily (in production, use Redis or database)
+const otpStore = new Map();
 
 // Login endpoint
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, rememberMe } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password required' });
@@ -16,7 +20,7 @@ router.post('/login', async (req, res) => {
 
     // Query user from database
     const result = await pool.query(
-      'SELECT id, email, username, role, password_hash FROM users WHERE email = $1',
+      'SELECT id, email, username, is_admin, password_hash FROM users WHERE email = $1',
       [email]
     );
 
@@ -51,10 +55,19 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Set session
+    // Set session with remember me functionality
     req.session.userId = user.id;
     req.session.username = user.username;
-    req.session.role = user.role;
+    req.session.is_admin = user.is_admin;
+    
+    // Configure session cookie based on remember me
+    if (rememberMe) {
+      // Set cookie to expire in 30 days
+      req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+    } else {
+      // Default session (expires when browser closes)
+      req.session.cookie.maxAge = null;
+    }
 
     res.json({
       success: true,
@@ -62,8 +75,9 @@ router.post('/login', async (req, res) => {
         id: user.id,
         email: user.email,
         username: user.username,
-        role: user.role
-      }
+        is_admin: user.is_admin
+      },
+      rememberMe: rememberMe || false
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -89,7 +103,7 @@ router.get('/me', async (req, res) => {
     }
 
     const result = await pool.query(
-      'SELECT id, email, username, role FROM users WHERE id = $1',
+      'SELECT id, email, username, is_admin, client_id FROM users WHERE id = $1',
       [req.session.userId]
     );
 
@@ -102,6 +116,148 @@ router.get('/me', async (req, res) => {
     });
   } catch (error) {
     console.error('Get user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Generate and send OTP
+router.post('/send-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Check if user exists
+    const result = await pool.query(
+      'SELECT id, email, username FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = result.rows[0];
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Store OTP
+    otpStore.set(email, {
+      otp,
+      expiresAt,
+      attempts: 0
+    });
+
+    // Send OTP email
+    const emailService = new EmailService();
+    const emailSent = await emailService.sendEmail({
+      to: [email],
+      subject: 'WeTechForU Login OTP',
+      htmlContent: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h2 style="color: #2E86AB;">WeTechForU Healthcare Marketing Platform</h2>
+          </div>
+          
+          <div style="background: #f8f9fa; padding: 30px; border-radius: 10px; text-align: center;">
+            <h3 style="color: #2E86AB; margin-bottom: 20px;">Your Login OTP</h3>
+            <div style="background: #2E86AB; color: white; font-size: 32px; font-weight: bold; padding: 20px; border-radius: 8px; letter-spacing: 5px; margin: 20px 0;">
+              ${otp}
+            </div>
+            <p style="color: #666; margin-bottom: 10px;">This OTP is valid for 10 minutes.</p>
+            <p style="color: #666; font-size: 14px;">If you didn't request this OTP, please ignore this email.</p>
+          </div>
+          
+          <div style="text-align: center; margin-top: 30px; color: #666; font-size: 12px;">
+            <p>This email was sent from info@wetechforu.com</p>
+            <p>WeTechForU Healthcare Marketing Platform</p>
+          </div>
+        </div>
+      `,
+      textContent: `Your WeTechForU login OTP is: ${otp}. This OTP is valid for 10 minutes.`
+    });
+
+    if (emailSent) {
+      res.json({
+        success: true,
+        message: 'OTP sent successfully to your email'
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to send OTP email' });
+    }
+
+  } catch (error) {
+    console.error('Send OTP error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Verify OTP
+router.post('/verify-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ error: 'Email and OTP are required' });
+    }
+
+    const storedOtp = otpStore.get(email);
+
+    if (!storedOtp) {
+      return res.status(400).json({ error: 'OTP not found or expired' });
+    }
+
+    if (new Date() > storedOtp.expiresAt) {
+      otpStore.delete(email);
+      return res.status(400).json({ error: 'OTP has expired' });
+    }
+
+    if (storedOtp.attempts >= 3) {
+      otpStore.delete(email);
+      return res.status(400).json({ error: 'Too many failed attempts' });
+    }
+
+    if (storedOtp.otp !== otp) {
+      storedOtp.attempts++;
+      return res.status(400).json({ error: 'Invalid OTP' });
+    }
+
+    // OTP is valid, get user and create session
+    const result = await pool.query(
+      'SELECT id, email, username, is_admin, client_id FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = result.rows[0];
+
+    // Set session
+    req.session.userId = user.id;
+    req.session.username = user.username;
+    req.session.is_admin = user.is_admin;
+
+    // Clean up OTP
+    otpStore.delete(email);
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        is_admin: user.is_admin
+      }
+    });
+
+  } catch (error) {
+    console.error('Verify OTP error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

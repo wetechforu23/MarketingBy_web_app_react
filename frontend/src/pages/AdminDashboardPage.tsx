@@ -40,7 +40,7 @@ export default function AdminDashboardPage() {
       <div className="card-header">
         <div>
           <h1 className="card-title">Admin Dashboard</h1>
-          <p className="card-subtitle">Welcome to WeTechForU Healthcare Marketing Platform</p>
+          <p className="card-subtitle">Welcome to Healthcare Marketing Platform</p>
         </div>
       </div>
 

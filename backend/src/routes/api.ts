@@ -3,11 +3,121 @@ import pool from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import { LeadScrapingService } from '../services/leadScrapingService';
 import { ComplianceCheckService } from '../services/complianceCheckService';
+import { SEOEmailService } from '../services/seoEmailService';
 
 const router = express.Router();
 
 // Apply auth middleware to all API routes
 router.use(requireAuth);
+
+// Admin Dashboard Endpoints
+router.get('/admin/dashboard/overview', async (req, res) => {
+  try {
+    // Get system overview statistics
+    const [clientsResult, campaignsResult, usersResult] = await Promise.all([
+      pool.query('SELECT COUNT(*) as count FROM clients'),
+      pool.query('SELECT COUNT(*) as count FROM campaigns WHERE status = $1', ['active']),
+      pool.query('SELECT COUNT(*) as count FROM users')
+    ]);
+
+    // Mock revenue data (replace with actual calculation)
+    const revenueThisMonth = 45230;
+
+    res.json({
+      totalClients: parseInt(clientsResult.rows[0].count),
+      activeCampaigns: parseInt(campaignsResult.rows[0].count),
+      revenueThisMonth: revenueThisMonth,
+      totalUsers: parseInt(usersResult.rows[0].count)
+    });
+  } catch (error) {
+    console.error('Admin dashboard overview error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/admin/clients', async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const result = await pool.query(
+      `SELECT id, client_name, email, contact_name, phone, specialties, is_active, created_at 
+       FROM clients 
+       ORDER BY created_at DESC 
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+
+    const countResult = await pool.query('SELECT COUNT(*) as count FROM clients');
+    const total = parseInt(countResult.rows[0].count);
+
+    res.json({
+      clients: result.rows,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Get admin clients error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/admin/users', async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const result = await pool.query(
+      `SELECT id, email, username, is_admin, created_at 
+       FROM users 
+       ORDER BY created_at DESC 
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+
+    const countResult = await pool.query('SELECT COUNT(*) as count FROM users');
+    const total = parseInt(countResult.rows[0].count);
+
+    res.json({
+      users: result.rows,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Get admin users error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/admin/analytics/system', async (req, res) => {
+  try {
+    // Get system-wide analytics
+    const [clientsResult, leadsResult, campaignsResult] = await Promise.all([
+      pool.query('SELECT COUNT(*) as count FROM clients WHERE is_active = true'),
+      pool.query('SELECT COUNT(*) as count FROM leads WHERE created_at >= NOW() - INTERVAL \'30 days\''),
+      pool.query('SELECT COUNT(*) as count FROM campaigns WHERE status = $1', ['active'])
+    ]);
+
+    res.json({
+      activeClients: parseInt(clientsResult.rows[0].count),
+      newLeadsLast30Days: parseInt(leadsResult.rows[0].count),
+      activeCampaigns: parseInt(campaignsResult.rows[0].count),
+      systemHealth: 'excellent',
+      lastUpdated: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Get system analytics error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Get clients
 router.get('/clients', async (req, res) => {
@@ -48,6 +158,55 @@ router.get('/campaigns', async (req, res) => {
   }
 });
 
+// Get current user permissions (updated to match master document)
+router.get('/users/me/permissions', async (req, res) => {
+  try {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    // Get user admin status from database
+    const result = await pool.query(
+      'SELECT is_admin FROM users WHERE id = $1',
+      [req.session.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const isAdmin = result.rows[0].is_admin;
+
+    // Define permissions based on admin status (matching master document)
+    const permissions = {
+      canViewUsers: isAdmin,
+      canManageUsers: isAdmin,
+      canViewLeads: true,
+      canManageLeads: true,
+      canViewClients: true,
+      canManageClients: true,
+      canViewSEO: true,
+      canManageSEO: true,
+      canViewAnalytics: true,
+      canViewCalendar: true,
+      canManageCalendar: true,
+      canViewCompliance: true,
+      canManageCompliance: true,
+      canViewAISEO: true,
+      canManageAISEO: true,
+      canViewSEOTasks: true,
+      canManageSEOTasks: true,
+      canViewCredentials: isAdmin,
+      canManageCredentials: isAdmin
+    };
+
+    res.json(permissions);
+  } catch (error) {
+    console.error('Get user permissions error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get users
 router.get('/users', async (req, res) => {
   try {
@@ -79,13 +238,112 @@ router.get('/analytics', async (req, res) => {
   } catch (error) {
     console.error('Get analytics error:', error);
     res.status(500).json({ error: 'Internal server error' });
-    }
-  });
+  }
+});
+
+// Client Dashboard endpoints
+router.get('/client-dashboard/overview', async (req, res) => {
+  try {
+    // Get client-specific overview data
+    const { view_only } = req.query;
+    
+    // Mock data for now - replace with actual client-specific queries
+    const overview = {
+      seoScore: 85,
+      leadsThisMonth: 23,
+      websiteTraffic: 1247,
+      trafficGrowth: 12,
+      newLeadsThisWeek: 5,
+      seoScoreStatus: 'good'
+    };
+
+    res.json(overview);
+  } catch (error) {
+    console.error('Get client overview error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/client-dashboard/analytics', async (req, res) => {
+  try {
+    const [clientsResult, leadsResult, campaignsResult] = await Promise.all([
+      pool.query('SELECT COUNT(*) as count FROM clients'),
+      pool.query('SELECT COUNT(*) as count FROM leads'),
+      pool.query('SELECT COUNT(*) as count FROM campaigns')
+    ]);
+
+    res.json({
+      totalClients: parseInt(clientsResult.rows[0].count),
+      totalLeads: parseInt(leadsResult.rows[0].count),
+      activeCampaigns: parseInt(campaignsResult.rows[0].count),
+      monthlyGrowth: 12.5 // Mock data
+    });
+  } catch (error) {
+    console.error('Get client dashboard analytics error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/client-dashboard/clients', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, client_name, email, contact_name, is_active, created_at FROM clients ORDER BY created_at DESC LIMIT 10'
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get client dashboard clients error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/client-dashboard/campaigns', async (req, res) => {
+  try {
+    // Get client-specific campaigns
+    const result = await pool.query(
+      `SELECT id, name, type, status, budget, start_date, end_date, created_at 
+       FROM campaigns 
+       WHERE client_id = $1 
+       ORDER BY created_at DESC`,
+      [req.session.userId] // This should be client_id, but using user_id for now
+    );
+
+    // Transform the data to match frontend expectations
+    const campaigns = result.rows.map(campaign => ({
+      id: campaign.id.toString(),
+      name: campaign.name,
+      type: campaign.type,
+      status: campaign.status,
+      budget: parseFloat(campaign.budget) || 0,
+      startDate: campaign.start_date,
+      endDate: campaign.end_date
+    }));
+
+    res.json(campaigns);
+  } catch (error) {
+    console.error('Get client dashboard campaigns error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/client-dashboard/api-access', async (req, res) => {
+  try {
+    // Mock API access data
+    res.json({
+      googleMaps: { enabled: true, quota: 1000, used: 250 },
+      googleAnalytics: { enabled: true, quota: 10000, used: 1500 },
+      azureEmail: { enabled: true, quota: 10000, used: 500 },
+      mozApi: { enabled: false, quota: 0, used: 0 }
+    });
+  } catch (error) {
+    console.error('Get client dashboard API access error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
   // Scrape leads from website
   router.post('/scrape-website-leads', async (req, res) => {
     try {
-      const { url, maxLeads = 10, state = 'Texas' } = req.body;
+      const { url, maxLeads = 10, state = 'Texas', includeSEO = true, keywords = [] } = req.body;
 
       if (!url) {
         return res.status(400).json({ error: 'URL is required' });
@@ -107,7 +365,7 @@ router.get('/analytics', async (req, res) => {
         console.log('⚠️ Compliance warnings:', complianceResult.warnings);
       }
 
-      const leads = await LeadScrapingService.scrapeLeadsFromWebsite(url, maxLeads);
+      const leads = await LeadScrapingService.scrapeLeadsFromWebsite(url, maxLeads, includeSEO, keywords);
 
       // Save leads to database
       const savedLeads = [];
@@ -271,4 +529,332 @@ router.get('/analytics', async (req, res) => {
     }
   });
 
-  export default router;
+  // Send SEO report to lead
+router.post('/send-seo-report', async (req, res) => {
+  try {
+    const { leadId, senderInfo } = req.body;
+    
+    if (!leadId) {
+      return res.status(400).json({ error: 'Lead ID is required' });
+    }
+
+    // Get lead data with SEO analysis
+    const leadResult = await pool.query(
+      'SELECT * FROM leads WHERE id = $1',
+      [leadId]
+    );
+
+    if (leadResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    const lead = leadResult.rows[0];
+    
+    if (!lead.seo_analysis || !lead.seo_report) {
+      return res.status(400).json({ error: 'No SEO analysis available for this lead' });
+    }
+
+    const seoAnalysis = typeof lead.seo_analysis === 'string' 
+      ? JSON.parse(lead.seo_analysis) 
+      : lead.seo_analysis;
+
+    const emailService = SEOEmailService.getInstance();
+    
+    const emailData = {
+      leadName: `${lead.contact_first_name} ${lead.contact_last_name}`,
+      leadEmail: lead.contact_email,
+      clinicName: lead.clinic_name,
+      websiteUrl: lead.website_url,
+      seoScore: seoAnalysis.score,
+      reportContent: lead.seo_report,
+      recommendations: seoAnalysis.recommendations,
+      senderName: senderInfo?.name || 'Healthcare Marketing Specialist',
+      senderEmail: senderInfo?.email || 'info@healthcaremarketing.com',
+      senderPhone: senderInfo?.phone || '(555) 123-4567',
+      senderWebsite: senderInfo?.website || 'https://healthcaremarketing.com'
+    };
+
+    const result = await emailService.sendSEOReport(emailData);
+
+    if (result.success) {
+      // Update lead status
+      await pool.query(
+        'UPDATE leads SET status = $1, notes = COALESCE(notes, \'\') || $2 WHERE id = $3',
+        ['contacted', `\nSEO report sent on ${new Date().toISOString()}. `, leadId]
+      );
+
+      res.json({
+        success: true,
+        message: 'SEO report sent successfully',
+        messageId: result.messageId
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error || 'Failed to send SEO report'
+      });
+    }
+
+  } catch (error) {
+    console.error('Send SEO report error:', error);
+    res.status(500).json({ error: 'Failed to send SEO report' });
+  }
+});
+
+// Send bulk SEO reports
+router.post('/send-bulk-seo-reports', async (req, res) => {
+  try {
+    const { leadIds, senderInfo } = req.body;
+    
+    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+      return res.status(400).json({ error: 'Lead IDs array is required' });
+    }
+
+    // Get leads with SEO analysis
+    const leadsResult = await pool.query(
+      'SELECT * FROM leads WHERE id = ANY($1) AND seo_analysis IS NOT NULL AND seo_report IS NOT NULL',
+      [leadIds]
+    );
+
+    if (leadsResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No leads with SEO analysis found' });
+    }
+
+    const emailService = SEOEmailService.getInstance();
+    const emailDataArray = leadsResult.rows.map(lead => {
+      const seoAnalysis = typeof lead.seo_analysis === 'string' 
+        ? JSON.parse(lead.seo_analysis) 
+        : lead.seo_analysis;
+
+      return {
+        leadName: `${lead.contact_first_name} ${lead.contact_last_name}`,
+        leadEmail: lead.contact_email,
+        clinicName: lead.clinic_name,
+        websiteUrl: lead.website_url,
+        seoScore: seoAnalysis.score,
+        reportContent: lead.seo_report,
+        recommendations: seoAnalysis.recommendations,
+        senderName: senderInfo?.name || 'Healthcare Marketing Specialist',
+        senderEmail: senderInfo?.email || 'info@healthcaremarketing.com',
+        senderPhone: senderInfo?.phone || '(555) 123-4567',
+        senderWebsite: senderInfo?.website || 'https://healthcaremarketing.com'
+      };
+    });
+
+    const result = await emailService.sendBulkSEOReports(emailDataArray);
+
+    // Update lead statuses
+    await pool.query(
+      'UPDATE leads SET status = $1, notes = COALESCE(notes, \'\') || $2 WHERE id = ANY($3)',
+      ['contacted', `\nBulk SEO report sent on ${new Date().toISOString()}. `, leadIds]
+    );
+
+    res.json({
+      success: true,
+      message: `Sent ${result.success} reports successfully, ${result.failed} failed`,
+      results: result.results
+    });
+
+  } catch (error) {
+    console.error('Send bulk SEO reports error:', error);
+    res.status(500).json({ error: 'Failed to send bulk SEO reports' });
+  }
+});
+
+// Get SEO analysis for a lead
+router.get('/leads/:id/seo-analysis', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      'SELECT id, clinic_name, website_url, seo_analysis, seo_report, created_at FROM leads WHERE id = $1',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    const lead = result.rows[0];
+    
+    if (!lead.seo_analysis) {
+      return res.status(404).json({ error: 'No SEO analysis available for this lead' });
+    }
+
+    const seoAnalysis = typeof lead.seo_analysis === 'string' 
+      ? JSON.parse(lead.seo_analysis) 
+      : lead.seo_analysis;
+
+    res.json({
+      lead: {
+        id: lead.id,
+        clinicName: lead.clinic_name,
+        websiteUrl: lead.website_url,
+        createdAt: lead.created_at
+      },
+      seoAnalysis,
+      report: lead.seo_report
+    });
+
+  } catch (error) {
+    console.error('Get SEO analysis error:', error);
+    res.status(500).json({ error: 'Failed to get SEO analysis' });
+  }
+});
+
+// AI-Based SEO Endpoints (from master document)
+router.post('/ai-seo/analyze-query', async (req, res) => {
+  try {
+    const { query } = req.body;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+
+    // TODO: Implement AI SEO query analysis
+    const analysis = {
+      originalQuery: query,
+      intent: 'find_doctor',
+      entities: ['doctor', 'good'],
+      location: 'near me',
+      urgency: 'low',
+      semanticKeywords: ['find doctor', 'locate physician', 'medical provider search'],
+      conversationalVariations: ['Where can I find a good doctor?', 'I need to see a doctor near me']
+    };
+
+    res.json(analysis);
+  } catch (error) {
+    console.error('AI SEO query analysis error:', error);
+    res.status(500).json({ error: 'Failed to analyze query' });
+  }
+});
+
+router.post('/leads/:id/ai-seo-content', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, content, faq_section, conversational_answers, semantic_keywords, entity_mentions } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO ai_seo_content (lead_id, title, description, content, faq_section, conversational_answers, semantic_keywords, entity_mentions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [id, title, description, content, faq_section, JSON.stringify(conversational_answers), JSON.stringify(semantic_keywords), JSON.stringify(entity_mentions)]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Create AI SEO content error:', error);
+    res.status(500).json({ error: 'Failed to create AI SEO content' });
+  }
+});
+
+router.get('/leads/:id/ai-seo-content', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'SELECT * FROM ai_seo_content WHERE lead_id = $1',
+      [id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get AI SEO content error:', error);
+    res.status(500).json({ error: 'Failed to get AI SEO content' });
+  }
+});
+
+// SEO Audit Tasks Endpoints (from master document)
+router.get('/leads/:id/seo-tasks', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'SELECT * FROM seo_audit_tasks WHERE lead_id = $1 ORDER BY task_priority, created_at',
+      [id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get SEO tasks error:', error);
+    res.status(500).json({ error: 'Failed to get SEO tasks' });
+  }
+});
+
+router.post('/leads/:id/seo-tasks', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { task_category, task_priority, task_title, task_description, assigned_to, due_date, estimated_hours } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO seo_audit_tasks (lead_id, task_category, task_priority, task_title, task_description, assigned_to, due_date, estimated_hours)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [id, task_category, task_priority, task_title, task_description, assigned_to, due_date, estimated_hours]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Create SEO task error:', error);
+    res.status(500).json({ error: 'Failed to create SEO task' });
+  }
+});
+
+router.put('/seo-tasks/:taskId', async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { task_status, actual_hours, completion_notes } = req.body;
+
+    const result = await pool.query(
+      `UPDATE seo_audit_tasks 
+       SET task_status = $1, actual_hours = $2, completion_notes = $3, updated_at = CURRENT_TIMESTAMP,
+           completed_at = CASE WHEN $1 = 'completed' THEN CURRENT_TIMESTAMP ELSE completed_at END
+       WHERE id = $4
+       RETURNING *`,
+      [task_status, actual_hours, completion_notes, taskId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update SEO task error:', error);
+    res.status(500).json({ error: 'Failed to update SEO task' });
+  }
+});
+
+// Credential Management Endpoints (from master document)
+router.get('/credentials', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, service_name, environment, credential_type, created_at, updated_at, expires_at, is_active FROM encrypted_credentials ORDER BY service_name, environment'
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get credentials error:', error);
+    res.status(500).json({ error: 'Failed to get credentials' });
+  }
+});
+
+router.post('/credentials', async (req, res) => {
+  try {
+    const { service_name, environment, credential_type, encrypted_value, encryption_key_id, expires_at } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO encrypted_credentials (service_name, environment, credential_type, encrypted_value, encryption_key_id, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, service_name, environment, credential_type, created_at, expires_at, is_active`,
+      [service_name, environment, credential_type, encrypted_value, encryption_key_id, expires_at]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Create credential error:', error);
+    res.status(500).json({ error: 'Failed to create credential' });
+  }
+});
+
+export default router;

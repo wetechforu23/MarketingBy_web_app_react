@@ -10,6 +10,8 @@ export interface EmailOptions {
   subject: string;
   text?: string;
   html?: string;
+  htmlContent?: string;
+  textContent?: string;
   from?: string;
 }
 
@@ -34,7 +36,7 @@ export class EmailService {
     // Try to initialize Azure Communication Services email service
     try {
       if (process.env.AZURE_COMMUNICATION_CONNECTION_STRING) {
-        this.azureEmailService = new AzureEmailService();
+        this.azureEmailService = AzureEmailService.getInstance();
         console.log('Azure Communication Services Email Service initialized successfully');
       }
     } catch (error) {
@@ -76,11 +78,13 @@ export class EmailService {
     // Try Azure Communication Services email service if available
     if (this.azureEmailService) {
       try {
+        const recipients = Array.isArray(options.to) ? options.to : [options.to];
         const success = await this.azureEmailService.sendEmail({
-          to: options.to,
+          to: recipients,
           subject: options.subject,
           htmlContent: options.html || options.text || '',
-          textContent: options.text
+          textContent: options.text,
+          from: options.from || process.env.AZURE_EMAIL_FROM_ADDRESS || 'info@wetechforu.com'
         });
         
         if (success) {
@@ -221,9 +225,21 @@ export class EmailService {
 
   async testConnection(): Promise<boolean> {
     try {
-      await this.transporter.verify();
-      console.log('Email service connection verified');
-      return true;
+      // Check if we have any email service available
+      if (this.azureEmailService || this.microsoftGraphEmailService) {
+        console.log('Email service available (Azure/Microsoft Graph)');
+        return true;
+      }
+      
+      // Try SMTP verification only if we have proper credentials
+      if (process.env.SMTP_SENDER_EMAIL && process.env.SMTP_SENDER_PASSWORD) {
+        await this.transporter.verify();
+        console.log('Email service connection verified');
+        return true;
+      } else {
+        console.log('Email service not configured - no credentials available');
+        return false;
+      }
     } catch (error) {
       console.error('Email service connection failed:', error);
       return false;
