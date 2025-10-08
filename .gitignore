@@ -169,5 +169,8 @@ Thumbs.db
 
 # Sensitive files - NEVER commit these
 *.json
+!package.json
+!package-lock.json
+!app.json
 set_heroku_env_vars.sh
 HEROKU_SETUP_STEP_BY_STEP.md
