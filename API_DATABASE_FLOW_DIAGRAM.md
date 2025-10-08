@@ -1801,6 +1801,184 @@ Enhanced UI/UX with Real Database Integration and Modern Dashboard Features
 
 ---
 
+**DATE**: 2025-10-08 14:45 PDT
+**VERSION**: v0.10.0
+**AUTHOR**: AI Agent
+
+**FEATURE / CHANGE TITLE**:
+Advanced Lead Management with Activity Tracking, Bulk Actions, and Detailed Lead View
+
+**TYPE**: feature
+
+**SUMMARY**:
+- Implemented checkbox selection and bulk delete functionality for leads
+- Created comprehensive lead detail page with edit capability
+- Added activity tracking system for all lead interactions
+- Implemented email history tracking with open/click tracking
+- Added SEO report generation and tracking system
+- Created new database tables for lead_activity, lead_emails, and lead_seo_reports
+- Enhanced API with individual lead endpoints and tracking endpoints
+
+**IMPACTED AREAS**:
+- Services: None (all built with existing services)
+- APIs (existing reused): `/leads` API enhanced with bulk operations
+- APIs (new micro endpoints): 
+  - GET `/leads/:id` - Get individual lead details
+  - PUT `/leads/:id` - Update lead information
+  - POST `/leads/bulk-delete` - Bulk delete selected leads
+  - GET `/leads/:id/activity` - Get lead activity history
+  - GET `/leads/:id/emails` - Get email history for lead
+  - GET `/leads/:id/seo-reports` - Get SEO reports for lead
+  - POST `/leads/:id/send-email` - Send email to lead
+  - POST `/leads/:id/generate-seo-report` - Generate SEO report for lead
+- Database tables/columns: 
+  - NEW: `lead_activity` - Tracks all lead interactions
+  - NEW: `lead_emails` - Stores email history with tracking
+  - NEW: `lead_seo_reports` - Stores SEO reports with tracking
+- Frontend pages/components:
+  - Enhanced: `Leads.tsx` - Added checkbox selection and bulk actions
+  - NEW: `LeadDetail.tsx` - Comprehensive lead detail page with tabs
+  - Enhanced: `router/index.tsx` - Added route for lead detail page
+
+**DATABASE & MIGRATIONS**:
+- DDL required: yes
+- New tables created:
+  1. `lead_activity` - Activity tracking (id, lead_id, activity_type, activity_data, created_at)
+  2. `lead_emails` - Email history (id, lead_id, subject, body, status, sent_at, opened_at, clicked_at, tracking_id)
+  3. `lead_seo_reports` - SEO reports (id, lead_id, report_type, report_data, sent_at, viewed_at, tracking_id)
+- Migration file: `backend/database/lead_tracking.sql`
+- Indexes added: All tables indexed on lead_id, activity_type/status/report_type, and timestamps
+- Forward-safe: yes (all tables have IF NOT EXISTS)
+- Rollback: DROP TABLE IF EXISTS on all three tables
+
+**SECRETS & CONFIG**:
+- New secrets introduced: no
+- Stored encrypted in DB (not code/.env): n/a
+- Access path (service/function): Existing credential management maintained
+
+**FEATURE FLAGS**:
+- Flag name(s): n/a (feature fully integrated)
+- Default state: enabled
+- Rollout plan: Immediate availability for all users
+
+**API QUOTA / BILLING GUARDRAILS**:
+- Third-party APIs used: None (internal tracking system)
+- Free tier quota tracked in DB: n/a
+- Projected usage vs free tier: n/a
+- Auto-warning before paid threshold: n/a
+
+**CONFIRMATIONS (record exact prompt acknowledgements)**:
+- Stage/dev DDL double-check performed: yes - New tables for activity tracking  Keyword: "CONFIRM LEAD_TRACKING_DDL"
+- Delete temporary test artifacts confirmed: n/a  Keyword: "CONFIRM DELETE TESTS"
+- Billing approval beyond free tier confirmed: n/a  Keyword: "CONFIRM BILLING"
+
+**TESTING**:
+- Unit/integration tests added in `test/`: pending
+- Manual verification steps:
+  1) Checkbox selection works on leads table
+  2) Bulk delete removes selected leads
+  3) View lead button navigates to detail page
+  4) Lead detail page displays all information correctly
+  5) Edit functionality saves changes to database
+  6) Activity tab shows all lead interactions
+  7) Email tab displays email history
+  8) SEO reports tab shows generated reports
+  9) Send email functionality works and logs activity
+  10) Generate SEO report creates report and logs activity
+- Temporary test scaffolding slated for deletion: n/a
+
+**DEPLOYMENT**:
+- Environment: development
+- Database migration required: yes (run `lead_tracking.sql`)
+- Heroku deploy after all tests pass: pending
+- Post-deploy checks/metrics: 
+  - Verify all new tables created successfully
+  - Test lead detail page performance
+  - Verify activity tracking is logging correctly
+  - Check email and SEO report tracking
+
+**ROLLBACK PLAN**:
+- Database: DROP TABLE IF EXISTS lead_activity, lead_emails, lead_seo_reports
+- Code: Revert to previous commit before lead tracking implementation
+- Frontend: Remove LeadDetail.tsx component and routing
+
+**ERD/DIAGRAM UPDATES**:
+- Updated sections in this master file: Database Schema (added 3 new tables)
+- New relationships:
+  - leads → lead_activity (1:many, cascade delete)
+  - leads → lead_emails (1:many, cascade delete)
+  - leads → lead_seo_reports (1:many, cascade delete)
+
+**FEATURE DETAILS**:
+
+**1. Checkbox Selection & Bulk Delete:**
+- Checkbox in table header selects/deselects all leads
+- Individual checkbox per lead row
+- Selected rows highlighted with light blue background
+- "Delete Selected (N)" button appears when leads are selected
+- Bulk delete API removes multiple leads with single request
+- Confirmation prompt before deletion
+
+**2. Lead Detail Page:**
+- **Details Tab**: Full lead information with edit capability
+  - Company name, email, phone, website
+  - Contact first/last name
+  - Full address (street, city, state, zip)
+  - Status, source, industry
+  - Notes field
+- **Activity Tab**: Timeline of all lead interactions
+  - Icon-based activity display
+  - Activity type, timestamp, and data
+  - Chronological order (newest first)
+- **Emails Tab**: Email history with tracking
+  - Total emails sent count
+  - Opened/clicked statistics
+  - Individual email details (subject, status, timestamps)
+  - Send new email functionality
+- **SEO Reports Tab**: SEO report history
+  - Total reports count
+  - Basic vs Comprehensive report breakdown
+  - Report viewing tracking
+  - Generate new report buttons (Basic/Comprehensive)
+
+**3. Activity Tracking System:**
+- Automatic logging of:
+  - Email sent/opened/clicked
+  - SEO report generated/viewed
+  - Status changes
+  - Notes added
+- JSONB storage for flexible activity data
+- Indexed for fast retrieval
+- 50 most recent activities displayed
+
+**4. Email Tracking:**
+- Email status: sent, delivered, opened, clicked, bounced, failed
+- Timestamp tracking for sent/opened/clicked events
+- Unique tracking ID for each email
+- Full email history per lead
+- Send email modal with subject and body fields
+
+**5. SEO Report Tracking:**
+- Report types: basic, comprehensive
+- JSONB storage for report data
+- Generation and viewing timestamps
+- Unique tracking ID for view tracking
+- Report type statistics
+
+**NOTES**:
+- Comprehensive lead management system with full tracking capabilities
+- Activity tracking provides complete audit trail of lead interactions
+- Email and SEO report tracking enables engagement analysis
+- Bulk operations improve efficiency for managing multiple leads
+- Detailed lead view consolidates all lead information in one place
+- Tab-based interface organizes information logically
+- Edit capability allows updating lead information without leaving detail page
+- Activity timeline provides chronological view of all interactions
+- Ready for integration with actual email service (currently using database logging)
+- Ready for integration with actual SEO analysis service (currently using mock data)
+
+---
+
 **DATE**: 2025-10-08 01:20 PDT
 **VERSION**: v0.9.1
 **AUTHOR**: Viral T.

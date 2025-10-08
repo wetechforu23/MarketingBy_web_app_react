@@ -387,6 +387,32 @@ router.delete('/leads/delete-all', async (req, res) => {
   }
 });
 
+// Bulk delete leads endpoint
+router.post('/leads/bulk-delete', async (req, res) => {
+  try {
+    const { leadIds } = req.body;
+    
+    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+      return res.status(400).json({ error: 'Invalid lead IDs' });
+    }
+    
+    const result = await pool.query(
+      'DELETE FROM leads WHERE id = ANY($1::int[])',
+      [leadIds]
+    );
+    
+    res.json({
+      success: true,
+      message: `Deleted ${result.rowCount} lead(s) successfully`,
+      deletedCount: result.rowCount
+    });
+
+  } catch (error) {
+    console.error('Bulk delete leads error:', error);
+    res.status(500).json({ error: 'Failed to delete leads' });
+  }
+});
+
 // Export leads
 router.get('/leads/export', async (req, res) => {
   try {
@@ -800,6 +826,187 @@ router.get('/client-dashboard/api-access', async (req, res) => {
     } catch (error) {
       console.error('Delete lead error:', error);
       res.status(500).json({ error: 'Failed to delete lead' });
+    }
+  });
+
+  // Get individual lead details
+  router.get('/leads/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const result = await pool.query('SELECT * FROM leads WHERE id = $1', [id]);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Get lead error:', error);
+      res.status(500).json({ error: 'Failed to fetch lead' });
+    }
+  });
+
+  // Update lead
+  router.put('/leads/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const lead = req.body;
+      
+      const result = await pool.query(
+        `UPDATE leads SET
+          company = $1, email = $2, phone = $3, website_url = $4,
+          address = $5, city = $6, state = $7, zip_code = $8,
+          contact_first_name = $9, contact_last_name = $10,
+          status = $11, source = $12, notes = $13, updated_at = NOW()
+        WHERE id = $14 RETURNING *`,
+        [
+          lead.company, lead.email, lead.phone, lead.website_url,
+          lead.address, lead.city, lead.state, lead.zip_code,
+          lead.contact_first_name, lead.contact_last_name,
+          lead.status, lead.source, lead.notes, id
+        ]
+      );
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+      
+      // Log activity
+      await pool.query(
+        `INSERT INTO lead_activity (lead_id, activity_type, activity_data, created_at)
+         VALUES ($1, $2, $3, NOW())`,
+        [id, 'status_changed', JSON.stringify({ old_status: req.body.old_status, new_status: lead.status })]
+      );
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Update lead error:', error);
+      res.status(500).json({ error: 'Failed to update lead' });
+    }
+  });
+
+  // Get lead activity
+  router.get('/leads/:id/activity', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const result = await pool.query(
+        `SELECT * FROM lead_activity WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 50`,
+        [id]
+      );
+      
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Get lead activity error:', error);
+      res.status(500).json({ error: 'Failed to fetch lead activity' });
+    }
+  });
+
+  // Get lead email history
+  router.get('/leads/:id/emails', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const result = await pool.query(
+        `SELECT * FROM lead_emails WHERE lead_id = $1 ORDER BY sent_at DESC`,
+        [id]
+      );
+      
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Get lead emails error:', error);
+      res.status(500).json({ error: 'Failed to fetch lead emails' });
+    }
+  });
+
+  // Get lead SEO reports
+  router.get('/leads/:id/seo-reports', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const result = await pool.query(
+        `SELECT * FROM lead_seo_reports WHERE lead_id = $1 ORDER BY sent_at DESC`,
+        [id]
+      );
+      
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Get lead SEO reports error:', error);
+      res.status(500).json({ error: 'Failed to fetch SEO reports' });
+    }
+  });
+
+  // Send email to lead
+  router.post('/leads/:id/send-email', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { subject, body } = req.body;
+      
+      // Get lead details
+      const leadResult = await pool.query('SELECT * FROM leads WHERE id = $1', [id]);
+      if (leadResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+      
+      const lead = leadResult.rows[0];
+      
+      // TODO: Send actual email using email service
+      // For now, just log it to database
+      
+      const emailResult = await pool.query(
+        `INSERT INTO lead_emails (lead_id, subject, body, status, sent_at)
+         VALUES ($1, $2, $3, $4, NOW()) RETURNING *`,
+        [id, subject, body, 'sent']
+      );
+      
+      // Log activity
+      await pool.query(
+        `INSERT INTO lead_activity (lead_id, activity_type, activity_data, created_at)
+         VALUES ($1, $2, $3, NOW())`,
+        [id, 'email_sent', JSON.stringify({ subject, email: lead.email })]
+      );
+      
+      res.json({ success: true, email: emailResult.rows[0] });
+    } catch (error) {
+      console.error('Send email error:', error);
+      res.status(500).json({ error: 'Failed to send email' });
+    }
+  });
+
+  // Generate SEO report for lead
+  router.post('/leads/:id/generate-seo-report', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { reportType, website } = req.body;
+      
+      // TODO: Generate actual SEO report
+      // For now, just log it to database
+      
+      const reportData = {
+        website,
+        score: Math.floor(Math.random() * 100),
+        generated_at: new Date(),
+        type: reportType
+      };
+      
+      const reportResult = await pool.query(
+        `INSERT INTO lead_seo_reports (lead_id, report_type, report_data, sent_at)
+         VALUES ($1, $2, $3, NOW()) RETURNING *`,
+        [id, reportType, JSON.stringify(reportData)]
+      );
+      
+      // Log activity
+      await pool.query(
+        `INSERT INTO lead_activity (lead_id, activity_type, activity_data, created_at)
+         VALUES ($1, $2, $3, NOW())`,
+        [id, 'seo_report_sent', JSON.stringify({ report_type: reportType, website })]
+      );
+      
+      res.json({ success: true, report: reportResult.rows[0] });
+    } catch (error) {
+      console.error('Generate SEO report error:', error);
+      res.status(500).json({ error: 'Failed to generate SEO report' });
     }
   });
 
@@ -1314,6 +1521,48 @@ router.get('/scraping/usage', async (req, res) => {
   } catch (error) {
     console.error('Usage stats error:', error);
     res.status(500).json({ error: 'Failed to get usage statistics' });
+  }
+});
+
+// Update user profile
+router.put('/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      first_name,
+      last_name,
+      email,
+      phone,
+      timezone,
+      language,
+      notifications_enabled
+    } = req.body;
+
+    // Verify user is updating their own profile or is admin
+    if (req.session.userId !== parseInt(id) && !req.session.is_admin) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const result = await pool.query(
+      `UPDATE users 
+       SET first_name = $1, last_name = $2, email = $3, phone = $4, 
+           timezone = $5, language = $6, notifications_enabled = $7, 
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $8
+       RETURNING id, email, username, first_name, last_name, phone, 
+                 timezone, language, notifications_enabled, is_admin, 
+                 client_id, created_at, last_login`,
+      [first_name, last_name, email, phone, timezone, language, notifications_enabled, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({ error: 'Failed to update user profile' });
   }
 });
 

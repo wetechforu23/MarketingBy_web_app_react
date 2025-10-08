@@ -103,7 +103,9 @@ router.get('/me', async (req, res) => {
     }
 
     const result = await pool.query(
-      'SELECT id, email, username, is_admin, client_id FROM users WHERE id = $1',
+      `SELECT id, email, username, is_admin, client_id, first_name, last_name, phone, 
+              created_at, last_login, timezone, language, notifications_enabled, profile_picture_url 
+       FROM users WHERE id = $1`,
       [req.session.userId]
     );
 
@@ -111,11 +113,79 @@ router.get('/me', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({
-      user: result.rows[0]
-    });
+    res.json(result.rows[0]);
   } catch (error) {
     console.error('Get user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Change password
+router.post('/change-password', async (req, res) => {
+  try {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current and new password required' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters long' });
+    }
+
+    // Get current user
+    const result = await pool.query(
+      'SELECT id, password_hash FROM users WHERE id = $1',
+      [req.session.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = result.rows[0];
+
+    // Verify current password
+    let isValidPassword = false;
+    
+    if (user.password_hash.startsWith('pbkdf2:')) {
+      // Handle PBKDF2 format from Flask
+      const parts = user.password_hash.split('$');
+      if (parts.length === 4) {
+        const algorithm = parts[0].split(':')[1]; // sha256
+        const iterations = parseInt(parts[1]); // 1000000
+        const salt = parts[2];
+        const hash = parts[3];
+        
+        const derivedKey = crypto.pbkdf2Sync(currentPassword, salt, iterations, 32, algorithm);
+        const derivedHash = derivedKey.toString('hex');
+        isValidPassword = derivedHash === hash;
+      }
+    } else {
+      // Handle bcrypt format
+      isValidPassword = await bcrypt.compare(currentPassword, user.password_hash);
+    }
+
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    // Hash new password using bcrypt
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    await pool.query(
+      'UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [hashedPassword, user.id]
+    );
+
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

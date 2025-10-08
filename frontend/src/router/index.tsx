@@ -7,7 +7,9 @@ import LoginPage from "../pages/LoginPage";
 import AppLayout from "../layouts/AppLayout";
 import Clients from "../pages/Clients";
 import Leads from "../pages/Leads";
+import LeadDetail from "../pages/LeadDetail";
 import Users from "../pages/Users";
+import Profile from "../pages/Profile";
 import CampaignsPage from "../pages/CampaignsPage";
 import AnalyticsPage from "../pages/AnalyticsPage";
 import SEOPage from "../pages/SEOPage";
@@ -31,10 +33,12 @@ export const router = createBrowserRouter([
       { path: "admin", element: <SuperAdminDashboard /> }, // Super Admin Dashboard
       { path: "client-admin", element: <ClientAdminDashboard /> }, // Client Admin Dashboard
       { path: "client-user", element: <ClientUserDashboard /> }, // Client User Dashboard
+      { path: "profile", element: <Profile /> }, // User Profile page
       { path: "users", element: <Users /> },
       { path: "clients", element: <Clients /> },
       { path: "client-dashboard", element: <ClientAdminDashboard /> }, // Client dashboard route
       { path: "leads", element: <Leads /> },
+      { path: "leads/:id", element: <LeadDetail /> }, // Lead detail page
       { path: "campaigns", element: <CampaignsPage /> },
       { path: "analytics", element: <AnalyticsPage /> },
       { path: "seo", element: <SEOPage /> },

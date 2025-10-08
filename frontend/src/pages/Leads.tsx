@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { http } from '../api/http';
 
 interface Lead {
@@ -31,6 +32,7 @@ interface LeadStats {
 }
 
 const Leads: React.FC = () => {
+  const navigate = useNavigate();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadStats, setLeadStats] = useState<LeadStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,6 +87,10 @@ const Leads: React.FC = () => {
   const [pageSize, setPageSize] = useState(20);
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('desc');
+  
+  // Selection and bulk delete state
+  const [selectedLeads, setSelectedLeads] = useState<number[]>([]);
+  const [selectAll, setSelectAll] = useState(false);
 
   // Fetch leads data
   const fetchData = async () => {
@@ -201,6 +207,28 @@ const Leads: React.FC = () => {
   React.useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, sourceFilter, industryFilter, dateFrom, dateTo, pageSize]);
+
+  // Handle column sorting
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      // Toggle sort order if clicking the same column
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new column and default to ascending
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+  };
+
+  // Get sort icon for column headers
+  const getSortIcon = (column: string) => {
+    if (sortBy !== column) {
+      return <i className="fas fa-sort ms-2" style={{ opacity: 0.3 }}></i>;
+    }
+    return sortOrder === 'asc' 
+      ? <i className="fas fa-sort-up ms-2"></i>
+      : <i className="fas fa-sort-down ms-2"></i>;
+  };
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
@@ -464,8 +492,7 @@ const Leads: React.FC = () => {
   };
 
   const handleViewLead = (leadId: number) => {
-    console.log('View lead clicked:', leadId);
-    alert(`View lead details for ID: ${leadId} - Feature coming soon`);
+    navigate(`/leads/${leadId}`);
   };
 
   const handleEditLead = (leadId: number) => {
@@ -557,6 +584,51 @@ const Leads: React.FC = () => {
       } catch (error) {
         console.error('Error converting lead to client:', error);
         alert('Failed to convert lead to client. Please try again.');
+      }
+    }
+  };
+
+  // Checkbox selection handlers
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedLeads([]);
+    } else {
+      setSelectedLeads(sortedLeads.map(lead => lead.id));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  const handleSelectLead = (leadId: number) => {
+    if (selectedLeads.includes(leadId)) {
+      setSelectedLeads(selectedLeads.filter(id => id !== leadId));
+      setSelectAll(false);
+    } else {
+      const newSelected = [...selectedLeads, leadId];
+      setSelectedLeads(newSelected);
+      if (newSelected.length === sortedLeads.length) {
+        setSelectAll(true);
+      }
+    }
+  };
+
+  // Bulk delete handler
+  const handleBulkDelete = async () => {
+    if (selectedLeads.length === 0) {
+      alert('Please select leads to delete');
+      return;
+    }
+
+    if (window.confirm(`Are you sure you want to delete ${selectedLeads.length} selected lead(s)? This action cannot be undone.`)) {
+      try {
+        await http.post('/leads/bulk-delete', { leadIds: selectedLeads });
+        alert(`${selectedLeads.length} lead(s) deleted successfully`);
+        setSelectedLeads([]);
+        setSelectAll(false);
+        fetchData();
+        fetchLeadStats();
+      } catch (error) {
+        console.error('Error deleting leads:', error);
+        alert('Failed to delete leads. Please try again.');
       }
     }
   };
@@ -967,23 +1039,27 @@ const Leads: React.FC = () => {
         <div className="card-body">
           {/* Action Buttons */}
           <div className="d-flex flex-wrap mb-4" style={{ 
-            padding: '16px', 
+            padding: '20px', 
             backgroundColor: '#f8f9fa', 
-            borderRadius: '8px',
+            borderRadius: '12px',
             border: '1px solid #e9ecef',
-            gap: '12px'
+            gap: '16px',
+            rowGap: '16px'
           }}>
             <button 
               className="btn btn-primary" 
               onClick={handleAddManualLead}
               style={{
-                padding: '10px 16px',
-                borderRadius: '6px',
-                border: '2px solid #007bff',
-                boxShadow: '0 2px 4px rgba(0, 123, 255, 0.2)',
-                fontWeight: '500',
+                padding: '12px 20px',
+                borderRadius: '8px',
+                border: '2px solid #000000',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
+                fontWeight: '600',
+                fontSize: '14px',
                 transition: 'all 0.2s ease',
-                minWidth: '140px'
+                minWidth: '160px',
+                marginRight: '12px',
+                marginBottom: '12px'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-1px)';
@@ -996,17 +1072,53 @@ const Leads: React.FC = () => {
             >
               <i className="fas fa-plus me-2"></i>Add Manual Lead
             </button>
+            
+            {/* Delete Selected Button - Only show when leads are selected */}
+            {selectedLeads.length > 0 && (
+              <button 
+                className="btn btn-danger" 
+                onClick={handleBulkDelete}
+                style={{
+                  padding: '12px 20px',
+                  borderRadius: '8px',
+                  border: '2px solid #dc3545',
+                  boxShadow: '0 2px 6px rgba(220, 53, 69, 0.2)',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  transition: 'all 0.2s ease',
+                  minWidth: '160px',
+                  marginRight: '12px',
+                  marginBottom: '12px',
+                  backgroundColor: '#dc3545',
+                  color: 'white'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(220, 53, 69, 0.3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(220, 53, 69, 0.2)';
+                }}
+              >
+                <i className="fas fa-trash me-2"></i>Delete Selected ({selectedLeads.length})
+              </button>
+            )}
+            
             <button 
               className="btn btn-primary" 
               onClick={handleEnhancedScraping}
               style={{
-                padding: '10px 16px',
-                borderRadius: '6px',
-                border: '2px solid #007bff',
-                boxShadow: '0 2px 4px rgba(0, 123, 255, 0.2)',
-                fontWeight: '500',
+                padding: '12px 20px',
+                borderRadius: '8px',
+                border: '2px solid #000000',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
+                fontWeight: '600',
+                fontSize: '14px',
                 transition: 'all 0.2s ease',
-                minWidth: '140px'
+                minWidth: '160px',
+                marginRight: '12px',
+                marginBottom: '12px'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-1px)';
@@ -1019,6 +1131,7 @@ const Leads: React.FC = () => {
             >
               <i className="fas fa-search me-2"></i>Enhanced Scraping
             </button>
+            
             <button 
               className="btn btn-primary" 
               onClick={() => {
@@ -1026,13 +1139,16 @@ const Leads: React.FC = () => {
                 fetchLeadStats();
               }}
               style={{
-                padding: '10px 16px',
-                borderRadius: '6px',
-                border: '2px solid #007bff',
-                boxShadow: '0 2px 4px rgba(0, 123, 255, 0.2)',
-                fontWeight: '500',
+                padding: '12px 20px',
+                borderRadius: '8px',
+                border: '2px solid #000000',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
+                fontWeight: '600',
+                fontSize: '14px',
                 transition: 'all 0.2s ease',
-                minWidth: '140px'
+                minWidth: '160px',
+                marginRight: '12px',
+                marginBottom: '12px'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-1px)';
@@ -1045,17 +1161,21 @@ const Leads: React.FC = () => {
             >
               <i className="fas fa-sync-alt me-2"></i>Refresh
             </button>
+            
             <button 
               className="btn btn-primary" 
               onClick={handleExportLeads}
               style={{
-                padding: '10px 16px',
-                borderRadius: '6px',
-                border: '2px solid #007bff',
-                boxShadow: '0 2px 4px rgba(0, 123, 255, 0.2)',
-                fontWeight: '500',
+                padding: '12px 20px',
+                borderRadius: '8px',
+                border: '2px solid #000000',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
+                fontWeight: '600',
+                fontSize: '14px',
                 transition: 'all 0.2s ease',
-                minWidth: '140px'
+                minWidth: '160px',
+                marginRight: '12px',
+                marginBottom: '12px'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-1px)';
@@ -1068,40 +1188,21 @@ const Leads: React.FC = () => {
             >
               <i className="fas fa-download me-2"></i>Export Leads
             </button>
-            <button 
-              className="btn btn-primary" 
-              onClick={handleAnalytics}
-              style={{
-                padding: '10px 16px',
-                borderRadius: '6px',
-                border: '2px solid #007bff',
-                boxShadow: '0 2px 4px rgba(0, 123, 255, 0.2)',
-                fontWeight: '500',
-                transition: 'all 0.2s ease',
-                minWidth: '140px'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-1px)';
-                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 123, 255, 0.3)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 123, 255, 0.2)';
-              }}
-            >
-              <i className="fas fa-chart-bar me-2"></i>Analytics
-            </button>
+            
             <button 
               className="btn btn-primary" 
               onClick={handleCheckDuplicates}
               style={{
-                padding: '10px 16px',
-                borderRadius: '6px',
-                border: '2px solid #007bff',
-                boxShadow: '0 2px 4px rgba(0, 123, 255, 0.2)',
-                fontWeight: '500',
+                padding: '12px 20px',
+                borderRadius: '8px',
+                border: '2px solid #000000',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
+                fontWeight: '600',
+                fontSize: '14px',
                 transition: 'all 0.2s ease',
-                minWidth: '140px'
+                minWidth: '160px',
+                marginRight: '12px',
+                marginBottom: '12px'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-1px)';
@@ -1113,29 +1214,6 @@ const Leads: React.FC = () => {
               }}
             >
               <i className="fas fa-copy me-2"></i>Check Duplicates
-            </button>
-            <button 
-              className="btn btn-primary" 
-              onClick={handleDeleteAllLeads}
-              style={{
-                padding: '10px 16px',
-                borderRadius: '6px',
-                border: '2px solid #007bff',
-                boxShadow: '0 2px 4px rgba(0, 123, 255, 0.2)',
-                fontWeight: '500',
-                transition: 'all 0.2s ease',
-                minWidth: '140px'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-1px)';
-                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 123, 255, 0.3)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 123, 255, 0.2)';
-              }}
-            >
-              <i className="fas fa-trash me-2"></i>Delete All Leads
             </button>
           </div>
 
@@ -1161,33 +1239,104 @@ const Leads: React.FC = () => {
               }}
             >
               <tr>
-                <th style={{ minWidth: '60px', padding: '12px 8px' }}>ID</th>
-                <th style={{ minWidth: '200px', padding: '12px 8px' }}>Company</th>
-                <th style={{ minWidth: '200px', padding: '12px 8px' }}>Contact Email</th>
-                <th style={{ minWidth: '150px', padding: '12px 8px' }}>Phone</th>
-                <th style={{ minWidth: '200px', padding: '12px 8px' }}>Website</th>
-                <th style={{ minWidth: '120px', padding: '12px 8px' }}>Source</th>
-                <th style={{ minWidth: '100px', padding: '12px 8px' }}>Status</th>
-                <th style={{ minWidth: '150px', padding: '12px 8px' }}>Industry</th>
-                <th style={{ minWidth: '100px', padding: '12px 8px' }}>Created</th>
-                <th style={{ minWidth: '120px', padding: '12px 8px' }}>Actions</th>
+                <th style={{ minWidth: '50px', padding: '12px 8px', textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={selectAll}
+                    onChange={handleSelectAll}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                </th>
+                <th 
+                  style={{ minWidth: '60px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => handleSort('id')}
+                >
+                  ID {getSortIcon('id')}
+                </th>
+                <th 
+                  style={{ minWidth: '200px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => handleSort('company')}
+                >
+                  Company {getSortIcon('company')}
+                </th>
+                <th 
+                  style={{ minWidth: '200px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => handleSort('email')}
+                >
+                  Contact Email {getSortIcon('email')}
+                </th>
+                <th 
+                  style={{ minWidth: '150px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => handleSort('phone')}
+                >
+                  Phone {getSortIcon('phone')}
+                </th>
+                <th 
+                  style={{ minWidth: '200px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => handleSort('website_url')}
+                >
+                  Website {getSortIcon('website_url')}
+                </th>
+                <th 
+                  style={{ minWidth: '120px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => handleSort('source')}
+                >
+                  Source {getSortIcon('source')}
+                </th>
+                <th 
+                  style={{ minWidth: '100px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => handleSort('status')}
+                >
+                  Status {getSortIcon('status')}
+                </th>
+                <th 
+                  style={{ minWidth: '150px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => handleSort('industry_category')}
+                >
+                  Industry {getSortIcon('industry_category')}
+                </th>
+                <th 
+                  style={{ minWidth: '100px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => handleSort('created_at')}
+                >
+                  Created {getSortIcon('created_at')}
+                </th>
               </tr>
             </thead>
             <tbody>
               {paginatedLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="empty-state">
+                  <td colSpan={10} className="empty-state">
                     <i className="fas fa-inbox"></i>
                     <p>No leads found matching your criteria.</p>
                   </td>
                 </tr>
               ) : (
                 paginatedLeads.map(lead => (
-                  <tr key={lead.id}>
+                  <tr key={lead.id} style={{ backgroundColor: selectedLeads.includes(lead.id) ? '#e3f2fd' : 'transparent' }}>
+                    <td style={{ textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedLeads.includes(lead.id)}
+                        onChange={() => handleSelectLead(lead.id)}
+                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                      />
+                    </td>
                     <td>{lead.id}</td>
                     <td>
                       <div>
-                        <strong>{lead.company}</strong>
+                        <strong 
+                          onClick={() => navigate(`/app/leads/${lead.id}`)}
+                          style={{ 
+                            cursor: 'pointer', 
+                            color: '#1976d2',
+                            textDecoration: 'none'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                          onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                        >
+                          {lead.company}
+                        </strong>
                         {lead.rejection_reason && (
                           <div className="text-danger" style={{ fontSize: '0.8rem' }}>
                             <i className="fas fa-exclamation-triangle"></i> {lead.rejection_reason}
@@ -1233,143 +1382,6 @@ const Leads: React.FC = () => {
                       </div>
                     </td>
                     <td>{new Date(lead.created_at).toLocaleDateString()}</td>
-                    <td>
-                      <div className="action-buttons-container" style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            console.log('View Details clicked for lead:', lead.id);
-                            handleViewLead(lead.id);
-                          }}
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '11px',
-                            minWidth: 'auto',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="View Details"
-                        >
-                          <i className="fas fa-eye me-1"></i>View
-                        </button>
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            console.log('Edit Lead clicked for lead:', lead.id);
-                            handleEditLead(lead.id);
-                          }}
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '11px',
-                            minWidth: 'auto',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="Edit Lead"
-                        >
-                          <i className="fas fa-edit me-1"></i>Edit
-                        </button>
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            console.log('Contact Lead clicked for lead:', lead.id);
-                            handleContactLead(lead.id, lead.email || '');
-                          }}
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '11px',
-                            minWidth: 'auto',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="Contact Lead"
-                        >
-                          <i className="fas fa-envelope me-1"></i>Contact
-                        </button>
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            console.log('SEO Basic clicked for lead:', lead.id);
-                            handleSEOBasic(lead.id, lead.website_url || lead.company || '');
-                          }}
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '11px',
-                            minWidth: 'auto',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="SEO Basic"
-                        >
-                          <i className="fas fa-search me-1"></i>SEO Basic
-                        </button>
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            console.log('SEO Comprehensive clicked for lead:', lead.id);
-                            handleSEOComprehensive(lead.id, lead.website_url || lead.company || '');
-                          }}
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '11px',
-                            minWidth: 'auto',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="SEO Comprehensive"
-                        >
-                          <i className="fas fa-chart-line me-1"></i>SEO Comp
-                        </button>
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            console.log('Convert to Client clicked for lead:', lead.id);
-                            handleConvertToClient(lead.id);
-                          }}
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '11px',
-                            minWidth: 'auto',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="Convert to Client"
-                        >
-                          <i className="fas fa-user-check me-1"></i>Convert
-                        </button>
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            console.log('Delete Lead clicked for lead:', lead.id);
-                            handleDeleteLead(lead.id);
-                          }}
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '11px',
-                            minWidth: 'auto',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          title="Delete Lead"
-                        >
-                          <i className="fas fa-trash me-1"></i>Delete
-                        </button>
-                      </div>
-                    </td>
                   </tr>
                 ))
               )}
@@ -1377,61 +1389,151 @@ const Leads: React.FC = () => {
           </table>
         </div>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="d-flex justify-content-between align-items-center mt-3">
-            <div>
-              <span className="text-muted">
-                Showing {startIndex + 1} to {Math.min(endIndex, sortedLeads.length)} of {sortedLeads.length} leads
-              </span>
-            </div>
-            <nav>
-              <ul className="pagination pagination-sm mb-0">
-                <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
+        {/* Compact Pagination Section - Clean Design */}
+        {totalPages > 0 && (
+          <div className="mt-3">
+            <div style={{
+              padding: '16px 20px',
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              border: '1px solid #dee2e6',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '16px'
+            }}>
+              {/* Left: Pagination Info */}
+              <div style={{ 
+                fontSize: '0.95rem', 
+                color: '#495057',
+                fontWeight: '500'
+              }}>
+                Showing <strong>{startIndex + 1}</strong> to <strong>{Math.min(endIndex, sortedLeads.length)}</strong> of <strong>{sortedLeads.length}</strong> leads
+              </div>
+
+              {/* Center: Page Navigation */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <button 
-                    className="page-link" 
                     onClick={() => setCurrentPage(currentPage - 1)}
                     disabled={currentPage === 1}
+                    style={{
+                      borderRadius: '6px',
+                      border: '1px solid #4682B4',
+                      color: currentPage === 1 ? '#adb5bd' : '#4682B4',
+                      backgroundColor: 'white',
+                      padding: '8px 14px',
+                      fontSize: '1.1rem',
+                      fontWeight: '700',
+                      cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                      opacity: currentPage === 1 ? 0.5 : 1,
+                      lineHeight: '1'
+                    }}
                   >
-                    Previous
+                    ‹
                   </button>
-                </li>
-                
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
                   
-                  return (
-                    <li key={pageNum} className={`page-item ${currentPage === pageNum ? 'active' : ''}`}>
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
                       <button 
-                        className="page-link" 
+                        key={pageNum}
                         onClick={() => setCurrentPage(pageNum)}
+                        style={{
+                          borderRadius: '6px',
+                          border: '1px solid #4682B4',
+                          color: currentPage === pageNum ? 'white' : '#4682B4',
+                          backgroundColor: currentPage === pageNum ? '#4682B4' : 'white',
+                          padding: '6px 12px',
+                          minWidth: '38px',
+                          fontSize: '0.9rem',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (currentPage !== pageNum) {
+                            e.currentTarget.style.backgroundColor = '#e3f2fd';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (currentPage !== pageNum) {
+                            e.currentTarget.style.backgroundColor = 'white';
+                          }
+                        }}
                       >
                         {pageNum}
                       </button>
-                    </li>
-                  );
-                })}
-                
-                <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
+                    );
+                  })}
+                  
                   <button 
-                    className="page-link" 
                     onClick={() => setCurrentPage(currentPage + 1)}
                     disabled={currentPage === totalPages}
+                    style={{
+                      borderRadius: '6px',
+                      border: '1px solid #4682B4',
+                      color: currentPage === totalPages ? '#adb5bd' : '#4682B4',
+                      backgroundColor: 'white',
+                      padding: '8px 14px',
+                      fontSize: '1.1rem',
+                      fontWeight: '700',
+                      cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                      opacity: currentPage === totalPages ? 0.5 : 1,
+                      lineHeight: '1'
+                    }}
                   >
-                    Next
+                    ›
                   </button>
-                </li>
-              </ul>
-            </nav>
+                </div>
+              </div>
+
+              {/* Right: Items per page */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{ 
+                  fontSize: '0.9rem', 
+                  color: '#495057',
+                  marginBottom: 0,
+                  whiteSpace: 'nowrap',
+                  fontWeight: '500'
+                }}>
+                  Per page:
+                </label>
+                <select 
+                  className="form-select form-select-sm"
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  style={{ 
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontWeight: '500',
+                    color: '#4682B4',
+                    border: '1px solid #4682B4',
+                    borderRadius: '6px',
+                    padding: '4px 8px',
+                    width: 'auto',
+                    minWidth: '80px'
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={30}>30</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+            </div>
           </div>
         )}
 
