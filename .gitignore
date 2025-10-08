@@ -103,12 +103,19 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Spyder project settings
 .spyderproject
@@ -172,5 +179,6 @@ Thumbs.db
 !package.json
 !package-lock.json
 !app.json
+!tsconfig.json
 set_heroku_env_vars.sh
 HEROKU_SETUP_STEP_BY_STEP.md
