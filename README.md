@@ -1,216 +1,310 @@
-# WeTechForU Healthcare Marketing Platform
+# WeTechForU AI Marketing Platform
 
-A comprehensive AI-powered healthcare marketing automation platform built with Python/Flask, PostgreSQL, and advanced email tracking capabilities.
+A comprehensive healthcare marketing platform built with React frontend and Node.js backend, featuring lead generation, SEO analysis, compliance checking, and automated email marketing.
 
-## 🏥 Features
+## 🚀 Features
 
-- **AI-Powered Client Management & CRM**
-- **Intelligent SEO Audit & Optimization**
-- **Multi-Industry Lead Discovery**
-- **Automated Campaign Management**
-- **Content Approval Workflow**
-- **Real-time Analytics Dashboard**
-- **Advanced Email Tracking System**
-- **Keyword Research & Competitor Analysis**
-- **Healthcare Compliance (HIPAA/GDPR)**
+### Core Functionality
+- **Lead Generation**: Website scraping and zip code-based lead discovery
+- **SEO Analysis**: Basic and comprehensive SEO reports with real API integrations
+- **Compliance Checking**: Texas healthcare marketing compliance validation
+- **Email Marketing**: Automated email campaigns with Azure/Microsoft Graph integration
+- **Calendar Booking**: Appointment scheduling with email notifications
+- **Dashboard**: Real-time analytics and lead management
 
-## 🚀 Quick Start
+### Technical Features
+- **React Frontend**: Modern SPA with TypeScript
+- **Node.js Backend**: Express.js with PostgreSQL database
+- **Authentication**: Session-based auth with bcrypt/PBKDF2 support
+- **API Integrations**: Google APIs, SE Ranking, Azure, ChatGPT
+- **Compliance**: HIPAA, Texas state regulations, accessibility checks
+- **Testing**: E2E testing with Puppeteer
 
-### Prerequisites
+## 📋 Prerequisites
 
-- Python 3.9+
+- Node.js 18+ and npm
 - PostgreSQL 12+
-- Node.js (for frontend assets)
+- Git
 
-### Installation
+## 🛠️ Installation & Setup
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/WeTechForU-Healthcare-Marketing-Platform.git
-   cd WeTechForU-Healthcare-Marketing-Platform
-   ```
+### 1. Clone the Repository
+```bash
+git clone https://github.com/wetechforu23/MarketingBy_web_app_react.git
+cd MarketingBy_web_app_react
+```
 
-2. **Create virtual environment**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+### 2. Database Setup
+```bash
+# Create PostgreSQL database
+createdb health_clinic_marketing
 
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+# Or using psql
+psql -U postgres
+CREATE DATABASE health_clinic_marketing;
+\q
+```
 
-4. **Setup environment variables**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
+### 3. Environment Configuration
+```bash
+# Copy environment template
+cp backend/env.example backend/.env
 
-5. **Initialize database**
-   ```bash
-   python scripts/init_database.py
-   ```
+# Edit the .env file with your configuration
+nano backend/.env
+```
 
-6. **Run the application**
-   ```bash
-   python main.py
-   ```
+**Required Environment Variables:**
+```env
+# Database
+DATABASE_URL=postgresql://postgres:password@localhost/health_clinic_marketing
 
-7. **Access the platform**
-   - Admin Portal: http://localhost:9000/admin
-   - Client Portal: http://localhost:9000/customer
-   - API Documentation: http://localhost:9000/api/docs
+# Server
+PORT=3001
+JWT_SECRET=your-jwt-secret
+SESSION_SECRET=your-session-secret
+FRONTEND_URL=http://localhost:5173
+
+# Azure Configuration
+AZURE_TENANT_ID=your-tenant-id
+AZURE_CLIENT_ID=your-client-id
+AZURE_CLIENT_SECRET=your-client-secret
+AZURE_COMMUNICATION_CONNECTION_STRING=your-connection-string
+
+# Email Configuration
+SMTP_SENDER_EMAIL=info@wetechforu.com
+REPLY_TO_EMAIL=viral.tarpara@hotmail.com
+FROM_NAME=WeTechForU Healthcare Team
+
+# API Keys
+GOOGLE_MAPS_API_KEY=your-google-maps-key
+GOOGLE_ANALYTICS_API_KEY=your-google-analytics-key
+SE_RANKING_API_KEY=your-se-ranking-key
+CHATGPT_API_KEY=your-chatgpt-key
+
+# Compliance Settings
+TEXAS_COMPLIANCE_ENABLED=true
+HIPAA_COMPLIANCE_CHECK=true
+```
+
+### 4. Install Dependencies
+```bash
+# Install backend dependencies
+cd backend
+npm install
+
+# Install frontend dependencies
+cd ../frontend
+npm install
+
+# Install root dependencies (for E2E testing)
+cd ..
+npm install
+```
+
+### 5. Database Migration
+```bash
+# Run database migrations (if any)
+cd backend
+npm run migrate
+
+# Or manually create tables using the SQL files in the database directory
+```
+
+### 6. Start Development Servers
+
+**Terminal 1 - Backend:**
+```bash
+cd backend
+npm run dev
+```
+
+**Terminal 2 - Frontend:**
+```bash
+cd frontend
+npm run dev
+```
+
+The application will be available at:
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:3001
+
+## 🧪 Testing
+
+### E2E Testing
+```bash
+# Run the complete E2E test suite
+node test-e2e-flow.js
+```
+
+The E2E test covers:
+- User authentication
+- Lead scraping (website and zip code)
+- SEO analysis
+- Email sending
+- Calendar booking
+- API endpoint validation
+
+### Manual Testing
+1. **Login**: Use `test@test.com` / `password`
+2. **Leads**: Test website and zip code scraping
+3. **SEO**: Generate basic and comprehensive reports
+4. **Calendar**: Book appointments and test email notifications
 
 ## 📁 Project Structure
 
 ```
-WeTechForU-Healthcare-Marketing-Platform/
-├── app/                    # Main application code
-│   ├── models/            # Database models
-│   ├── routes/            # API routes and views
-│   ├── services/          # Business logic services
-│   └── utils/             # Utility functions
-├── config/                # Configuration files
-├── database/              # Database scripts and migrations
-├── docs/                  # Documentation
-├── scripts/               # Utility scripts
-├── static/                # Static assets (CSS, JS, images)
-├── templates/             # HTML templates
-├── tests/                 # Test files
-├── main.py               # Application entry point
-├── requirements.txt      # Python dependencies
-└── README.md            # This file
+MarketingBy_web_app_react/
+├── backend/                 # Node.js backend
+│   ├── src/
+│   │   ├── config/         # Database and app configuration
+│   │   ├── middleware/     # Authentication and validation
+│   │   ├── routes/         # API routes
+│   │   ├── services/       # Business logic services
+│   │   └── server.ts       # Main server file
+│   ├── env.example         # Environment variables template
+│   └── package.json
+├── frontend/               # React frontend
+│   ├── src/
+│   │   ├── components/     # Reusable components
+│   │   ├── pages/          # Page components
+│   │   ├── api/            # API client
+│   │   └── main.tsx        # App entry point
+│   └── package.json
+├── test-e2e-flow.js        # E2E testing script
+└── README.md
 ```
 
-## 🔧 Configuration
+## 🔧 API Endpoints
 
-### Environment Variables
+### Authentication
+- `POST /api/auth/login` - User login
+- `POST /api/auth/logout` - User logout
+- `GET /api/auth/me` - Get current user
 
-Create a `.env` file with the following variables:
-
-```env
-# Database
-DATABASE_URL=postgresql://username:password@localhost:5432/health_clinic_marketing
-
-# Flask
-SECRET_KEY=your-secret-key-here
-FLASK_PORT=9000
-BASE_URL=http://localhost:9000
-
-# Azure Email Service
-AZURE_CLIENT_ID=your-azure-client-id
-AZURE_CLIENT_SECRET=your-azure-client-secret
-AZURE_TENANT_ID=your-azure-tenant-id
-SMTP_SENDER_EMAIL=your-email@domain.com
-
-# Google APIs
-GOOGLE_MAPS_API_KEY=your-google-maps-api-key
-GOOGLE_PLACES_API_KEY=your-google-places-api-key
-
-# Other APIs
-GODADDY_API_KEY=your-godaddy-api-key
-GODADDY_API_SECRET=your-godaddy-api-secret
-FACEBOOK_APP_ID=your-facebook-app-id
-FACEBOOK_APP_SECRET=your-facebook-app-secret
-```
-
-## 📊 Key Features
-
-### Email Tracking System
-- Real-time email open tracking
-- Click-through rate monitoring
-- Secure OTP-based report access
-- Comprehensive engagement analytics
+### Leads Management
+- `GET /api/leads` - Get all leads
+- `POST /api/scrape-website-leads` - Scrape leads from website
+- `POST /api/scrape-zipcode-leads` - Scrape leads by zip code
+- `DELETE /api/leads/:id` - Delete lead
 
 ### SEO Analysis
-- Advanced SEO scoring
-- Competitor analysis
-- Keyword research
-- Technical SEO recommendations
+- `POST /api/seo/analyze` - Basic SEO analysis
+- `POST /api/seo/generate-report` - Comprehensive SEO report
+- `GET /api/seo/reports` - Get SEO reports
 
-### Lead Management
-- Multi-source lead generation
-- Automated lead scoring
-- CRM integration
-- Follow-up automation
+### Compliance
+- `GET /api/compliance-settings` - Get compliance settings
+- `POST /api/compliance-check` - Check compliance for action
+- `GET /api/compliance/available-slots` - Get available calendar slots
 
-### Healthcare Compliance
-- HIPAA-compliant data handling
-- GDPR compliance features
-- Secure data encryption
-- Audit trail logging
+### Calendar
+- `POST /api/compliance/schedule-appointment` - Schedule appointment
+- `GET /api/compliance/appointments` - Get appointments
 
-## 🧪 Testing
+## 🏥 Compliance Features
 
-```bash
-# Run all tests
-python -m pytest tests/
+### Texas Healthcare Marketing Compliance
+- **HIPAA Compliance**: Data handling and privacy checks
+- **State Regulations**: Texas Medical Board rules validation
+- **Accessibility**: WCAG 2.1 AA compliance checks
+- **Data Privacy**: GDPR/CCPA compliance validation
+- **Marketing Rules**: FDA/FTC healthcare advertising guidelines
 
-# Run specific test categories
-python -m pytest tests/test_models.py
-python -m pytest tests/test_routes.py
-python -m pytest tests/test_services.py
-```
+### Compliance Checks Include:
+- Website scraping permissions
+- Email marketing compliance
+- Data retention policies
+- Privacy policy requirements
+- Accessibility standards
+- Healthcare marketing disclaimers
 
-## 📈 API Documentation
+## 📧 Email Integration
 
-The platform provides a comprehensive REST API:
+### Supported Email Services
+1. **Microsoft Graph API** (Primary)
+2. **Azure Communication Services** (Secondary)
+3. **SMTP** (Fallback)
 
-- **Authentication**: JWT-based authentication
-- **Lead Management**: CRUD operations for leads
-- **Email Campaigns**: Campaign creation and tracking
-- **SEO Analysis**: Website analysis and reporting
-- **Analytics**: Real-time performance metrics
+### Email Templates
+- Basic SEO reports
+- Comprehensive SEO analysis
+- Calendar invitations
+- Lead notifications
+
+## 🔐 Security Features
+
+- Session-based authentication
+- Password hashing (bcrypt/PBKDF2)
+- CORS protection
+- Helmet security headers
+- Input validation and sanitization
+- SQL injection prevention
 
 ## 🚀 Deployment
 
-### Docker Deployment
+### Production Environment
+1. Set up production database
+2. Configure environment variables
+3. Build frontend: `cd frontend && npm run build`
+4. Start backend: `cd backend && npm start`
+5. Serve static files from `frontend/dist`
 
+### Docker Deployment (Optional)
 ```bash
-# Build the image
-docker build -t wetechforu-marketing .
-
-# Run with docker-compose
+# Build and run with Docker Compose
 docker-compose up -d
 ```
 
-### Production Deployment
+## 📊 Monitoring & Analytics
 
-1. Set up PostgreSQL database
-2. Configure environment variables
-3. Run database migrations
-4. Deploy with Gunicorn or similar WSGI server
-5. Set up reverse proxy (Nginx)
-6. Configure SSL certificates
+- Real-time lead tracking
+- SEO performance metrics
+- Email delivery analytics
+- Compliance audit logs
+- User activity monitoring
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
-## 📄 License
+## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is proprietary software. All rights reserved.
 
 ## 🆘 Support
 
 For support and questions:
-- Email: healthcare@wetechforu.com
-- Documentation: [docs.wetechforu.com](https://docs.wetechforu.com)
-- Issues: [GitHub Issues](https://github.com/yourusername/WeTechForU-Healthcare-Marketing-Platform/issues)
+- Email: viral.tarpara@hotmail.com
+- Documentation: See API_DATABASE_FLOW_DIAGRAM.md
+- Issues: Create GitHub issues for bugs
 
-## 🏆 Acknowledgments
+## 🔄 Recent Updates
 
-- Built with Flask and SQLAlchemy
-- Email tracking powered by Azure Graph API
-- SEO analysis using BeautifulSoup and custom algorithms
-- Frontend built with Bootstrap 5
-- Icons by Font Awesome
+### v2.0.0 - React/Node.js Migration
+- ✅ Complete migration from Flask to React/Node.js
+- ✅ Added comprehensive compliance checking
+- ✅ Implemented lead scraping with website and zip code
+- ✅ Added Microsoft Graph API integration
+- ✅ Created E2E testing framework
+- ✅ Enhanced SEO analysis with real APIs
+- ✅ Added calendar booking system
+- ✅ Implemented state-specific compliance rules
+
+### Key Improvements
+- Modern React frontend with TypeScript
+- Scalable Node.js backend with Express
+- Comprehensive compliance validation
+- Real-time lead generation
+- Automated email marketing
+- Professional SEO reporting
+- Calendar integration
+- E2E testing coverage
 
 ---
 
-**WeTechForU Healthcare Marketing Platform** - Empowering healthcare practices with AI-driven marketing automation.
+**WeTechForU AI Marketing Platform** - Your Partner in Healthcare Digital Marketing Success

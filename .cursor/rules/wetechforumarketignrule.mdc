@@ -1,0 +1,80 @@
+---
+alwaysApply: true
+---
+## Project Rules — MarketingBy_web_app_react
+
+### Master reference file
+- Always treat `/Users/viraltarpara/Desktop/github_viral/MarketingBy_web_app_react/API_DATABASE_FLOW_DIAGRAM.md` as the single source of truth for architecture, flows, schema, API maps, quotas, and feature version history.
+- Keep it updated with timestamped entries for every change/feature using the Versioned Change Log Template appended in that file.
+
+### Environment & servers
+- Default to stage server + dev/local database for all local work.
+- Before ANY DDL or schema change on stage/dev, ask twice and require a typed confirmation keyword: `CONFIRM <keyword>`.
+- Prefer using existing APIs/services and existing tables/columns before creating new ones.
+
+### Secrets & configuration
+- Never commit sensitive information to the repo.
+- Store secrets/credentials in the database, encrypted at rest. Access via DB accessors/services, not from `.env` in runtime code paths.
+- `.env` is allowed only to bootstrap DB connectivity/keys to decrypt DB secrets.
+- Proactively search and block any addition of secrets to code, configs, or logs.
+
+### Database governance
+- Always use the local/dev database defined in `.env` or config for development.
+- Maintain clean, reliable, scalable, secure schema. Add proper indexes. Keep ERD up to date in the master file.
+- Before adding columns/tables, verify no suitable existing columns/tables exist. If a change is needed, use a forward-safe migration plan and feature flags.
+- Any DDL on stage: require double confirmation and a typed keyword.
+
+### API usage & quota tracking
+- Always prefer existing APIs first. If new code is needed, design micro APIs that are composable and reusable for future API-as-a-product.
+- For any third-party API with free plans, track usage/quota/limits in the database and warn automatically before any paid threshold is reached.
+- Design for observability: log per-endpoint usage, errors, and latency (no PII in logs).
+
+### Development practices
+- Search for similar/related code and reuse patterns before adding new files.
+- Keep changes consistent with the existing app flow and conventions.
+- All test files must be placed in the `test` folder. After tests pass, always ask whether to delete temporary test scaffolding and require explicit confirmation `CONFIRM DELETE TESTS` before deletion.
+- Use feature flags for all new features until fully validated.
+- Keep code clear, typed, and lint-clean. Do not catch errors without meaningful handling.
+
+### Documentation & versioning
+- At the start of each session, read these rules and the master file.
+- For every change, append a versioned entry to the master file (date/time, change summary, impacted services/tables/APIs, migrations, flags, quota tracking, and rollbacks).
+- Do not create new flows if an existing table, API, or code path already achieves the objective. Update the master file to reflect reuse.
+
+### Deployment
+- Deploy to Heroku only after all tests pass and the system is verified consistent with the app’s flow.
+- No staging/production schema changes without the double-confirmation protocol.
+- Ensure no secrets are present in build artifacts, logs, or environment variables beyond what’s strictly necessary.
+
+### Safety/quality gates (enforced for every PR and major change)
+- Block if any of the following are true:
+  - Secrets in code
+  - Missing tests for changed critical logic
+  - Schema changes without migration plan
+  - Missing or stale entry in the master file
+  - New features without feature flags
+  - API quota tracking absent for any newly used third-party API
+  - Missing index on high-read/write columns
+- Confirm all of the following:
+  - Reuse of existing APIs/services/tables
+  - Updated ERD and version notes
+  - Lint/test pass
+  - Stage+dev usage for local flows
+
+### Interactive confirmations
+- DDL on stage/dev: ask twice + require typed `CONFIRM <keyword>`
+- Deleting test artifacts: require `CONFIRM DELETE TESTS`
+- Any cost-incurring API use beyond free tier: warn and require `CONFIRM BILLING`
+
+### Optimization priorities
+- Security, reuse, micro-API design, data integrity, performance (indexes/query plans), and a clean migration path.
+- Future API commercialization: keep boundaries and contracts crisp.
+
+### Absolute do-nots
+- Do not push secrets to Git.
+- Do not bypass the master file.
+- Do not create new schema/APIs if an adequate one exists.
+- Do not skip feature flags or quota tracking.
+
+### Master doc path (keep updated)
+`/Users/viraltarpara/Desktop/github_viral/MarketingBy_web_app_react/API_DATABASE_FLOW_DIAGRAM.md`

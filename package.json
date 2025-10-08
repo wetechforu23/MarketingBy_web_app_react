@@ -1,0 +1,31 @@
+{
+  "name": "marketingby-healthcare-platform",
+  "version": "1.0.0",
+  "description": "Healthcare Marketing Platform - Full Stack Application",
+  "main": "backend/dist/server.js",
+  "scripts": {
+    "start": "cd backend && npm start",
+    "build": "cd backend && npm run build",
+    "dev": "cd backend && npm run dev",
+    "postinstall": "cd backend && npm install && npm run build"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wetechforu23/MarketingBy_web_app_react.git"
+  },
+  "keywords": [
+    "healthcare",
+    "marketing",
+    "seo",
+    "lead-generation",
+    "nodejs",
+    "react",
+    "typescript"
+  ],
+  "author": "WeTechForU",
+  "license": "MIT"
+}
