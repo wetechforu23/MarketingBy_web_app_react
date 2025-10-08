@@ -20,7 +20,7 @@ export interface LeadData {
   city?: string;
   state?: string;
   zip_code?: string;
-  seo_analysis?: SEOAnalysis;
+  seo_analysis?: any; // SEOAnalysis temporarily disabled
   seo_report?: string;
 }
 

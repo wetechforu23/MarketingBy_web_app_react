@@ -64,13 +64,13 @@ export class RealLeadScrapingService {
           if (lead.website_url) {
             try {
               console.log(`Performing SEO analysis for: ${lead.website_url}`);
-              const seoAnalysis = await this.seoService.analyzeWebsite(lead.website_url, keywords);
-              const seoReport = await this.seoService.generateSEOReport(seoAnalysis, lead);
+              // const seoAnalysis = await this.seoService.analyzeWebsite(lead.website_url, keywords);
+              // const seoReport = await this.seoService.generateSEOReport(seoAnalysis, lead);
               
-              lead.seo_analysis = seoAnalysis;
-              lead.seo_report = seoReport;
+              // lead.seo_analysis = seoAnalysis;
+              // lead.seo_report = seoReport;
               
-              console.log(`SEO analysis completed for ${lead.website_url} - Score: ${seoAnalysis.score}/100`);
+              console.log(`SEO analysis temporarily disabled for deployment`);
             } catch (seoError) {
               console.error(`SEO analysis failed for ${lead.website_url}:`, seoError);
               // Continue without SEO data if analysis fails
