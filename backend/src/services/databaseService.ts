@@ -96,7 +96,7 @@ export class DatabaseService {
       lead.address, lead.city, lead.state, lead.zip_code,
       lead.contact_first_name, lead.contact_last_name, lead.compliance_status || 'pending',
       lead.source || 'Website Scraping', lead.status || 'new', lead.notes,
-      lead.industry_category || 'Healthcare', lead.industry_subcategory
+      lead.industry_category_id || 1, lead.industry_subcategory_id || 1
     ];
 
     const result = await pool.query(query, values);
@@ -235,7 +235,7 @@ export class DatabaseService {
 
   async getAPIUsageByClient(clientId: number, date?: string): Promise<APIUsage[]> {
     let query = 'SELECT * FROM api_usage WHERE project_id = $1';
-    const values = [clientId];
+    const values: any[] = [clientId];
     
     if (date) {
       query += ' AND usage_date = $2';
