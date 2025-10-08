@@ -1,0 +1,34 @@
+{
+  "name": "MarketingBy Healthcare Platform",
+  "description": "AI-powered healthcare marketing platform with lead generation and SEO analysis",
+  "repository": "https://github.com/wetechforu23/MarketingBy_web_app_react.git",
+  "logo": "https://raw.githubusercontent.com/wetechforu23/MarketingBy_web_app_react/main/wetechforu_Ai_Marketing_logo_transparent.png",
+  "keywords": ["healthcare", "marketing", "ai", "seo", "lead-generation"],
+  "stack": "heroku-22",
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "addons": [
+    {
+      "plan": "heroku-postgresql:essential-0"
+    }
+  ],
+  "env": {
+    "NODE_ENV": {
+      "description": "Environment",
+      "value": "production"
+    },
+    "PORT": {
+      "description": "Port for the web server",
+      "value": "3001"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  }
+}

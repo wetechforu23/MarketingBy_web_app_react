@@ -265,7 +265,7 @@ export class SEOService {
 
         // Content sections
         sections: $('section, article, main, aside').map((_, el) => ({
-          tag: el.tagName,
+          tag: (el as any).tagName,
           id: $(el).attr('id'),
           class: $(el).attr('class'),
           text: $(el).text().trim().substring(0, 200)

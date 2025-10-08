@@ -149,7 +149,7 @@ export class LeadScrapingService {
     }
   }
 
-  private static extractClinicName($: cheerio.CheerioAPI, url: string): string {
+  private static extractClinicName($: cheerio.Root, url: string): string {
     // Try to extract clinic name from various sources
     let name = $('h1').first().text().trim();
     
@@ -171,7 +171,7 @@ export class LeadScrapingService {
     return name || 'Unknown Clinic';
   }
 
-  private static extractContactInfo($: cheerio.CheerioAPI): { email: string; phone: string } {
+  private static extractContactInfo($: cheerio.Root): { email: string; phone: string } {
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
     const phoneRegex = /(\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})/g;
 
@@ -186,7 +186,7 @@ export class LeadScrapingService {
     };
   }
 
-  private static extractServices($: cheerio.CheerioAPI): string[] {
+  private static extractServices($: cheerio.Root): string[] {
     const services: string[] = [];
     
     // Look for service-related content
@@ -208,7 +208,7 @@ export class LeadScrapingService {
     return [...new Set(services)].slice(0, 10);
   }
 
-  private static extractAddress($: cheerio.CheerioAPI): { full: string; city: string; state: string; zip: string } {
+  private static extractAddress($: cheerio.Root): { full: string; city: string; state: string; zip: string } {
     const addressRegex = /(\d+\s+[A-Za-z\s]+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Circle|Cir|Court|Ct))/gi;
     const zipRegex = /\b\d{5}(?:-\d{4})?\b/g;
     
