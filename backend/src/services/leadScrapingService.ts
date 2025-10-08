@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import dotenv from 'dotenv';
-import { SEOAnalysisService, SEOAnalysis } from './seoAnalysisService';
+// import { SEOAnalysisService, SEOAnalysis } from './seoAnalysisService'; // Temporarily disabled for deployment
 
 dotenv.config();
 
@@ -84,14 +84,14 @@ export class LeadScrapingService {
         if (includeSEO) {
           try {
             console.log(`Performing SEO analysis for: ${url}`);
-            const seoService = SEOAnalysisService.getInstance();
-            const seoAnalysis = await seoService.analyzeWebsite(url, keywords);
-            const seoReport = await seoService.generateSEOReport(seoAnalysis, lead);
+            // const seoService = SEOAnalysisService.getInstance(); // Temporarily disabled
+            // const seoAnalysis = await seoService.analyzeWebsite(url, keywords);
+            // const seoReport = await seoService.generateSEOReport(seoAnalysis, lead);
             
-            lead.seo_analysis = seoAnalysis;
-            lead.seo_report = seoReport;
+            // lead.seo_analysis = seoAnalysis;
+            // lead.seo_report = seoReport;
             
-            console.log(`SEO analysis completed for ${url} - Score: ${seoAnalysis.score}/100`);
+            console.log(`SEO analysis temporarily disabled for deployment`);
           } catch (seoError) {
             console.error(`SEO analysis failed for ${url}:`, seoError);
             // Continue without SEO data if analysis fails

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { DatabaseService, Lead } from './databaseService';
-import { SEOAnalysisService } from './seoAnalysisService';
+// import { SEOAnalysisService } from './seoAnalysisService'; // Temporarily disabled for deployment
 
 export interface ScrapingOptions {
   url: string;
@@ -32,11 +32,11 @@ export interface ScrapingResult {
 export class RealLeadScrapingService {
   private static instance: RealLeadScrapingService;
   private databaseService: DatabaseService;
-  private seoService: SEOAnalysisService;
+  // private seoService: SEOAnalysisService; // Temporarily disabled
 
   private constructor() {
     this.databaseService = DatabaseService.getInstance();
-    this.seoService = SEOAnalysisService.getInstance();
+    // this.seoService = SEOAnalysisService.getInstance(); // Temporarily disabled
   }
 
   public static getInstance(): RealLeadScrapingService {
