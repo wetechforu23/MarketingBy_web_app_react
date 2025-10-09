@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import session from 'express-session';
 import dotenv from 'dotenv';
 import path from 'path';
+import pool from './config/database';
 
 // Import session types
 import './types/session';
@@ -57,12 +58,18 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-session-secret',
   resave: false,
   saveUninitialized: false,
+  store: new (require('connect-pg-simple')(session))({
+    pool: pool,
+    tableName: 'session',
+    createTableIfMissing: true
+  }),
   cookie: {
     secure: process.env.NODE_ENV === 'production', // true in production (HTTPS required)
     httpOnly: true,
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-origin in production
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    domain: process.env.NODE_ENV === 'production' ? '.marketingby.wetechforu.com' : undefined
+    sameSite: 'lax', // 'lax' for same-site in production (not cross-origin)
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    domain: process.env.NODE_ENV === 'production' ? '.marketingby.wetechforu.com' : undefined,
+    path: '/'
   }
 }));
 
