@@ -276,43 +276,49 @@ CREATE INDEX IF NOT EXISTS idx_dispute_evidence_status ON dispute_evidence(statu
 
 -- Insert sample subscription plans for healthcare marketing
 INSERT INTO subscription_plans (
-    name, description, price, billing_cycle, features, 
-    setup_fee, setup_fee_discount_percent, category, stripe_product_id
+    name, description, price, billing_cycle, 
+    setup_fee, setup_fee_discount_percent, category, stripe_product_id, is_active
 ) VALUES 
 (
     'Basic Healthcare Marketing',
     'Essential marketing services for small healthcare practices',
     399.00,
     'monthly',
-    '{"social_media_organic": true, "facebook_instagram_posts": "6-8 per month", "stories": "8-10 per month", "google_ads": true, "facebook_ads": true, "basic_seo": true, "blog_posts": "2 per month", "google_analytics": true, "monthly_reporting": true}',
     300.00,
     50,
     'healthcare_marketing',
-    NULL
+    NULL,
+    true
 ),
 (
     'Professional Healthcare Marketing',
     'Comprehensive marketing for growing practices',
     799.00,
     'monthly',
-    '{"all_basic_features": true, "social_media_posts": "12-15 per month", "stories": "15-20 per month", "advanced_seo": true, "blog_posts": "4 per month", "video_content": "2 per month", "competitor_analysis": true, "weekly_reporting": true, "dedicated_account_manager": true}',
     300.00,
     50,
     'healthcare_marketing',
-    NULL
+    NULL,
+    true
 ),
 (
     'Enterprise Healthcare Marketing',
     'Full-service marketing for multi-location practices',
     1499.00,
     'monthly',
-    '{"all_professional_features": true, "unlimited_posts": true, "custom_video_production": true, "white_label_reports": true, "multi_location_support": true, "24_7_support": true, "custom_landing_pages": true, "conversion_rate_optimization": true}',
     300.00,
     50,
     'healthcare_marketing',
-    NULL
+    NULL,
+    true
 )
-ON CONFLICT DO NOTHING;
+ON CONFLICT (name) DO UPDATE SET
+    description = EXCLUDED.description,
+    price = EXCLUDED.price,
+    setup_fee = EXCLUDED.setup_fee,
+    setup_fee_discount_percent = EXCLUDED.setup_fee_discount_percent,
+    category = EXCLUDED.category,
+    is_active = EXCLUDED.is_active;
 
 -- Create default setup tasks template
 CREATE TABLE IF NOT EXISTS setup_tasks_template (
