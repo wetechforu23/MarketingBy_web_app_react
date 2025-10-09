@@ -4,6 +4,7 @@ import SuperAdminDashboard from "../pages/SuperAdminDashboard";
 import ClientAdminDashboard from "../pages/ClientAdminDashboard";
 import ClientUserDashboard from "../pages/ClientUserDashboard";
 import LoginPage from "../pages/LoginPage";
+import HomePage from "../pages/home/HomePage";
 import AppLayout from "../layouts/AppLayout";
 import Clients from "../pages/Clients";
 import Leads from "../pages/Leads";
@@ -23,8 +24,8 @@ import SecureReportPage from "../pages/SecureReportPage";
 import CalendarPage from "../pages/CalendarPage";
 
 export const router = createBrowserRouter([
-  { path: "/", element: <LoginPage /> },
-  { path: "/login", element: <LoginPage /> },
+  { path: "/", element: <HomePage /> }, // Public home page
+  { path: "/login", element: <LoginPage /> }, // Login page
   {
     path: "/app",
     element: <AppLayout />,
@@ -62,5 +63,5 @@ export const router = createBrowserRouter([
       { path: "secure/report/:token", element: <SecureReportPage /> },
     ],
   },
-  { path: "*", element: <LoginPage /> }, // Catch-all route
+  { path: "*", element: <HomePage /> }, // Catch-all route to home page
 ]);
