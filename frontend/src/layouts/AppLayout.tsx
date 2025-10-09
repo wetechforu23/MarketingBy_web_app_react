@@ -4,9 +4,17 @@ import RoleBasedNav from '../components/RoleBasedNav'
 import { http } from '../api/http'
 import '../theme/brand.css'
 
+interface User {
+  id: number;
+  email: string;
+  username: string;
+  role: string;
+  client_id?: number;
+}
+
 export default function AppLayout() {
   const navigate = useNavigate()
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -40,6 +48,22 @@ export default function AppLayout() {
     }
   }
 
+  // Get role display with emoji
+  const getRoleDisplay = (role: string) => {
+    switch (role) {
+      case 'super_admin':
+        return '👑 Super Admin'
+      case 'admin':
+        return '🔑 Admin'
+      case 'customer':
+        return '👤 User'
+      case 'client_user':
+        return '👁️ Viewer'
+      default:
+        return '👤 User'
+    }
+  }
+
   return (
     <div className="layout">
       <aside className="sidebar">
@@ -62,7 +86,7 @@ export default function AppLayout() {
                     {user.email}
                   </div>
                   <div className="profile-info-role">
-                    {user.is_admin ? '🔑 Admin' : '👤 User'}
+                    {getRoleDisplay(user.role)}
                   </div>
                 </div>
                 <i className="fas fa-user-circle" style={{ fontSize: '1.2rem', color: '#4682B4' }}></i>
@@ -133,7 +157,7 @@ export default function AppLayout() {
                   {user.email}
                 </div>
                 <div style={{ fontSize: '0.7rem', color: '#6c757d' }}>
-                  {user.is_admin ? '🔑 Admin' : '👤 User'}
+                  {getRoleDisplay(user.role)}
                 </div>
               </div>
             </div>

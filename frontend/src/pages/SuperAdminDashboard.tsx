@@ -43,6 +43,8 @@ const SuperAdminDashboard: React.FC = () => {
   const [systemStatus, setSystemStatus] = useState<SystemStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedClient, setSelectedClient] = useState<string>('all');
+  const [allClients, setAllClients] = useState<RecentClient[]>([]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -59,6 +61,15 @@ const SuperAdminDashboard: React.FC = () => {
         const overviewData = overviewResponse.data;
         const clients = clientsResponse.data.clients || [];
         const users = usersResponse.data.users || [];
+
+        // Store all clients for dropdown
+        setAllClients(clients.map((client: any) => ({
+          id: client.id,
+          name: client.client_name,
+          email: client.email,
+          status: client.is_active ? 'Active' : 'Inactive',
+          created_at: client.created_at
+        })));
 
         // Calculate real metrics
         const totalClients = clients.length;
@@ -164,6 +175,69 @@ const SuperAdminDashboard: React.FC = () => {
           <h1>Super Admin Dashboard</h1>
         </div>
         <p className="text-muted">Overview of the entire platform's performance and health.</p>
+      </div>
+
+      {/* Client Selector - Only for Super Admin */}
+      <div style={{
+        background: 'linear-gradient(135deg, #4682B4 0%, #5F9EA0 100%)',
+        padding: '1rem 1.5rem',
+        borderRadius: '12px',
+        marginBottom: '1.5rem',
+        boxShadow: '0 4px 8px rgba(70, 130, 180, 0.3)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '1rem'
+      }}>
+        <i className="fas fa-filter" style={{ color: 'white', fontSize: '1.2rem' }}></i>
+        <label style={{ color: 'white', fontWeight: '600', fontSize: '1rem', marginBottom: 0 }}>
+          View Data For:
+        </label>
+        <select
+          value={selectedClient}
+          onChange={(e) => setSelectedClient(e.target.value)}
+          style={{
+            padding: '0.5rem 1rem',
+            border: '2px solid white',
+            borderRadius: '8px',
+            fontSize: '1rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+            backgroundColor: 'white',
+            color: '#2C5F77',
+            minWidth: '250px'
+          }}
+        >
+          <option value="all">🌐 All Clients (Platform-Wide)</option>
+          {allClients.map((client) => (
+            <option key={client.id} value={client.id.toString()}>
+              🏥 {client.name}
+            </option>
+          ))}
+        </select>
+        {selectedClient !== 'all' && (
+          <button
+            onClick={() => setSelectedClient('all')}
+            style={{
+              padding: '0.5rem 1rem',
+              background: 'rgba(255, 255, 255, 0.2)',
+              color: 'white',
+              border: '2px solid rgba(255, 255, 255, 0.5)',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'
+            }}
+          >
+            <i className="fas fa-times me-2"></i>
+            Clear Filter
+          </button>
+        )}
       </div>
 
       {/* Overview Stats Grid */}
