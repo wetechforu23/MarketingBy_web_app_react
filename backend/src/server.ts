@@ -68,9 +68,11 @@ app.use(session({
     httpOnly: true,
     sameSite: 'lax', // 'lax' for same-site in production (not cross-origin)
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    domain: process.env.NODE_ENV === 'production' ? '.marketingby.wetechforu.com' : undefined,
+    // Remove domain restriction - let browser set it automatically
     path: '/'
-  }
+  },
+  proxy: true, // Trust the reverse proxy (Heroku)
+  name: 'marketingby.sid' // Custom session cookie name
 }));
 
 // Health check (before auth middleware)
