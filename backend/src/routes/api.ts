@@ -1,6 +1,7 @@
 import express from 'express';
 import pool from '../config/database';
 import { requireAuth } from '../middleware/auth';
+import { getClientFilter, getClientIdForCreate } from '../utils/clientFilter';
 import EnhancedScrapingService from '../services/enhancedScrapingService';
 import { stripeService } from '../services/stripeService';
 import subscriptionService from '../services/subscriptionService';
@@ -199,11 +200,24 @@ router.get('/clients', async (req, res) => {
 // Get leads statistics
 router.get('/leads/stats', async (req, res) => {
   try {
+    // Get client filter based on user's role and client_id
+    const { whereClause, params } = getClientFilter(req);
+    const whereSql = whereClause ? `WHERE ${whereClause}` : '';
+    
     const [totalLeads, inProcessLeads, todayScraped, violationStopped] = await Promise.all([
-      pool.query('SELECT COUNT(*) as count FROM leads'),
-      pool.query('SELECT COUNT(*) as count FROM leads WHERE status IN ($1, $2, $3)', ['new', 'contacted', 'qualified']),
-      pool.query('SELECT COUNT(*) as count FROM leads WHERE DATE(created_at) = CURRENT_DATE'),
-      pool.query('SELECT COUNT(*) as count FROM leads WHERE rejection_reason IS NOT NULL AND rejection_reason LIKE $1', ['%violation%'])
+      pool.query(`SELECT COUNT(*) as count FROM leads ${whereSql}`, params),
+      pool.query(
+        `SELECT COUNT(*) as count FROM leads ${whereSql ? whereSql + ' AND' : 'WHERE'} status IN ($${params.length + 1}, $${params.length + 2}, $${params.length + 3})`, 
+        [...params, 'new', 'contacted', 'qualified']
+      ),
+      pool.query(
+        `SELECT COUNT(*) as count FROM leads ${whereSql ? whereSql + ' AND' : 'WHERE'} DATE(created_at) = CURRENT_DATE`, 
+        params
+      ),
+      pool.query(
+        `SELECT COUNT(*) as count FROM leads ${whereSql ? whereSql + ' AND' : 'WHERE'} rejection_reason IS NOT NULL AND rejection_reason LIKE $${params.length + 1}`, 
+        [...params, '%violation%']
+      )
     ]);
 
     res.json({
@@ -310,6 +324,11 @@ router.post('/leads/scrape', async (req, res) => {
 // Get leads
 router.get('/leads', async (req, res) => {
   try {
+    // Get client filter based on user's role and client_id
+    const { whereClause, params } = getClientFilter(req);
+    
+    const whereSql = whereClause ? `WHERE ${whereClause}` : '';
+    
     const result = await pool.query(
       `SELECT 
         id, 
@@ -329,9 +348,12 @@ router.get('/leads', async (req, res) => {
         contact_first_name, 
         contact_last_name, 
         compliance_status, 
+        client_id,
         created_at 
       FROM leads 
-      ORDER BY created_at DESC`
+      ${whereSql}
+      ORDER BY created_at DESC`,
+      params
     );
     res.json(result.rows);
   } catch (error) {
@@ -362,6 +384,9 @@ router.post('/leads', async (req, res) => {
       compliance_status
     } = req.body;
 
+    // Get the appropriate client_id for this user
+    const client_id = getClientIdForCreate(req);
+
     // Validate required fields
     if (!company || !email) {
       return res.status(400).json({ error: 'Company and email are required' });
@@ -373,28 +398,32 @@ router.post('/leads', async (req, res) => {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
-    // Check if lead with this email already exists
-    const existingLead = await pool.query(
-      'SELECT id FROM leads WHERE email = $1',
-      [email]
-    );
+    // Check if lead with this email already exists (within the same client if applicable)
+    const { whereClause, params: filterParams } = getClientFilter(req);
+    const emailCheckSql = whereClause 
+      ? `SELECT id FROM leads WHERE email = $1 AND ${whereClause.replace('$1', '$2')}`
+      : `SELECT id FROM leads WHERE email = $1`;
+    
+    const emailCheckParams = whereClause ? [email, ...filterParams] : [email];
+    
+    const existingLead = await pool.query(emailCheckSql, emailCheckParams);
 
     if (existingLead.rows.length > 0) {
       return res.status(400).json({ error: 'Lead with this email already exists' });
     }
 
-    // Insert new lead using simplified database column names
+    // Insert new lead with client_id
     const result = await pool.query(
       `INSERT INTO leads (
         company, email, phone, industry_category, industry_subcategory,
         source, status, notes, website_url, address, city, state, zip_code,
-        contact_first_name, contact_last_name, compliance_status, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW()) 
+        contact_first_name, contact_last_name, compliance_status, client_id, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW()) 
       RETURNING *`,
       [
         company, email, phone, industry_category, industry_subcategory,
         source, status, notes, website_url, address, city, state, zip_code,
-        contact_first_name, contact_last_name, compliance_status
+        contact_first_name, contact_last_name, compliance_status, client_id
       ]
     );
 
