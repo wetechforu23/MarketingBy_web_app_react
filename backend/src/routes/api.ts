@@ -2,6 +2,7 @@ import express from 'express';
 import pool from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import EnhancedScrapingService from '../services/enhancedScrapingService';
+import { stripeService } from '../services/stripeService';
 // import { WebScrapingService } from '../services/webScrapingService';
 // import { LeadScrapingService } from '../services/leadScrapingService';
 // import { ComplianceCheckService } from '../services/complianceCheckService';
@@ -9,7 +10,19 @@ import EnhancedScrapingService from '../services/enhancedScrapingService';
 
 const router = express.Router();
 
-// Apply auth middleware to all API routes
+// Public endpoint for pricing plans (no auth required)
+router.get('/public/pricing-plans', async (req, res) => {
+  try {
+    console.log('📋 Fetching pricing plans from Stripe...');
+    const plans = await stripeService.getPricingPlans();
+    res.json(plans);
+  } catch (error) {
+    console.error('Error fetching pricing plans:', error);
+    res.status(500).json({ error: 'Failed to fetch pricing plans' });
+  }
+});
+
+// Apply auth middleware to all other API routes
 router.use(requireAuth);
 
 // Admin Dashboard Endpoints
