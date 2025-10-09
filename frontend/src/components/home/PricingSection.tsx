@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { SignUpModal, SignUpFormData } from './SignUpModal';
 
 interface PricingPlan {
   id: string;
@@ -12,6 +13,8 @@ interface PricingPlan {
   popular: boolean;
   priceId: string;
   metadata?: Record<string, any>;
+  setupFee?: number;
+  category?: string;
 }
 
 export const PricingSection: React.FC = () => {
@@ -19,6 +22,8 @@ export const PricingSection: React.FC = () => {
   const [plans, setPlans] = useState<PricingPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<PricingPlan | null>(null);
 
   useEffect(() => {
     fetchPricingPlans();
@@ -29,7 +34,7 @@ export const PricingSection: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      // Use axios directly without auth interceptor for public endpoint
+      // Use native fetch without auth interceptor for public endpoint
       const response = await fetch('/api/public/pricing-plans', {
         method: 'GET',
         headers: {
@@ -42,9 +47,16 @@ export const PricingSection: React.FC = () => {
       }
 
       const data = await response.json();
-      setPlans(data);
       
-      console.log('✅ Fetched pricing plans from API:', data);
+      // Filter for healthcare_marketing category only
+      const healthcarePlans = data.filter((plan: PricingPlan) => 
+        plan.metadata?.category === 'healthcare_marketing' || 
+        plan.category === 'healthcare_marketing'
+      );
+      
+      setPlans(healthcarePlans.length > 0 ? healthcarePlans : data);
+      
+      console.log('✅ Fetched pricing plans from API:', healthcarePlans);
     } catch (err) {
       console.error('Error fetching pricing plans:', err);
       setError('Failed to load pricing plans');
@@ -59,60 +71,70 @@ export const PricingSection: React.FC = () => {
   const getFallbackPlans = (): PricingPlan[] => {
     return [
       {
-        id: 'fallback_starter',
-        name: 'Starter',
-        price: 499,
+        id: 'fallback_basic',
+        name: 'Basic Healthcare Marketing',
+        price: 399,
         currency: 'usd',
         interval: 'month',
-        description: 'Perfect for small practices just getting started',
+        description: 'Essential marketing services for small healthcare practices',
         priceId: '',
         popular: false,
+        setupFee: 150,
+        category: 'healthcare_marketing',
         features: [
-          'Basic SEO Optimization',
-          'Social Media Management (2 platforms)',
+          'Social Media Management (Organic)',
+          '6–8 posts/month + 1 AI video',
+          '8–10 stories/month',
+          'Facebook & Instagram Ads',
+          'Google Ads Management',
+          'Basic SEO & Content Marketing',
+          '2 blog posts per month',
           'Monthly Performance Reports',
-          'Email Support',
-          '1 Team Member',
         ],
       },
       {
         id: 'fallback_professional',
-        name: 'Professional',
-        price: 999,
+        name: 'Professional Healthcare Marketing',
+        price: 799,
         currency: 'usd',
         interval: 'month',
-        description: 'For growing practices ready to scale',
+        description: 'Comprehensive marketing for growing practices',
         priceId: '',
         popular: true,
+        setupFee: 150,
+        category: 'healthcare_marketing',
         features: [
-          'Advanced SEO & Content Marketing',
-          'Social Media Management (All platforms)',
-          'Lead Generation & Nurturing',
-          'Weekly Reports & Insights',
-          'Priority Support',
-          '5 Team Members',
-          'Custom Campaigns',
+          'All Basic Features',
+          '12–15 posts/month + 2 AI videos',
+          '15–20 stories/month',
+          'Advanced SEO optimization',
+          '4 blog posts per month',
+          'Video content (2 per month)',
+          'Weekly performance reports',
+          'Dedicated account manager',
         ],
       },
       {
         id: 'fallback_enterprise',
-        name: 'Enterprise',
-        price: 0,
+        name: 'Enterprise Healthcare Marketing',
+        price: 1499,
         currency: 'usd',
         interval: 'month',
-        description: 'For large healthcare organizations',
+        description: 'Full-service marketing for multi-location practices',
         priceId: '',
         popular: false,
+        setupFee: 150,
+        category: 'healthcare_marketing',
         features: [
-          'Everything in Professional',
-          'Dedicated Account Manager',
-          'Custom AI Model Training',
-          'White-label Options',
-          'Unlimited Team Members',
-          'API Access',
-          'Custom Integrations',
+          'All Professional Features',
+          'Unlimited social media posts',
+          'Custom video production',
+          'White-label reports',
+          'Multi-location support',
+          '24/7 priority support',
+          'Custom landing pages',
+          'Dedicated marketing team',
         ],
-        metadata: { custom_pricing: 'true' },
       },
     ];
   };
@@ -134,6 +156,45 @@ export const PricingSection: React.FC = () => {
       week: '/week',
     };
     return intervalMap[interval] || '';
+  };
+
+  const handleGetStarted = (plan: PricingPlan) => {
+    setSelectedPlan(plan);
+    setIsSignUpModalOpen(true);
+  };
+
+  const handleSignUpSubmit = async (formData: SignUpFormData) => {
+    try {
+      console.log('📝 Sign-up data:', formData);
+      
+      // TODO: Send to backend API
+      const response = await fetch('/api/public/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Sign-up failed');
+      }
+
+      const result = await response.json();
+      console.log('✅ Sign-up successful:', result);
+
+      // Redirect to Stripe checkout
+      if (result.checkoutUrl) {
+        window.location.href = result.checkoutUrl;
+      } else {
+        alert('Sign-up successful! Redirecting to payment...');
+        setIsSignUpModalOpen(false);
+        navigate('/login');
+      }
+    } catch (error) {
+      console.error('❌ Sign-up error:', error);
+      throw error;
+    }
   };
 
   if (loading) {
@@ -166,47 +227,64 @@ export const PricingSection: React.FC = () => {
   }
 
   return (
-    <section id="pricing" className="pricing-section">
-      <div className="container">
-        <div className="section-header">
-          <h2 className="section-title">Simple, Transparent Pricing</h2>
-          <p className="section-description">
-            Choose the plan that fits your practice. No hidden fees, cancel anytime.
-          </p>
-        </div>
-        <div className="pricing-grid">
-          {plans.map((plan) => (
-            <div key={plan.id} className={`pricing-card ${plan.popular ? 'popular' : ''}`}>
-              {plan.popular && <div className="popular-badge">Most Popular</div>}
-              <h3 className="plan-name">{plan.name}</h3>
-              <div className="plan-price">
-                <span className="price">{formatPrice(plan.price, plan.currency)}</span>
-                <span className="period">{formatInterval(plan.interval)}</span>
-              </div>
-              <p className="plan-description">{plan.description}</p>
-              <ul className="plan-features">
-                {plan.features.map((feature, idx) => (
-                  <li key={idx}>
-                    <i className="fas fa-check text-success me-2"></i>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => navigate('/login')}
-                className={`btn ${plan.popular ? 'btn-primary' : 'btn-outline-primary'} btn-lg btn-block`}
-              >
-                Get Started
-              </button>
-            </div>
-          ))}
-        </div>
-        {plans.length === 0 && (
-          <div className="text-center">
-            <p className="text-muted">No pricing plans available at this time.</p>
+    <>
+      <section id="pricing" className="pricing-section">
+        <div className="container">
+          <div className="section-header">
+            <h2 className="section-title">Healthcare Marketing Plans</h2>
+            <p className="section-description">
+              Choose the plan that fits your practice. Includes one-time setup fee of $150 (50% OFF - $300 value).
+              <br />
+              <strong>Ad spend paid separately by you directly to Google & Facebook.</strong>
+            </p>
           </div>
-        )}
-      </div>
-    </section>
+          <div className="pricing-grid">
+            {plans.map((plan) => (
+              <div key={plan.id} className={`pricing-card ${plan.popular ? 'popular' : ''}`}>
+                {plan.popular && <div className="popular-badge">Most Popular</div>}
+                <h3 className="plan-name">{plan.name}</h3>
+                <div className="plan-price">
+                  <span className="price">{formatPrice(plan.price, plan.currency)}</span>
+                  <span className="period">{formatInterval(plan.interval)}</span>
+                </div>
+                {plan.setupFee && (
+                  <div className="setup-fee-badge">
+                    + ${plan.setupFee} setup <span className="strikethrough">$300</span> (50% OFF)
+                  </div>
+                )}
+                <p className="plan-description">{plan.description}</p>
+                <ul className="plan-features">
+                  {plan.features.map((feature, idx) => (
+                    <li key={idx}>
+                      <i className="fas fa-check text-success me-2"></i>
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => handleGetStarted(plan)}
+                  className={`btn ${plan.popular ? 'btn-primary' : 'btn-outline-primary'} btn-lg btn-block`}
+                >
+                  Get Started
+                </button>
+              </div>
+            ))}
+          </div>
+          {plans.length === 0 && (
+            <div className="text-center">
+              <p className="text-muted">No pricing plans available at this time.</p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Sign-Up Modal */}
+      <SignUpModal
+        isOpen={isSignUpModalOpen}
+        onClose={() => setIsSignUpModalOpen(false)}
+        selectedPlan={selectedPlan}
+        onSubmit={handleSignUpSubmit}
+      />
+    </>
   );
 };

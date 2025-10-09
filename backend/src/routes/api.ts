@@ -3,6 +3,8 @@ import pool from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import EnhancedScrapingService from '../services/enhancedScrapingService';
 import { stripeService } from '../services/stripeService';
+import subscriptionService from '../services/subscriptionService';
+import Stripe from 'stripe';
 // import { WebScrapingService } from '../services/webScrapingService';
 // import { LeadScrapingService } from '../services/leadScrapingService';
 // import { ComplianceCheckService } from '../services/complianceCheckService';
@@ -19,6 +21,46 @@ router.get('/public/pricing-plans', async (req, res) => {
   } catch (error) {
     console.error('Error fetching pricing plans:', error);
     res.status(500).json({ error: 'Failed to fetch pricing plans' });
+  }
+});
+
+// Public endpoint for sign-up (no auth required)
+router.post('/public/signup', async (req, res) => {
+  try {
+    console.log('📝 Processing sign-up...');
+    const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+    const result = await subscriptionService.handleSignUp(req.body, clientIp);
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Sign-up error:', error);
+    res.status(500).json({ error: 'Sign-up failed. Please try again.' });
+  }
+});
+
+// Stripe webhook endpoint (no auth required, uses Stripe signature verification)
+router.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  
+  if (!sig) {
+    console.error('❌ No Stripe signature found');
+    return res.status(400).send('Webhook Error: No signature');
+  }
+
+  try {
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+      apiVersion: '2025-09-30.clover',
+    });
+    
+    const event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    
+    console.log(`✅ Stripe webhook received: ${event.type}`);
+    await subscriptionService.handleStripeWebhook(event);
+    
+    res.json({ received: true });
+  } catch (error: any) {
+    console.error('❌ Webhook Error:', error.message);
+    res.status(400).send(`Webhook Error: ${error.message}`);
   }
 });
 

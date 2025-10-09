@@ -796,3 +796,39 @@ html {
   background: white;
   color: var(--primary-color);
 }
+
+/* Setup Fee Badge */
+.setup-fee-badge {
+  margin: 12px 0;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0c5460;
+  text-align: center;
+}
+
+.setup-fee-badge .strikethrough {
+  text-decoration: line-through;
+  color: #6c757d;
+  margin-left: 4px;
+}
+
+/* Pricing Card Enhancement */
+.pricing-card .btn-block {
+  width: 100%;
+  margin-top: auto;
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 30px;
+  margin-top: 40px;
+}
+
+.pricing-card {
+  display: flex;
+  flex-direction: column;
+}
