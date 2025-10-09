@@ -69,7 +69,7 @@ app.use('/api/email', emailRoutes);
 app.use('/api/compliance', complianceRoutes);
 
 // Serve React app (static files from public directory)
-const frontendPath = path.join(__dirname, '../public');
+const frontendPath = path.join(__dirname, 'public');
 app.use(express.static(frontendPath));
 
 // Serve index.html for all non-API routes (SPA support)
