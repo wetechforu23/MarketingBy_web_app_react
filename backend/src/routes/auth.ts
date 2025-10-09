@@ -20,7 +20,7 @@ router.post('/login', async (req, res) => {
 
     // Query user from database
     const result = await pool.query(
-      'SELECT id, email, username, is_admin, password_hash FROM users WHERE email = $1',
+      'SELECT id, email, username, role, password_hash, client_id FROM users WHERE email = $1',
       [email]
     );
 
@@ -75,7 +75,8 @@ router.post('/login', async (req, res) => {
         id: user.id,
         email: user.email,
         username: user.username,
-        is_admin: user.is_admin
+        role: user.role,
+        client_id: user.client_id
       },
       rememberMe: rememberMe || false
     });
