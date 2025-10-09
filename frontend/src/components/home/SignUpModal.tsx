@@ -509,32 +509,37 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({ isOpen, onClose, selec
 
                 <div className="agreement-section">
                   <h4>Service Agreement</h4>
-                  <div className="agreement-box">
-                    <h5>Scope of Work:</h5>
-                    <ul>
-                      <li>✅ Social Media Management (Organic) – Facebook & Instagram</li>
-                      <li>✅ Facebook & Instagram Ads Management</li>
-                      <li>✅ Google Ads Management (Search + Display)</li>
-                      <li>✅ Basic SEO & Content Marketing</li>
-                      <li>✅ Monthly Performance Reporting</li>
-                      <li>✅ One-Time Setup (Google Business, Analytics, Pixels, etc.)</li>
-                    </ul>
-                    <h5>Your Responsibilities:</h5>
-                    <ul>
-                      <li>📌 Provide platform access within 3 business days</li>
-                      <li>📌 Add your credit card to Google Ads and Facebook Ads</li>
-                      <li>📌 Approve content within 3 days of submission</li>
-                      <li>📌 Provide business materials (logo, photos, etc.)</li>
-                      <li>📌 Maintain active accounts on all marketing platforms</li>
-                    </ul>
-                    <h5>Payment Terms:</h5>
-                    <ul>
-                      <li>💳 Setup fee due before work begins</li>
-                      <li>💳 Monthly fee due on the 1st of each month</li>
-                      <li>💳 Ad spend paid directly to Google/Facebook (your card)</li>
-                      <li>💳 30-day notice required for cancellation</li>
-                    </ul>
-                  </div>
+                <div className="agreement-box">
+                  <h5>Scope of Work:</h5>
+                  <ul>
+                    <li>✅ Social Media Management (Organic) – Facebook & Instagram</li>
+                    <li>✅ Facebook & Instagram Ads Management</li>
+                    <li>✅ Google Ads Management (Search + Display)</li>
+                    <li>✅ Basic SEO & Content Marketing</li>
+                    <li>✅ Monthly Performance Reporting</li>
+                    <li>✅ One-Time Setup (Google Business, Analytics, Pixels, etc.)</li>
+                  </ul>
+                  <h5>Your Responsibilities:</h5>
+                  <ul>
+                    <li>📌 Provide all necessary platform access as early as possible</li>
+                    <li>📌 Add your credit card to Google Ads and Facebook Ads</li>
+                    <li>📌 Approve content within 3 days of submission</li>
+                    <li>📌 Provide business materials (logo, photos, etc.)</li>
+                    <li>📌 Maintain active accounts on all marketing platforms</li>
+                  </ul>
+                  <h5>Payment Terms:</h5>
+                  <ul>
+                    <li>💳 Setup fee due before work begins</li>
+                    <li>💳 Monthly fee due on the 1st of each month</li>
+                    <li>💳 Ad spend paid directly to Google/Facebook (your card)</li>
+                    <li>💳 30-day notice required for cancellation</li>
+                  </ul>
+                  <h5>Additional Work:</h5>
+                  <ul>
+                    <li>⚠️ Any additional work outside of the agreed scope will be charged hourly based on client requirements</li>
+                    <li>⚠️ Hourly rates will be communicated and approved before work begins</li>
+                  </ul>
+                </div>
 
                   <label className="checkbox-label agreement-checkbox">
                     <input

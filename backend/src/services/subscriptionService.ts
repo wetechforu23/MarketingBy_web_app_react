@@ -232,21 +232,9 @@ export class SubscriptionService {
       // Create checkout session with both setup fee and subscription
       const checkoutSession = await stripe.checkout.sessions.create({
         customer: customer.id,
-        payment_method_types: ['card'],
+        payment_method_types: ['card', 'us_bank_account'], // Credit Card and ACH
         mode: 'subscription',
         line_items: [
-          // One-time setup fee
-          {
-            price_data: {
-              currency: 'usd',
-              product_data: {
-                name: `${signUpData.planName} - One-Time Setup Fee (50% OFF)`,
-                description: 'Setup includes Google Business Profile, Analytics, Pixels, and more',
-              },
-              unit_amount: Math.round(signUpData.setupFee * 100), // Convert to cents
-            },
-            quantity: 1,
-          },
           // Monthly subscription (if we have a Stripe price ID)
           ...(plan.stripe_price_id ? [{
             price: plan.stripe_price_id,
@@ -266,8 +254,14 @@ export class SubscriptionService {
             quantity: 1,
           }]),
         ],
-        success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/signup-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/#pricing`,
+        subscription_data: {
+          metadata: {
+            setup_fee: signUpData.setupFee.toString(),
+            setup_fee_paid: 'false',
+          },
+        },
+        success_url: `https://www.marketingby.wetechforu.com/signup-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `https://www.marketingby.wetechforu.com/#pricing`,
         metadata: {
           client_id: clientId.toString(),
           onboarding_id: onboardingId.toString(),
