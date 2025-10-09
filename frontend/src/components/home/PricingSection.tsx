@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { http } from '../../api/http';
 
 interface PricingPlan {
   id: string;
@@ -30,11 +29,22 @@ export const PricingSection: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      // Fetch from API
-      const response = await http.get('/api/public/pricing-plans');
-      setPlans(response.data);
+      // Use axios directly without auth interceptor for public endpoint
+      const response = await fetch('/api/public/pricing-plans', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch pricing plans');
+      }
+
+      const data = await response.json();
+      setPlans(data);
       
-      console.log('✅ Fetched pricing plans from API:', response.data);
+      console.log('✅ Fetched pricing plans from API:', data);
     } catch (err) {
       console.error('Error fetching pricing plans:', err);
       setError('Failed to load pricing plans');
