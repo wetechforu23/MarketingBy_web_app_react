@@ -5,9 +5,9 @@
   "main": "backend/dist/server.js",
   "scripts": {
     "start": "cd backend && npm start",
-    "build": "npm run build:frontend && npm run build:backend && npm run copy:frontend",
-    "build:frontend": "cd frontend && npm install && npx vite build",
-    "build:backend": "cd backend && npm install && npm run build",
+    "build": "npm run build:backend && npm run build:frontend && npm run copy:frontend",
+    "build:frontend": "cd frontend && npm ci && npm run build",
+    "build:backend": "cd backend && npm ci && npm run build",
     "copy:frontend": "rm -rf backend/dist/public && mkdir -p backend/dist/public && cp -r frontend/dist/* backend/dist/public/",
     "dev": "cd backend && npm run dev",
     "postinstall": "npm run build"
