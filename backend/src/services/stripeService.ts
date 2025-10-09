@@ -44,37 +44,42 @@ export class StripeService {
   }
 
   /**
-   * Get Stripe API key from database
+   * Get Stripe API key from database or environment
    */
   private async getStripeApiKey(): Promise<string> {
     try {
-      // First, try to get from database
-      const result = await pool.query(
-        `SELECT encrypted_value 
-         FROM encrypted_credentials 
-         WHERE service_name = $1 
-         AND credential_type = $2 
-         AND environment = $3 
-         AND is_active = true
-         ORDER BY created_at DESC
-         LIMIT 1`,
-        ['stripe', 'secret_key', process.env.NODE_ENV || 'development']
-      );
-
-      if (result.rows.length > 0) {
-        console.log('✅ Found Stripe API key in database');
-        return this.decrypt(result.rows[0].encrypted_value);
-      }
-
-      // Fallback to environment variable
+      // Use environment variable directly (database credentials table not yet created)
       if (process.env.STRIPE_SECRET_KEY) {
-        console.log('⚠️ Using Stripe API key from environment variable (fallback)');
+        console.log('✅ Using Stripe API key from environment variable');
         return process.env.STRIPE_SECRET_KEY;
       }
 
-      throw new Error('Stripe API key not found in database or environment');
+      // Future: Try to get from database when encrypted_credentials table is created
+      try {
+        const result = await pool.query(
+          `SELECT encrypted_value 
+           FROM encrypted_credentials 
+           WHERE service_name = $1 
+           AND credential_type = $2 
+           AND environment = $3 
+           AND is_active = true
+           ORDER BY created_at DESC
+           LIMIT 1`,
+          ['stripe', 'secret_key', process.env.NODE_ENV || 'production']
+        );
+
+        if (result.rows.length > 0) {
+          console.log('✅ Found Stripe API key in database (overriding environment)');
+          return this.decrypt(result.rows[0].encrypted_value);
+        }
+      } catch (dbError) {
+        // Table doesn't exist yet, that's okay
+        console.log('ℹ️  encrypted_credentials table not found, using environment variable');
+      }
+
+      throw new Error('Stripe API key not found in environment');
     } catch (error) {
-      console.error('Error getting Stripe API key:', error);
+      console.error('❌ Error getting Stripe API key:', error);
       throw error;
     }
   }
