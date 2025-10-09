@@ -64,15 +64,31 @@ export default function LoginPage() {
         overflow: 'hidden'
       }}>
         <div className="text-center mb-3">
-          <img 
-            src="/logo.png" 
-            alt="WeTechForU" 
+          <a 
+            href="/"
             style={{
-              height: '180px',
-              width: 'auto',
-              marginBottom: '8px'
+              display: 'inline-block',
+              textDecoration: 'none',
+              cursor: 'pointer',
+              transition: 'transform 0.3s ease'
             }}
-          />
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+          >
+            <img 
+              src="/logo.png" 
+              alt="WeTechForU" 
+              style={{
+                height: '180px',
+                width: 'auto',
+                marginBottom: '8px'
+              }}
+            />
+          </a>
           <h2 style={{ 
             marginTop: '0px', 
             fontSize: '1.4rem',
