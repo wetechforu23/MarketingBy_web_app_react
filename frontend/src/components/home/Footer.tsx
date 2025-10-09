@@ -85,11 +85,11 @@ export const Footer: React.FC = () => {
             © {currentYear} WeTechForU. All rights reserved.
           </p>
           <div className="footer-legal">
-            <a href="#privacy">Privacy Policy</a>
+            <a href="/privacy-policy">Privacy Policy</a>
             <span className="mx-2">•</span>
-            <a href="#terms">Terms of Service</a>
+            <a href="/terms-of-service">Terms of Service</a>
             <span className="mx-2">•</span>
-            <a href="#hipaa">HIPAA Compliance</a>
+            <a href="/privacy-policy#hipaa">HIPAA Compliance</a>
           </div>
         </div>
       </div>

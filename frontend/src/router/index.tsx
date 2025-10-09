@@ -5,6 +5,8 @@ import ClientAdminDashboard from "../pages/ClientAdminDashboard";
 import ClientUserDashboard from "../pages/ClientUserDashboard";
 import LoginPage from "../pages/LoginPage";
 import HomePage from "../pages/home/HomePage";
+import TermsOfService from "../pages/TermsOfService";
+import PrivacyPolicy from "../pages/PrivacyPolicy";
 import AppLayout from "../layouts/AppLayout";
 import Clients from "../pages/Clients";
 import Leads from "../pages/Leads";
@@ -26,6 +28,8 @@ import CalendarPage from "../pages/CalendarPage";
 export const router = createBrowserRouter([
   { path: "/", element: <HomePage /> }, // Public home page
   { path: "/login", element: <LoginPage /> }, // Login page
+  { path: "/terms-of-service", element: <TermsOfService /> }, // Terms of Service
+  { path: "/privacy-policy", element: <PrivacyPolicy /> }, // Privacy Policy
   {
     path: "/app",
     element: <AppLayout />,
