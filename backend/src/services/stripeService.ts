@@ -113,50 +113,37 @@ export class StripeService {
     try {
       const stripe = await this.initializeStripe();
 
-      // Fetch all active products with their prices
+      // Fetch all active products with their default prices expanded
       const products = await stripe.products.list({
         active: true,
         limit: 100,
         expand: ['data.default_price'],
       });
 
-      // Fetch all active prices
-      const prices = await stripe.prices.list({
-        active: true,
-        limit: 100,
-        expand: ['data.product'],
-      });
-
-      // Group prices by product
-      const pricesByProduct = prices.data.reduce((acc, price) => {
-        const productId = typeof price.product === 'string' ? price.product : price.product.id;
-        if (!acc[productId]) {
-          acc[productId] = [];
-        }
-        acc[productId].push(price);
-        return acc;
-      }, {} as Record<string, Stripe.Price[]>);
-
       // Transform to our format
-      const plans = products.data.map((product) => {
-        const productPrices = pricesByProduct[product.id] || [];
-        
-        // Get the default price or the first price
-        const defaultPrice = productPrices.find((p) => p.id === product.default_price) || productPrices[0];
+      const plans = products.data
+        .filter((product) => product.metadata?.category === 'healthcare_marketing')
+        .map((product) => {
+          // Get the default price (it's expanded as an object)
+          const defaultPrice = typeof product.default_price === 'object' && product.default_price !== null
+            ? product.default_price as Stripe.Price
+            : null;
 
-        return {
-          id: product.id,
-          name: product.name,
-          description: product.description || '',
-          price: defaultPrice ? (defaultPrice.unit_amount || 0) / 100 : 0,
-          currency: defaultPrice?.currency || 'usd',
-          interval: defaultPrice?.recurring?.interval || 'month',
-          features: product.metadata?.features ? JSON.parse(product.metadata.features) : [],
-          popular: product.metadata?.popular === 'true',
-          priceId: defaultPrice?.id || '',
-          metadata: product.metadata,
-        };
-      });
+          return {
+            id: product.id,
+            name: product.name,
+            description: product.description || '',
+            price: defaultPrice ? (defaultPrice.unit_amount || 0) / 100 : 0,
+            currency: defaultPrice?.currency || 'usd',
+            interval: defaultPrice?.recurring?.interval || 'month',
+            features: product.metadata?.features ? JSON.parse(product.metadata.features) : [],
+            popular: product.metadata?.popular === 'true',
+            priceId: defaultPrice?.id || '',
+            setupFee: product.metadata?.setup_fee ? parseInt(product.metadata.setup_fee) : undefined,
+            category: product.metadata?.category,
+            metadata: product.metadata,
+          };
+        });
 
       // Sort by price (ascending)
       plans.sort((a, b) => a.price - b.price);
