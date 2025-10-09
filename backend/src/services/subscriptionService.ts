@@ -99,10 +99,22 @@ export class SubscriptionService {
       // 1. Create client record
       const clientResult = await client.query(
         `INSERT INTO clients (
-          name, email, phone, industry, created_at
-        ) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+          client_name, email, phone, website, address, city, state, zip_code, 
+          contact_name, is_active, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)
         RETURNING id`,
-        [signUpData.businessName, signUpData.email, signUpData.businessPhone, 'healthcare']
+        [
+          signUpData.businessName, 
+          signUpData.email, 
+          signUpData.businessPhone,
+          signUpData.businessWebsite || '',
+          signUpData.businessAddress || '',
+          signUpData.businessCity || '',
+          signUpData.businessState || '',
+          signUpData.businessZip || '',
+          `${signUpData.firstName} ${signUpData.lastName}`,
+          true
+        ]
       );
       const clientId = clientResult.rows[0].id;
 
