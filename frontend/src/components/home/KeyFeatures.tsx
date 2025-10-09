@@ -22,8 +22,10 @@ export const KeyFeatures: React.FC = () => {
         <div className="features-grid">
           {features.map((feature, index) => (
             <div key={index} className="feature-card">
-              <div className="feature-icon">
-                <i className={`fas ${feature.icon}`}></i>
+              <div className="feature-icon-wrapper">
+                <div className="feature-icon">
+                  <i className={`fas ${feature.icon}`}></i>
+                </div>
               </div>
               <h3 className="feature-title">{feature.title}</h3>
               <p className="feature-description">{feature.description}</p>

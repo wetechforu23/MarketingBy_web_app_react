@@ -832,3 +832,121 @@ html {
   display: flex;
   flex-direction: column;
 }
+
+/* Enhanced Icon Styling for Features */
+.feature-icon-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.feature-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  color: var(--primary-color);
+  box-shadow: 0 4px 12px rgba(70, 130, 180, 0.2);
+  transition: all 0.3s ease;
+}
+
+.feature-card:hover .feature-icon {
+  transform: scale(1.1);
+  box-shadow: 0 8px 20px rgba(70, 130, 180, 0.3);
+}
+
+/* Enhanced Icon Styling for Services */
+.service-icon-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.service-icon {
+  width: 90px;
+  height: 90px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #4682B4 0%, #87CEEB 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  color: white;
+  box-shadow: 0 6px 16px rgba(70, 130, 180, 0.3);
+  transition: all 0.3s ease;
+}
+
+.service-card:hover .service-icon {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 24px rgba(70, 130, 180, 0.4);
+}
+
+/* Enhanced Icon Styling for Process Timeline */
+.step-icon-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+
+.step-icon-circle {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4682B4 0%, #87CEEB 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  color: white;
+  box-shadow: 0 8px 20px rgba(70, 130, 180, 0.3);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.process-step:hover .step-icon-circle {
+  transform: scale(1.1) rotate(5deg);
+  box-shadow: 0 12px 28px rgba(70, 130, 180, 0.4);
+}
+
+/* Remove borders and add better shadows for cards */
+.feature-card,
+.service-card {
+  background: white;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+}
+
+.feature-card:hover,
+.service-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+}
+
+.process-step {
+  background: white;
+  padding: 2rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+}
+
+.process-step:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* Pricing Card Enhancement */
+.pricing-card {
+  padding-bottom: 2rem !important;
+}
+
+.pricing-card.popular {
+  border: 3px solid var(--primary-color);
+  box-shadow: 0 12px 32px rgba(70, 130, 180, 0.3);
+}

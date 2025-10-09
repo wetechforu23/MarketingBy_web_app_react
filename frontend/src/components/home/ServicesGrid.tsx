@@ -58,8 +58,10 @@ export const ServicesGrid: React.FC = () => {
         <div className="services-grid">
           {services.map((service, index) => (
             <div key={index} className="service-card">
-              <div className="service-icon">
-                <i className={`fas ${service.icon}`}></i>
+              <div className="service-icon-wrapper">
+                <div className="service-icon">
+                  <i className={`fas ${service.icon}`}></i>
+                </div>
               </div>
               <h3 className="service-title">{service.title}</h3>
               <p className="service-description">{service.description}</p>

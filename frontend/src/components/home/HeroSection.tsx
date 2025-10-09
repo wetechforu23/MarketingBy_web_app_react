@@ -21,33 +21,24 @@ export const HeroSection: React.FC = () => {
           it all.
         </p>
         <div className="hero-buttons">
-          <button onClick={() => navigate('/login')} className="btn btn-primary btn-lg">
-            <i className="fas fa-rocket me-2"></i>
-            Get Started
-          </button>
           <button
             onClick={() =>
               document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })
             }
-            className="btn btn-outline-primary btn-lg"
+            className="btn btn-primary btn-lg"
           >
             <i className="fas fa-info-circle me-2"></i>
             Learn More
           </button>
-        </div>
-        <div className="hero-stats">
-          <div className="stat">
-            <div className="stat-value">500+</div>
-            <div className="stat-label">Healthcare Clients</div>
-          </div>
-          <div className="stat">
-            <div className="stat-value">95%</div>
-            <div className="stat-label">Client Satisfaction</div>
-          </div>
-          <div className="stat">
-            <div className="stat-value">24/7</div>
-            <div className="stat-label">AI-Powered Support</div>
-          </div>
+          <button
+            onClick={() =>
+              document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })
+            }
+            className="btn btn-outline-primary btn-lg"
+          >
+            <i className="fas fa-tag me-2"></i>
+            View Pricing
+          </button>
         </div>
       </div>
     </section>

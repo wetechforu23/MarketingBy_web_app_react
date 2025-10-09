@@ -40,9 +40,10 @@ export const ProcessTimeline: React.FC = () => {
         <div className="process-timeline">
           {steps.map((step, index) => (
             <div key={index} className="process-step">
-              <div className="step-number">{step.number}</div>
-              <div className="step-icon">
-                <i className={`fas ${step.icon}`}></i>
+              <div className="step-icon-wrapper">
+                <div className="step-icon-circle">
+                  <i className={`fas ${step.icon}`}></i>
+                </div>
               </div>
               <h3 className="step-title">{step.title}</h3>
               <p className="step-description">{step.description}</p>

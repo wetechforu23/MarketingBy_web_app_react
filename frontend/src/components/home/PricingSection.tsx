@@ -261,12 +261,6 @@ export const PricingSection: React.FC = () => {
                     </li>
                   ))}
                 </ul>
-                <button
-                  onClick={() => handleGetStarted(plan)}
-                  className={`btn ${plan.popular ? 'btn-primary' : 'btn-outline-primary'} btn-lg btn-block`}
-                >
-                  Get Started
-                </button>
               </div>
             ))}
           </div>
