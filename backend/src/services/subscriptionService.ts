@@ -229,14 +229,14 @@ export class SubscriptionService {
         },
       });
 
-      // Get plan details from database
+      // Get plan details from database using Stripe price ID
       const planResult = await client.query(
-        `SELECT * FROM subscription_plans WHERE id = $1`,
+        `SELECT * FROM subscription_plans WHERE stripe_price_id = $1`,
         [signUpData.planId]
       );
 
       if (planResult.rows.length === 0) {
-        throw new Error('Plan not found');
+        throw new Error(`Plan not found for Stripe price ID: ${signUpData.planId}`);
       }
 
       const plan = planResult.rows[0];
