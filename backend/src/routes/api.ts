@@ -136,7 +136,7 @@ router.get('/admin/users', async (req, res) => {
     const offset = (Number(page) - 1) * Number(limit);
 
     const result = await pool.query(
-      `SELECT id, email, username, is_admin, created_at 
+      `SELECT id, email, username, role, created_at 
        FROM users 
        ORDER BY created_at DESC 
        LIMIT $1 OFFSET $2`,
@@ -522,7 +522,7 @@ router.get('/users/me/permissions', async (req, res) => {
 
     // Get user admin status from database
     const result = await pool.query(
-      'SELECT is_admin FROM users WHERE id = $1',
+      'SELECT role FROM users WHERE id = $1',
       [req.session.userId]
     );
 
@@ -530,7 +530,7 @@ router.get('/users/me/permissions', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const isAdmin = result.rows[0].is_admin;
+    const isAdmin = result.rows[0].role === 'super_admin' || result.rows[0].role === 'admin';
 
     // Define permissions based on admin status (matching master document)
     const permissions = {
@@ -1787,7 +1787,7 @@ router.put('/users/:id', async (req, res) => {
     } = req.body;
 
     // Verify user is updating their own profile or is admin
-    if (req.session.userId !== parseInt(id) && !req.session.is_admin) {
+    if (req.session.userId !== parseInt(id) && req.session.role !== 'super_admin' && req.session.role !== 'admin') {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
@@ -1798,7 +1798,7 @@ router.put('/users/:id', async (req, res) => {
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $8
        RETURNING id, email, username, first_name, last_name, phone, 
-                 timezone, language, notifications_enabled, is_admin, 
+                 timezone, language, notifications_enabled, role, 
                  client_id, created_at, last_login`,
       [first_name, last_name, email, phone, timezone, language, notifications_enabled, id]
     );

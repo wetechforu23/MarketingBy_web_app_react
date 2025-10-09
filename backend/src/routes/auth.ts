@@ -58,7 +58,8 @@ router.post('/login', async (req, res) => {
     // Set session with remember me functionality
     req.session.userId = user.id;
     req.session.username = user.username;
-    req.session.is_admin = user.is_admin;
+    req.session.role = user.role;
+    req.session.clientId = user.client_id;
     
     // Configure session cookie based on remember me
     if (rememberMe) {
@@ -104,7 +105,7 @@ router.get('/me', async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT id, email, username, is_admin, client_id, first_name, last_name, phone, 
+      `SELECT id, email, username, role, client_id, first_name, last_name, phone, 
               created_at, last_login, timezone, language, notifications_enabled, profile_picture_url 
        FROM users WHERE id = $1`,
       [req.session.userId]
@@ -299,7 +300,7 @@ router.post('/verify-otp', async (req, res) => {
 
     // OTP is valid, get user and create session
     const result = await pool.query(
-      'SELECT id, email, username, is_admin, client_id FROM users WHERE email = $1',
+      'SELECT id, email, username, role, client_id FROM users WHERE email = $1',
       [email]
     );
 
@@ -312,7 +313,7 @@ router.post('/verify-otp', async (req, res) => {
     // Set session
     req.session.userId = user.id;
     req.session.username = user.username;
-    req.session.is_admin = user.is_admin;
+    req.session.role = user.role;
 
     // Clean up OTP
     otpStore.delete(email);
@@ -323,7 +324,7 @@ router.post('/verify-otp', async (req, res) => {
         id: user.id,
         email: user.email,
         username: user.username,
-        is_admin: user.is_admin
+        role: user.role
       }
     });
 

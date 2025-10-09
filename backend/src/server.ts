@@ -58,9 +58,11 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === 'production', // true in production (HTTPS required)
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-origin in production
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    domain: process.env.NODE_ENV === 'production' ? '.marketingby.wetechforu.com' : undefined
   }
 }));
 
