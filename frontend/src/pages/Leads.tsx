@@ -395,6 +395,80 @@ const Leads: React.FC = () => {
       ...prev,
       [field]: value
     }));
+
+    // Auto-generate search query when industry category or subcategory changes
+    if (field === 'industryCategory' && value) {
+      const categoryKeywords: { [key: string]: string } = {
+        'primary_care': 'primary care clinic doctor family medicine',
+        'dental': 'dental dentist orthodontist',
+        'specialty': 'specialist medical doctor',
+        'urgent_care': 'urgent care walk-in clinic emergency',
+        'mental_health': 'psychiatrist psychologist therapist counselor',
+        'physical_therapy': 'physical therapy rehabilitation',
+        'alternative': 'chiropractic acupuncture massage naturopathy',
+        'diagnostics': 'radiology laboratory imaging',
+        'pharmacy': 'pharmacy pharmacist drugstore'
+      };
+      setEnhancedScrapingForm(prev => ({
+        ...prev,
+        [field]: value,
+        searchQuery: categoryKeywords[value as string] || ''
+      }));
+    } else if (field === 'industrySubcategory' && value) {
+      const subcategoryKeywords: { [key: string]: string } = {
+        // Primary Care
+        'family_medicine': 'family medicine doctor physician',
+        'internal_medicine': 'internal medicine internist',
+        'pediatrics': 'pediatrician pediatric children',
+        'general_practice': 'general practitioner doctor',
+        // Dental
+        'general_dentist': 'general dentist dental',
+        'orthodontics': 'orthodontist braces',
+        'oral_surgery': 'oral surgeon dental surgery',
+        'pediatric_dentist': 'pediatric dentist children',
+        'cosmetic_dentist': 'cosmetic dentist',
+        // Specialties
+        'cardiology': 'cardiologist heart doctor',
+        'dermatology': 'dermatologist skin doctor',
+        'neurology': 'neurologist brain doctor',
+        'oncology': 'oncologist cancer doctor',
+        'orthopedics': 'orthopedist bone doctor',
+        'gastroenterology': 'gastroenterologist digestive',
+        'endocrinology': 'endocrinologist diabetes hormone',
+        // Urgent Care
+        'urgent_care_center': 'urgent care center',
+        'walk_in_clinic': 'walk-in clinic',
+        'emergency_room': 'emergency room ER',
+        // Mental Health
+        'psychiatry': 'psychiatrist mental health',
+        'psychology': 'psychologist therapist',
+        'counseling': 'counselor therapist',
+        'therapy': 'therapist counseling',
+        // Physical Therapy
+        'physical_therapy': 'physical therapist PT',
+        'occupational_therapy': 'occupational therapist OT',
+        'sports_medicine': 'sports medicine',
+        'rehabilitation': 'rehabilitation rehab',
+        // Alternative
+        'chiropractic': 'chiropractor chiropractic',
+        'acupuncture': 'acupuncture acupuncturist',
+        'massage': 'massage therapist',
+        'naturopathy': 'naturopath naturopathic',
+        // Diagnostics
+        'radiology': 'radiology radiologist imaging',
+        'laboratory': 'laboratory lab',
+        'imaging_center': 'imaging center MRI CT',
+        // Pharmacy
+        'retail_pharmacy': 'pharmacy drugstore',
+        'specialty_pharmacy': 'specialty pharmacy',
+        'compounding': 'compounding pharmacy'
+      };
+      setEnhancedScrapingForm(prev => ({
+        ...prev,
+        [field]: value,
+        searchQuery: subcategoryKeywords[value as string] || prev.searchQuery
+      }));
+    }
   };
 
   const handleCheckCompliance = async () => {
@@ -413,29 +487,76 @@ const Leads: React.FC = () => {
       return;
     }
 
+    // Validate zip code is required for location-based search
+    if (enhancedScrapingForm.type === 'location') {
+      if (!enhancedScrapingForm.zipCode || enhancedScrapingForm.zipCode.trim() === '') {
+        alert('⚠️ Zip Code is required for location-based search.\n\nPlease enter a valid 5-digit zip code to continue.');
+        return;
+      }
+      
+      // Validate zip code format (5 digits)
+      if (!/^\d{5}$/.test(enhancedScrapingForm.zipCode.trim())) {
+        alert('⚠️ Invalid Zip Code format.\n\nPlease enter a valid 5-digit zip code (e.g., 75013).');
+        return;
+      }
+    }
+
     setIsEnhancedScraping(true);
     try {
-      const endpoint = enhancedScrapingForm.type === 'individual' 
-        ? '/scraping/individual' 
-        : '/scraping/location';
-      
-      const payload = enhancedScrapingForm.type === 'individual'
-        ? { website: enhancedScrapingForm.website, state: enhancedScrapingForm.state }
-        : {
-            address: enhancedScrapingForm.address,
-            zipCode: enhancedScrapingForm.zipCode,
-            radius: enhancedScrapingForm.radius,
-            maxLeads: enhancedScrapingForm.maxLeads,
-            state: enhancedScrapingForm.state
-          };
+      let endpoint = '';
+      let payload: any = {};
+
+      if (enhancedScrapingForm.type === 'individual') {
+        endpoint = '/scraping/individual';
+        payload = { 
+          website: enhancedScrapingForm.website, 
+          state: enhancedScrapingForm.state 
+        };
+      } else if (enhancedScrapingForm.type === 'location') {
+        endpoint = '/scraping/location';
+        payload = {
+          searchQuery: enhancedScrapingForm.searchQuery, // Include keyword search
+          address: enhancedScrapingForm.address,
+          zipCode: enhancedScrapingForm.zipCode.trim(), // Always use zip code as main criteria
+          radius: enhancedScrapingForm.radius,
+          maxLeads: enhancedScrapingForm.maxLeads,
+          state: enhancedScrapingForm.state
+        };
+      }
 
       const response = await http.post(endpoint, payload);
       
       if (response.data.success) {
-        const leadCount = response.data.leads.length;
-        const leadDetails = response.data.leads.map(lead => `• ${lead.company || 'Unknown Company'}`).join('\n');
+        const totalFound = response.data.totalFound || response.data.leads.length;
+        const totalSaved = response.data.totalSaved || response.data.leads.length;
+        const skipped = response.data.skipped || 0;
         
-        alert(`Enhanced scraping completed successfully!\n\nFound ${leadCount} lead(s):\n${leadDetails}\n\nLeads have been saved to the database and will appear in the list below.`);
+        let message = `Enhanced scraping completed successfully!\n\n`;
+        message += `📊 Results:\n`;
+        message += `• Total Found: ${totalFound} businesses\n`;
+        message += `• New Leads Saved: ${totalSaved}\n`;
+        
+        if (skipped > 0) {
+          message += `• Duplicates Skipped: ${skipped} (already in database)\n\n`;
+          message += `ℹ️ Duplicates were detected using:\n`;
+          message += `  - Google Place ID\n`;
+          message += `  - Phone Number\n`;
+          message += `  - Website URL\n\n`;
+        }
+        
+        if (totalSaved > 0) {
+          const leadDetails = response.data.leads.slice(0, 5).map(lead => 
+            `• ${lead.company || 'Unknown Company'}${lead.city ? ' - ' + lead.city : ''}`
+          ).join('\n');
+          message += `\n✅ New Leads Added:\n${leadDetails}`;
+          if (totalSaved > 5) {
+            message += `\n... and ${totalSaved - 5} more`;
+          }
+        }
+        
+        message += `\n\n🔄 The leads list will refresh now.`;
+        
+        alert(message);
         
         setShowEnhancedScrapingModal(false);
         // Refresh both leads data and stats
@@ -1278,10 +1399,10 @@ const Leads: React.FC = () => {
                   Website {getSortIcon('website_url')}
                 </th>
                 <th 
-                  style={{ minWidth: '120px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
-                  onClick={() => handleSort('source')}
+                  style={{ minWidth: '250px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => handleSort('address')}
                 >
-                  Source {getSortIcon('source')}
+                  Address {getSortIcon('address')}
                 </th>
                 <th 
                   style={{ minWidth: '100px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
@@ -1296,17 +1417,17 @@ const Leads: React.FC = () => {
                   Industry {getSortIcon('industry_category')}
                 </th>
                 <th 
-                  style={{ minWidth: '100px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
+                  style={{ minWidth: '160px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
                   onClick={() => handleSort('created_at')}
                 >
-                  Created {getSortIcon('created_at')}
+                  Created Date & Time {getSortIcon('created_at')}
                 </th>
               </tr>
             </thead>
             <tbody>
               {paginatedLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="empty-state">
+                  <td colSpan={9} className="empty-state">
                     <i className="fas fa-inbox"></i>
                     <p>No leads found matching your criteria.</p>
                   </td>
@@ -1335,7 +1456,17 @@ const Leads: React.FC = () => {
                           onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
                           onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
                         >
-                          {lead.company}
+                          {lead.website_url ? (
+                            (() => {
+                              try {
+                                return new URL(lead.website_url).hostname.replace('www.', '');
+                              } catch {
+                                return lead.company;
+                              }
+                            })()
+                          ) : (
+                            lead.company
+                          )}
                         </strong>
                         {lead.rejection_reason && (
                           <div className="text-danger" style={{ fontSize: '0.8rem' }}>
@@ -1344,8 +1475,8 @@ const Leads: React.FC = () => {
                         )}
                       </div>
                     </td>
-                    <td>{lead.email || 'N/A'}</td>
-                    <td>{lead.phone || 'N/A'}</td>
+                    <td>{lead.email || ''}</td>
+                    <td>{lead.phone || ''}</td>
                     <td>
                       {lead.website_url ? (
                         <a 
@@ -1354,17 +1485,37 @@ const Leads: React.FC = () => {
                           rel="noopener noreferrer"
                           className="text-primary"
                           style={{ textDecoration: 'none' }}
+                          title={lead.website_url}
                         >
-                          <i className="fas fa-external-link-alt"></i> {lead.website_url}
+                          <i className="fas fa-external-link-alt me-1"></i>
+                          {(() => {
+                            try {
+                              return new URL(lead.website_url).hostname.replace('www.', '');
+                            } catch {
+                              return lead.website_url;
+                            }
+                          })()}
                         </a>
                       ) : (
-                        'N/A'
+                        ''
                       )}
                     </td>
                     <td>
-                      <span className={`badge ${getSourceBadgeClass(lead.source)}`}>
-                        {lead.source}
-                      </span>
+                      {lead.address ? (
+                        <a 
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.address)}`}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-primary"
+                          style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                          title="Open in Google Maps"
+                        >
+                          <i className="fas fa-map-marker-alt" style={{ color: '#dc3545' }}></i>
+                          {lead.address.length > 50 ? lead.address.substring(0, 50) + '...' : lead.address}
+                        </a>
+                      ) : (
+                        ''
+                      )}
                     </td>
                     <td>
                       <span className={`badge ${getStatusBadgeClass(lead.status)}`}>
@@ -1381,7 +1532,12 @@ const Leads: React.FC = () => {
                         )}
                       </div>
                     </td>
-                    <td>{new Date(lead.created_at).toLocaleDateString()}</td>
+                    <td style={{ fontSize: '0.85rem' }}>
+                      <div>{new Date(lead.created_at).toLocaleDateString()}</div>
+                      <div style={{ color: '#666', fontSize: '0.8rem' }}>
+                        {new Date(lead.created_at).toLocaleTimeString()}
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -2101,7 +2257,7 @@ const Leads: React.FC = () => {
                       <label className="form-check-label" htmlFor="individualType">
                         <strong>Individual Website</strong>
                         <br />
-                        <small className="text-muted">Scrape a specific website for business information</small>
+                        <small className="text-muted">Scrape a specific website URL</small>
                       </label>
                     </div>
                   </div>
@@ -2119,7 +2275,7 @@ const Leads: React.FC = () => {
                       <label className="form-check-label" htmlFor="locationType">
                         <strong>Location-Based Search</strong>
                         <br />
-                        <small className="text-muted">Find businesses near an address or zip code</small>
+                        <small className="text-muted">Find businesses by location or keywords</small>
                       </label>
                     </div>
                   </div>
@@ -2174,6 +2330,189 @@ const Leads: React.FC = () => {
                   <h6 className="form-section-title mb-3">
                     <i className="fas fa-map-marker-alt me-2"></i>Location Information
                   </h6>
+                  
+                  {/* Industry Filters */}
+                  <div className="form-group mb-4" style={{
+                    backgroundColor: '#fff3e0',
+                    padding: '20px',
+                    borderRadius: '12px',
+                    border: '2px solid #ff9800'
+                  }}>
+                    <label style={{ fontWeight: '600', color: '#e65100', marginBottom: '12px' }}>
+                      <i className="fas fa-filter me-2"></i>Industry Filters (Optional)
+                    </label>
+                    
+                    <div className="row">
+                      <div className="col-md-6 mb-3">
+                        <label htmlFor="industryCategory" className="form-label" style={{ fontSize: '13px' }}>
+                          1. Select Industry Category
+                        </label>
+                        <select
+                          id="industryCategory"
+                          className="form-control"
+                          value={enhancedScrapingForm.industryCategory || ''}
+                          onChange={(e) => {
+                            handleEnhancedScrapingFormChange('industryCategory', e.target.value);
+                            handleEnhancedScrapingFormChange('industrySubcategory', ''); // Reset subcategory
+                          }}
+                          style={{
+                            borderRadius: '8px',
+                            border: '2px solid #ff9800',
+                            padding: '10px',
+                            fontSize: '14px',
+                            fontWeight: '500'
+                          }}
+                        >
+                          <option value="">All Healthcare Industries</option>
+                          <option value="primary_care">Primary Care</option>
+                          <option value="dental">Dental</option>
+                          <option value="specialty">Medical Specialties</option>
+                          <option value="urgent_care">Urgent Care & Emergency</option>
+                          <option value="mental_health">Mental Health</option>
+                          <option value="physical_therapy">Physical Therapy & Rehab</option>
+                          <option value="alternative">Alternative Medicine</option>
+                          <option value="diagnostics">Diagnostics & Imaging</option>
+                          <option value="pharmacy">Pharmacy</option>
+                        </select>
+                      </div>
+
+                      <div className="col-md-6 mb-3">
+                        <label htmlFor="industrySubcategory" className="form-label" style={{ fontSize: '13px' }}>
+                          2. Select Subcategory
+                        </label>
+                        <select
+                          id="industrySubcategory"
+                          className="form-control"
+                          value={enhancedScrapingForm.industrySubcategory || ''}
+                          onChange={(e) => handleEnhancedScrapingFormChange('industrySubcategory', e.target.value)}
+                          disabled={!enhancedScrapingForm.industryCategory}
+                          style={{
+                            borderRadius: '8px',
+                            border: '2px solid #ff9800',
+                            padding: '10px',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            opacity: !enhancedScrapingForm.industryCategory ? 0.5 : 1
+                          }}
+                        >
+                          <option value="">All Subcategories</option>
+                          {enhancedScrapingForm.industryCategory === 'primary_care' && (
+                            <>
+                              <option value="family_medicine">Family Medicine</option>
+                              <option value="internal_medicine">Internal Medicine</option>
+                              <option value="pediatrics">Pediatrics</option>
+                              <option value="general_practice">General Practice</option>
+                            </>
+                          )}
+                          {enhancedScrapingForm.industryCategory === 'dental' && (
+                            <>
+                              <option value="general_dentist">General Dentistry</option>
+                              <option value="orthodontics">Orthodontics</option>
+                              <option value="oral_surgery">Oral Surgery</option>
+                              <option value="pediatric_dentist">Pediatric Dentistry</option>
+                              <option value="cosmetic_dentist">Cosmetic Dentistry</option>
+                            </>
+                          )}
+                          {enhancedScrapingForm.industryCategory === 'specialty' && (
+                            <>
+                              <option value="cardiology">Cardiology</option>
+                              <option value="dermatology">Dermatology</option>
+                              <option value="neurology">Neurology</option>
+                              <option value="oncology">Oncology</option>
+                              <option value="orthopedics">Orthopedics</option>
+                              <option value="gastroenterology">Gastroenterology</option>
+                              <option value="endocrinology">Endocrinology</option>
+                            </>
+                          )}
+                          {enhancedScrapingForm.industryCategory === 'urgent_care' && (
+                            <>
+                              <option value="urgent_care_center">Urgent Care Center</option>
+                              <option value="walk_in_clinic">Walk-in Clinic</option>
+                              <option value="emergency_room">Emergency Room</option>
+                            </>
+                          )}
+                          {enhancedScrapingForm.industryCategory === 'mental_health' && (
+                            <>
+                              <option value="psychiatry">Psychiatry</option>
+                              <option value="psychology">Psychology</option>
+                              <option value="counseling">Counseling</option>
+                              <option value="therapy">Therapy</option>
+                            </>
+                          )}
+                          {enhancedScrapingForm.industryCategory === 'physical_therapy' && (
+                            <>
+                              <option value="physical_therapy">Physical Therapy</option>
+                              <option value="occupational_therapy">Occupational Therapy</option>
+                              <option value="sports_medicine">Sports Medicine</option>
+                              <option value="rehabilitation">Rehabilitation</option>
+                            </>
+                          )}
+                          {enhancedScrapingForm.industryCategory === 'alternative' && (
+                            <>
+                              <option value="chiropractic">Chiropractic</option>
+                              <option value="acupuncture">Acupuncture</option>
+                              <option value="massage">Massage Therapy</option>
+                              <option value="naturopathy">Naturopathy</option>
+                            </>
+                          )}
+                          {enhancedScrapingForm.industryCategory === 'diagnostics' && (
+                            <>
+                              <option value="radiology">Radiology</option>
+                              <option value="laboratory">Laboratory</option>
+                              <option value="imaging_center">Imaging Center</option>
+                            </>
+                          )}
+                          {enhancedScrapingForm.industryCategory === 'pharmacy' && (
+                            <>
+                              <option value="retail_pharmacy">Retail Pharmacy</option>
+                              <option value="specialty_pharmacy">Specialty Pharmacy</option>
+                              <option value="compounding">Compounding Pharmacy</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+                    </div>
+
+                    <small className="text-muted d-block mt-2">
+                      <i className="fas fa-info-circle me-1"></i>
+                      Select an industry to narrow your search. The keyword field below will be auto-populated based on your selection.
+                    </small>
+                  </div>
+
+                  {/* Keyword Search Field */}
+                  <div className="form-group mb-4" style={{
+                    backgroundColor: '#f8f9fa',
+                    padding: '20px',
+                    borderRadius: '12px',
+                    border: '2px solid #e3f2fd'
+                  }}>
+                    <label htmlFor="searchQuery" style={{ fontWeight: '600', color: '#1976d2' }}>
+                      <i className="fas fa-search me-2"></i>3. Search Keywords (Optional) - Supports Wildcards
+                    </label>
+                    <textarea
+                      id="searchQuery"
+                      className="form-control"
+                      rows={2}
+                      value={enhancedScrapingForm.searchQuery || ''}
+                      onChange={(e) => handleEnhancedScrapingFormChange('searchQuery', e.target.value)}
+                      placeholder='e.g., "primary care*", "*clinic*", "pediatric* dentist", "*urgent care"'
+                      style={{
+                        borderRadius: '8px',
+                        border: '2px solid #bdbdbd',
+                        padding: '12px',
+                        fontSize: '14px',
+                        marginTop: '8px',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+                    <small className="text-muted mt-2 d-block">
+                      <i className="fas fa-magic me-1" style={{ color: '#9c27b0' }}></i>
+                      Use <strong>*</strong> as wildcard: <code>*care</code> finds "urgent care", "primary care", etc. | 
+                      <code>dental*</code> finds "dental clinic", "dentistry", etc. | 
+                      <code>*clinic*</code> finds any clinic
+                    </small>
+                  </div>
+
                   <div className="row">
                     <div className="col-md-6">
                       <div className="form-group mb-3">
@@ -2190,7 +2529,9 @@ const Leads: React.FC = () => {
                     </div>
                     <div className="col-md-6">
                       <div className="form-group mb-3">
-                        <label htmlFor="zipCode">Zip Code (Optional)</label>
+                        <label htmlFor="zipCode">
+                          Zip Code <span style={{ color: 'red' }}>*</span>
+                        </label>
                         <input
                           type="text"
                           id="zipCode"
@@ -2198,7 +2539,14 @@ const Leads: React.FC = () => {
                           value={enhancedScrapingForm.zipCode}
                           onChange={(e) => handleEnhancedScrapingFormChange('zipCode', e.target.value)}
                           placeholder="12345"
+                          required
+                          pattern="[0-9]{5}"
+                          title="Please enter a valid 5-digit zip code"
                         />
+                        <small className="text-muted mt-1 d-block">
+                          <i className="fas fa-info-circle me-1"></i>
+                          Required for location-based search
+                        </small>
                       </div>
                     </div>
                   </div>

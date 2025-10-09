@@ -232,17 +232,37 @@ const Profile: React.FC = () => {
 
             {/* Profile Details Card */}
             <div className="col-lg-8">
-              <div className="card shadow-sm">
-                <div className="card-header bg-primary text-white">
-                  <h5 className="mb-0">
+              <div className="card shadow-sm" style={{ 
+                border: '1px solid #e9ecef',
+                borderRadius: '12px',
+                overflow: 'hidden'
+              }}>
+                <div 
+                  className="card-header text-white" 
+                  style={{
+                    background: 'linear-gradient(135deg, #4682B4 0%, #5F9EA0 100%)',
+                    borderBottom: 'none',
+                    padding: '1.25rem'
+                  }}
+                >
+                  <h5 className="mb-0" style={{ fontWeight: '700' }}>
                     <i className="fas fa-id-card me-2"></i>
                     Personal Information
                   </h5>
                 </div>
-                <div className="card-body">
-                  <div className="row g-3">
+                <div className="card-body" style={{ 
+                  backgroundColor: '#ffffff',
+                  padding: '1.5rem'
+                }}>
+                  <div className="row g-4">
                     <div className="col-md-6">
-                      <label className="form-label">First Name</label>
+                      <label className="form-label" style={{ 
+                        color: '#2C5F77',
+                        fontWeight: '600',
+                        marginBottom: '0.5rem'
+                      }}>
+                        First Name
+                      </label>
                       <input
                         type="text"
                         className="form-control"
@@ -250,10 +270,23 @@ const Profile: React.FC = () => {
                         onChange={(e) => setEditedUser({ ...editedUser!, first_name: e.target.value })}
                         disabled={!isEditing}
                         placeholder="Enter first name"
+                        style={{
+                          padding: '0.75rem',
+                          borderRadius: '8px',
+                          border: '2px solid #e9ecef',
+                          backgroundColor: isEditing ? '#ffffff' : '#f8f9fa',
+                          color: '#495057'
+                        }}
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Last Name</label>
+                      <label className="form-label" style={{ 
+                        color: '#2C5F77',
+                        fontWeight: '600',
+                        marginBottom: '0.5rem'
+                      }}>
+                        Last Name
+                      </label>
                       <input
                         type="text"
                         className="form-control"
@@ -261,20 +294,46 @@ const Profile: React.FC = () => {
                         onChange={(e) => setEditedUser({ ...editedUser!, last_name: e.target.value })}
                         disabled={!isEditing}
                         placeholder="Enter last name"
+                        style={{
+                          padding: '0.75rem',
+                          borderRadius: '8px',
+                          border: '2px solid #e9ecef',
+                          backgroundColor: isEditing ? '#ffffff' : '#f8f9fa',
+                          color: '#495057'
+                        }}
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Email Address</label>
+                      <label className="form-label" style={{ 
+                        color: '#2C5F77',
+                        fontWeight: '600',
+                        marginBottom: '0.5rem'
+                      }}>
+                        Email Address
+                      </label>
                       <input
                         type="email"
                         className="form-control"
                         value={editedUser?.email || ''}
                         onChange={(e) => setEditedUser({ ...editedUser!, email: e.target.value })}
                         disabled={!isEditing}
+                        style={{
+                          padding: '0.75rem',
+                          borderRadius: '8px',
+                          border: '2px solid #e9ecef',
+                          backgroundColor: isEditing ? '#ffffff' : '#f8f9fa',
+                          color: '#495057'
+                        }}
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Phone Number</label>
+                      <label className="form-label" style={{ 
+                        color: '#2C5F77',
+                        fontWeight: '600',
+                        marginBottom: '0.5rem'
+                      }}>
+                        Phone Number
+                      </label>
                       <input
                         type="tel"
                         className="form-control"
@@ -282,15 +341,35 @@ const Profile: React.FC = () => {
                         onChange={(e) => setEditedUser({ ...editedUser!, phone: e.target.value })}
                         disabled={!isEditing}
                         placeholder="Enter phone number"
+                        style={{
+                          padding: '0.75rem',
+                          borderRadius: '8px',
+                          border: '2px solid #e9ecef',
+                          backgroundColor: isEditing ? '#ffffff' : '#f8f9fa',
+                          color: '#495057'
+                        }}
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Timezone</label>
+                      <label className="form-label" style={{ 
+                        color: '#2C5F77',
+                        fontWeight: '600',
+                        marginBottom: '0.5rem'
+                      }}>
+                        Timezone
+                      </label>
                       <select
                         className="form-select"
                         value={editedUser?.timezone || 'America/Los_Angeles'}
                         onChange={(e) => setEditedUser({ ...editedUser!, timezone: e.target.value })}
                         disabled={!isEditing}
+                        style={{
+                          padding: '0.75rem',
+                          borderRadius: '8px',
+                          border: '2px solid #e9ecef',
+                          backgroundColor: isEditing ? '#ffffff' : '#f8f9fa',
+                          color: '#495057'
+                        }}
                       >
                         <option value="America/Los_Angeles">Pacific Time (PT)</option>
                         <option value="America/Denver">Mountain Time (MT)</option>
@@ -299,12 +378,25 @@ const Profile: React.FC = () => {
                       </select>
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Language</label>
+                      <label className="form-label" style={{ 
+                        color: '#2C5F77',
+                        fontWeight: '600',
+                        marginBottom: '0.5rem'
+                      }}>
+                        Language
+                      </label>
                       <select
                         className="form-select"
                         value={editedUser?.language || 'en'}
                         onChange={(e) => setEditedUser({ ...editedUser!, language: e.target.value })}
                         disabled={!isEditing}
+                        style={{
+                          padding: '0.75rem',
+                          borderRadius: '8px',
+                          border: '2px solid #e9ecef',
+                          backgroundColor: isEditing ? '#ffffff' : '#f8f9fa',
+                          color: '#495057'
+                        }}
                       >
                         <option value="en">English</option>
                         <option value="es">Spanish</option>
@@ -312,7 +404,12 @@ const Profile: React.FC = () => {
                       </select>
                     </div>
                     <div className="col-12">
-                      <div className="form-check form-switch">
+                      <div className="form-check form-switch" style={{
+                        padding: '0.75rem',
+                        backgroundColor: '#f8f9fa',
+                        borderRadius: '8px',
+                        border: '2px solid #e9ecef'
+                      }}>
                         <input
                           className="form-check-input"
                           type="checkbox"
@@ -320,8 +417,22 @@ const Profile: React.FC = () => {
                           checked={editedUser?.notifications_enabled !== false}
                           onChange={(e) => setEditedUser({ ...editedUser!, notifications_enabled: e.target.checked })}
                           disabled={!isEditing}
+                          style={{
+                            width: '3rem',
+                            height: '1.5rem',
+                            cursor: isEditing ? 'pointer' : 'not-allowed'
+                          }}
                         />
-                        <label className="form-check-label" htmlFor="notificationsEnabled">
+                        <label 
+                          className="form-check-label" 
+                          htmlFor="notificationsEnabled"
+                          style={{
+                            marginLeft: '0.5rem',
+                            color: '#2C5F77',
+                            fontWeight: '600'
+                          }}
+                        >
+                          <i className="fas fa-bell me-2"></i>
                           Enable Email Notifications
                         </label>
                       </div>
@@ -335,58 +446,175 @@ const Profile: React.FC = () => {
       </div>
 
       {/* Password Change Modal */}
-      <div className={`modal fade ${showPasswordModal ? 'show d-block' : ''}`} tabIndex={-1} style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-        <div className="modal-dialog modal-dialog-centered">
-          <div className="modal-content">
-            <div className="modal-header bg-primary text-white">
-              <h5 className="modal-title">
-                <i className="fas fa-key me-2"></i>
-                Change Password
-              </h5>
-              <button type="button" className="btn-close btn-close-white" onClick={() => setShowPasswordModal(false)}></button>
-            </div>
-            <div className="modal-body">
-              <div className="mb-3">
-                <label htmlFor="currentPassword" className="form-label">Current Password</label>
-                <input
-                  type="password"
-                  className="form-control"
-                  id="currentPassword"
-                  value={passwordForm.currentPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                />
+      {showPasswordModal && (
+        <div 
+          className="modal fade show d-block" 
+          tabIndex={-1} 
+          style={{ 
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(4px)'
+          }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content" style={{ 
+              borderRadius: '12px',
+              border: 'none',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+              overflow: 'hidden'
+            }}>
+              <div 
+                className="modal-header text-white" 
+                style={{
+                  background: 'linear-gradient(135deg, #4682B4 0%, #5F9EA0 100%)',
+                  borderBottom: 'none',
+                  padding: '1.5rem'
+                }}
+              >
+                <h5 className="modal-title" style={{ fontWeight: '700', fontSize: '1.25rem' }}>
+                  <i className="fas fa-key me-2"></i>
+                  Change Password
+                </h5>
+                <button 
+                  type="button" 
+                  className="btn-close btn-close-white" 
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                  }}
+                  style={{
+                    filter: 'brightness(0) invert(1)'
+                  }}
+                ></button>
               </div>
-              <div className="mb-3">
-                <label htmlFor="newPassword" className="form-label">New Password</label>
-                <input
-                  type="password"
-                  className="form-control"
-                  id="newPassword"
-                  value={passwordForm.newPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                />
-                <small className="text-muted">Minimum 8 characters</small>
+              <div className="modal-body" style={{ 
+                backgroundColor: '#ffffff',
+                padding: '2rem'
+              }}>
+                <div className="mb-4">
+                  <label htmlFor="currentPassword" className="form-label" style={{ 
+                    color: '#2C5F77',
+                    fontWeight: '600',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    className="form-control"
+                    id="currentPassword"
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                    placeholder="Enter your current password"
+                    style={{
+                      padding: '0.75rem',
+                      borderRadius: '8px',
+                      border: '2px solid #e9ecef',
+                      transition: 'all 0.2s'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = '#4682B4'}
+                    onBlur={(e) => e.target.style.borderColor = '#e9ecef'}
+                  />
+                </div>
+                <div className="mb-4">
+                  <label htmlFor="newPassword" className="form-label" style={{ 
+                    color: '#2C5F77',
+                    fontWeight: '600',
+                    marginBottom: '0.5rem'
+                  }}>
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    className="form-control"
+                    id="newPassword"
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                    placeholder="Enter your new password"
+                    style={{
+                      padding: '0.75rem',
+                      borderRadius: '8px',
+                      border: '2px solid #e9ecef',
+                      transition: 'all 0.2s'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = '#4682B4'}
+                    onBlur={(e) => e.target.style.borderColor = '#e9ecef'}
+                  />
+                  <small className="text-muted d-block mt-2">
+                    <i className="fas fa-info-circle me-1"></i>
+                    Minimum 8 characters required
+                  </small>
+                </div>
+                <div className="mb-3">
+                  <label htmlFor="confirmPassword" className="form-label" style={{ 
+                    color: '#2C5F77',
+                    fontWeight: '600',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    className="form-control"
+                    id="confirmPassword"
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                    placeholder="Confirm your new password"
+                    style={{
+                      padding: '0.75rem',
+                      borderRadius: '8px',
+                      border: '2px solid #e9ecef',
+                      transition: 'all 0.2s'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = '#4682B4'}
+                    onBlur={(e) => e.target.style.borderColor = '#e9ecef'}
+                  />
+                </div>
               </div>
-              <div className="mb-3">
-                <label htmlFor="confirmPassword" className="form-label">Confirm New Password</label>
-                <input
-                  type="password"
-                  className="form-control"
-                  id="confirmPassword"
-                  value={passwordForm.confirmPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                />
+              <div className="modal-footer" style={{ 
+                backgroundColor: '#f8f9fa',
+                borderTop: '1px solid #e9ecef',
+                padding: '1.25rem',
+                gap: '0.75rem'
+              }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                  }}
+                  style={{
+                    padding: '0.65rem 1.5rem',
+                    borderRadius: '8px',
+                    fontWeight: '600',
+                    backgroundColor: '#6c757d',
+                    border: 'none'
+                  }}
+                >
+                  <i className="fas fa-times me-2"></i>
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-primary" 
+                  onClick={handlePasswordChange}
+                  style={{
+                    padding: '0.65rem 1.5rem',
+                    borderRadius: '8px',
+                    fontWeight: '600',
+                    background: 'linear-gradient(135deg, #4682B4 0%, #5F9EA0 100%)',
+                    border: 'none',
+                    boxShadow: '0 2px 8px rgba(70, 130, 180, 0.3)'
+                  }}
+                >
+                  <i className="fas fa-check me-2"></i>
+                  Change Password
+                </button>
               </div>
-            </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={() => setShowPasswordModal(false)}>Cancel</button>
-              <button type="button" className="btn btn-primary" onClick={handlePasswordChange}>
-                Change Password
-              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

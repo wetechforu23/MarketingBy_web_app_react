@@ -1432,12 +1432,97 @@ router.post('/scraping/individual', async (req, res) => {
 // Enhanced location-based scraping
 router.post('/scraping/location', async (req, res) => {
   try {
-    const { address, zipCode, radius, maxLeads, state } = req.body;
+    let { searchQuery, address, zipCode, radius, maxLeads, state } = req.body;
     
-    if (!address && !zipCode) {
-      return res.status(400).json({ error: 'Either address or zip code is required' });
+    // Treat empty strings as undefined
+    searchQuery = searchQuery?.trim() || undefined;
+    address = address?.trim() || undefined;
+    zipCode = zipCode?.trim() || undefined;
+    
+    if (!searchQuery && !address && !zipCode) {
+      return res.status(400).json({ error: 'Either search query, address, or zip code is required' });
     }
 
+    console.log('📍 Location scraping request:', { searchQuery, address, zipCode, radius, maxLeads });
+
+    // If searchQuery is provided, use keyword search
+    if (searchQuery) {
+      const result = await EnhancedScrapingService.scrapeByKeyword(
+        searchQuery,
+        radius || 10,
+        maxLeads || 20,
+        zipCode,  // Pass zipCode
+        address   // Pass address
+      );
+      
+      if (result.success && result.leads.length > 0) {
+        // Check for duplicates before saving
+        const savedLeads = [];
+        let skippedCount = 0;
+        
+        for (const lead of result.leads) {
+          try {
+            // Check if lead already exists by google_place_id, phone, or website
+            const duplicateCheck = await pool.query(
+              `SELECT id FROM leads WHERE 
+                google_place_id = $1 OR 
+                (phone IS NOT NULL AND phone = $2) OR 
+                (website_url IS NOT NULL AND website_url = $3)
+              LIMIT 1`,
+              [lead.google_place_id, lead.phone, lead.website_url]
+            );
+
+            if (duplicateCheck.rows.length > 0) {
+              console.log(`⏭️ Skipping duplicate lead: ${lead.company} (already exists with ID: ${duplicateCheck.rows[0].id})`);
+              skippedCount++;
+              continue; // Skip this lead
+            }
+
+            console.log('💾 Saving new lead:', lead.company);
+            
+            const email = lead.email || `scraped-${Date.now()}-${Math.random().toString(36).substr(2, 9)}@wetechforu.com`;
+            
+            const insertResult = await pool.query(
+              `INSERT INTO leads (
+                company, email, phone, industry_category, industry_subcategory,
+                source, status, notes, website_url, address, city, state, zip_code,
+                contact_first_name, contact_last_name, compliance_status,
+                google_place_id, google_rating, geo_latitude, geo_longitude, created_at
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW()) 
+              RETURNING *`,
+              [
+                lead.company, email, lead.phone, lead.industry_category, lead.industry_subcategory,
+                lead.source, lead.status, lead.notes, lead.website_url, lead.address, 
+                lead.city, lead.state, lead.zip_code, lead.contact_first_name, 
+                lead.contact_last_name, lead.compliance_status,
+                lead.google_place_id, lead.google_rating, lead.geo_latitude, lead.geo_longitude
+              ]
+            );
+            
+            savedLeads.push(insertResult.rows[0]);
+            console.log(`✅ Saved lead ID: ${insertResult.rows[0].id}`);
+          } catch (dbError: any) {
+            console.error('Error saving keyword search lead:', dbError.message);
+          }
+        }
+
+        return res.json({
+          success: result.success,
+          leads: savedLeads,
+          totalFound: result.leads.length,
+          totalSaved: savedLeads.length,
+          skipped: skippedCount,
+          compliance: result.compliance,
+          apiUsage: result.apiUsage,
+          errors: result.errors,
+          message: result.success ? 
+            `Successfully found ${result.leads.length} leads matching "${searchQuery}". Saved ${savedLeads.length} new leads, skipped ${skippedCount} duplicates.` : 
+            'Keyword search failed due to compliance or technical issues'
+        });
+      }
+    }
+
+    // Otherwise use location-based scraping
     const result = await EnhancedScrapingService.scrapeByLocation(
       address, 
       zipCode, 
@@ -1447,10 +1532,111 @@ router.post('/scraping/location', async (req, res) => {
     );
     
     if (result.success && result.leads.length > 0) {
+      // Check for duplicates before saving
+      const savedLeads = [];
+      let skippedCount = 0;
+      
+      for (const lead of result.leads) {
+        try {
+          // Check if lead already exists
+          const duplicateCheck = await pool.query(
+            `SELECT id FROM leads WHERE 
+              google_place_id = $1 OR 
+              (phone IS NOT NULL AND phone = $2) OR 
+              (website_url IS NOT NULL AND website_url = $3)
+            LIMIT 1`,
+            [lead.google_place_id, lead.phone, lead.website_url]
+          );
+
+          if (duplicateCheck.rows.length > 0) {
+            console.log(`⏭️ Skipping duplicate lead: ${lead.company} (already exists with ID: ${duplicateCheck.rows[0].id})`);
+            skippedCount++;
+            continue;
+          }
+
+          console.log('💾 Saving new location lead:', lead.company);
+          
+          const email = lead.email || `scraped-${Date.now()}-${Math.random().toString(36).substr(2, 9)}@wetechforu.com`;
+          
+          const insertResult = await pool.query(
+            `INSERT INTO leads (
+              company, email, phone, industry_category, industry_subcategory,
+              source, status, notes, website_url, address, city, state, zip_code,
+              contact_first_name, contact_last_name, compliance_status,
+              google_place_id, google_rating, geo_latitude, geo_longitude, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW()) 
+            RETURNING *`,
+            [
+              lead.company, email, lead.phone, lead.industry_category, lead.industry_subcategory,
+              lead.source, lead.status, lead.notes, lead.website_url, lead.address, 
+              lead.city, lead.state, lead.zip_code, lead.contact_first_name, 
+              lead.contact_last_name, lead.compliance_status,
+              lead.google_place_id, lead.google_rating, lead.geo_latitude, lead.geo_longitude
+            ]
+          );
+          
+          savedLeads.push(insertResult.rows[0]);
+        } catch (dbError: any) {
+          console.error('Error saving location lead:', dbError.message);
+        }
+      }
+
+      return res.json({
+        success: result.success,
+        leads: savedLeads,
+        totalFound: result.leads.length,
+        totalSaved: savedLeads.length,
+        skipped: skippedCount,
+        compliance: result.compliance,
+        apiUsage: result.apiUsage,
+        errors: result.errors,
+        message: result.success ? 
+          `Successfully found ${result.leads.length} leads in the area. Saved ${savedLeads.length} new leads, skipped ${skippedCount} duplicates.` : 
+          'Location-based scraping failed due to compliance or technical issues'
+      });
+    }
+
+    res.json({
+      success: result.success,
+      leads: [],
+      totalFound: 0,
+      totalSaved: 0,
+      skipped: 0,
+      compliance: result.compliance,
+      apiUsage: result.apiUsage,
+      errors: result.errors,
+      message: result.success ? 
+        'No leads found in the area' : 
+        'Location-based scraping failed due to compliance or technical issues'
+    });
+  } catch (error) {
+    console.error('Location scraping error:', error);
+    res.status(500).json({ error: 'Failed to scrape by location' });
+  }
+});
+
+// Keyword-based scraping (natural language search)
+router.post('/scraping/keyword', async (req, res) => {
+  try {
+    const { searchQuery, radius, maxLeads } = req.body;
+    
+    if (!searchQuery) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+
+    console.log('🔍 Keyword search request:', { searchQuery, radius, maxLeads });
+
+    const result = await EnhancedScrapingService.scrapeByKeyword(
+      searchQuery,
+      radius || 10,
+      maxLeads || 20
+    );
+    
+    if (result.success && result.leads.length > 0) {
       // Save leads to database
       for (const lead of result.leads) {
         try {
-          console.log('Saving location lead:', lead);
+          console.log('Saving keyword search lead:', lead);
           
           // Generate a unique email if none exists to avoid conflicts
           const email = lead.email || `scraped-${Date.now()}-${Math.random().toString(36).substr(2, 9)}@wetechforu.com`;
@@ -1470,9 +1656,9 @@ router.post('/scraping/location', async (req, res) => {
             ]
           );
           
-          console.log('Location lead saved successfully:', insertResult.rows[0]);
+          console.log('Keyword search lead saved successfully:', insertResult.rows[0]);
         } catch (dbError) {
-          console.error('Error saving location lead:', dbError);
+          console.error('Error saving keyword search lead:', dbError);
         }
       }
     }
@@ -1484,12 +1670,12 @@ router.post('/scraping/location', async (req, res) => {
       apiUsage: result.apiUsage,
       errors: result.errors,
       message: result.success ? 
-        `Successfully found ${result.leads.length} leads in the area` : 
-        'Location-based scraping failed due to compliance or technical issues'
+        `Successfully found ${result.leads.length} leads matching "${searchQuery}"` : 
+        'Keyword search failed due to compliance or technical issues'
     });
   } catch (error) {
-    console.error('Location scraping error:', error);
-    res.status(500).json({ error: 'Failed to scrape by location' });
+    console.error('Keyword search error:', error);
+    res.status(500).json({ error: 'Failed to perform keyword search' });
   }
 });
 

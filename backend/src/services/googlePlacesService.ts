@@ -45,9 +45,33 @@ export class GooglePlacesService {
   private baseUrl = 'https://maps.googleapis.com/maps/api/place';
 
   private constructor() {
+    // Try to get API key from environment first, then from database
     this.apiKey = process.env.GOOGLE_MAPS_API_KEY || '';
+    
     if (!this.apiKey) {
-      console.warn('GOOGLE_MAPS_API_KEY is not set. Google Places API will not function.');
+      console.warn('GOOGLE_MAPS_API_KEY not in environment. Will try to load from encrypted credentials database.');
+      this.loadApiKeyFromDatabase();
+    } else {
+      console.log('✅ Google Places API initialized with API key from environment');
+    }
+  }
+
+  private async loadApiKeyFromDatabase() {
+    try {
+      const pool = require('../config/database').default;
+      const { CredentialManagementService } = require('./credentialManagementService');
+      
+      const credService = new CredentialManagementService();
+      const apiKey = await credService.getCredential('google_maps', 'api_key');
+      
+      if (apiKey) {
+        this.apiKey = apiKey;
+        console.log('✅ Google Places API key loaded from encrypted database');
+      } else {
+        console.error('❌ Google Places API key not found in database');
+      }
+    } catch (error: any) {
+      console.error('❌ Failed to load Google Places API key from database:', error.message);
     }
   }
 
@@ -75,8 +99,8 @@ export class GooglePlacesService {
         key: this.apiKey,
         location: location,
         radius: radius,
-        type: 'hospital',
         keyword: keyword || 'healthcare clinic medical doctor',
+        // Removed type: 'hospital' to allow clinics, doctors offices, urgent care, etc.
       };
 
       const response = await axios.get(`${this.baseUrl}/nearbysearch/json`, { params });
@@ -89,6 +113,41 @@ export class GooglePlacesService {
       return data.results || [];
     } catch (error) {
       console.error('Error searching healthcare businesses:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Text search for businesses (doesn't require location coordinates)
+   */
+  async textSearch(
+    query: string,
+    radius?: number
+  ): Promise<GooglePlace[]> {
+    if (!this.apiKey) {
+      throw new Error('Google Places API key is not configured');
+    }
+
+    try {
+      const params: any = {
+        key: this.apiKey,
+        query: query,
+      };
+
+      if (radius) {
+        params.radius = radius;
+      }
+
+      const response = await axios.get(`${this.baseUrl}/textsearch/json`, { params });
+      const data: PlacesSearchResult = response.data;
+
+      if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+        throw new Error(`Google Places API error: ${data.status}`);
+      }
+
+      return data.results || [];
+    } catch (error) {
+      console.error('Error in text search:', error);
       throw error;
     }
   }
