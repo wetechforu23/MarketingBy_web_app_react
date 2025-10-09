@@ -28,12 +28,19 @@ router.get('/public/pricing-plans', async (req, res) => {
 router.post('/public/signup', async (req, res) => {
   try {
     console.log('📝 Processing sign-up...');
+    console.log('📋 Sign-up data received:', JSON.stringify(req.body, null, 2));
     const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
     const result = await subscriptionService.handleSignUp(req.body, clientIp);
+    console.log('✅ Sign-up successful:', result);
     res.json(result);
-  } catch (error) {
-    console.error('❌ Sign-up error:', error);
-    res.status(500).json({ error: 'Sign-up failed. Please try again.' });
+  } catch (error: any) {
+    console.error('❌ Sign-up error (detailed):', error);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Sign-up failed. Please try again.',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
