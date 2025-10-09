@@ -1471,6 +1471,9 @@ router.post('/scraping/individual', async (req, res) => {
       return res.status(400).json({ error: 'Website URL is required' });
     }
 
+    // Get the appropriate client_id for this user
+    const client_id = getClientIdForCreate(req);
+
     const result = await EnhancedScrapingService.scrapeIndividualWebsite(website, state);
     
     if (result.success && result.leads.length > 0) {
@@ -1486,14 +1489,14 @@ router.post('/scraping/individual', async (req, res) => {
             `INSERT INTO leads (
               company, email, phone, industry_category, industry_subcategory,
               source, status, notes, website_url, address, city, state, zip_code,
-              contact_first_name, contact_last_name, compliance_status, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW()) 
+              contact_first_name, contact_last_name, compliance_status, client_id, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW()) 
             RETURNING *`,
             [
               lead.company, email, lead.phone, lead.industry_category, lead.industry_subcategory,
               lead.source, lead.status, lead.notes, lead.website_url, lead.address, 
               lead.city, lead.state, lead.zip_code, lead.contact_first_name, 
-              lead.contact_last_name, lead.compliance_status
+              lead.contact_last_name, lead.compliance_status, client_id
             ]
           );
           
@@ -1535,6 +1538,9 @@ router.post('/scraping/location', async (req, res) => {
     }
 
     console.log('📍 Location scraping request:', { searchQuery, address, zipCode, radius, maxLeads });
+
+    // Get the appropriate client_id for this user
+    const client_id = getClientIdForCreate(req);
 
     // If searchQuery is provided, use keyword search
     if (searchQuery) {
@@ -1578,15 +1584,15 @@ router.post('/scraping/location', async (req, res) => {
                 company, email, phone, industry_category, industry_subcategory,
                 source, status, notes, website_url, address, city, state, zip_code,
                 contact_first_name, contact_last_name, compliance_status,
-                google_place_id, google_rating, geo_latitude, geo_longitude, created_at
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW()) 
+                google_place_id, google_rating, geo_latitude, geo_longitude, client_id, created_at
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, NOW()) 
               RETURNING *`,
               [
                 lead.company, email, lead.phone, lead.industry_category, lead.industry_subcategory,
                 lead.source, lead.status, lead.notes, lead.website_url, lead.address, 
                 lead.city, lead.state, lead.zip_code, lead.contact_first_name, 
                 lead.contact_last_name, lead.compliance_status,
-                lead.google_place_id, lead.google_rating, lead.geo_latitude, lead.geo_longitude
+                lead.google_place_id, lead.google_rating, lead.geo_latitude, lead.geo_longitude, client_id
               ]
             );
             
@@ -1654,15 +1660,15 @@ router.post('/scraping/location', async (req, res) => {
               company, email, phone, industry_category, industry_subcategory,
               source, status, notes, website_url, address, city, state, zip_code,
               contact_first_name, contact_last_name, compliance_status,
-              google_place_id, google_rating, geo_latitude, geo_longitude, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW()) 
+              google_place_id, google_rating, geo_latitude, geo_longitude, client_id, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, NOW()) 
             RETURNING *`,
             [
               lead.company, email, lead.phone, lead.industry_category, lead.industry_subcategory,
               lead.source, lead.status, lead.notes, lead.website_url, lead.address, 
               lead.city, lead.state, lead.zip_code, lead.contact_first_name, 
               lead.contact_last_name, lead.compliance_status,
-              lead.google_place_id, lead.google_rating, lead.geo_latitude, lead.geo_longitude
+              lead.google_place_id, lead.google_rating, lead.geo_latitude, lead.geo_longitude, client_id
             ]
           );
           
