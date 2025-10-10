@@ -73,6 +73,9 @@ const LeadDetail: React.FC = () => {
   const [generatingReport, setGeneratingReport] = useState(false);
   const [reportProgress, setReportProgress] = useState(0);
   const [reportProgressMessage, setReportProgressMessage] = useState('');
+  const [selectedReports, setSelectedReports] = useState<number[]>([]);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<SEOReport | null>(null);
 
   useEffect(() => {
     fetchLeadData();
@@ -213,6 +216,50 @@ const LeadDetail: React.FC = () => {
     setSeoReportType('basic');
     setSendEmailWithReport(false);
     setShowSEOModal(true);
+  };
+
+  const handleViewReport = (report: SEOReport) => {
+    setSelectedReport(report);
+    setShowReportModal(true);
+  };
+
+  const handleToggleReportSelection = (reportId: number) => {
+    setSelectedReports(prev =>
+      prev.includes(reportId)
+        ? prev.filter(id => id !== reportId)
+        : [...prev, reportId]
+    );
+  };
+
+  const handleToggleAllReports = () => {
+    if (selectedReports.length === seoReports.length) {
+      setSelectedReports([]);
+    } else {
+      setSelectedReports(seoReports.map(r => r.id));
+    }
+  };
+
+  const handleDeleteSelectedReports = async () => {
+    if (selectedReports.length === 0) {
+      alert('Please select reports to delete');
+      return;
+    }
+
+    if (window.confirm(`Are you sure you want to delete ${selectedReports.length} report(s)?`)) {
+      try {
+        await Promise.all(
+          selectedReports.map(reportId =>
+            http.delete(`/leads/${id}/seo-reports/${reportId}`)
+          )
+        );
+        alert(`✅ Successfully deleted ${selectedReports.length} report(s)`);
+        setSelectedReports([]);
+        fetchLeadData(); // Refresh the list
+      } catch (error) {
+        console.error('Error deleting reports:', error);
+        alert('Failed to delete some reports');
+      }
+    }
   };
 
   const getStatusBadgeClass = (status: string) => {
@@ -628,19 +675,30 @@ const LeadDetail: React.FC = () => {
 
         {activeTab === 'seo' && (
           <div className="seo-tab">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
               <h4 style={{ margin: 0, fontWeight: '600' }}>SEO Reports</h4>
-              <button 
-                className="btn btn-primary"
-                onClick={handleOpenSEOModal}
-                style={{ 
-                  minWidth: '180px',
-                  fontWeight: '600',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                }}
-              >
-                <i className="fas fa-chart-line me-2"></i>Generate SEO Report
-              </button>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                {selectedReports.length > 0 && (
+                  <button 
+                    className="btn btn-danger"
+                    onClick={handleDeleteSelectedReports}
+                    style={{ fontWeight: '600' }}
+                  >
+                    <i className="fas fa-trash me-2"></i>Delete Selected ({selectedReports.length})
+                  </button>
+                )}
+                <button 
+                  className="btn btn-primary"
+                  onClick={handleOpenSEOModal}
+                  style={{ 
+                    minWidth: '180px',
+                    fontWeight: '600',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  <i className="fas fa-chart-line me-2"></i>Generate SEO Report
+                </button>
+              </div>
             </div>
 
             <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#e3f2fd', borderRadius: '8px' }}>
@@ -659,46 +717,69 @@ const LeadDetail: React.FC = () => {
                 No SEO reports generated yet
               </p>
             ) : (
-              <div className="seo-report-list">
-                {seoReports.map((report) => (
-                  <div key={report.id} style={{
-                    padding: '15px',
-                    marginBottom: '15px',
-                    backgroundColor: '#f8f9fa',
-                    borderRadius: '8px',
-                    border: '1px solid #e9ecef'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                      <h5 style={{ margin: 0, fontWeight: '600' }}>
-                        {report.report_type.toUpperCase()} SEO Report
-                      </h5>
-                      <span className="badge bg-primary">{report.report_type}</span>
-                    </div>
-                    <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
-                      Generated: {new Date(report.sent_at).toLocaleString()}
-                    </div>
-                    {report.viewed_at && (
-                      <div style={{ fontSize: '14px', color: '#28a745' }}>
-                        <i className="fas fa-eye me-2"></i>
-                        Viewed: {new Date(report.viewed_at).toLocaleString()}
-                      </div>
-                    )}
-                    {report.report_data && (
-                      <div style={{ marginTop: '10px' }}>
-                        <button 
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => {
-                            // TODO: Open report in modal or new page
-                            alert('View Report functionality coming soon');
-                          }}
-                        >
-                          <i className="fas fa-eye me-2"></i>View Report
-                        </button>
-                      </div>
-                    )}
+              <>
+                {seoReports.length > 1 && (
+                  <div style={{ marginBottom: '15px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedReports.length === seoReports.length}
+                        onChange={handleToggleAllReports}
+                        style={{ marginRight: '8px', width: '18px', height: '18px', cursor: 'pointer' }}
+                      />
+                      Select All Reports
+                    </label>
                   </div>
-                ))}
-              </div>
+                )}
+                <div className="seo-report-list">
+                  {seoReports.map((report) => (
+                    <div key={report.id} style={{
+                      padding: '15px',
+                      marginBottom: '15px',
+                      backgroundColor: selectedReports.includes(report.id) ? '#e3f2fd' : '#f8f9fa',
+                      borderRadius: '8px',
+                      border: `2px solid ${selectedReports.includes(report.id) ? '#4682B4' : '#e9ecef'}`,
+                      transition: 'all 0.3s'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'start', gap: '15px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedReports.includes(report.id)}
+                          onChange={() => handleToggleReportSelection(report.id)}
+                          style={{ marginTop: '5px', width: '18px', height: '18px', cursor: 'pointer' }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                            <h5 style={{ margin: 0, fontWeight: '600' }}>
+                              {report.report_type.toUpperCase()} SEO Report
+                            </h5>
+                            <span className="badge bg-primary">{report.report_type}</span>
+                          </div>
+                          <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
+                            Generated: {new Date(report.sent_at).toLocaleString()}
+                          </div>
+                          {report.viewed_at && (
+                            <div style={{ fontSize: '14px', color: '#28a745' }}>
+                              <i className="fas fa-eye me-2"></i>
+                              Viewed: {new Date(report.viewed_at).toLocaleString()}
+                            </div>
+                          )}
+                          {report.report_data && (
+                            <div style={{ marginTop: '10px' }}>
+                              <button 
+                                className="btn btn-sm btn-primary"
+                                onClick={() => handleViewReport(report)}
+                              >
+                                <i className="fas fa-eye me-2"></i>View Report
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         )}
@@ -1013,6 +1094,97 @@ const LeadDetail: React.FC = () => {
                       <i className="fas fa-rocket me-2"></i>Generate Report
                     </>
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report View Modal */}
+      {showReportModal && selectedReport && (
+        <div 
+          className="modal show d-block" 
+          style={{ 
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            zIndex: 1050
+          }}
+          onClick={() => setShowReportModal(false)}
+        >
+          <div 
+            className="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-content" style={{ 
+              border: 'none',
+              borderRadius: '12px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+              maxHeight: '90vh'
+            }}>
+              {/* Modal Header */}
+              <div className="modal-header" style={{ 
+                background: 'linear-gradient(135deg, #4682B4 0%, #87CEEB 100%)',
+                color: 'white',
+                borderRadius: '12px 12px 0 0',
+                padding: '20px 24px'
+              }}>
+                <h5 className="modal-title" style={{ fontWeight: '700', fontSize: '1.4rem' }}>
+                  <i className="fas fa-chart-line me-2"></i>
+                  {selectedReport.report_type.toUpperCase()} SEO Report
+                </h5>
+                <button 
+                  type="button" 
+                  className="btn-close btn-close-white" 
+                  onClick={() => setShowReportModal(false)}
+                  aria-label="Close"
+                ></button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="modal-body" style={{ padding: '24px', overflowY: 'auto' }}>
+                <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                  <h6 style={{ fontWeight: '600', marginBottom: '8px' }}>Report Information</h6>
+                  <div style={{ fontSize: '14px', lineHeight: '1.8' }}>
+                    <div><strong>Generated:</strong> {new Date(selectedReport.sent_at).toLocaleString()}</div>
+                    {selectedReport.viewed_at && (
+                      <div><strong>Last Viewed:</strong> {new Date(selectedReport.viewed_at).toLocaleString()}</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Report Data Display */}
+                <div style={{ 
+                  padding: '20px',
+                  backgroundColor: 'white',
+                  borderRadius: '8px',
+                  border: '1px solid #dee2e6'
+                }}>
+                  <pre style={{ 
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    fontSize: '13px',
+                    maxHeight: '500px',
+                    overflowY: 'auto',
+                    margin: 0
+                  }}>
+                    {JSON.stringify(selectedReport.report_data, null, 2)}
+                  </pre>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="modal-footer" style={{ 
+                padding: '16px 24px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '0 0 12px 12px'
+              }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary"
+                  onClick={() => setShowReportModal(false)}
+                  style={{ minWidth: '100px' }}
+                >
+                  <i className="fas fa-times me-2"></i>Close
                 </button>
               </div>
             </div>

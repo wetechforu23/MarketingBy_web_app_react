@@ -1345,6 +1345,48 @@ router.get('/client-dashboard/api-access', async (req, res) => {
     }
   });
 
+  // Delete SEO report(s) for a lead
+  router.delete('/leads/:id/seo-reports/:reportId', async (req, res) => {
+    try {
+      const { id, reportId } = req.params;
+      
+      console.log(`🗑️  Deleting SEO report ${reportId} for lead ${id}...`);
+      
+      // Verify the report belongs to the lead
+      const reportCheck = await pool.query(
+        'SELECT id FROM lead_seo_reports WHERE id = $1 AND lead_id = $2',
+        [reportId, id]
+      );
+      
+      if (reportCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Report not found' });
+      }
+      
+      // Delete the report
+      await pool.query('DELETE FROM lead_seo_reports WHERE id = $1', [reportId]);
+      
+      // Log activity
+      await pool.query(
+        `INSERT INTO lead_activity (lead_id, activity_type, activity_data, created_at)
+         VALUES ($1, $2, $3, NOW())`,
+        [id, 'seo_report_deleted', JSON.stringify({ report_id: reportId })]
+      );
+      
+      console.log(`✅ SEO report ${reportId} deleted successfully`);
+      
+      res.json({
+        success: true,
+        message: 'SEO report deleted successfully'
+      });
+    } catch (error) {
+      console.error('Delete SEO report error:', error);
+      res.status(500).json({
+        error: 'Failed to delete SEO report',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Send SEO report to lead
 router.post('/send-seo-report', async (req, res) => {
   try {
