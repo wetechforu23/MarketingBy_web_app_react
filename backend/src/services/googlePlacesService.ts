@@ -4,6 +4,11 @@ export interface GooglePlace {
   place_id: string;
   name: string;
   formatted_address: string;
+  address_components?: Array<{
+    long_name: string;
+    short_name: string;
+    types: string[];
+  }>;
   geometry: {
     location: {
       lat: number;
@@ -197,7 +202,7 @@ export class GooglePlacesService {
       const params = {
         key: this.apiKey,
         place_id: placeId,
-        fields: 'place_id,name,formatted_address,geometry,types,rating,user_ratings_total,price_level,business_status,formatted_phone_number,website,opening_hours,photos',
+        fields: 'place_id,name,formatted_address,address_components,geometry,types,rating,user_ratings_total,price_level,business_status,formatted_phone_number,website,opening_hours,photos',
       };
 
       const response = await axios.get(`${this.baseUrl}/details/json`, { params });
@@ -218,18 +223,21 @@ export class GooglePlacesService {
    * Convert Google Place to Lead format
    */
   convertPlaceToLead(place: GooglePlace, source: string = 'Google Places'): any {
+    // Extract detailed address components
+    const addressDetails = this.extractDetailedAddress(place);
+    
     return {
       name: place.name,
       company: place.name,
       website_url: place.website || '',
       phone: place.formatted_phone_number || '',
-      address: place.formatted_address,
-      city: this.extractCityFromAddress(place.formatted_address),
-      state: this.extractStateFromAddress(place.formatted_address),
-      zip_code: this.extractZipFromAddress(place.formatted_address),
+      address: addressDetails.full_address,  // Full formatted address
+      city: addressDetails.city,
+      state: addressDetails.state,
+      zip_code: addressDetails.zip_code,
       lead_source: source,
       status: 'new',
-      notes: `Found via Google Places API. Rating: ${place.rating || 'N/A'}, Reviews: ${place.user_ratings_total || 0}`,
+      notes: `Found via Google Places API. Address: ${addressDetails.street}. Rating: ${place.rating || 'N/A'}, Reviews: ${place.user_ratings_total || 0}`,
       industry_category: 'Healthcare',
       industry_subcategory: this.determineHealthcareSubcategory(place.types),
       compliance_status: 'pending',
@@ -238,6 +246,9 @@ export class GooglePlacesService {
       google_rating: place.rating,
       google_review_count: place.user_ratings_total,
       google_business_status: place.business_status,
+      // Store geo-location
+      geo_latitude: place.geometry.location.lat,
+      geo_longitude: place.geometry.location.lng,
     };
   }
 
@@ -270,6 +281,60 @@ export class GooglePlacesService {
     }
 
     return allLeads;
+  }
+
+  /**
+   * Extract detailed address components from Google Place
+   * Returns street address, city, state, zip code separately
+   */
+  private extractDetailedAddress(place: GooglePlace): {
+    street: string;
+    city: string;
+    state: string;
+    zip_code: string;
+    full_address: string;
+  } {
+    const result = {
+      street: '',
+      city: '',
+      state: '',
+      zip_code: '',
+      full_address: place.formatted_address || ''
+    };
+
+    // If address_components are available, use them for more accurate parsing
+    if (place.address_components && place.address_components.length > 0) {
+      for (const component of place.address_components) {
+        if (component.types.includes('street_number')) {
+          result.street = component.long_name + ' ';
+        }
+        if (component.types.includes('route')) {
+          result.street += component.long_name;
+        }
+        if (component.types.includes('locality')) {
+          result.city = component.long_name;
+        }
+        if (component.types.includes('administrative_area_level_1')) {
+          result.state = component.short_name;
+        }
+        if (component.types.includes('postal_code')) {
+          result.zip_code = component.long_name;
+        }
+      }
+      result.street = result.street.trim();
+    } else {
+      // Fallback to parsing formatted_address
+      const parts = place.formatted_address?.split(',') || [];
+      if (parts.length > 0) result.street = parts[0].trim();
+      if (parts.length > 1) result.city = parts[1].trim();
+      if (parts.length > 2) {
+        const stateZip = parts[2].trim().split(' ');
+        result.state = stateZip[0] || '';
+        result.zip_code = stateZip[1] || '';
+      }
+    }
+
+    return result;
   }
 
   private extractCityFromAddress(address: string): string {

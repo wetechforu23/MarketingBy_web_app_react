@@ -482,11 +482,34 @@ class EnhancedScrapingService {
 
       // Process each business
       for (const place of detailedPlaces) {
-        // Parse address components
-        let city = '', state = '', zipCodeValue = '';
+        // Parse address components - use address_components for accuracy
+        let city = '', state = '', zipCodeValue = '', streetAddress = '';
         
-        if (place.formatted_address) {
+        if (place.address_components && place.address_components.length > 0) {
+          // Use address_components for more accurate parsing
+          for (const component of place.address_components) {
+            if (component.types.includes('street_number')) {
+              streetAddress = component.long_name + ' ';
+            }
+            if (component.types.includes('route')) {
+              streetAddress += component.long_name;
+            }
+            if (component.types.includes('locality')) {
+              city = component.long_name;
+            }
+            if (component.types.includes('administrative_area_level_1')) {
+              state = component.short_name;
+            }
+            if (component.types.includes('postal_code')) {
+              zipCodeValue = component.long_name;
+            }
+          }
+        } else if (place.formatted_address) {
+          // Fallback to parsing formatted_address
           const addressParts = place.formatted_address.split(',');
+          if (addressParts.length >= 1) {
+            streetAddress = addressParts[0].trim();
+          }
           if (addressParts.length >= 2) {
             city = addressParts[addressParts.length - 2].trim();
           }
@@ -693,11 +716,34 @@ class EnhancedScrapingService {
       
       // Convert to our business format
       const businesses = detailedPlaces.map(place => {
-        // Try to get detailed information if available
-        let city = '', state = '', zipCode = '';
+        // Extract detailed address components using address_components
+        let city = '', state = '', zipCode = '', streetAddress = '';
         
-        if (place.formatted_address) {
+        if (place.address_components && place.address_components.length > 0) {
+          // Use address_components for more accurate parsing
+          for (const component of place.address_components) {
+            if (component.types.includes('street_number')) {
+              streetAddress = component.long_name + ' ';
+            }
+            if (component.types.includes('route')) {
+              streetAddress += component.long_name;
+            }
+            if (component.types.includes('locality')) {
+              city = component.long_name;
+            }
+            if (component.types.includes('administrative_area_level_1')) {
+              state = component.short_name;
+            }
+            if (component.types.includes('postal_code')) {
+              zipCode = component.long_name;
+            }
+          }
+        } else if (place.formatted_address) {
+          // Fallback to parsing formatted_address
           const addressParts = place.formatted_address.split(',');
+          if (addressParts.length >= 1) {
+            streetAddress = addressParts[0].trim();
+          }
           if (addressParts.length >= 2) {
             city = addressParts[addressParts.length - 2].trim();
           }
