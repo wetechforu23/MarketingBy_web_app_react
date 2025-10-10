@@ -71,6 +71,8 @@ const LeadDetail: React.FC = () => {
   const [seoReportType, setSeoReportType] = useState<'basic' | 'comprehensive'>('basic');
   const [sendEmailWithReport, setSendEmailWithReport] = useState(false);
   const [generatingReport, setGeneratingReport] = useState(false);
+  const [reportProgress, setReportProgress] = useState(0);
+  const [reportProgressMessage, setReportProgressMessage] = useState('');
 
   useEffect(() => {
     fetchLeadData();
@@ -138,24 +140,71 @@ const LeadDetail: React.FC = () => {
     
     if (window.confirm(confirmMessage)) {
       setGeneratingReport(true);
+      setReportProgress(0);
+      setReportProgressMessage('Initializing SEO analysis...');
+      
+      // Simulate progress for better UX
+      const progressSteps = reportType === 'basic' 
+        ? [
+            { progress: 10, message: 'Fetching website content...' },
+            { progress: 30, message: 'Analyzing meta tags...' },
+            { progress: 50, message: 'Checking page structure...' },
+            { progress: 70, message: 'Running performance tests...' },
+            { progress: 90, message: 'Generating recommendations...' },
+            { progress: 95, message: 'Finalizing report...' }
+          ]
+        : [
+            { progress: 5, message: 'Fetching website content...' },
+            { progress: 15, message: 'Analyzing meta tags & structure...' },
+            { progress: 25, message: 'Checking technical SEO...' },
+            { progress: 35, message: 'Scanning for broken links...' },
+            { progress: 45, message: 'Analyzing competitor data...' },
+            { progress: 55, message: 'Researching keywords...' },
+            { progress: 65, message: 'Checking backlink profile...' },
+            { progress: 75, message: 'Running performance analysis...' },
+            { progress: 85, message: 'Auditing content quality...' },
+            { progress: 95, message: 'Compiling comprehensive report...' }
+          ];
+
+      let currentStep = 0;
+      const progressInterval = setInterval(() => {
+        if (currentStep < progressSteps.length) {
+          setReportProgress(progressSteps[currentStep].progress);
+          setReportProgressMessage(progressSteps[currentStep].message);
+          currentStep++;
+        }
+      }, reportType === 'basic' ? 1500 : 2500); // Slower for comprehensive
+
       try {
         const res = await http.post(`/leads/${id}/generate-seo-report`, {
           reportType,
           sendEmail
         });
         
-        const successMessage = res.data.emailSent
-          ? `✅ ${reportType} SEO report generated and sent to ${lead.email}`
-          : `✅ ${reportType} SEO report generated successfully`;
+        clearInterval(progressInterval);
+        setReportProgress(100);
+        setReportProgressMessage('Report generated successfully!');
         
-        alert(successMessage);
-        setShowSEOModal(false);
-        fetchLeadData(); // Refresh to show new report
+        // Show success for a moment
+        setTimeout(() => {
+          const successMessage = res.data.emailSent
+            ? `✅ ${reportType} SEO report generated and sent to ${lead.email}`
+            : `✅ ${reportType} SEO report generated successfully`;
+          
+          alert(successMessage);
+          setShowSEOModal(false);
+          setGeneratingReport(false);
+          setReportProgress(0);
+          setReportProgressMessage('');
+          fetchLeadData(); // Refresh to show new report
+        }, 1000);
       } catch (error: any) {
-        console.error('Error generating SEO report:', error);
-        alert(error.response?.data?.details || 'Failed to generate SEO report');
-      } finally {
+        clearInterval(progressInterval);
         setGeneratingReport(false);
+        setReportProgress(0);
+        setReportProgressMessage('');
+        console.error('Error generating SEO report:', error);
+        alert(error.response?.data?.details || 'Failed to generate SEO report. Please try again.');
       }
     }
   };
@@ -889,6 +938,47 @@ const LeadDetail: React.FC = () => {
                     )}
                   </div>
                 </div>
+
+                {/* Progress Bar (when generating) */}
+                {generatingReport && (
+                  <div style={{ 
+                    padding: '16px',
+                    backgroundColor: '#e7f3ff',
+                    borderRadius: '8px',
+                    border: '2px solid #4682B4',
+                    marginBottom: '16px'
+                  }}>
+                    <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h6 style={{ fontWeight: '600', margin: 0, color: '#4682B4' }}>
+                        <i className="fas fa-cog fa-spin me-2"></i>
+                        Generating Report
+                      </h6>
+                      <span style={{ fontWeight: '700', fontSize: '1.1rem', color: '#4682B4' }}>
+                        {reportProgress}%
+                      </span>
+                    </div>
+                    <div className="progress" style={{ height: '25px', marginBottom: '10px' }}>
+                      <div 
+                        className="progress-bar progress-bar-striped progress-bar-animated bg-info" 
+                        role="progressbar" 
+                        style={{ width: `${reportProgress}%`, fontSize: '14px', fontWeight: '600' }}
+                        aria-valuenow={reportProgress} 
+                        aria-valuemin={0} 
+                        aria-valuemax={100}
+                      >
+                        {reportProgress > 10 && `${reportProgress}%`}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#495057', fontStyle: 'italic' }}>
+                      <i className="fas fa-info-circle me-2" style={{ color: '#4682B4' }}></i>
+                      {reportProgressMessage}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '8px' }}>
+                      <i className="fas fa-clock me-1"></i>
+                      Estimated time: {seoReportType === 'basic' ? '10-15 seconds' : '25-30 seconds'}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Modal Footer */}
