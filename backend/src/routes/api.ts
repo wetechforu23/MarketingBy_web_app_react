@@ -1179,11 +1179,13 @@ router.get('/client-dashboard/api-access', async (req, res) => {
       const { reportType, sendEmail } = req.body;
       
       console.log(`🔍 Generating ${reportType} SEO report for lead ${id}...`);
+      console.log(`📧 Send email requested: ${sendEmail}`);
       
       // Get lead details
       const leadResult = await pool.query('SELECT * FROM leads WHERE id = $1', [id]);
       
       if (leadResult.rows.length === 0) {
+        console.error(`❌ Lead ${id} not found`);
         return res.status(404).json({ error: 'Lead not found' });
       }
       
@@ -1193,64 +1195,98 @@ router.get('/client-dashboard/api-access', async (req, res) => {
       const contactName = `${lead.contact_first_name || ''} ${lead.contact_last_name || ''}`.trim() || 'there';
       const contactEmail = lead.email;
       
+      console.log(`📊 Lead details - Company: ${companyName}, Website: ${websiteUrl}, Email: ${contactEmail}`);
+      
       if (!websiteUrl) {
+        console.error(`❌ Lead ${id} has no website URL`);
         return res.status(400).json({ error: 'Lead has no website URL' });
       }
       
       // Import SEO services
+      console.log('📦 Loading SEO services...');
       const ComprehensiveSEOService = require('../services/comprehensiveSEOService').ComprehensiveSEOService;
       const SEOEmailReportService = require('../services/seoEmailReportService').SEOEmailReportService;
       
       const seoService = ComprehensiveSEOService.getInstance();
       const emailService = SEOEmailReportService.getInstance();
+      console.log('✅ SEO services loaded');
       
       let reportData;
       let emailSent = false;
       
       if (reportType === 'basic') {
         console.log('📊 Running basic SEO analysis...');
-        reportData = await seoService.generateBasicSEOReport(websiteUrl, companyName);
+        try {
+          reportData = await seoService.generateBasicSEOReport(websiteUrl, companyName);
+          console.log('✅ Basic SEO analysis complete');
+        } catch (seoError) {
+          console.error('❌ Basic SEO analysis failed:', seoError);
+          throw new Error(`SEO analysis failed: ${seoError instanceof Error ? seoError.message : 'Unknown error'}`);
+        }
         
         // Send email if requested
         if (sendEmail && contactEmail) {
           console.log(`📧 Sending basic SEO report to ${contactEmail}...`);
-          emailSent = await emailService.sendBasicSEOReport(
-            contactEmail,
-            companyName,
-            contactName,
-            websiteUrl,
-            reportData
-          );
+          try {
+            emailSent = await emailService.sendBasicSEOReport(
+              contactEmail,
+              companyName,
+              contactName,
+              websiteUrl,
+              reportData
+            );
+            console.log(`✅ Email sent status: ${emailSent}`);
+          } catch (emailError) {
+            console.error('❌ Email sending failed:', emailError);
+            // Don't fail the whole request if email fails
+            emailSent = false;
+          }
         }
       } else if (reportType === 'comprehensive') {
         console.log('📊 Running comprehensive SEO analysis...');
-        reportData = await seoService.generateComprehensiveSEOReport(
-          websiteUrl,
-          companyName,
-          lead.industry || 'healthcare'
-        );
+        try {
+          reportData = await seoService.generateComprehensiveSEOReport(
+            websiteUrl,
+            companyName,
+            lead.industry || 'healthcare'
+          );
+          console.log('✅ Comprehensive SEO analysis complete');
+        } catch (seoError) {
+          console.error('❌ Comprehensive SEO analysis failed:', seoError);
+          throw new Error(`SEO analysis failed: ${seoError instanceof Error ? seoError.message : 'Unknown error'}`);
+        }
         
         // Send email if requested
         if (sendEmail && contactEmail) {
           console.log(`📧 Sending comprehensive SEO report to ${contactEmail}...`);
-          emailSent = await emailService.sendComprehensiveSEOReport(
-            contactEmail,
-            companyName,
-            contactName,
-            websiteUrl,
-            reportData
-          );
+          try {
+            emailSent = await emailService.sendComprehensiveSEOReport(
+              contactEmail,
+              companyName,
+              contactName,
+              websiteUrl,
+              reportData
+            );
+            console.log(`✅ Email sent status: ${emailSent}`);
+          } catch (emailError) {
+            console.error('❌ Email sending failed:', emailError);
+            // Don't fail the whole request if email fails
+            emailSent = false;
+          }
         }
       } else {
+        console.error(`❌ Invalid report type: ${reportType}`);
         return res.status(400).json({ error: 'Invalid report type. Use "basic" or "comprehensive"' });
       }
       
       // Save report to database
+      console.log('💾 Saving report to database...');
       const reportResult = await pool.query(
         `INSERT INTO lead_seo_reports (lead_id, report_type, report_data, sent_at)
          VALUES ($1, $2, $3, NOW()) RETURNING *`,
         [id, reportType, JSON.stringify(reportData)]
       );
+      console.log('✅ Report saved to database');
       
       // Log activity
       const activityData = {
@@ -1266,6 +1302,7 @@ router.get('/client-dashboard/api-access', async (req, res) => {
          VALUES ($1, $2, $3, NOW())`,
         [id, 'seo_report_generated', JSON.stringify(activityData)]
       );
+      console.log('✅ Activity logged');
       
       // Log email sent activity
       if (emailSent) {
@@ -1285,6 +1322,7 @@ router.get('/client-dashboard/api-access', async (req, res) => {
            VALUES ($1, $2, $3, NOW())`,
           [id, 'email_sent', JSON.stringify({ type: `${reportType}_seo_report`, email: contactEmail })]
         );
+        console.log('✅ Email activity logged');
       }
       
       console.log(`✅ ${reportType} SEO report generated successfully${emailSent ? ' and sent' : ''}`);
@@ -1298,7 +1336,8 @@ router.get('/client-dashboard/api-access', async (req, res) => {
           : `${reportType} SEO report generated successfully`
       });
     } catch (error) {
-      console.error('Generate SEO report error:', error);
+      console.error('❌ Generate SEO report error:', error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       res.status(500).json({
         error: 'Failed to generate SEO report',
         details: error instanceof Error ? error.message : 'Unknown error'
