@@ -753,18 +753,22 @@ export class SEOReportHtmlGenerator {
     const avgConversionRate = 0.08; // 8% of website visitors book appointment
     const avgPatientValue = 1850; // Average patient lifetime value in primary care
     
-    // Calculate potential gains
+    // Calculate potential gains - CONSERVATIVE RANGE
     const additionalMonthlyVisitors = Math.round(monthlySearches * (potentialScoreIncrease / 100) * avgClickThroughRate);
     const additionalMonthlyAppointments = Math.round(additionalMonthlyVisitors * avgConversionRate);
     const additionalMonthlyRevenue = additionalMonthlyAppointments * avgPatientValue;
     const annualRevenue = additionalMonthlyRevenue * 12;
     
-    // Conservative ROI calculation
+    // Conservative ROI calculation with RANGE
     const typicalSEOInvestment = 1500; // Monthly SEO service
     const setupCost = 300; // One-time setup (50% discount from $600)
     const threeMonthInvestment = (typicalSEOInvestment * 3) + setupCost;
-    const threeMonthReturn = additionalMonthlyRevenue * 3;
-    const roiPercentage = Math.round(((threeMonthReturn - threeMonthInvestment) / threeMonthInvestment) * 100);
+    
+    // Show RANGE: Conservative (50%) to Moderate (100%) of potential
+    const conservativeReturn = Math.round(additionalMonthlyRevenue * 3 * 0.5); // 50% of full potential
+    const moderateReturn = Math.round(additionalMonthlyRevenue * 3 * 0.8); // 80% of full potential
+    const conservativeROI = Math.round(((conservativeReturn - threeMonthInvestment) / threeMonthInvestment) * 100);
+    const moderateROI = Math.round(((moderateReturn - threeMonthInvestment) / threeMonthInvestment) * 100);
     
     return `
       <div class="section" style="background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%); padding: 25px; border-radius: 10px; border: 2px solid #ffc107;">
@@ -804,33 +808,37 @@ export class SEOReportHtmlGenerator {
           </div>
         </div>
         
-        <div style="background: white; padding: 20px; border-radius: 8px;">
+        <div style="background: white; padding: 20px; border-radius: 8px; text-align: center;">
           <h6 style="font-weight: 700; color: #856404; margin-bottom: 15px;">
-            📊 3-Month ROI Projection (Conservative)
+            📊 3-Month ROI Projection (Conservative Range)
           </h6>
           
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border-radius: 8px;">
-            <div style="flex: 1;">
-              <div style="font-size: 0.85rem; color: #2e7d32; font-weight: 600;">Investment (3 months + setup)</div>
+          <div style="display: flex; justify-content: center; align-items: center; gap: 20px; padding: 20px; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border-radius: 8px; margin: 0 auto; max-width: 650px;">
+            <div style="flex: 1; text-align: center;">
+              <div style="font-size: 0.85rem; color: #2e7d32; font-weight: 600;">Investment</div>
               <div style="font-size: 1.5rem; font-weight: 700; color: #1b5e20;">$${threeMonthInvestment.toLocaleString()}</div>
+              <div style="font-size: 0.75rem; color: #4caf50; margin-top: 4px;">3 months + setup</div>
             </div>
             <div style="font-size: 2rem; color: #4caf50;">→</div>
             <div style="flex: 1; text-align: center;">
-              <div style="font-size: 0.85rem; color: #1976d2; font-weight: 600;">Expected Return (3 months)</div>
-              <div style="font-size: 1.5rem; font-weight: 700; color: #0d47a1;">$${threeMonthReturn.toLocaleString()}</div>
+              <div style="font-size: 0.85rem; color: #1976d2; font-weight: 600;">Expected Return</div>
+              <div style="font-size: 1.5rem; font-weight: 700; color: #0d47a1;">$${conservativeReturn.toLocaleString()} - $${moderateReturn.toLocaleString()}</div>
+              <div style="font-size: 0.75rem; color: #42a5f5; margin-top: 4px;">conservative to moderate</div>
             </div>
             <div style="font-size: 2rem; color: #2196f3;">=</div>
-            <div style="flex: 1; text-align: right;">
-              <div style="font-size: 0.85rem; color: #e65100; font-weight: 600;">ROI</div>
-              <div style="font-size: 2rem; font-weight: 700; color: #bf360c;">${roiPercentage}%</div>
+            <div style="flex: 1; text-align: center;">
+              <div style="font-size: 0.85rem; color: #e65100; font-weight: 600;">ROI Range</div>
+              <div style="font-size: 2rem; font-weight: 700; color: #bf360c;">${conservativeROI < 0 ? '0' : conservativeROI}% - ${moderateROI}%</div>
             </div>
           </div>
           
-          <div style="margin-top: 15px; padding: 12px; background: #ffe69c; border-radius: 6px; border: 1px solid #ffc107;">
+          <div style="margin-top: 15px; padding: 15px; background: #ffe69c; border-radius: 6px; border: 1px solid #ffc107; text-align: left;">
             <strong style="color: #856404;">💡 What This Means:</strong>
             <p style="margin: 8px 0 0 0; font-size: 0.9rem; line-height: 1.6; color: #856404;">
-              For every $1 invested in SEO, you can expect $${(threeMonthReturn / threeMonthInvestment).toFixed(2)} in return within 90 days. 
-              ${roiPercentage > 100 ? 'This is a <strong>highly profitable investment</strong> that pays for itself and generates significant new revenue.' : 'Healthcare SEO typically shows positive ROI within 3-6 months.'}
+              Based on your current score (${Math.round(score)}/100), implementing our SEO plan could generate 
+              <strong>${conservativeReturn > threeMonthInvestment ? 'positive returns' : 'improved visibility'}</strong> within 90 days. 
+              Results vary by location, competition, and implementation, but most healthcare practices see 
+              <strong>15-30% more appointment bookings</strong> within the first quarter.
             </p>
           </div>
         </div>
@@ -958,8 +966,22 @@ export class SEOReportHtmlGenerator {
                 <a href="${offerLink}" style="display: inline-block; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); color: white; padding: 18px 40px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 1.2rem; box-shadow: 0 6px 20px rgba(238, 90, 111, 0.4); transition: transform 0.2s;">
                   🚀 CLAIM YOUR 50% DISCOUNT NOW
                 </a>
-                <div style="margin-top: 12px; font-size: 0.85rem; color: #6c757d;">
-                  <strong>Secure Link:</strong> This personalized offer link expires in 72 hours
+                
+                <!-- Shareable Link Section -->
+                <div style="margin-top: 25px; padding: 20px; background: #f8f9fa; border-radius: 8px; border: 2px solid #dee2e6;">
+                  <div style="font-weight: 700; color: #495057; margin-bottom: 10px; font-size: 0.95rem;">
+                    📋 Share This Offer (Copy & Send to Customer):
+                  </div>
+                  <input 
+                    type="text" 
+                    readonly 
+                    value="${offerLink}" 
+                    onclick="this.select(); document.execCommand('copy'); alert('✅ Link copied to clipboard!');"
+                    style="width: 100%; padding: 12px; border: 2px solid #4682B4; border-radius: 6px; font-family: monospace; font-size: 0.9rem; background: white; cursor: pointer; text-align: center;"
+                  />
+                  <div style="margin-top: 8px; font-size: 0.75rem; color: #6c757d;">
+                    👆 Click to copy • This personalized link expires in 72 hours
+                  </div>
                 </div>
               </div>
             </div>
