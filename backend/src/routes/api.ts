@@ -1377,11 +1377,19 @@ router.get('/client-dashboard/api-access', async (req, res) => {
       // Save report to database
       console.log('💾 Saving report to database...');
       
+      // Generate report name: SEO_Report_CompanyName_Client_YYYY-MM-DD
+      const clientIdForName = (req as any).user?.client_id || lead.client_id || 'N/A';
+      const dateString = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const cleanCompanyName = companyName.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_'); // Clean company name
+      const reportName = `SEO_Report_${cleanCompanyName}_Client_${dateString}`;
+      
+      console.log(`📝 Generated report name: ${reportName}`);
+      
       // First insert report to get report ID for offer token
       const reportResult = await pool.query(
-        `INSERT INTO lead_seo_reports (lead_id, report_type, report_data, sent_at)
-         VALUES ($1, $2, $3, NOW()) RETURNING *`,
-        [id, reportType, JSON.stringify(reportData)]
+        `INSERT INTO lead_seo_reports (lead_id, report_type, report_data, report_name, sent_at)
+         VALUES ($1, $2, $3, $4, NOW()) RETURNING *`,
+        [id, reportType, JSON.stringify(reportData), reportName]
       );
       
       const reportId = reportResult.rows[0].id;

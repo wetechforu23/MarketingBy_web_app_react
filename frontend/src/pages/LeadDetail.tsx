@@ -55,6 +55,7 @@ interface SEOReport {
   offer_token?: string; // Unique token for shareable offer link
   offer_expires_at?: string; // Expiration timestamp (72 hours)
   offer_claimed?: boolean; // Whether customer claimed the offer
+  report_name?: string; // Human-readable name: SEO_Report_CompanyName_Client_Date
 }
 
 const LeadDetail: React.FC = () => {
@@ -772,7 +773,7 @@ const LeadDetail: React.FC = () => {
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                             <h5 style={{ margin: 0, fontWeight: '600' }}>
-                              {report.report_type.toUpperCase()} SEO Report
+                              {report.report_name || `${report.report_type.toUpperCase()} SEO Report`}
                             </h5>
                             <span className="badge bg-primary">{report.report_type}</span>
                           </div>
