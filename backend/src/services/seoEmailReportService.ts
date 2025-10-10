@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import pool from '../config/database';
 import * as crypto from 'crypto';
+import { MicrosoftGraphEmailService } from './microsoftGraphSEOEmailService';
 
 interface EmailConfig {
   from: string;
@@ -13,6 +14,7 @@ export class SEOEmailReportService {
   private static instance: SEOEmailReportService;
   private emailConfig: EmailConfig | null = null;
   private calendarBookingLink: string = '';
+  private useMicrosoftGraph: boolean = true; // Prefer Microsoft Graph
 
   private constructor() {
     this.initializeConfig();
@@ -104,6 +106,22 @@ export class SEOEmailReportService {
         toEmail
       );
 
+      const subject = `🚀 Your Free Basic SEO Analysis - ${companyName}`;
+
+      // Try Microsoft Graph first
+      if (this.useMicrosoftGraph) {
+        try {
+          const graphService = MicrosoftGraphEmailService.getInstance();
+          await graphService.sendEmail(toEmail, subject, htmlContent);
+          console.log(`✅ Basic SEO report sent via Microsoft Graph to ${toEmail}`);
+          return true;
+        } catch (graphError) {
+          console.warn('⚠️ Microsoft Graph failed, falling back to nodemailer:', graphError);
+          this.useMicrosoftGraph = false; // Disable for future attempts this session
+        }
+      }
+
+      // Fallback to nodemailer
       const transporter = nodemailer.createTransport({
         service: this.emailConfig?.service || 'gmail',
         auth: {
@@ -115,11 +133,11 @@ export class SEOEmailReportService {
       await transporter.sendMail({
         from: `"WeTechForU - Healthcare Marketing" <${this.emailConfig?.from}>`,
         to: toEmail,
-        subject: `🚀 Your Free Basic SEO Analysis - ${companyName}`,
+        subject,
         html: htmlContent
       });
 
-      console.log(`✅ Basic SEO report sent to ${toEmail}`);
+      console.log(`✅ Basic SEO report sent via nodemailer to ${toEmail}`);
       return true;
     } catch (error) {
       console.error('Error sending basic SEO report:', error);
@@ -146,6 +164,22 @@ export class SEOEmailReportService {
         toEmail
       );
 
+      const subject = `📊 Your Complete SEO & Competitor Analysis - ${companyName}`;
+
+      // Try Microsoft Graph first
+      if (this.useMicrosoftGraph) {
+        try {
+          const graphService = MicrosoftGraphEmailService.getInstance();
+          await graphService.sendEmail(toEmail, subject, htmlContent);
+          console.log(`✅ Comprehensive SEO report sent via Microsoft Graph to ${toEmail}`);
+          return true;
+        } catch (graphError) {
+          console.warn('⚠️ Microsoft Graph failed, falling back to nodemailer:', graphError);
+          this.useMicrosoftGraph = false;
+        }
+      }
+
+      // Fallback to nodemailer
       const transporter = nodemailer.createTransport({
         service: this.emailConfig?.service || 'gmail',
         auth: {
@@ -157,11 +191,11 @@ export class SEOEmailReportService {
       await transporter.sendMail({
         from: `"WeTechForU - Healthcare Marketing" <${this.emailConfig?.from}>`,
         to: toEmail,
-        subject: `📊 Your Complete SEO & Competitor Analysis - ${companyName}`,
+        subject,
         html: htmlContent
       });
 
-      console.log(`✅ Comprehensive SEO report sent to ${toEmail}`);
+      console.log(`✅ Comprehensive SEO report sent via nodemailer to ${toEmail}`);
       return true;
     } catch (error) {
       console.error('Error sending comprehensive SEO report:', error);
