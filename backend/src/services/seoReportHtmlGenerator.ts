@@ -15,6 +15,7 @@ interface BasicSEOData {
   recommendations: string[];
   score: number;
   analyzedAt: string;
+  reportId?: number; // Optional report ID for offer link tracking
   enhancedData?: any; // Optional enhanced data from EnhancedSEOAnalyzer
 }
 
@@ -404,7 +405,7 @@ export class SEOReportHtmlGenerator {
       ${this.generateHealthcareROI(finalScore, data.companyName)}
 
       <!-- Limited Time Offer -->
-      ${this.generateLimitedOffer(data.websiteUrl, data.companyName)}
+      ${this.generateLimitedOffer(data.websiteUrl, data.companyName, data.reportId)}
 
       <!-- Next Steps -->
       <div class="section" style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); padding: 25px; border-radius: 10px;">
@@ -870,14 +871,16 @@ export class SEOReportHtmlGenerator {
   /**
    * Generate Limited Time Offer section with expiring link
    */
-  private static generateLimitedOffer(websiteUrl: string, companyName: string): string {
+  private static generateLimitedOffer(websiteUrl: string, companyName: string, reportId?: number): string {
     const now = new Date();
     const expirationDate = new Date(now.getTime() + (72 * 60 * 60 * 1000)); // 72 hours
     const hoursRemaining = 72;
     
-    // Create unique offer token (in production, this would be stored in database)
-    const offerToken = Buffer.from(`${websiteUrl}-${now.getTime()}`).toString('base64').substring(0, 16);
-    const offerLink = `https://www.marketingby.wetechforu.com/offer/${offerToken}`;
+    // Create unique offer token using report ID (more secure & trackable)
+    const offerToken = reportId 
+      ? Buffer.from(`report-${reportId}-${now.getTime()}`).toString('base64').substring(0, 20)
+      : Buffer.from(`${websiteUrl}-${now.getTime()}`).toString('base64').substring(0, 20);
+    const offerLink = `https://www.marketingby.wetechforu.com/api/public/offer/${offerToken}`;
     
     return `
       <div class="section" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); position: relative; overflow: hidden;">

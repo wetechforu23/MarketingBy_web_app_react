@@ -26,6 +26,90 @@ router.get('/public/pricing-plans', async (req, res) => {
   }
 });
 
+// Public endpoint for SEO report offer (no auth required)
+router.get('/public/offer/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    console.log(`🎁 Fetching SEO report for offer token: ${token}`);
+    
+    // Look up report by offer token
+    const result = await pool.query(
+      `SELECT 
+        lsr.id,
+        lsr.lead_id,
+        lsr.report_type,
+        lsr.html_report,
+        lsr.offer_token,
+        lsr.offer_expires_at,
+        lsr.offer_claimed,
+        lsr.sent_at,
+        l.company,
+        l.clinic_name,
+        l.website_url,
+        l.email,
+        l.contact_first_name,
+        l.contact_last_name
+       FROM lead_seo_reports lsr
+       JOIN leads l ON lsr.lead_id = l.id
+       WHERE lsr.offer_token = $1`,
+      [token]
+    );
+    
+    if (result.rows.length === 0) {
+      console.log(`❌ No report found for token: ${token}`);
+      return res.status(404).send(`
+        <html>
+          <head><title>Offer Not Found</title></head>
+          <body style="font-family: Arial; text-align: center; padding: 50px;">
+            <h1>🔍 Offer Not Found</h1>
+            <p>This offer link is invalid or has been removed.</p>
+            <a href="https://www.marketingby.wetechforu.com" style="color: #4682B4;">Return to Home</a>
+          </body>
+        </html>
+      `);
+    }
+    
+    const report = result.rows[0];
+    
+    // Check if offer has expired
+    const now = new Date();
+    const expiresAt = new Date(report.offer_expires_at);
+    
+    if (now > expiresAt) {
+      console.log(`⏰ Offer expired at: ${expiresAt.toISOString()}`);
+      return res.status(410).send(`
+        <html>
+          <head><title>Offer Expired</title></head>
+          <body style="font-family: Arial; text-align: center; padding: 50px;">
+            <h1>⏰ Offer Expired</h1>
+            <p>This limited-time offer has expired (${expiresAt.toLocaleDateString()}).</p>
+            <p>Please contact us for current pricing and offers.</p>
+            <a href="https://www.marketingby.wetechforu.com" style="color: #4682B4;">Visit Our Website</a>
+          </body>
+        </html>
+      `);
+    }
+    
+    console.log(`✅ Serving SEO report for: ${report.company || report.clinic_name}`);
+    
+    // Return the HTML report
+    res.setHeader('Content-Type', 'text/html');
+    res.send(report.html_report);
+    
+  } catch (error) {
+    console.error('Error fetching offer report:', error);
+    res.status(500).send(`
+      <html>
+        <head><title>Error</title></head>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+          <h1>❌ Error Loading Offer</h1>
+          <p>An error occurred while loading this offer. Please try again later.</p>
+        </body>
+      </html>
+    `);
+  }
+});
+
 // Public endpoint for sign-up (no auth required)
 router.post('/public/signup', async (req, res) => {
   try {
@@ -1293,7 +1377,24 @@ router.get('/client-dashboard/api-access', async (req, res) => {
       // Save report to database
       console.log('💾 Saving report to database...');
       
-      // Generate HTML report
+      // First insert report to get report ID for offer token
+      const reportResult = await pool.query(
+        `INSERT INTO lead_seo_reports (lead_id, report_type, report_data, sent_at)
+         VALUES ($1, $2, $3, NOW()) RETURNING *`,
+        [id, reportType, JSON.stringify(reportData)]
+      );
+      
+      const reportId = reportResult.rows[0].id;
+      console.log(`✅ Report saved with ID: ${reportId}`);
+      
+      // Generate offer token and expiration (72 hours)
+      const now = new Date();
+      const offerToken = Buffer.from(`report-${reportId}-${now.getTime()}`).toString('base64').substring(0, 20);
+      const offerExpiresAt = new Date(now.getTime() + (72 * 60 * 60 * 1000));
+      
+      console.log(`🎟️  Generated offer token: ${offerToken} (expires: ${offerExpiresAt.toISOString()})`);
+      
+      // Generate HTML report with report ID for offer link
       const { SEOReportHtmlGenerator } = require('../services/seoReportHtmlGenerator');
       let htmlReport: string;
       
@@ -1302,23 +1403,27 @@ router.get('/client-dashboard/api-access', async (req, res) => {
           websiteUrl,
           companyName,
           ...reportData,
-          analyzedAt: new Date().toISOString()
+          analyzedAt: new Date().toISOString(),
+          reportId // Pass reportId for offer link
         });
       } else {
         htmlReport = SEOReportHtmlGenerator.generateComprehensiveReport({
           websiteUrl,
           companyName,
           ...reportData,
-          analyzedAt: new Date().toISOString()
+          analyzedAt: new Date().toISOString(),
+          reportId // Pass reportId for offer link
         });
       }
       
-      const reportResult = await pool.query(
-        `INSERT INTO lead_seo_reports (lead_id, report_type, report_data, html_report, sent_at)
-         VALUES ($1, $2, $3, $4, NOW()) RETURNING *`,
-        [id, reportType, JSON.stringify(reportData), htmlReport]
+      // Update report with HTML and offer token
+      await pool.query(
+        `UPDATE lead_seo_reports 
+         SET html_report = $1, offer_token = $2, offer_expires_at = $3
+         WHERE id = $4`,
+        [htmlReport, offerToken, offerExpiresAt, reportId]
       );
-      console.log('✅ Report saved to database with HTML');
+      console.log('✅ Report updated with HTML and offer token');
       
       // Log activity
       const activityData = {
