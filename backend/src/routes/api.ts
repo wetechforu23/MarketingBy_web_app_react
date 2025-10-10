@@ -5,6 +5,7 @@ import { getClientFilter, getClientIdForCreate } from '../utils/clientFilter';
 import EnhancedScrapingService from '../services/enhancedScrapingService';
 import { stripeService } from '../services/stripeService';
 import subscriptionService from '../services/subscriptionService';
+import { AdvancedEmailService } from '../services/advancedEmailService';
 import Stripe from 'stripe';
 // import { WebScrapingService } from '../services/webScrapingService';
 // import { LeadScrapingService } from '../services/leadScrapingService';
@@ -69,6 +70,112 @@ router.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async
   } catch (error: any) {
     console.error('❌ Webhook Error:', error.message);
     res.status(400).send(`Webhook Error: ${error.message}`);
+  }
+});
+
+// ==========================================
+// EMAIL TRACKING ENDPOINTS (Public - No Auth)
+// ==========================================
+
+// Track email open (1x1 pixel)
+router.get('/track/email/:trackingId/open', async (req, res) => {
+  try {
+    const { trackingId } = req.params;
+    
+    // Update email opened_at and increment open_count
+    const result = await pool.query(
+      `UPDATE lead_emails 
+       SET opened_at = COALESCE(opened_at, NOW()), 
+           open_count = open_count + 1
+       WHERE tracking_id = $1
+       RETURNING id, lead_id`,
+      [trackingId]
+    );
+    
+    if (result.rows.length > 0) {
+      const { id: emailId, lead_id: leadId } = result.rows[0];
+      
+      // Log activity
+      await pool.query(
+        `INSERT INTO lead_activity (lead_id, activity_type, activity_data, created_at)
+         VALUES ($1, $2, $3, NOW())`,
+        [leadId, 'email_opened', JSON.stringify({ email_id: emailId, tracking_id: trackingId })]
+      );
+      
+      console.log(`📧 Email opened: ${trackingId}`);
+    }
+    
+    // Return 1x1 transparent pixel
+    const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+    res.writeHead(200, {
+      'Content-Type': 'image/gif',
+      'Content-Length': pixel.length,
+      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+    });
+    res.end(pixel);
+  } catch (error) {
+    console.error('Error tracking email open:', error);
+    // Still return pixel even on error
+    const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+    res.writeHead(200, { 'Content-Type': 'image/gif', 'Content-Length': pixel.length });
+    res.end(pixel);
+  }
+});
+
+// Track link click and redirect
+router.get('/track/email/:trackingId/click', async (req, res) => {
+  try {
+    const { trackingId } = req.params;
+    const { url } = req.query;
+    
+    if (!url) {
+      return res.status(400).json({ error: 'URL parameter is required' });
+    }
+    
+    const originalUrl = decodeURIComponent(url as string);
+    
+    // Update email clicked_at and increment click_count
+    const emailResult = await pool.query(
+      `UPDATE lead_emails 
+       SET clicked_at = COALESCE(clicked_at, NOW()), 
+           click_count = click_count + 1
+       WHERE tracking_id = $1
+       RETURNING id, lead_id`,
+      [trackingId]
+    );
+    
+    if (emailResult.rows.length > 0) {
+      const { id: emailId, lead_id: leadId } = emailResult.rows[0];
+      
+      // Update link tracking
+      await pool.query(
+        `UPDATE email_link_tracking 
+         SET clicks = clicks + 1, last_clicked_at = NOW()
+         WHERE email_id = $1 AND original_url = $2`,
+        [emailId, originalUrl]
+      );
+      
+      // Log activity
+      await pool.query(
+        `INSERT INTO lead_activity (lead_id, activity_type, activity_data, created_at)
+         VALUES ($1, $2, $3, NOW())`,
+        [leadId, 'email_link_clicked', JSON.stringify({ 
+          email_id: emailId, 
+          tracking_id: trackingId, 
+          url: originalUrl 
+        })]
+      );
+      
+      console.log(`🔗 Email link clicked: ${trackingId} -> ${originalUrl}`);
+    }
+    
+    // Redirect to original URL
+    res.redirect(originalUrl);
+  } catch (error) {
+    console.error('Error tracking email click:', error);
+    // Still redirect to URL even on error
+    const originalUrl = req.query.url ? decodeURIComponent(req.query.url as string) : 'https://www.marketingby.wetechforu.com';
+    res.redirect(originalUrl);
   }
 });
 
@@ -1373,6 +1480,105 @@ router.get('/leads/:id/seo-analysis', async (req, res) => {
   } catch (error) {
     console.error('Get SEO analysis error:', error);
     res.status(500).json({ error: 'Failed to get SEO analysis' });
+  }
+});
+
+// ==========================================
+// ADVANCED EMAIL COMPOSER ENDPOINTS
+// ==========================================
+
+// Get available email templates
+router.get('/leads/:id/email-templates', async (req, res) => {
+  try {
+    const emailService = AdvancedEmailService.getInstance();
+    const templates = await emailService.getEmailTemplates();
+    res.json({ templates });
+  } catch (error) {
+    console.error('Error fetching email templates:', error);
+    res.status(500).json({ error: 'Failed to fetch email templates' });
+  }
+});
+
+// Send tracked email to lead
+router.post('/leads/:id/send-email', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { to, cc, bcc, subject, body, template } = req.body;
+    const userId = (req as any).user?.id;
+
+    if (!to || !subject || !body) {
+      return res.status(400).json({ error: 'To, subject, and body are required' });
+    }
+
+    // Verify lead exists
+    const leadResult = await pool.query('SELECT * FROM leads WHERE id = $1', [id]);
+    if (leadResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    const emailService = AdvancedEmailService.getInstance();
+    const result = await emailService.sendTrackedEmail({
+      leadId: parseInt(id),
+      to,
+      cc: cc ? (Array.isArray(cc) ? cc : [cc]) : undefined,
+      bcc: bcc ? (Array.isArray(bcc) ? bcc : [bcc]) : undefined,
+      subject,
+      body,
+      template,
+      userId
+    });
+
+    if (result.success) {
+      console.log(`✅ Email sent successfully to ${to}, tracking ID: ${result.emailId}`);
+      res.json({
+        success: true,
+        message: 'Email sent successfully',
+        emailId: result.emailId
+      });
+    } else {
+      console.error(`❌ Email sending failed: ${result.error}`);
+      res.status(500).json({
+        success: false,
+        error: result.error || 'Failed to send email'
+      });
+    }
+  } catch (error) {
+    console.error('Send email error:', error);
+    res.status(500).json({ error: 'Failed to send email' });
+  }
+});
+
+// Get email statistics for a lead
+router.get('/leads/:id/email-statistics', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const emailService = AdvancedEmailService.getInstance();
+    const stats = await emailService.getEmailStatistics(parseInt(id));
+    
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching email statistics:', error);
+    res.status(500).json({ error: 'Failed to fetch email statistics' });
+  }
+});
+
+// Grammar and spell check API
+router.post('/email/check-grammar', async (req, res) => {
+  try {
+    const { text } = req.body;
+    
+    if (!text) {
+      return res.status(400).json({ error: 'Text is required' });
+    }
+
+    const emailService = AdvancedEmailService.getInstance();
+    const result = await emailService.checkGrammarAndSpelling(text);
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error checking grammar:', error);
+    res.status(500).json({ error: 'Failed to check grammar' });
   }
 });
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { http } from '../api/http';
+import { EmailComposer } from '../components/EmailComposer';
 
 interface Lead {
   id: number;
@@ -70,6 +71,7 @@ const LeadDetail: React.FC = () => {
     body: ''
   });
   const [activeTab, setActiveTab] = useState<'details' | 'activity' | 'emails' | 'seo'>('details');
+  const [showEmailComposer, setShowEmailComposer] = useState(false);
 
   useEffect(() => {
     fetchLeadData();
@@ -520,9 +522,9 @@ const LeadDetail: React.FC = () => {
               <h4 style={{ margin: 0, fontWeight: '600' }}>Email History</h4>
               <button 
                 className="btn btn-primary"
-                onClick={() => setShowEmailModal(true)}
+                onClick={() => setShowEmailComposer(true)}
               >
-                <i className="fas fa-plus me-2"></i>Send New Email
+                <i className="fas fa-envelope me-2"></i>Compose Email
               </button>
             </div>
             
@@ -769,6 +771,25 @@ const LeadDetail: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Email Composer Modal */}
+      {showEmailComposer && lead && (
+        <EmailComposer
+          leadId={parseInt(id!)}
+          leadData={{
+            company: lead.company,
+            email: lead.email,
+            contact_first_name: lead.contact_first_name,
+            contact_last_name: lead.contact_last_name,
+            website_url: lead.website_url
+          }}
+          onClose={() => setShowEmailComposer(false)}
+          onSuccess={() => {
+            fetchLeadData(); // Refresh email history
+            setActiveTab('emails'); // Switch to emails tab
+          }}
+        />
       )}
     </div>
   );
