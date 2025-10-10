@@ -15,6 +15,7 @@ interface BasicSEOData {
   recommendations: string[];
   score: number;
   analyzedAt: string;
+  enhancedData?: any; // Optional enhanced data from EnhancedSEOAnalyzer
 }
 
 interface ComprehensiveSEOData extends BasicSEOData {

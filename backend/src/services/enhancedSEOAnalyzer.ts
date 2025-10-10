@@ -157,7 +157,7 @@ export class EnhancedSEOAnalyzer {
   /**
    * Detect paid advertising tags and pixels
    */
-  private static detectPaidAdvertising($: cheerio.CheerioAPI, htmlContent: string): any {
+  private static detectPaidAdvertising($: any, htmlContent: string): any {
     const detectedTags: string[] = [];
     
     // Google Ads (gtag, conversion tracking)
@@ -202,7 +202,7 @@ export class EnhancedSEOAnalyzer {
   /**
    * Extract all social media links
    */
-  private static extractSocialMedia($: cheerio.CheerioAPI): any {
+  private static extractSocialMedia($: any): any {
     const allLinks: string[] = [];
     let facebook = null;
     let twitter = null;
@@ -249,7 +249,7 @@ export class EnhancedSEOAnalyzer {
   /**
    * Analyze content marketing efforts
    */
-  private static analyzeContentMarketing($: cheerio.CheerioAPI, baseUrl: string): any {
+  private static analyzeContentMarketing($: any, baseUrl: string): any {
     const blogLinks: string[] = [];
     const contentTypes: string[] = [];
     
@@ -302,7 +302,7 @@ export class EnhancedSEOAnalyzer {
   /**
    * Extract real keywords from page content
    */
-  private static extractKeywords($: cheerio.CheerioAPI): any {
+  private static extractKeywords($: any): any {
     // Meta keywords
     const metaKeywords = ($('meta[name="keywords"]').attr('content') || '')
       .split(',')
@@ -363,7 +363,7 @@ export class EnhancedSEOAnalyzer {
   /**
    * Analyze modern SEO and AI readiness
    */
-  private static analyzeModernSEO($: cheerio.CheerioAPI, htmlContent: string): any {
+  private static analyzeModernSEO($: any, htmlContent: string): any {
     // Check for structured data
     const hasJSONLD = htmlContent.includes('application/ld+json');
     const hasSchemaOrg = htmlContent.includes('schema.org') ||
@@ -420,7 +420,7 @@ export class EnhancedSEOAnalyzer {
   /**
    * Analyze technical SEO
    */
-  private static analyzeTechnicalSEO($: cheerio.CheerioAPI, url: string): any {
+  private static analyzeTechnicalSEO($: any, url: string): any {
     return {
       hasOpenGraph: $('meta[property^="og:"]').length > 0,
       hasTwitterCards: $('meta[name^="twitter:"]').length > 0,
