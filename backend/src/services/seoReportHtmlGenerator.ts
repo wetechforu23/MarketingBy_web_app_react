@@ -17,6 +17,7 @@ interface BasicSEOData {
   analyzedAt: string;
   reportId?: number; // Optional report ID for offer link tracking
   enhancedData?: any; // Optional enhanced data from EnhancedSEOAnalyzer
+  detailedPageAnalysis?: any; // Optional detailed page-by-page analysis
 }
 
 interface ComprehensiveSEOData extends BasicSEOData {

@@ -5,7 +5,8 @@
 
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { CheerioAPI } from 'cheerio';
+
+type CheerioAPI = ReturnType<typeof cheerio.load>;
 
 interface PageIssue {
   page: string;
