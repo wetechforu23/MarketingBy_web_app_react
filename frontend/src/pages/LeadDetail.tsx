@@ -65,11 +65,6 @@ const LeadDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editedLead, setEditedLead] = useState<Lead | null>(null);
-  const [showEmailModal, setShowEmailModal] = useState(false);
-  const [emailForm, setEmailForm] = useState({
-    subject: '',
-    body: ''
-  });
   const [activeTab, setActiveTab] = useState<'details' | 'activity' | 'emails' | 'seo'>('details');
   const [showEmailComposer, setShowEmailComposer] = useState(false);
 
@@ -118,24 +113,6 @@ const LeadDetail: React.FC = () => {
   const handleCancel = () => {
     setEditedLead(lead);
     setIsEditing(false);
-  };
-
-  const handleSendEmail = async () => {
-    if (!emailForm.subject || !emailForm.body) {
-      alert('Please fill in both subject and body');
-      return;
-    }
-    
-    try {
-      await http.post(`/leads/${id}/send-email`, emailForm);
-      alert('Email sent successfully');
-      setShowEmailModal(false);
-      setEmailForm({ subject: '', body: '' });
-      fetchLeadData(); // Refresh to show new email
-    } catch (error) {
-      console.error('Error sending email:', error);
-      alert('Failed to send email');
-    }
   };
 
   const handleGenerateSEOReport = async (reportType: 'basic' | 'comprehensive', sendEmail: boolean = false) => {
@@ -252,13 +229,6 @@ const LeadDetail: React.FC = () => {
                 style={{ minWidth: '100px' }}
               >
                 <i className="fas fa-edit me-2"></i>Edit
-              </button>
-              <button 
-                className="btn btn-success" 
-                onClick={() => setShowEmailModal(true)}
-                style={{ minWidth: '100px' }}
-              >
-                <i className="fas fa-envelope me-2"></i>Send Email
               </button>
             </>
           ) : (
@@ -682,96 +652,6 @@ const LeadDetail: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* Email Modal */}
-      {showEmailModal && (
-        <div 
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}
-          onClick={() => setShowEmailModal(false)}
-        >
-          <div 
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '12px',
-              padding: '30px',
-              maxWidth: '600px',
-              width: '90%',
-              maxHeight: '80vh',
-              overflow: 'auto'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h5 style={{ margin: 0, color: '#1976d2', fontWeight: 700, fontSize: '20px' }}>
-                <i className="fas fa-envelope me-2"></i>Send Email to {lead.company}
-              </h5>
-              <button 
-                className="btn-close" 
-                onClick={() => setShowEmailModal(false)}
-              ></button>
-            </div>
-            
-            <div className="mb-3">
-              <label className="form-label" style={{ fontWeight: '600' }}>To:</label>
-              <input 
-                type="email" 
-                className="form-control" 
-                value={lead.email} 
-                disabled 
-                style={{ backgroundColor: '#e9ecef' }}
-              />
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label" style={{ fontWeight: '600' }}>Subject:</label>
-              <input 
-                type="text" 
-                className="form-control" 
-                value={emailForm.subject}
-                onChange={(e) => setEmailForm({ ...emailForm, subject: e.target.value })}
-                placeholder="Email subject"
-              />
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label" style={{ fontWeight: '600' }}>Body:</label>
-              <textarea 
-                className="form-control" 
-                rows={8}
-                value={emailForm.body}
-                onChange={(e) => setEmailForm({ ...emailForm, body: e.target.value })}
-                placeholder="Email body"
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button 
-                className="btn btn-secondary" 
-                onClick={() => setShowEmailModal(false)}
-              >
-                Cancel
-              </button>
-              <button 
-                className="btn btn-primary" 
-                onClick={handleSendEmail}
-              >
-                <i className="fas fa-paper-plane me-2"></i>Send Email
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Email Composer Modal */}
       {showEmailComposer && lead && (
