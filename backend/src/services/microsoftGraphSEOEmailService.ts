@@ -31,8 +31,8 @@ export class MicrosoftGraphEmailService {
       const result = await pool.query(`
         SELECT service, key_name, encrypted_value 
         FROM encrypted_credentials 
-        WHERE service = 'azure' OR service = 'azure_communication'
-        AND key_name IN ('client_id', 'client_secret', 'tenant_id', 'email_from_address')
+        WHERE (service = 'azure' AND key_name IN ('client_id', 'client_secret', 'tenant_id'))
+           OR (service = 'azure_communication' AND key_name = 'email_from_address')
       `);
 
       const credentials: any = {};
