@@ -105,6 +105,19 @@ export class ComprehensiveSEOService {
       const speedInsights = await this.getPageSpeedInsights(websiteUrl);
       const brokenLinks = await this.checkBrokenLinks(websiteUrl);
       const technicalChecks = await this.performTechnicalChecks(websiteUrl);
+      
+      // 🆕 Add detailed page analysis
+      console.log('📄 Running detailed page analysis...');
+      const { DetailedPageAnalyzer } = require('./detailedPageAnalyzer');
+      const pageAnalyzer = new DetailedPageAnalyzer();
+      let detailedAnalysis;
+      try {
+        detailedAnalysis = await pageAnalyzer.analyzeWebsite(websiteUrl);
+        console.log(`✅ Detailed analysis complete: ${detailedAnalysis.summary.totalPages} pages, ${detailedAnalysis.summary.totalIssues} issues`);
+      } catch (error) {
+        console.error('Detailed analysis failed, continuing without it:', error);
+        detailedAnalysis = null;
+      }
 
       const report = {
         reportType: 'basic',
@@ -124,7 +137,14 @@ export class ComprehensiveSEOService {
         content: basicAnalysis.contentAnalysis,
         brokenLinks: brokenLinks.slice(0, 10), // Top 10 broken links for basic
         recommendations: basicAnalysis.recommendations.slice(0, 5), // Top 5 for basic
-        actionItems: this.generateBasicActionItems(basicAnalysis, brokenLinks)
+        actionItems: this.generateBasicActionItems(basicAnalysis, brokenLinks),
+        // 🆕 Add detailed page analysis results
+        detailedPageAnalysis: detailedAnalysis ? {
+          pagesAnalyzed: detailedAnalysis.pages,
+          allIssuesByPage: detailedAnalysis.allIssues,
+          allBrokenLinksByPage: detailedAnalysis.allBrokenLinks,
+          summary: detailedAnalysis.summary
+        } : null
       };
 
       return report;

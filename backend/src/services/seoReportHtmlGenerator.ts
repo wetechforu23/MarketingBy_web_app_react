@@ -401,6 +401,9 @@ export class SEOReportHtmlGenerator {
         </div>
       </div>
 
+      <!-- 🆕 Detailed Page-by-Page Analysis -->
+      ${data.detailedPageAnalysis ? this.generateDetailedPageAnalysis(data.detailedPageAnalysis) : ''}
+
       <!-- Healthcare ROI & Business Impact -->
       ${this.generateHealthcareROI(finalScore, data.companyName)}
 
@@ -1550,6 +1553,143 @@ export class SEOReportHtmlGenerator {
             </div>
           </div>
         </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Generate Detailed Page-by-Page Analysis Section
+   */
+  private static generateDetailedPageAnalysis(detailedAnalysis: any): string {
+    if (!detailedAnalysis || !detailedAnalysis.pagesAnalyzed || detailedAnalysis.pagesAnalyzed.length === 0) {
+      return '';
+    }
+
+    const { pagesAnalyzed, allIssuesByPage, allBrokenLinksByPage, summary } = detailedAnalysis;
+
+    // Group issues by severity
+    const criticalIssues = allIssuesByPage.filter((i: any) => i.severity === 'high');
+    const mediumIssues = allIssuesByPage.filter((i: any) => i.severity === 'medium');
+
+    return `
+      <div class="section" style="background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%); padding: 30px; border-radius: 12px; margin-top: 30px;">
+        <h2 style="color: #6a1b9a; border: none; margin-bottom: 20px; font-size: 1.8rem;">
+          📄 Detailed Page-by-Page Analysis
+        </h2>
+        
+        <!-- Summary Cards -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px;">
+          <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center;">
+            <div style="font-size: 2.5rem; font-weight: bold; color: #6a1b9a;">${summary.totalPages}</div>
+            <div style="font-size: 0.9rem; color: #666; margin-top: 8px;">Pages Analyzed</div>
+          </div>
+          <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center;">
+            <div style="font-size: 2.5rem; font-weight: bold; color: #dc3545;">${criticalIssues.length}</div>
+            <div style="font-size: 0.9rem; color: #666; margin-top: 8px;">Critical Issues</div>
+          </div>
+          <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center;">
+            <div style="font-size: 2.5rem; font-weight: bold; color: #ffc107;">${mediumIssues.length}</div>
+            <div style="font-size: 0.9rem; color: #666; margin-top: 8px;">Medium Priority</div>
+          </div>
+          <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center;">
+            <div style="font-size: 2.5rem; font-weight: bold; color: #ff5722;">${allBrokenLinksByPage.length}</div>
+            <div style="font-size: 0.9rem; color: #666; margin-top: 8px;">Broken Links</div>
+          </div>
+        </div>
+
+        <!-- Critical Issues First -->
+        ${criticalIssues.length > 0 ? `
+        <div style="background: rgba(220, 53, 69, 0.1); padding: 20px; border-radius: 8px; border-left: 4px solid #dc3545; margin-bottom: 25px;">
+          <h3 style="color: #dc3545; margin-top: 0;">🚨 Critical Issues (Fix Immediately)</h3>
+          <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
+            <thead>
+              <tr style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white;">
+                <th style="padding: 12px; text-align: left;">Page & URL</th>
+                <th style="padding: 12px; text-align: left;">Issue & Fix</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${criticalIssues.map((issue: any, index: number) => `
+                <tr style="border-bottom: 1px solid #f0f0f0; ${index % 2 === 0 ? 'background: #f8f9fa;' : ''}">
+                  <td style="padding: 12px;">
+                    <div style="font-weight: 600; color: #333; margin-bottom: 4px;">${issue.page}</div>
+                    <a href="${issue.url}" target="_blank" style="font-size: 0.8rem; color: #6a1b9a; text-decoration: none; display: inline-block; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                      🔗 ${issue.url}
+                    </a>
+                  </td>
+                  <td style="padding: 12px;">
+                    <div style="color: #dc3545; font-weight: 600; margin-bottom: 4px;">${issue.issue}</div>
+                    <div style="color: #333;">${issue.recommendation}</div>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        ` : ''}
+
+        <!-- Broken Links Section -->
+        ${allBrokenLinksByPage.length > 0 ? `
+        <div style="background: rgba(255, 87, 34, 0.1); padding: 20px; border-radius: 8px; border-left: 4px solid #ff5722; margin-bottom: 25px;">
+          <h3 style="color: #ff5722; margin-top: 0;">🔗 Broken Links Found</h3>
+          <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
+            <thead>
+              <tr style="background: linear-gradient(135deg, #ff5722 0%, #f4511e 100%); color: white;">
+                <th style="padding: 12px; text-align: left;">Found On Page</th>
+                <th style="padding: 12px; text-align: left;">Broken Link & Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${allBrokenLinksByPage.slice(0, 20).map((link: any, index: number) => `
+                <tr style="border-bottom: 1px solid #f0f0f0; ${index % 2 === 0 ? 'background: #f8f9fa;' : ''}">
+                  <td style="padding: 12px;">
+                    <div style="font-weight: 600; color: #333; margin-bottom: 4px;">${link.foundOnPage}</div>
+                    <a href="${link.foundOnPageUrl}" target="_blank" style="font-size: 0.8rem; color: #6a1b9a; text-decoration: none;">
+                      🔗 View Page
+                    </a>
+                  </td>
+                  <td style="padding: 12px;">
+                    <div style="color: #dc3545; word-break: break-all; margin-bottom: 4px; font-size: 0.9rem;">${link.brokenUrl}</div>
+                    <div style="color: #666; font-style: italic; font-size: 0.85rem;">Link text: "${link.linkText || 'No text'}"</div>
+                    <span style="background: #dc3545; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; margin-top: 4px; display: inline-block;">
+                      ${link.statusCode || 'Error'}
+                    </span>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          ${allBrokenLinksByPage.length > 20 ? `<div style="margin-top: 15px; padding: 12px; background: #fff3cd; border-radius: 6px; color: #856404; font-size: 0.9rem;">⚠️ Showing 20 of ${allBrokenLinksByPage.length} broken links.</div>` : ''}
+        </div>
+        ` : ''}
+
+        ${mediumIssues.length > 0 ? `
+        <div style="background: rgba(255, 193, 7, 0.1); padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
+          <h3 style="color: #f57c00; margin-top: 0;">⚠️ Medium Priority Issues</h3>
+          <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
+            <thead>
+              <tr style="background: linear-gradient(135deg, #ffc107 0%, #ffb300 100%); color: #333;">
+                <th style="padding: 12px; text-align: left;">Page & URL</th>
+                <th style="padding: 12px; text-align: left;">Issue & Fix</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${mediumIssues.slice(0, 15).map((issue: any, index: number) => `
+                <tr style="border-bottom: 1px solid #f0f0f0; ${index % 2 === 0 ? 'background: #f8f9fa;' : ''}">
+                  <td style="padding: 12px;">
+                    <div style="font-weight: 600; color: #333; margin-bottom: 4px;">${issue.page}</div>
+                    <a href="${issue.url}" target="_blank" style="font-size: 0.8rem; color: #6a1b9a; text-decoration: none;">🔗 View</a>
+                  </td>
+                  <td style="padding: 12px;">
+                    <div style="color: #f57c00; font-weight: 600; margin-bottom: 4px;">${issue.issue}</div>
+                    <div style="color: #333;">${issue.recommendation}</div>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        ` : ''}
       </div>
     `;
   }
