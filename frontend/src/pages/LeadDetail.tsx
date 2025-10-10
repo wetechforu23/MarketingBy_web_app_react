@@ -143,7 +143,7 @@ const LeadDetail: React.FC = () => {
     }
     
     const confirmMessage = sendEmail
-      ? `Generate ${reportType} SEO report for ${lead.website_url} and send email to ${lead.contact_email}?`
+      ? `Generate ${reportType} SEO report for ${lead.website_url} and send email to ${lead.email}?`
       : `Generate ${reportType} SEO report for ${lead.website_url}?`;
     
     if (window.confirm(confirmMessage)) {
@@ -154,7 +154,7 @@ const LeadDetail: React.FC = () => {
         });
         
         const successMessage = res.data.emailSent
-          ? `✅ ${reportType} SEO report generated and sent to ${lead.contact_email}`
+          ? `✅ ${reportType} SEO report generated and sent to ${lead.email}`
           : `✅ ${reportType} SEO report generated successfully`;
         
         alert(successMessage);
@@ -598,8 +598,8 @@ const LeadDetail: React.FC = () => {
                 <button 
                   className="btn btn-primary"
                   onClick={() => handleGenerateSEOReport('basic', true)}
-                  disabled={!lead?.contact_email}
-                  title={!lead?.contact_email ? 'No email address' : 'Generate & email basic SEO report'}
+                  disabled={!lead?.email}
+                  title={!lead?.email ? 'No email address' : 'Generate & email basic SEO report'}
                 >
                   <i className="fas fa-envelope me-2"></i>Basic + Email
                 </button>
@@ -612,8 +612,8 @@ const LeadDetail: React.FC = () => {
                 <button 
                   className="btn btn-success"
                   onClick={() => handleGenerateSEOReport('comprehensive', true)}
-                  disabled={!lead?.contact_email}
-                  title={!lead?.contact_email ? 'No email address' : 'Generate & email comprehensive SEO report'}
+                  disabled={!lead?.email}
+                  title={!lead?.email ? 'No email address' : 'Generate & email comprehensive SEO report'}
                 >
                   <i className="fas fa-paper-plane me-2"></i>Comprehensive + Email
                 </button>

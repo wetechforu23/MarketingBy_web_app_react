@@ -1084,7 +1084,7 @@ router.get('/client-dashboard/api-access', async (req, res) => {
       const websiteUrl = lead.website_url;
       const companyName = lead.company || lead.clinic_name;
       const contactName = `${lead.contact_first_name || ''} ${lead.contact_last_name || ''}`.trim() || 'there';
-      const contactEmail = lead.contact_email;
+      const contactEmail = lead.email;
       
       if (!websiteUrl) {
         return res.status(400).json({ error: 'Lead has no website URL' });
