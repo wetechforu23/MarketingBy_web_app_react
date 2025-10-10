@@ -182,6 +182,26 @@ export class ComprehensiveSEOService {
         structuredData
       );
 
+      // Handle null speedInsights with fallback data
+      const fallbackSpeedInsights = {
+        desktop: {
+          score: 0,
+          fcp: 'N/A',
+          lcp: 'N/A',
+          cls: 'N/A',
+          tbt: 'N/A'
+        },
+        mobile: {
+          score: 0,
+          fcp: 'N/A',
+          lcp: 'N/A',
+          cls: 'N/A',
+          tbt: 'N/A'
+        }
+      };
+
+      const safeSpeedInsights = speedInsights || fallbackSpeedInsights;
+
       const report: ComprehensiveSEOReport = {
         basicAnalysis,
         competitorAnalysis: competitorData,
@@ -193,8 +213,8 @@ export class ComprehensiveSEOService {
         },
         contentAudit,
         brokenLinks,
-        speedInsights,
-        mobileOptimization: speedInsights.mobile,
+        speedInsights: safeSpeedInsights,
+        mobileOptimization: safeSpeedInsights.mobile,
         structuredData,
         recommendations,
         actionItems,
@@ -215,11 +235,12 @@ export class ComprehensiveSEOService {
    */
   private async getPageSpeedInsights(url: string): Promise<any> {
     if (!this.googlePageSpeedKey) {
-      console.warn('No Google PageSpeed API key available');
+      console.warn('⚠️  No Google PageSpeed API key available - using fallback data');
       return null;
     }
 
     try {
+      console.log(`🔍 Fetching PageSpeed Insights for ${url}...`);
       const [desktopResponse, mobileResponse] = await Promise.all([
         axios.get(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed`, {
           params: { url, key: this.googlePageSpeedKey, strategy: 'desktop' }
@@ -229,6 +250,7 @@ export class ComprehensiveSEOService {
         })
       ]);
 
+      console.log('✅ PageSpeed Insights fetched successfully');
       return {
         desktop: {
           score: desktopResponse.data.lighthouseResult?.categories?.performance?.score * 100 || 0,
@@ -245,8 +267,9 @@ export class ComprehensiveSEOService {
           tbt: mobileResponse.data.lighthouseResult?.audits['total-blocking-time']?.displayValue
         }
       };
-    } catch (error) {
-      console.error('PageSpeed Insights error:', error);
+    } catch (error: any) {
+      console.error('❌ PageSpeed Insights API error:', error.response?.status, error.response?.data?.error?.message || error.message);
+      console.warn('⚠️  Continuing with fallback data (PageSpeed metrics will show as N/A)');
       return null;
     }
   }
