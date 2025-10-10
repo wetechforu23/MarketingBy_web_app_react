@@ -67,6 +67,10 @@ const LeadDetail: React.FC = () => {
   const [editedLead, setEditedLead] = useState<Lead | null>(null);
   const [activeTab, setActiveTab] = useState<'details' | 'activity' | 'emails' | 'seo'>('details');
   const [showEmailComposer, setShowEmailComposer] = useState(false);
+  const [showSEOModal, setShowSEOModal] = useState(false);
+  const [seoReportType, setSeoReportType] = useState<'basic' | 'comprehensive'>('basic');
+  const [sendEmailWithReport, setSendEmailWithReport] = useState(false);
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   useEffect(() => {
     fetchLeadData();
@@ -133,6 +137,7 @@ const LeadDetail: React.FC = () => {
       : `Generate ${reportType} SEO report for ${lead.website_url}?`;
     
     if (window.confirm(confirmMessage)) {
+      setGeneratingReport(true);
       try {
         const res = await http.post(`/leads/${id}/generate-seo-report`, {
           reportType,
@@ -144,12 +149,21 @@ const LeadDetail: React.FC = () => {
           : `✅ ${reportType} SEO report generated successfully`;
         
         alert(successMessage);
+        setShowSEOModal(false);
         fetchLeadData(); // Refresh to show new report
       } catch (error: any) {
         console.error('Error generating SEO report:', error);
         alert(error.response?.data?.details || 'Failed to generate SEO report');
+      } finally {
+        setGeneratingReport(false);
       }
     }
+  };
+
+  const handleOpenSEOModal = () => {
+    setSeoReportType('basic');
+    setSendEmailWithReport(false);
+    setShowSEOModal(true);
   };
 
   const getStatusBadgeClass = (status: string) => {
@@ -567,36 +581,17 @@ const LeadDetail: React.FC = () => {
           <div className="seo-tab">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h4 style={{ margin: 0, fontWeight: '600' }}>SEO Reports</h4>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                <button 
-                  className="btn btn-outline-primary"
-                  onClick={() => handleGenerateSEOReport('basic', false)}
-                >
-                  <i className="fas fa-chart-line me-2"></i>Basic Report
-                </button>
-                <button 
-                  className="btn btn-primary"
-                  onClick={() => handleGenerateSEOReport('basic', true)}
-                  disabled={!lead?.email}
-                  title={!lead?.email ? 'No email address' : 'Generate & email basic SEO report'}
-                >
-                  <i className="fas fa-envelope me-2"></i>Basic + Email
-                </button>
-                <button 
-                  className="btn btn-outline-success"
-                  onClick={() => handleGenerateSEOReport('comprehensive', false)}
-                >
-                  <i className="fas fa-chart-bar me-2"></i>Comprehensive
-                </button>
-                <button 
-                  className="btn btn-success"
-                  onClick={() => handleGenerateSEOReport('comprehensive', true)}
-                  disabled={!lead?.email}
-                  title={!lead?.email ? 'No email address' : 'Generate & email comprehensive SEO report'}
-                >
-                  <i className="fas fa-paper-plane me-2"></i>Comprehensive + Email
-                </button>
-              </div>
+              <button 
+                className="btn btn-primary"
+                onClick={handleOpenSEOModal}
+                style={{ 
+                  minWidth: '180px',
+                  fontWeight: '600',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                }}
+              >
+                <i className="fas fa-chart-line me-2"></i>Generate SEO Report
+              </button>
             </div>
 
             <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#e3f2fd', borderRadius: '8px' }}>
@@ -677,6 +672,262 @@ const LeadDetail: React.FC = () => {
             setActiveTab('emails'); // Switch to emails tab
           }}
         />
+      )}
+
+      {/* SEO Report Generation Modal */}
+      {showSEOModal && lead && (
+        <div 
+          className="modal show d-block" 
+          style={{ 
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            zIndex: 1050
+          }}
+          onClick={() => setShowSEOModal(false)}
+        >
+          <div 
+            className="modal-dialog modal-dialog-centered modal-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-content" style={{ 
+              border: 'none',
+              borderRadius: '12px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
+            }}>
+              {/* Modal Header */}
+              <div className="modal-header" style={{ 
+                background: 'linear-gradient(135deg, #4682B4 0%, #87CEEB 100%)',
+                color: 'white',
+                borderRadius: '12px 12px 0 0',
+                padding: '20px 24px'
+              }}>
+                <h5 className="modal-title" style={{ fontWeight: '700', fontSize: '1.4rem' }}>
+                  <i className="fas fa-chart-line me-2"></i>
+                  Generate SEO Report
+                </h5>
+                <button 
+                  type="button" 
+                  className="btn-close btn-close-white" 
+                  onClick={() => setShowSEOModal(false)}
+                  aria-label="Close"
+                ></button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="modal-body" style={{ padding: '24px' }}>
+                {/* Lead Information Preview */}
+                <div style={{ 
+                  padding: '16px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '8px',
+                  marginBottom: '24px',
+                  border: '1px solid #dee2e6'
+                }}>
+                  <h6 style={{ fontWeight: '600', marginBottom: '12px', color: '#495057' }}>
+                    <i className="fas fa-building me-2" style={{ color: '#4682B4' }}></i>
+                    Report Details
+                  </h6>
+                  <div style={{ fontSize: '14px', lineHeight: '1.8' }}>
+                    <div><strong>Company:</strong> {lead.company}</div>
+                    <div><strong>Website:</strong> <a href={lead.website_url} target="_blank" rel="noopener noreferrer">{lead.website_url}</a></div>
+                    <div><strong>Client ID:</strong> {lead.client_id || 'N/A'}</div>
+                    <div><strong>Report Name:</strong> SEO_Report_{lead.company.replace(/\s+/g, '_')}_Client{lead.client_id}_{new Date().toISOString().split('T')[0]}</div>
+                    <div><strong>Generated:</strong> {new Date().toLocaleString()}</div>
+                  </div>
+                </div>
+
+                {/* Report Type Selection */}
+                <div className="mb-4">
+                  <label className="form-label fw-bold" style={{ fontSize: '15px', color: '#495057' }}>
+                    <i className="fas fa-list-check me-2" style={{ color: '#4682B4' }}></i>
+                    Select Report Type
+                  </label>
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <div 
+                        className={`card h-100 ${seoReportType === 'basic' ? 'border-primary' : ''}`}
+                        style={{ 
+                          cursor: 'pointer',
+                          transition: 'all 0.3s',
+                          boxShadow: seoReportType === 'basic' ? '0 4px 12px rgba(70, 130, 180, 0.3)' : '0 2px 4px rgba(0,0,0,0.1)'
+                        }}
+                        onClick={() => setSeoReportType('basic')}
+                      >
+                        <div className="card-body">
+                          <div className="form-check">
+                            <input 
+                              className="form-check-input" 
+                              type="radio" 
+                              name="reportType" 
+                              id="basicReport"
+                              checked={seoReportType === 'basic'}
+                              onChange={() => setSeoReportType('basic')}
+                            />
+                            <label className="form-check-label w-100" htmlFor="basicReport">
+                              <h6 className="mb-2" style={{ fontWeight: '600' }}>
+                                <i className="fas fa-chart-line me-2" style={{ color: '#4682B4' }}></i>
+                                Basic SEO Report
+                              </h6>
+                              <small className="text-muted d-block">
+                                • On-page SEO analysis<br/>
+                                • Meta tags check<br/>
+                                • Basic performance metrics<br/>
+                                • Quick recommendations
+                              </small>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="col-md-6">
+                      <div 
+                        className={`card h-100 ${seoReportType === 'comprehensive' ? 'border-success' : ''}`}
+                        style={{ 
+                          cursor: 'pointer',
+                          transition: 'all 0.3s',
+                          boxShadow: seoReportType === 'comprehensive' ? '0 4px 12px rgba(40, 167, 69, 0.3)' : '0 2px 4px rgba(0,0,0,0.1)'
+                        }}
+                        onClick={() => setSeoReportType('comprehensive')}
+                      >
+                        <div className="card-body">
+                          <div className="form-check">
+                            <input 
+                              className="form-check-input" 
+                              type="radio" 
+                              name="reportType" 
+                              id="comprehensiveReport"
+                              checked={seoReportType === 'comprehensive'}
+                              onChange={() => setSeoReportType('comprehensive')}
+                            />
+                            <label className="form-check-label w-100" htmlFor="comprehensiveReport">
+                              <h6 className="mb-2" style={{ fontWeight: '600' }}>
+                                <i className="fas fa-chart-bar me-2" style={{ color: '#28a745' }}></i>
+                                Comprehensive SEO Report
+                              </h6>
+                              <small className="text-muted d-block">
+                                • Full technical SEO audit<br/>
+                                • Competitor analysis<br/>
+                                • Backlink profile<br/>
+                                • Detailed action plan
+                              </small>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Email Option */}
+                <div className="mb-4">
+                  <div className="form-check" style={{ 
+                    padding: '16px',
+                    backgroundColor: '#e7f3ff',
+                    borderRadius: '8px',
+                    border: '1px solid #b3d9ff'
+                  }}>
+                    <input 
+                      className="form-check-input" 
+                      type="checkbox" 
+                      id="sendEmailCheck"
+                      checked={sendEmailWithReport}
+                      onChange={(e) => setSendEmailWithReport(e.target.checked)}
+                      disabled={!lead.email}
+                    />
+                    <label className="form-check-label" htmlFor="sendEmailCheck" style={{ fontWeight: '500' }}>
+                      <i className="fas fa-envelope me-2" style={{ color: '#4682B4' }}></i>
+                      Send report via email to: <strong>{lead.email || 'No email address'}</strong>
+                    </label>
+                    {!lead.email && (
+                      <small className="text-danger d-block mt-1">
+                        <i className="fas fa-exclamation-circle me-1"></i>
+                        Email address not available for this lead
+                      </small>
+                    )}
+                  </div>
+                </div>
+
+                {/* Preview Section */}
+                <div style={{ 
+                  padding: '16px',
+                  backgroundColor: '#fff9e6',
+                  borderRadius: '8px',
+                  border: '1px solid #ffe066',
+                  marginBottom: '16px'
+                }}>
+                  <h6 style={{ fontWeight: '600', marginBottom: '12px', color: '#856404' }}>
+                    <i className="fas fa-eye me-2"></i>
+                    Report Preview
+                  </h6>
+                  <div style={{ fontSize: '14px', lineHeight: '1.8', color: '#856404' }}>
+                    <div><strong>Type:</strong> {seoReportType === 'basic' ? 'Basic' : 'Comprehensive'} SEO Analysis</div>
+                    <div><strong>For:</strong> {lead.company} ({lead.website_url})</div>
+                    <div><strong>File Name:</strong> SEO_Report_{lead.company.replace(/\s+/g, '_')}_Client{lead.client_id}_{new Date().toISOString().split('T')[0]}.pdf</div>
+                    <div><strong>Will Include:</strong></div>
+                    <ul style={{ marginTop: '8px', marginBottom: '0', paddingLeft: '20px' }}>
+                      {seoReportType === 'basic' ? (
+                        <>
+                          <li>On-page SEO score and analysis</li>
+                          <li>Meta tags and heading structure</li>
+                          <li>Page speed and mobile optimization</li>
+                          <li>Top 5 quick-win recommendations</li>
+                        </>
+                      ) : (
+                        <>
+                          <li>Complete technical SEO audit (100+ checks)</li>
+                          <li>Competitor comparison and analysis</li>
+                          <li>Backlink profile and domain authority</li>
+                          <li>Keyword ranking opportunities</li>
+                          <li>Detailed 30-day action plan</li>
+                          <li>Custom recommendations for healthcare industry</li>
+                        </>
+                      )}
+                    </ul>
+                    {sendEmailWithReport && (
+                      <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #ffe066' }}>
+                        <strong><i className="fas fa-paper-plane me-2"></i>Email will be sent to:</strong> {lead.email}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="modal-footer" style={{ 
+                padding: '16px 24px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '0 0 12px 12px'
+              }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary"
+                  onClick={() => setShowSEOModal(false)}
+                  disabled={generatingReport}
+                  style={{ minWidth: '100px' }}
+                >
+                  <i className="fas fa-times me-2"></i>Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-primary"
+                  onClick={() => handleGenerateSEOReport(seoReportType, sendEmailWithReport)}
+                  disabled={generatingReport}
+                  style={{ minWidth: '150px', fontWeight: '600' }}
+                >
+                  {generatingReport ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-rocket me-2"></i>Generate Report
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
