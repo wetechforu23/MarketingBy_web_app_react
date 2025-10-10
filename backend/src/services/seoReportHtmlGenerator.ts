@@ -35,6 +35,15 @@ export class SEOReportHtmlGenerator {
     const scoreColor = data.score >= 80 ? '#28a745' : data.score >= 60 ? '#ffc107' : '#dc3545';
     const scoreLabel = data.score >= 80 ? 'Excellent' : data.score >= 60 ? 'Good' : 'Needs Improvement';
 
+    // Safe access to nested properties with fallbacks
+    const metaTags = data.metaTags || {};
+    const headings = data.headings || {};
+    const images = data.images || { total: 0, withoutAlt: 0 };
+    const links = data.links || { internal: 0, external: 0 };
+    const pageSpeed = data.pageSpeed || { score: 'N/A' };
+    const mobileOptimization = data.mobileOptimization || { isMobileFriendly: false };
+    const recommendations = data.recommendations || [];
+
     return `
 <!DOCTYPE html>
 <html lang="en">
@@ -300,21 +309,21 @@ export class SEOReportHtmlGenerator {
           <div class="metric-card">
             <div class="metric-label">Page Title</div>
             <div class="metric-value" style="font-size: 1rem;">
-              ${data.metaTags.title ? '✅' : '❌'} 
-              ${data.metaTags.title ? '<span class="badge badge-success">Present</span>' : '<span class="badge badge-danger">Missing</span>'}
+              ${metaTags.title ? '✅' : '❌'} 
+              ${metaTags.title ? '<span class="badge badge-success">Present</span>' : '<span class="badge badge-danger">Missing</span>'}
             </div>
-            <div class="metric-status ${data.metaTags.title ? 'status-good' : 'status-bad'}">
-              ${data.metaTags.title ? 'Good' : 'Needs Attention'}
+            <div class="metric-status ${metaTags.title ? 'status-good' : 'status-bad'}">
+              ${metaTags.title ? 'Good' : 'Needs Attention'}
             </div>
           </div>
           <div class="metric-card">
             <div class="metric-label">Meta Description</div>
             <div class="metric-value" style="font-size: 1rem;">
-              ${data.metaTags.description ? '✅' : '❌'} 
-              ${data.metaTags.description ? '<span class="badge badge-success">Present</span>' : '<span class="badge badge-danger">Missing</span>'}
+              ${metaTags.description ? '✅' : '❌'} 
+              ${metaTags.description ? '<span class="badge badge-success">Present</span>' : '<span class="badge badge-danger">Missing</span>'}
             </div>
-            <div class="metric-status ${data.metaTags.description ? 'status-good' : 'status-bad'}">
-              ${data.metaTags.description ? 'Good' : 'Needs Attention'}
+            <div class="metric-status ${metaTags.description ? 'status-good' : 'status-bad'}">
+              ${metaTags.description ? 'Good' : 'Needs Attention'}
             </div>
           </div>
         </div>
@@ -326,32 +335,32 @@ export class SEOReportHtmlGenerator {
         <div class="metric-grid">
           <div class="metric-card">
             <div class="metric-label">Page Speed Score</div>
-            <div class="metric-value">${data.pageSpeed?.score || 'N/A'}</div>
-            <div class="metric-status ${(data.pageSpeed?.score || 0) >= 80 ? 'status-good' : (data.pageSpeed?.score || 0) >= 60 ? 'status-warning' : 'status-bad'}">
-              ${(data.pageSpeed?.score || 0) >= 80 ? 'Good' : (data.pageSpeed?.score || 0) >= 60 ? 'Fair' : 'Poor'}
+            <div class="metric-value">${pageSpeed.score || 'N/A'}</div>
+            <div class="metric-status ${(pageSpeed.score || 0) >= 80 ? 'status-good' : (pageSpeed.score || 0) >= 60 ? 'status-warning' : 'status-bad'}">
+              ${(pageSpeed.score || 0) >= 80 ? 'Good' : (pageSpeed.score || 0) >= 60 ? 'Fair' : 'Poor'}
             </div>
           </div>
           <div class="metric-card">
             <div class="metric-label">Mobile Friendly</div>
             <div class="metric-value" style="font-size: 1rem;">
-              ${data.mobileOptimization?.isMobileFriendly ? '✅ Yes' : '❌ No'}
+              ${mobileOptimization.isMobileFriendly ? '✅ Yes' : '❌ No'}
             </div>
-            <div class="metric-status ${data.mobileOptimization?.isMobileFriendly ? 'status-good' : 'status-bad'}">
-              ${data.mobileOptimization?.isMobileFriendly ? 'Optimized' : 'Needs Work'}
+            <div class="metric-status ${mobileOptimization.isMobileFriendly ? 'status-good' : 'status-bad'}">
+              ${mobileOptimization.isMobileFriendly ? 'Optimized' : 'Needs Work'}
             </div>
           </div>
           <div class="metric-card">
             <div class="metric-label">Total Images</div>
-            <div class="metric-value">${data.images?.total || 0}</div>
-            <div class="metric-status ${data.images?.withoutAlt > 0 ? 'status-warning' : 'status-good'}">
-              ${data.images?.withoutAlt || 0} without ALT text
+            <div class="metric-value">${images.total || 0}</div>
+            <div class="metric-status ${images.withoutAlt > 0 ? 'status-warning' : 'status-good'}">
+              ${images.withoutAlt || 0} without ALT text
             </div>
           </div>
           <div class="metric-card">
             <div class="metric-label">Internal Links</div>
-            <div class="metric-value">${data.links?.internal || 0}</div>
+            <div class="metric-value">${links.internal || 0}</div>
             <div class="metric-status status-good">
-              ${data.links?.external || 0} external links
+              ${links.external || 0} external links
             </div>
           </div>
         </div>
@@ -363,7 +372,7 @@ export class SEOReportHtmlGenerator {
         <div class="recommendations">
           <h3>⚡ Quick Wins - Implement These First</h3>
           <ul>
-            ${data.recommendations.slice(0, 8).map(rec => `<li>${rec}</li>`).join('')}
+            ${recommendations.slice(0, 8).map(rec => `<li>${rec}</li>`).join('')}
           </ul>
         </div>
 
@@ -417,8 +426,14 @@ export class SEOReportHtmlGenerator {
    */
   private static generateActionItems(data: BasicSEOData): string {
     const actions: string[] = [];
+    
+    // Safe access with fallbacks
+    const metaTags = data.metaTags || {};
+    const images = data.images || { withoutAlt: 0 };
+    const pageSpeed = data.pageSpeed || { score: 0 };
+    const mobileOptimization = data.mobileOptimization || { isMobileFriendly: false };
 
-    if (!data.metaTags.title) {
+    if (!metaTags.title) {
       actions.push(`
         <div class="action-item">
           <strong>🎯 Add a Compelling Page Title</strong>
@@ -427,7 +442,7 @@ export class SEOReportHtmlGenerator {
       `);
     }
 
-    if (!data.metaTags.description) {
+    if (!metaTags.description) {
       actions.push(`
         <div class="action-item">
           <strong>📝 Create an Engaging Meta Description</strong>
@@ -436,25 +451,25 @@ export class SEOReportHtmlGenerator {
       `);
     }
 
-    if (data.images.withoutAlt > 0) {
+    if (images.withoutAlt > 0) {
       actions.push(`
         <div class="action-item">
-          <strong>🖼️ Add ALT Text to ${data.images.withoutAlt} Images</strong>
+          <strong>🖼️ Add ALT Text to ${images.withoutAlt} Images</strong>
           ALT text helps search engines understand your images and improves accessibility. Include keywords naturally.
         </div>
       `);
     }
 
-    if ((data.pageSpeed?.score || 0) < 80) {
+    if ((pageSpeed.score || 0) < 80) {
       actions.push(`
         <div class="action-item">
-          <strong>⚡ Improve Page Speed (Current: ${data.pageSpeed?.score || 'N/A'})</strong>
+          <strong>⚡ Improve Page Speed (Current: ${pageSpeed.score || 'N/A'})</strong>
           Optimize images, enable compression, and leverage browser caching. Target: 80+ score for better rankings.
         </div>
       `);
     }
 
-    if (!data.mobileOptimization?.isMobileFriendly) {
+    if (!mobileOptimization.isMobileFriendly) {
       actions.push(`
         <div class="action-item">
           <strong>📱 Make Your Site Mobile-Friendly</strong>
