@@ -1217,8 +1217,19 @@ router.get('/client-dashboard/api-access', async (req, res) => {
       if (reportType === 'basic') {
         console.log('📊 Running basic SEO analysis...');
         try {
+          // Run standard basic SEO analysis
           reportData = await seoService.generateBasicSEOReport(websiteUrl, companyName);
-          console.log('✅ Basic SEO analysis complete');
+          
+          // Run enhanced analysis for modern SEO signals
+          console.log('🚀 Running enhanced SEO analysis (paid ads, social, AI, keywords)...');
+          const { EnhancedSEOAnalyzer } = require('../services/enhancedSEOAnalyzer');
+          const enhancedData = await EnhancedSEOAnalyzer.analyze(websiteUrl);
+          
+          // Merge enhanced data into report
+          reportData.enhancedData = enhancedData;
+          reportData.overallScore = enhancedData.scores.overall;
+          
+          console.log('✅ Basic SEO analysis complete with enhanced data');
         } catch (seoError) {
           console.error('❌ Basic SEO analysis failed:', seoError);
           throw new Error(`SEO analysis failed: ${seoError instanceof Error ? seoError.message : 'Unknown error'}`);

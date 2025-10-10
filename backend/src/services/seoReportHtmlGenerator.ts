@@ -329,6 +329,21 @@ export class SEOReportHtmlGenerator {
         </div>
       </div>
 
+      <!-- Paid Advertising & Tracking -->
+      ${data.enhancedData ? this.generatePaidAdvertisingSection(data.enhancedData.paidAdvertising, data.enhancedData.scores.paidAdvertising) : ''}
+
+      <!-- Social Media Presence -->
+      ${data.enhancedData ? this.generateSocialMediaSection(data.enhancedData.socialMedia, data.enhancedData.scores.socialMedia) : ''}
+
+      <!-- Content Marketing -->
+      ${data.enhancedData ? this.generateContentMarketingSection(data.enhancedData.contentMarketing, data.enhancedData.scores.contentMarketing) : ''}
+
+      <!-- Keyword Analysis -->
+      ${data.enhancedData ? this.generateKeywordSection(data.enhancedData.keywords, data.enhancedData.scores.keywordOptimization) : ''}
+
+      <!-- AI & Modern SEO -->
+      ${data.enhancedData ? this.generateModernSEOSection(data.enhancedData.modernSEO, data.enhancedData.scores.modernSEO) : ''}
+
       <!-- Performance Metrics -->
       <div class="section">
         <h2>Performance Metrics</h2>
@@ -500,6 +515,278 @@ export class SEOReportHtmlGenerator {
     `);
 
     return actions.join('');
+  }
+
+  /**
+   * Generate Paid Advertising section
+   */
+  private static generatePaidAdvertisingSection(data: any, score: number): string {
+    const scoreColor = score >= 70 ? '#28a745' : score >= 40 ? '#ffc107' : '#dc3545';
+    
+    return `
+      <div class="section">
+        <h2>💰 Paid Advertising & Tracking</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; marginBottom: '15px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px'}">
+          <div>
+            <strong>Advertising Score:</strong> ${score}/100
+          </div>
+          <div style="font-size: 2rem; font-weight: bold; color: ${scoreColor};">${score}</div>
+        </div>
+        
+        <div class="metric-grid">
+          <div class="metric-card">
+            <div class="metric-label">Google Ads</div>
+            <div class="metric-value">${data.hasGoogleAds ? '✅ Active' : '❌ Not Found'}</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Facebook Pixel</div>
+            <div class="metric-value">${data.hasFacebookPixel ? '✅ Active' : '❌ Not Found'}</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Google Analytics</div>
+            <div class="metric-value">${data.hasGoogleAnalytics ? '✅ Active' : '❌ Not Found'}</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">LinkedIn Insight</div>
+            <div class="metric-value">${data.hasLinkedInInsight ? '✅ Active' : '❌ Not Found'}</div>
+          </div>
+        </div>
+        
+        ${data.detectedTags.length > 0 ? `
+          <div style="marginTop: '15px', padding: '15px', backgroundColor: '#e8f5e9', borderRadius: '8px'}">
+            <strong>✅ Detected Tracking:</strong> ${data.detectedTags.join(', ')}
+          </div>
+        ` : `
+          <div style="marginTop: '15px', padding: '15px', backgroundColor: '#ffebee', borderRadius: '8px'}">
+            <strong>⚠️ No paid advertising detected.</strong> Consider running Google Ads or Facebook Ads to boost visibility.
+          </div>
+        `}
+      </div>
+    `;
+  }
+
+  /**
+   * Generate Social Media section
+   */
+  private static generateSocialMediaSection(data: any, score: number): string {
+    const scoreColor = score >= 70 ? '#28a745' : score >= 40 ? '#ffc107' : '#dc3545';
+    
+    return `
+      <div class="section">
+        <h2>📱 Social Media Presence</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; marginBottom: '15px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px'}">
+          <div>
+            <strong>Social Media Score:</strong> ${score}/100
+          </div>
+          <div style="font-size: 2rem; font-weight: bold; color: ${scoreColor};">${score}</div>
+        </div>
+        
+        <div class="metric-grid">
+          <div class="metric-card">
+            <div class="metric-label">Facebook</div>
+            <div class="metric-value">${data.facebook ? '✅ Found' : '❌ Missing'}</div>
+            ${data.facebook ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.facebook}" target="_blank" style="color: #4682B4">View Profile</a></div>` : ''}
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">LinkedIn</div>
+            <div class="metric-value">${data.linkedin ? '✅ Found' : '❌ Missing'}</div>
+            ${data.linkedin ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.linkedin}" target="_blank" style="color: #4682B4">View Profile</a></div>` : ''}
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Instagram</div>
+            <div class="metric-value">${data.instagram ? '✅ Found' : '❌ Missing'}</div>
+            ${data.instagram ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.instagram}" target="_blank" style="color: #4682B4">View Profile</a></div>` : ''}
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Twitter/X</div>
+            <div class="metric-value">${data.twitter ? '✅ Found' : '❌ Missing'}</div>
+            ${data.twitter ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.twitter}" target="_blank" style="color: #4682B4">View Profile</a></div>` : ''}
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">YouTube</div>
+            <div class="metric-value">${data.youtube ? '✅ Found' : '❌ Missing'}</div>
+            ${data.youtube ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.youtube}" target="_blank" style="color: #4682B4">View Channel</a></div>` : ''}
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">TikTok</div>
+            <div class="metric-value">${data.tiktok ? '✅ Found' : '❌ Missing'}</div>
+            ${data.tiktok ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.tiktok}" target="_blank" style="color: #4682B4">View Profile</a></div>` : ''}
+          </div>
+        </div>
+        
+        <div style="marginTop: '20px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '8px'}">
+          <strong>💡 Recommendation:</strong> ${data.allLinks.length < 3 ? 'Add more social media profiles to increase brand visibility and build trust with potential patients.' : 'Great social media presence! Keep profiles active and post regularly.'}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Generate Content Marketing section
+   */
+  private static generateContentMarketingSection(data: any, score: number): string {
+    const scoreColor = score >= 70 ? '#28a745' : score >= 40 ? '#ffc107' : '#dc3545';
+    
+    return `
+      <div class="section">
+        <h2>📝 Content Marketing</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; marginBottom: '15px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px'}">
+          <div>
+            <strong>Content Score:</strong> ${score}/100
+          </div>
+          <div style="font-size: 2rem; font-weight: bold; color: ${scoreColor};">${score}</div>
+        </div>
+        
+        <div class="metric-grid">
+          <div class="metric-card">
+            <div class="metric-label">Blog/Articles</div>
+            <div class="metric-value">${data.hasBlog ? '✅ Found' : '❌ No Blog'}</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Article Count</div>
+            <div class="metric-value">${data.articleCount || 0}</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">RSS Feed</div>
+            <div class="metric-value">${data.hasRSSFeed ? '✅ Yes' : '❌ No'}</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Content Types</div>
+            <div class="metric-value">${data.contentTypes.length || 0}</div>
+          </div>
+        </div>
+        
+        ${data.contentTypes.length > 0 ? `
+          <div style="marginTop: '15px', padding: '15px', backgroundColor: '#e3f2fd', borderRadius: '8px'}">
+            <strong>📄 Content Types Found:</strong> ${data.contentTypes.join(', ')}
+          </div>
+        ` : ''}
+        
+        ${data.lastUpdated ? `
+          <div style="marginTop: '10px', padding: '15px', backgroundColor: '#e8f5e9', borderRadius: '8px'}">
+            <strong>🕒 Last Updated:</strong> ${data.lastUpdated}
+          </div>
+        ` : ''}
+        
+        <div style="marginTop: '20px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '8px'}">
+          <strong>💡 Recommendation:</strong> ${!data.hasBlog ? 'Start a blog! Publish 2-4 articles monthly addressing common patient questions. Target 800-1500 words per post.' : 'Great! Keep publishing regularly and share on social media.'}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Generate Keyword Analysis section
+   */
+  private static generateKeywordSection(data: any, score: number): string {
+    const scoreColor = score >= 70 ? '#28a745' : score >= 40 ? '#ffc107' : '#dc3545';
+    
+    return `
+      <div class="section">
+        <h2>🔑 Keyword Analysis (Real Data)</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; marginBottom: '15px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px'}">
+          <div>
+            <strong>Keyword Score:</strong> ${score}/100
+          </div>
+          <div style="font-size: 2rem; font-weight: bold; color: ${scoreColor};">${score}</div>
+        </div>
+        
+        ${data.extractedKeywords && data.extractedKeywords.length > 0 ? `
+          <div style="marginBottom: '20px'}">
+            <h6 style="fontWeight: '600', marginBottom: '10px'}">📊 Top Keywords on Your Site (by frequency)</h6>
+            <div style="padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px'}">
+              ${data.extractedKeywords.slice(0, 10).map((kw: any) => `
+                <span style="display: inline-block; padding: '6px 12px', margin: '4px', backgroundColor: '#4682B4', color: 'white', borderRadius: '20px', fontSize: '13px'}">
+                  ${kw.word} (${kw.frequency}×)
+                </span>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+        
+        ${data.longTailKeywords && data.longTailKeywords.length > 0 ? `
+          <div style="marginBottom: '20px'}">
+            <h6 style="fontWeight: '600', marginBottom: '10px'}">🎯 Long-Tail Keywords Found</h6>
+            <div style="padding: '15px', backgroundColor: '#e8f5e9', borderRadius: '8px'}">
+              ${data.longTailKeywords.slice(0, 8).map((kw: any) => `
+                <span style="display: inline-block; padding: '6px 12px', margin: '4px', backgroundColor: '#28a745', color: 'white', borderRadius: '20px', fontSize: '13px'}">
+                  ${kw}
+                </span>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+        
+        <div style="padding: '15px', backgroundColor: '#fff3cd', borderRadius: '8px'}">
+          <strong>💡 Recommendation:</strong> Focus on long-tail keywords like "primary care doctor near [city]" or "best [specialty] clinic in [area]". These convert better than short keywords!
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Generate Modern SEO & AI Readiness section
+   */
+  private static generateModernSEOSection(data: any, score: number): string {
+    const scoreColor = score >= 70 ? '#28a745' : score >= 40 ? '#ffc107' : '#dc3545';
+    
+    return `
+      <div class="section">
+        <h2>🤖 AI & Modern SEO Readiness</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; marginBottom: '15px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px'}">
+          <div>
+            <strong>AI Readiness Score:</strong> ${score}/100
+          </div>
+          <div style="font-size: 2rem; font-weight: bold; color: ${scoreColor};">${score}</div>
+        </div>
+        
+        <div class="metric-grid">
+          <div class="metric-card">
+            <div class="metric-label">Structured Data</div>
+            <div class="metric-value">${data.hasStructuredData ? '✅ Yes' : '❌ No'}</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">JSON-LD</div>
+            <div class="metric-value">${data.hasJSONLD ? '✅ Yes' : '❌ No'}</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Schema.org</div>
+            <div class="metric-value">${data.hasSchemaOrg ? '✅ Yes' : '❌ No'}</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">FAQ Schema</div>
+            <div class="metric-value">${data.hasFAQSchema ? '✅ Yes' : '❌ No'}</div>
+          </div>
+        </div>
+        
+        ${data.schemaTypes && data.schemaTypes.length > 0 ? `
+          <div style="marginTop: '15px', padding: '15px', backgroundColor: '#e3f2fd', borderRadius: '8px'}">
+            <strong>✅ Schema Types Found:</strong> ${data.schemaTypes.join(', ')}
+          </div>
+        ` : ''}
+        
+        <div style="marginTop: '20px', padding: '20px', background: 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)', borderRadius: '10px'}">
+          <h6 style="fontWeight: '700', color: '#2e7d32', marginBottom: '10px'}">🎯 ChatGPT & AI Search Optimization</h6>
+          <p style="fontSize: '14px', lineHeight: '1.8'}">
+            ${data.aiReadiness >= 70 
+              ? '✅ Your site is well-optimized for AI tools like ChatGPT, Bing AI, and Google Bard. Structured data helps AI understand and recommend your services!' 
+              : data.aiReadiness >= 40
+              ? '⚠️ Your site has some AI optimization, but adding more structured data will help ChatGPT and other AI tools recommend your services.' 
+              : '❌ Your site is NOT optimized for AI discovery. Add JSON-LD structured data (LocalBusiness, FAQPage, Product) so AI tools like ChatGPT can find and recommend you!'}
+          </p>
+          
+          <div style="marginTop: '15px', padding: '15px', backgroundColor: 'white', borderRadius: '8px'}">
+            <strong>Why This Matters:</strong>
+            <ul style="fontSize: '13px', lineHeight: '1.8', marginTop: '10px'}">
+              <li>ChatGPT and AI assistants use structured data to answer questions</li>
+              <li>Google's AI overview prioritizes sites with proper schema markup</li>
+              <li>Local business schema helps AI recommend you to nearby patients</li>
+              <li>FAQ schema makes your content appear in voice search results</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   /**
