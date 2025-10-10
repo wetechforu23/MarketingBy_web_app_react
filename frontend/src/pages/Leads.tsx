@@ -1447,14 +1447,29 @@ const Leads: React.FC = () => {
                     <td>
                       <div>
                         <strong 
-                          onClick={() => navigate(`/app/leads/${lead.id}`)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('🔍 Navigating to lead detail page:', lead.id, lead.company);
+                            navigate(`/app/leads/${lead.id}`);
+                          }}
                           style={{ 
                             cursor: 'pointer', 
                             color: '#1976d2',
-                            textDecoration: 'none'
+                            textDecoration: 'none',
+                            position: 'relative',
+                            zIndex: 100,
+                            display: 'inline-block',
+                            padding: '2px 4px'
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
-                          onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.textDecoration = 'underline';
+                            e.currentTarget.style.color = '#0d47a1';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.textDecoration = 'none';
+                            e.currentTarget.style.color = '#1976d2';
+                          }}
                         >
                           {lead.website_url ? (
                             (() => {
