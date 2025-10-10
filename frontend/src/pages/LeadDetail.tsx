@@ -52,6 +52,9 @@ interface SEOReport {
   report_data: any;
   sent_at: string;
   viewed_at?: string;
+  offer_token?: string; // Unique token for shareable offer link
+  offer_expires_at?: string; // Expiration timestamp (72 hours)
+  offer_claimed?: boolean; // Whether customer claimed the offer
 }
 
 const LeadDetail: React.FC = () => {
@@ -237,6 +240,24 @@ const LeadDetail: React.FC = () => {
     } else {
       setSelectedReports(seoReports.map(r => r.id));
     }
+  };
+
+  const handleCopyOfferLink = (report: SEOReport) => {
+    if (!report.offer_token) {
+      alert('⚠️ This report doesn\'t have an offer link yet. Please regenerate the report.');
+      return;
+    }
+
+    const offerLink = `https://www.marketingby.wetechforu.com/api/public/offer/${report.offer_token}`;
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(offerLink).then(() => {
+      alert(`✅ Offer link copied to clipboard!\n\n${offerLink}\n\nYou can now paste this link anywhere to send to your customer.`);
+    }).catch(err => {
+      console.error('Failed to copy link:', err);
+      // Fallback: show the link in a prompt
+      prompt('📋 Copy this offer link:', offerLink);
+    });
   };
 
   const handleDeleteSelectedReports = async () => {
@@ -765,13 +786,46 @@ const LeadDetail: React.FC = () => {
                             </div>
                           )}
                           {report.report_data && (
-                            <div style={{ marginTop: '10px' }}>
+                            <div style={{ marginTop: '10px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                               <button 
                                 className="btn btn-sm btn-primary"
                                 onClick={() => handleViewReport(report)}
                               >
                                 <i className="fas fa-eye me-2"></i>View Report
                               </button>
+                              
+                              {/* Copy Offer Link Button */}
+                              {report.offer_token && (
+                                <button 
+                                  className="btn btn-sm btn-success"
+                                  onClick={() => handleCopyOfferLink(report)}
+                                  title="Copy shareable offer link for customer"
+                                >
+                                  <i className="fas fa-link me-2"></i>Copy Link
+                                </button>
+                              )}
+                              
+                              {/* Show expiration status */}
+                              {report.offer_token && report.offer_expires_at && (
+                                <small style={{ 
+                                  marginLeft: '10px', 
+                                  color: new Date(report.offer_expires_at) > new Date() ? '#28a745' : '#dc3545',
+                                  alignSelf: 'center',
+                                  fontWeight: '600'
+                                }}>
+                                  {new Date(report.offer_expires_at) > new Date() ? (
+                                    <>
+                                      <i className="fas fa-clock me-1"></i>
+                                      Expires: {new Date(report.offer_expires_at).toLocaleDateString()}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <i className="fas fa-exclamation-triangle me-1"></i>
+                                      Expired
+                                    </>
+                                  )}
+                                </small>
+                              )}
                             </div>
                           )}
                         </div>
