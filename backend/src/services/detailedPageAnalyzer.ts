@@ -294,11 +294,14 @@ export class DetailedPageAnalyzer {
     let lastLevel = 0;
     let hierarchyBroken = false;
     $('h1, h2, h3, h4, h5, h6').each((i, el) => {
-      const level = parseInt(el.tagName.substring(1));
-      if (level - lastLevel > 1) {
-        hierarchyBroken = true;
+      const tagName = $(el).prop('tagName');
+      if (tagName) {
+        const level = parseInt(tagName.toLowerCase().substring(1));
+        if (level - lastLevel > 1) {
+          hierarchyBroken = true;
+        }
+        lastLevel = level;
       }
-      lastLevel = level;
     });
     
     if (hierarchyBroken) {
