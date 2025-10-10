@@ -217,7 +217,10 @@ const LeadDetail: React.FC = () => {
         <div>
           <button 
             className="btn btn-link" 
-            onClick={() => navigate('/leads')}
+            onClick={() => {
+              console.log('📍 Navigating back to leads list');
+              navigate('/app/leads');
+            }}
             style={{ padding: 0, marginBottom: '10px', textDecoration: 'none' }}
           >
             <i className="fas fa-arrow-left me-2"></i>Back to Leads
