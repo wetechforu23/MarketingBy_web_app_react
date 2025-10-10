@@ -136,23 +136,32 @@ const LeadDetail: React.FC = () => {
     }
   };
 
-  const handleGenerateSEOReport = async (reportType: 'basic' | 'comprehensive') => {
+  const handleGenerateSEOReport = async (reportType: 'basic' | 'comprehensive', sendEmail: boolean = false) => {
     if (!lead?.website_url) {
       alert('No website URL available for this lead');
       return;
     }
     
-    if (window.confirm(`Generate ${reportType} SEO report for ${lead.website_url}?`)) {
+    const confirmMessage = sendEmail
+      ? `Generate ${reportType} SEO report for ${lead.website_url} and send email to ${lead.contact_email}?`
+      : `Generate ${reportType} SEO report for ${lead.website_url}?`;
+    
+    if (window.confirm(confirmMessage)) {
       try {
-        await http.post(`/leads/${id}/generate-seo-report`, {
+        const res = await http.post(`/leads/${id}/generate-seo-report`, {
           reportType,
-          website: lead.website_url
+          sendEmail
         });
-        alert(`${reportType} SEO report generated successfully`);
+        
+        const successMessage = res.data.emailSent
+          ? `✅ ${reportType} SEO report generated and sent to ${lead.contact_email}`
+          : `✅ ${reportType} SEO report generated successfully`;
+        
+        alert(successMessage);
         fetchLeadData(); // Refresh to show new report
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error generating SEO report:', error);
-        alert('Failed to generate SEO report');
+        alert(error.response?.data?.details || 'Failed to generate SEO report');
       }
     }
   };
@@ -579,18 +588,34 @@ const LeadDetail: React.FC = () => {
           <div className="seo-tab">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h4 style={{ margin: 0, fontWeight: '600' }}>SEO Reports</h4>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <button 
                   className="btn btn-outline-primary"
-                  onClick={() => handleGenerateSEOReport('basic')}
+                  onClick={() => handleGenerateSEOReport('basic', false)}
                 >
-                  <i className="fas fa-chart-line me-2"></i>Generate Basic Report
+                  <i className="fas fa-chart-line me-2"></i>Basic Report
                 </button>
                 <button 
                   className="btn btn-primary"
-                  onClick={() => handleGenerateSEOReport('comprehensive')}
+                  onClick={() => handleGenerateSEOReport('basic', true)}
+                  disabled={!lead?.contact_email}
+                  title={!lead?.contact_email ? 'No email address' : 'Generate & email basic SEO report'}
                 >
-                  <i className="fas fa-chart-bar me-2"></i>Generate Comprehensive Report
+                  <i className="fas fa-envelope me-2"></i>Basic + Email
+                </button>
+                <button 
+                  className="btn btn-outline-success"
+                  onClick={() => handleGenerateSEOReport('comprehensive', false)}
+                >
+                  <i className="fas fa-chart-bar me-2"></i>Comprehensive
+                </button>
+                <button 
+                  className="btn btn-success"
+                  onClick={() => handleGenerateSEOReport('comprehensive', true)}
+                  disabled={!lead?.contact_email}
+                  title={!lead?.contact_email ? 'No email address' : 'Generate & email comprehensive SEO report'}
+                >
+                  <i className="fas fa-paper-plane me-2"></i>Comprehensive + Email
                 </button>
               </div>
             </div>
