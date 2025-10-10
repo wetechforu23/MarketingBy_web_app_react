@@ -1141,35 +1141,45 @@ const LeadDetail: React.FC = () => {
               </div>
 
               {/* Modal Body */}
-              <div className="modal-body" style={{ padding: '24px', overflowY: 'auto' }}>
-                <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-                  <h6 style={{ fontWeight: '600', marginBottom: '8px' }}>Report Information</h6>
-                  <div style={{ fontSize: '14px', lineHeight: '1.8' }}>
-                    <div><strong>Generated:</strong> {new Date(selectedReport.sent_at).toLocaleString()}</div>
-                    {selectedReport.viewed_at && (
-                      <div><strong>Last Viewed:</strong> {new Date(selectedReport.viewed_at).toLocaleString()}</div>
-                    )}
-                  </div>
-                </div>
+              <div className="modal-body" style={{ padding: '0', overflowY: 'auto' }}>
+                {/* Render HTML Report if available, otherwise show JSON */}
+                {(selectedReport as any).html_report ? (
+                  <div 
+                    dangerouslySetInnerHTML={{ __html: (selectedReport as any).html_report }}
+                    style={{ width: '100%', height: '100%' }}
+                  />
+                ) : (
+                  <>
+                    <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                      <h6 style={{ fontWeight: '600', marginBottom: '8px' }}>Report Information</h6>
+                      <div style={{ fontSize: '14px', lineHeight: '1.8' }}>
+                        <div><strong>Generated:</strong> {new Date(selectedReport.sent_at).toLocaleString()}</div>
+                        {selectedReport.viewed_at && (
+                          <div><strong>Last Viewed:</strong> {new Date(selectedReport.viewed_at).toLocaleString()}</div>
+                        )}
+                      </div>
+                    </div>
 
-                {/* Report Data Display */}
-                <div style={{ 
-                  padding: '20px',
-                  backgroundColor: 'white',
-                  borderRadius: '8px',
-                  border: '1px solid #dee2e6'
-                }}>
-                  <pre style={{ 
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                    fontSize: '13px',
-                    maxHeight: '500px',
-                    overflowY: 'auto',
-                    margin: 0
-                  }}>
-                    {JSON.stringify(selectedReport.report_data, null, 2)}
-                  </pre>
-                </div>
+                    {/* Report Data Display */}
+                    <div style={{ 
+                      padding: '20px',
+                      backgroundColor: 'white',
+                      borderRadius: '8px',
+                      border: '1px solid #dee2e6'
+                    }}>
+                      <pre style={{ 
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        fontSize: '13px',
+                        maxHeight: '500px',
+                        overflowY: 'auto',
+                        margin: 0
+                      }}>
+                        {JSON.stringify(selectedReport.report_data, null, 2)}
+                      </pre>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Modal Footer */}

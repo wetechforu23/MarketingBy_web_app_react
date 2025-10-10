@@ -1281,12 +1281,33 @@ router.get('/client-dashboard/api-access', async (req, res) => {
       
       // Save report to database
       console.log('💾 Saving report to database...');
+      
+      // Generate HTML report
+      const { SEOReportHtmlGenerator } = require('../services/seoReportHtmlGenerator');
+      let htmlReport: string;
+      
+      if (reportType === 'basic') {
+        htmlReport = SEOReportHtmlGenerator.generateBasicReport({
+          websiteUrl,
+          companyName,
+          ...reportData,
+          analyzedAt: new Date().toISOString()
+        });
+      } else {
+        htmlReport = SEOReportHtmlGenerator.generateComprehensiveReport({
+          websiteUrl,
+          companyName,
+          ...reportData,
+          analyzedAt: new Date().toISOString()
+        });
+      }
+      
       const reportResult = await pool.query(
-        `INSERT INTO lead_seo_reports (lead_id, report_type, report_data, sent_at)
-         VALUES ($1, $2, $3, NOW()) RETURNING *`,
-        [id, reportType, JSON.stringify(reportData)]
+        `INSERT INTO lead_seo_reports (lead_id, report_type, report_data, html_report, sent_at)
+         VALUES ($1, $2, $3, $4, NOW()) RETURNING *`,
+        [id, reportType, JSON.stringify(reportData), htmlReport]
       );
-      console.log('✅ Report saved to database');
+      console.log('✅ Report saved to database with HTML');
       
       // Log activity
       const activityData = {
