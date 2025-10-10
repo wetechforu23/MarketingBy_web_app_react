@@ -44,7 +44,6 @@ router.get('/public/offer/:token', async (req, res) => {
         lsr.offer_claimed,
         lsr.sent_at,
         l.company,
-        l.clinic_name,
         l.website_url,
         l.email,
         l.contact_first_name,
@@ -90,7 +89,7 @@ router.get('/public/offer/:token', async (req, res) => {
       `);
     }
     
-    console.log(`✅ Serving SEO report for: ${report.company || report.clinic_name}`);
+    console.log(`✅ Serving SEO report for: ${report.company}`);
     
     // Return the HTML report
     res.setHeader('Content-Type', 'text/html');
