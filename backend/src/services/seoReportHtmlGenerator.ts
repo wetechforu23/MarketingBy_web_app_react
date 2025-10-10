@@ -33,8 +33,10 @@ export class SEOReportHtmlGenerator {
    * Generate HTML for Basic SEO Report
    */
   static generateBasicReport(data: BasicSEOData): string {
-    const scoreColor = data.score >= 80 ? '#28a745' : data.score >= 60 ? '#ffc107' : '#dc3545';
-    const scoreLabel = data.score >= 80 ? 'Excellent' : data.score >= 60 ? 'Good' : 'Needs Improvement';
+    // Use enhanced data overall score if available, otherwise use basic score
+    const finalScore = data.enhancedData?.scores?.overall || data.score || 0;
+    const scoreColor = finalScore >= 80 ? '#28a745' : finalScore >= 60 ? '#ffc107' : '#dc3545';
+    const scoreLabel = finalScore >= 80 ? 'Excellent' : finalScore >= 60 ? 'Good' : 'Needs Improvement';
 
     // Safe access to nested properties with fallbacks
     const metaTags = data.metaTags || {};
@@ -289,7 +291,7 @@ export class SEOReportHtmlGenerator {
     <!-- Overall Score -->
     <div class="score-section">
       <div class="score-circle">
-        <div class="score-number">${data.score}</div>
+        <div class="score-number">${finalScore}</div>
         <div class="score-label">/ 100</div>
       </div>
       <div class="score-status">${scoreLabel}</div>
