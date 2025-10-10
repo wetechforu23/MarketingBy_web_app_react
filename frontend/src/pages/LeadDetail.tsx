@@ -72,6 +72,13 @@ const LeadDetail: React.FC = () => {
     fetchLeadData();
   }, [id]);
 
+  // Close email composer when switching tabs
+  useEffect(() => {
+    if (activeTab !== 'emails') {
+      setShowEmailComposer(false);
+    }
+  }, [activeTab]);
+
   const fetchLeadData = async () => {
     try {
       setLoading(true);
