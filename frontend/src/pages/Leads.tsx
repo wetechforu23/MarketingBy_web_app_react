@@ -35,6 +35,7 @@ interface User {
   username: string;
   email: string;
   role: string;
+  client_id?: number | null;
 }
 
 interface LeadStats {
@@ -1418,6 +1419,52 @@ const Leads: React.FC = () => {
               </button>
             )}
             
+            {/* Assigned To Filter Dropdown */}
+            <div style={{ display: 'inline-block', marginRight: '12px', marginBottom: '12px' }}>
+              <select
+                id="assignedToFilter"
+                className="form-select"
+                value={assignedToFilter}
+                onChange={(e) => setAssignedToFilter(e.target.value)}
+                style={{
+                  padding: '12px 20px',
+                  borderRadius: '8px',
+                  border: '2px solid #000000',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  minWidth: '200px',
+                  backgroundColor: 'white',
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
+                  height: '48px'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(70, 130, 180, 0.3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.1)';
+                }}
+              >
+                <option value="all">
+                  <i className="fas fa-users"></i> All Leads
+                </option>
+                <option value="unassigned">🔴 Unassigned</option>
+                <option value="assigned">🟢 Assigned</option>
+                <optgroup label="─── Filter by Team Member ───">
+                  {teamMembers
+                    .filter(user => !user.client_id || user.role === 'super_admin')
+                    .map(user => (
+                      <option key={user.id} value={user.id.toString()}>
+                        👤 {user.username} ({user.role})
+                      </option>
+                    ))}
+                </optgroup>
+              </select>
+            </div>
+            
             <button 
               className="btn btn-primary" 
               onClick={handleEnhancedScraping}
@@ -1603,6 +1650,27 @@ const Leads: React.FC = () => {
                   Status {getSortIcon('status')}
                 </th>
                 <th 
+                  style={{
+                    padding: '14px 12px',
+                    fontWeight: '700',
+                    fontSize: '13px',
+                    color: '#495057',
+                    backgroundColor: '#f8f9fa',
+                    borderBottom: '2px solid #dee2e6',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    whiteSpace: 'nowrap',
+                    minWidth: '200px',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 10,
+                    userSelect: 'none'
+                  }}
+                >
+                  <i className="fas fa-user-tag me-2" style={{ color: '#4682B4' }}></i>
+                  Assigned To
+                </th>
+                <th 
                   style={{ minWidth: '150px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
                   onClick={() => handleSort('industry_category')}
                 >
@@ -1619,7 +1687,7 @@ const Leads: React.FC = () => {
             <tbody>
               {paginatedLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="empty-state">
+                  <td colSpan={11} className="empty-state">
                     <i className="fas fa-inbox"></i>
                     <p>No leads found matching your criteria.</p>
                   </td>
@@ -1728,6 +1796,99 @@ const Leads: React.FC = () => {
                       <span className={`badge ${getStatusBadgeClass(lead.status)}`}>
                         {lead.status}
                       </span>
+                    </td>
+                    <td 
+                      style={{ 
+                        padding: '12px', 
+                        borderBottom: '1px solid #dee2e6',
+                        verticalAlign: 'middle',
+                        minWidth: '200px'
+                      }}
+                    >
+                      <select
+                        value={lead.assigned_to || ''}
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          handleAssignLead(
+                            lead.id, 
+                            newValue ? parseInt(newValue) : null
+                          );
+                        }}
+                        className="form-select form-select-sm"
+                        style={{
+                          padding: '8px 12px',
+                          fontSize: '13px',
+                          borderRadius: '6px',
+                          border: lead.assigned_to ? '2px solid #28a745' : '2px solid #dc3545',
+                          backgroundColor: lead.assigned_to ? '#d4edda' : '#fff5f5',
+                          color: lead.assigned_to ? '#155724' : '#721c24',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          minWidth: '180px',
+                          transition: 'all 0.2s ease',
+                          backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 16 16\'%3e%3cpath fill=\'none\' stroke=\'%23343a40\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M2 5l6 6 6-6\'/%3e%3c/svg%3e")',
+                          backgroundRepeat: 'no-repeat',
+                          backgroundPosition: 'right 0.75rem center',
+                          backgroundSize: '16px 12px',
+                          paddingRight: '2.5rem'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.boxShadow = '0 0 0 3px rgba(70, 130, 180, 0.15)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      >
+                        <option value="" style={{ backgroundColor: '#fff', color: '#721c24' }}>
+                          ❌ Unassigned
+                        </option>
+                        <optgroup label="─────  Assign To  ─────">
+                          {teamMembers
+                            .filter(user => !user.client_id || user.role === 'super_admin')
+                            .map(user => (
+                              <option 
+                                key={user.id} 
+                                value={user.id}
+                                style={{ backgroundColor: '#fff', color: '#155724' }}
+                              >
+                                {lead.assigned_to === user.id ? '✅ ' : '👤 '}
+                                {user.username} ({user.role})
+                              </option>
+                            ))}
+                        </optgroup>
+                      </select>
+                      
+                      {/* Show assignment metadata */}
+                      {lead.assigned_to && (lead.assigned_by_name || lead.assigned_at) && (
+                        <div 
+                          style={{ 
+                            display: 'flex',
+                            alignItems: 'center',
+                            marginTop: '6px', 
+                            padding: '4px 8px',
+                            backgroundColor: '#e7f3ff',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            color: '#0d6efd',
+                            fontStyle: 'italic'
+                          }}
+                        >
+                          <i className="fas fa-info-circle me-1" style={{ fontSize: '10px' }}></i>
+                          {lead.assigned_by_name && (
+                            <span>By <strong>{lead.assigned_by_name}</strong></span>
+                          )}
+                          {lead.assigned_at && (
+                            <span className="ms-1">
+                              • {new Date(lead.assigned_at).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric',
+                                year: 'numeric'
+                              })}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <div>
