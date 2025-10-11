@@ -22,6 +22,19 @@ interface Lead {
   contact_last_name?: string;
   compliance_status?: string;
   notes?: string;
+  assigned_to?: number;
+  assigned_to_name?: string;
+  assigned_by?: number;
+  assigned_by_name?: string;
+  assigned_at?: string;
+  assignment_notes?: string;
+}
+
+interface User {
+  id: number;
+  username: string;
+  email: string;
+  role: string;
 }
 
 interface LeadStats {
@@ -41,8 +54,14 @@ const Leads: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [industryFilter, setIndustryFilter] = useState<string>('all');
+  const [assignedToFilter, setAssignedToFilter] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  
+  // Team members list for assignment
+  const [teamMembers, setTeamMembers] = useState<User[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [showMyLeadsOnly, setShowMyLeadsOnly] = useState(false);
   const [websiteToScrap, setWebsiteToScrap] = useState('');
   const [isScraping, setIsScraping] = useState(false);
   const [showManualLeadModal, setShowManualLeadModal] = useState(false);
@@ -116,6 +135,78 @@ const Leads: React.FC = () => {
     }
   };
 
+  // Fetch team members for assignment dropdown
+  const fetchTeamMembers = async () => {
+    try {
+      const response = await http.get('/users');
+      setTeamMembers(response.data || []);
+    } catch (err) {
+      console.error('Failed to fetch team members:', err);
+    }
+  };
+
+  // Fetch current user info
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await http.get('/auth/me');
+      setCurrentUser(response.data);
+    } catch (err) {
+      console.error('Failed to fetch current user:', err);
+    }
+  };
+
+  // Assign lead to team member
+  const handleAssignLead = async (leadId: number, assignedTo: number | null) => {
+    try {
+      if (assignedTo === null) {
+        // Unassign
+        await http.post('/lead-assignment/unassign', { lead_id: leadId });
+        alert('✅ Lead unassigned successfully');
+      } else {
+        // Assign
+        await http.post('/lead-assignment/assign', {
+          lead_id: leadId,
+          assigned_to: assignedTo,
+          reason: 'manual_assignment'
+        });
+        alert('✅ Lead assigned successfully');
+      }
+      
+      // Refresh leads
+      await fetchData();
+    } catch (err) {
+      console.error('Failed to assign lead:', err);
+      alert('❌ Failed to assign lead. Please try again.');
+    }
+  };
+
+  // Bulk assign selected leads
+  const handleBulkAssign = async () => {
+    if (selectedLeads.length === 0) {
+      alert('Please select at least one lead');
+      return;
+    }
+
+    const assignedTo = prompt('Enter user ID to assign these leads to:');
+    if (!assignedTo) return;
+
+    try {
+      await http.post('/lead-assignment/bulk-assign', {
+        lead_ids: selectedLeads,
+        assigned_to: parseInt(assignedTo),
+        reason: 'bulk_assignment'
+      });
+      
+      alert(`✅ Successfully assigned ${selectedLeads.length} leads`);
+      setSelectedLeads([]);
+      setSelectAll(false);
+      await fetchData();
+    } catch (err) {
+      console.error('Failed to bulk assign leads:', err);
+      alert('❌ Failed to assign leads. Please try again.');
+    }
+  };
+
   useEffect(() => {
     const loadInitialData = async () => {
       try {
@@ -127,6 +218,12 @@ const Leads: React.FC = () => {
         
         setLeads(leadsResponse.data || []);
         setLeadStats(statsResponse.data);
+        
+        // Also fetch team members and current user
+        await Promise.all([
+          fetchTeamMembers(),
+          fetchCurrentUser()
+        ]);
       } catch (err) {
         console.error('Failed to fetch leads data:', err);
         setError('Failed to load leads data.');
@@ -152,6 +249,21 @@ const Leads: React.FC = () => {
     const matchesSource = sourceFilter === 'all' || (lead.source && lead.source === sourceFilter);
     const matchesIndustry = industryFilter === 'all' || (lead.industry_category && lead.industry_category === industryFilter);
     
+    // Assignment filtering
+    let matchesAssignment = true;
+    if (assignedToFilter === 'unassigned') {
+      matchesAssignment = !lead.assigned_to;
+    } else if (assignedToFilter === 'assigned') {
+      matchesAssignment = !!lead.assigned_to;
+    } else if (assignedToFilter !== 'all') {
+      matchesAssignment = lead.assigned_to === parseInt(assignedToFilter);
+    }
+    
+    // "My Leads" filter
+    if (showMyLeadsOnly && currentUser) {
+      matchesAssignment = lead.assigned_to === currentUser.id;
+    }
+    
     // Date filtering
     let matchesDate = true;
     if (dateFrom || dateTo) {
@@ -167,7 +279,7 @@ const Leads: React.FC = () => {
       }
     }
     
-    return matchesSearch && matchesStatus && matchesSource && matchesIndustry && matchesDate;
+    return matchesSearch && matchesStatus && matchesSource && matchesIndustry && matchesAssignment && matchesDate;
   });
 
 
@@ -206,7 +318,7 @@ const Leads: React.FC = () => {
   // Reset to first page when filters change
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, sourceFilter, industryFilter, dateFrom, dateTo, pageSize]);
+  }, [searchTerm, statusFilter, sourceFilter, industryFilter, assignedToFilter, showMyLeadsOnly, dateFrom, dateTo, pageSize]);
 
   // Handle column sorting
   const handleSort = (column: string) => {
