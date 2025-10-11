@@ -415,10 +415,10 @@ export class SEOReportHtmlGenerator {
       <div class="section" style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); padding: 25px; border-radius: 10px;">
         <h2 style="border: none;">What This Means for Your Business</h2>
         <p style="font-size: 1.05rem; line-height: 1.8; margin-bottom: 15px;">
-          Your website currently scores <strong style="color: ${scoreColor};">${data.score}/100</strong> for basic SEO optimization. 
-          ${data.score >= 80 
+          Your website currently scores <strong style="color: ${scoreColor};">${finalScore}/100</strong> for basic SEO optimization. 
+          ${finalScore >= 80 
             ? 'Great work! Your site has solid fundamentals, but there are still opportunities to improve visibility and attract more patients.' 
-            : data.score >= 60 
+            : finalScore >= 60 
             ? 'Your site has good potential, but several key improvements are needed to compete effectively in local search results.' 
             : 'Your website needs immediate attention. Implementing these recommendations could significantly increase your online visibility and patient inquiries.'}
         </p>
@@ -605,38 +605,42 @@ export class SEOReportHtmlGenerator {
         <div class="metric-grid">
           <div class="metric-card">
             <div class="metric-label">Facebook</div>
-            <div class="metric-value">${data.facebook ? '✅ Found' : '❌ Missing'}</div>
-            ${data.facebook ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.facebook}" target="_blank" style="color: #4682B4">View Profile</a></div>` : ''}
+            <div class="metric-value">${data.facebook ? '✅ Found' : '⚠️ Not Detected'}</div>
+            ${data.facebook ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.facebook}" target="_blank" style="color: #4682B4">View Profile</a></div>` : '<div style="fontSize: '11px', color: '#999', marginTop: '5px', fontStyle: 'italic'}">Not found on website</div>'}
           </div>
           <div class="metric-card">
             <div class="metric-label">LinkedIn</div>
-            <div class="metric-value">${data.linkedin ? '✅ Found' : '❌ Missing'}</div>
-            ${data.linkedin ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.linkedin}" target="_blank" style="color: #4682B4">View Profile</a></div>` : ''}
+            <div class="metric-value">${data.linkedin ? '✅ Found' : '⚠️ Not Detected'}</div>
+            ${data.linkedin ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.linkedin}" target="_blank" style="color: #4682B4">View Profile</a></div>` : '<div style="fontSize: '11px', color: '#999', marginTop: '5px', fontStyle: 'italic'}">Not found on website</div>'}
           </div>
           <div class="metric-card">
             <div class="metric-label">Instagram</div>
-            <div class="metric-value">${data.instagram ? '✅ Found' : '❌ Missing'}</div>
-            ${data.instagram ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.instagram}" target="_blank" style="color: #4682B4">View Profile</a></div>` : ''}
+            <div class="metric-value">${data.instagram ? '✅ Found' : '⚠️ Not Detected'}</div>
+            ${data.instagram ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.instagram}" target="_blank" style="color: #4682B4">View Profile</a></div>` : '<div style="fontSize: '11px', color: '#999', marginTop: '5px', fontStyle: 'italic'}">Not found on website</div>'}
           </div>
           <div class="metric-card">
             <div class="metric-label">Twitter/X</div>
-            <div class="metric-value">${data.twitter ? '✅ Found' : '❌ Missing'}</div>
-            ${data.twitter ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.twitter}" target="_blank" style="color: #4682B4">View Profile</a></div>` : ''}
+            <div class="metric-value">${data.twitter ? '✅ Found' : '⚠️ Not Detected'}</div>
+            ${data.twitter ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.twitter}" target="_blank" style="color: #4682B4">View Profile</a></div>` : '<div style="fontSize: '11px', color: '#999', marginTop: '5px', fontStyle: 'italic'}">Not found on website</div>'}
           </div>
           <div class="metric-card">
             <div class="metric-label">YouTube</div>
-            <div class="metric-value">${data.youtube ? '✅ Found' : '❌ Missing'}</div>
-            ${data.youtube ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.youtube}" target="_blank" style="color: #4682B4">View Channel</a></div>` : ''}
+            <div class="metric-value">${data.youtube ? '✅ Found' : '⚠️ Not Detected'}</div>
+            ${data.youtube ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.youtube}" target="_blank" style="color: #4682B4">View Channel</a></div>` : '<div style="fontSize: '11px', color: '#999', marginTop: '5px', fontStyle: 'italic'}">Not found on website</div>'}
           </div>
           <div class="metric-card">
             <div class="metric-label">TikTok</div>
-            <div class="metric-value">${data.tiktok ? '✅ Found' : '❌ Missing'}</div>
-            ${data.tiktok ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.tiktok}" target="_blank" style="color: #4682B4">View Profile</a></div>` : ''}
+            <div class="metric-value">${data.tiktok ? '✅ Found' : '⚠️ Not Detected'}</div>
+            ${data.tiktok ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.tiktok}" target="_blank" style="color: #4682B4">View Profile</a></div>` : '<div style="fontSize: '11px', color: '#999', marginTop: '5px', fontStyle: 'italic'}">Not found on website</div>'}
           </div>
         </div>
         
-        <div style="marginTop: '20px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '8px'}">
-          <strong>💡 Recommendation:</strong> ${data.allLinks.length < 3 ? 'Add more social media profiles to increase brand visibility and build trust with potential patients.' : 'Great social media presence! Keep profiles active and post regularly.'}
+        <div style="marginTop: '15px', padding: '12px', backgroundColor: '#e7f3ff', borderRadius: '6px', fontSize: '13px', color: '#666'}">
+          <strong>ℹ️ Note:</strong> These results are based on links found on your website. If you have social media profiles not linked from your site, they won't appear here.
+        </div>
+        
+        <div style="marginTop: '15px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '8px'}">
+          <strong>💡 Recommendation:</strong> ${data.allLinks.length < 3 ? 'Add social media links to your website footer or header. Even if you have profiles, they need to be discoverable!' : 'Great! Your social media profiles are linked. Keep them active with regular posts.'}
         </div>
       </div>
     `;
@@ -1697,4 +1701,5 @@ export class SEOReportHtmlGenerator {
 }
 
 export default SEOReportHtmlGenerator;
+
 

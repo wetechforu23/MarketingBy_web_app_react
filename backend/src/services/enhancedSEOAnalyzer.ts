@@ -333,10 +333,14 @@ export class EnhancedSEOAnalyzer {
       wordFreq[word] = (wordFreq[word] || 0) + 1;
     });
     
-    // Get top keywords by frequency (excluding common words)
-    const commonWords = ['this', 'that', 'with', 'from', 'have', 'your', 'will', 'what', 'when', 'more', 'been', 'were', 'there', 'their', 'about'];
+    // Get top keywords by frequency (excluding common words AND technical terms)
+    const commonWords = ['this', 'that', 'with', 'from', 'have', 'your', 'will', 'what', 'when', 'more', 'been', 'were', 'there', 'their', 'about', 'each', 'which', 'some', 'other', 'such', 'into'];
+    
+    // 🆕 Filter out technical/template terms
+    const technicalTerms = ['elementor', 'divider', 'widget', 'spacer', 'separator', 'container', 'wrapper', 'section', 'column', 'row', 'content', 'inner', 'wrap', 'block', 'element', 'module', 'component', 'class', 'style', 'script', 'function', 'data', 'attr', 'href', 'html', 'body', 'head', 'meta', 'link', 'span', 'padding', 'margin', 'width', 'height'];
+    
     const extractedKeywords = Object.entries(wordFreq)
-      .filter(([word]) => !commonWords.includes(word))
+      .filter(([word]) => !commonWords.includes(word) && !technicalTerms.includes(word))
       .sort((a, b) => b[1] - a[1])
       .slice(0, 20)
       .map(([word, frequency]) => ({ word, frequency }));
