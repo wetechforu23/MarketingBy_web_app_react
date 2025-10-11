@@ -1308,33 +1308,96 @@ const Leads: React.FC = () => {
             
             {/* Delete Selected Button - Only show when leads are selected */}
             {selectedLeads.length > 0 && (
+              <>
+                <button 
+                  className="btn btn-danger" 
+                  onClick={handleBulkDelete}
+                  style={{
+                    padding: '12px 20px',
+                    borderRadius: '8px',
+                    border: '2px solid #dc3545',
+                    boxShadow: '0 2px 6px rgba(220, 53, 69, 0.2)',
+                    fontWeight: '600',
+                    fontSize: '14px',
+                    transition: 'all 0.2s ease',
+                    minWidth: '160px',
+                    marginRight: '12px',
+                    marginBottom: '12px',
+                    backgroundColor: '#dc3545',
+                    color: 'white'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(220, 53, 69, 0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(220, 53, 69, 0.2)';
+                  }}
+                >
+                  <i className="fas fa-trash me-2"></i>Delete Selected ({selectedLeads.length})
+                </button>
+                
+                {/* Bulk Assign Button */}
+                <button 
+                  className="btn btn-warning" 
+                  onClick={handleBulkAssign}
+                  style={{
+                    padding: '12px 20px',
+                    borderRadius: '8px',
+                    border: '2px solid #ffc107',
+                    boxShadow: '0 2px 6px rgba(255, 193, 7, 0.2)',
+                    fontWeight: '600',
+                    fontSize: '14px',
+                    transition: 'all 0.2s ease',
+                    minWidth: '160px',
+                    marginRight: '12px',
+                    marginBottom: '12px',
+                    backgroundColor: '#ffc107',
+                    color: '#333'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(255, 193, 7, 0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(255, 193, 7, 0.2)';
+                  }}
+                >
+                  <i className="fas fa-user-plus me-2"></i>Assign Selected ({selectedLeads.length})
+                </button>
+              </>
+            )}
+            
+            {/* My Leads Toggle Button */}
+            {currentUser && (
               <button 
-                className="btn btn-danger" 
-                onClick={handleBulkDelete}
+                className={`btn ${showMyLeadsOnly ? 'btn-success' : 'btn-outline-success'}`}
+                onClick={() => setShowMyLeadsOnly(!showMyLeadsOnly)}
                 style={{
                   padding: '12px 20px',
                   borderRadius: '8px',
-                  border: '2px solid #dc3545',
-                  boxShadow: '0 2px 6px rgba(220, 53, 69, 0.2)',
+                  border: '2px solid #28a745',
+                  boxShadow: '0 2px 6px rgba(40, 167, 69, 0.2)',
                   fontWeight: '600',
                   fontSize: '14px',
                   transition: 'all 0.2s ease',
                   minWidth: '160px',
                   marginRight: '12px',
-                  marginBottom: '12px',
-                  backgroundColor: '#dc3545',
-                  color: 'white'
+                  marginBottom: '12px'
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(220, 53, 69, 0.3)';
+                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(40, 167, 69, 0.3)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(220, 53, 69, 0.2)';
+                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(40, 167, 69, 0.2)';
                 }}
               >
-                <i className="fas fa-trash me-2"></i>Delete Selected ({selectedLeads.length})
+                <i className={`fas ${showMyLeadsOnly ? 'fa-user-check' : 'fa-user'} me-2`}></i>
+                {showMyLeadsOnly ? 'My Leads (ON)' : 'Show My Leads'}
               </button>
             )}
             
