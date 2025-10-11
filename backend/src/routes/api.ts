@@ -521,28 +521,36 @@ router.get('/leads', async (req, res) => {
     
     const result = await pool.query(
       `SELECT 
-        id, 
-        company, 
-        email, 
-        phone, 
-        industry_category, 
-        industry_subcategory, 
-        source, 
-        status, 
-        notes, 
-        website_url, 
-        address, 
-        city, 
-        state, 
-        zip_code, 
-        contact_first_name, 
-        contact_last_name, 
-        compliance_status, 
-        client_id,
-        created_at 
-      FROM leads 
+        l.id, 
+        l.company, 
+        l.email, 
+        l.phone, 
+        l.industry_category, 
+        l.industry_subcategory, 
+        l.source, 
+        l.status, 
+        l.notes, 
+        l.website_url, 
+        l.address, 
+        l.city, 
+        l.state, 
+        l.zip_code, 
+        l.contact_first_name, 
+        l.contact_last_name, 
+        l.compliance_status, 
+        l.client_id,
+        l.created_at,
+        l.assigned_to,
+        l.assigned_at,
+        l.assigned_by,
+        l.assignment_notes,
+        u1.username as assigned_to_name,
+        u2.username as assigned_by_name
+      FROM leads l
+      LEFT JOIN users u1 ON l.assigned_to = u1.id
+      LEFT JOIN users u2 ON l.assigned_by = u2.id
       ${whereSql}
-      ORDER BY created_at DESC`,
+      ORDER BY l.created_at DESC`,
       params
     );
     res.json(result.rows);
