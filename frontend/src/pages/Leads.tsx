@@ -135,11 +135,16 @@ const Leads: React.FC = () => {
     }
   };
 
-  // Fetch team members for assignment dropdown
+  // Fetch team members for assignment dropdown (WeTechForU users only, not client users)
   const fetchTeamMembers = async () => {
     try {
       const response = await http.get('/users');
-      setTeamMembers(response.data || []);
+      // Filter to only WeTechForU team members (users without client_id or super_admin)
+      const wetechforuTeam = (response.data || []).filter(
+        (user: User) => !user.client_id || user.role === 'super_admin'
+      );
+      setTeamMembers(wetechforuTeam);
+      console.log(`✅ Loaded ${wetechforuTeam.length} WeTechForU team members for assignment`);
     } catch (err) {
       console.error('Failed to fetch team members:', err);
     }
@@ -187,17 +192,29 @@ const Leads: React.FC = () => {
       return;
     }
 
-    const assignedTo = prompt('Enter user ID to assign these leads to:');
-    if (!assignedTo) return;
+    // Create a list of team members to show in prompt
+    const teamMembersList = teamMembers
+      .filter(u => !u.client_id || u.role === 'super_admin')
+      .map(u => `${u.id}: ${u.username} (${u.role})`)
+      .join('\n');
+    
+    const assignedToId = prompt(
+      `📋 Bulk Assign ${selectedLeads.length} Leads\n\n` +
+      `Available Team Members:\n${teamMembersList}\n\n` +
+      `Enter User ID to assign to:`
+    );
+    
+    if (!assignedToId) return;
 
     try {
       await http.post('/lead-assignment/bulk-assign', {
         lead_ids: selectedLeads,
-        assigned_to: parseInt(assignedTo),
-        reason: 'bulk_assignment'
+        assigned_to: parseInt(assignedToId),
+        reason: 'bulk_assignment',
+        notes: `Bulk assigned ${selectedLeads.length} leads`
       });
       
-      alert(`✅ Successfully assigned ${selectedLeads.length} leads`);
+      alert(`✅ Successfully assigned ${selectedLeads.length} leads!`);
       setSelectedLeads([]);
       setSelectAll(false);
       await fetchData();
