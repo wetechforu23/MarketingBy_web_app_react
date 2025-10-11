@@ -606,40 +606,40 @@ export class SEOReportHtmlGenerator {
           <div class="metric-card">
             <div class="metric-label">Facebook</div>
             <div class="metric-value">${data.facebook ? '✅ Found' : '⚠️ Not Detected'}</div>
-            ${data.facebook ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.facebook}" target="_blank" style="color: #4682B4">View Profile</a></div>` : '<div style="fontSize: '11px', color: '#999', marginTop: '5px', fontStyle: 'italic'}">Not found on website</div>'}
+            ${data.facebook ? `<div style="font-size: 12px; margin-top: 5px;"><a href="${data.facebook}" target="_blank" style="color: #4682B4">View Profile</a></div>` : '<div style="font-size: 11px; color: #999; margin-top: 5px; font-style: italic;">Not found on website</div>'}
           </div>
           <div class="metric-card">
             <div class="metric-label">LinkedIn</div>
             <div class="metric-value">${data.linkedin ? '✅ Found' : '⚠️ Not Detected'}</div>
-            ${data.linkedin ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.linkedin}" target="_blank" style="color: #4682B4">View Profile</a></div>` : '<div style="fontSize: '11px', color: '#999', marginTop: '5px', fontStyle: 'italic'}">Not found on website</div>'}
+            ${data.linkedin ? `<div style="font-size: 12px; margin-top: 5px;"><a href="${data.linkedin}" target="_blank" style="color: #4682B4">View Profile</a></div>` : '<div style="font-size: 11px; color: #999; margin-top: 5px; font-style: italic;">Not found on website</div>'}
           </div>
           <div class="metric-card">
             <div class="metric-label">Instagram</div>
             <div class="metric-value">${data.instagram ? '✅ Found' : '⚠️ Not Detected'}</div>
-            ${data.instagram ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.instagram}" target="_blank" style="color: #4682B4">View Profile</a></div>` : '<div style="fontSize: '11px', color: '#999', marginTop: '5px', fontStyle: 'italic'}">Not found on website</div>'}
+            ${data.instagram ? `<div style="font-size: 12px; margin-top: 5px;"><a href="${data.instagram}" target="_blank" style="color: #4682B4">View Profile</a></div>` : '<div style="font-size: 11px; color: #999; margin-top: 5px; font-style: italic;">Not found on website</div>'}
           </div>
           <div class="metric-card">
             <div class="metric-label">Twitter/X</div>
             <div class="metric-value">${data.twitter ? '✅ Found' : '⚠️ Not Detected'}</div>
-            ${data.twitter ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.twitter}" target="_blank" style="color: #4682B4">View Profile</a></div>` : '<div style="fontSize: '11px', color: '#999', marginTop: '5px', fontStyle: 'italic'}">Not found on website</div>'}
+            ${data.twitter ? `<div style="font-size: 12px; margin-top: 5px;"><a href="${data.twitter}" target="_blank" style="color: #4682B4">View Profile</a></div>` : '<div style="font-size: 11px; color: #999; margin-top: 5px; font-style: italic;">Not found on website</div>'}
           </div>
           <div class="metric-card">
             <div class="metric-label">YouTube</div>
             <div class="metric-value">${data.youtube ? '✅ Found' : '⚠️ Not Detected'}</div>
-            ${data.youtube ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.youtube}" target="_blank" style="color: #4682B4">View Channel</a></div>` : '<div style="fontSize: '11px', color: '#999', marginTop: '5px', fontStyle: 'italic'}">Not found on website</div>'}
+            ${data.youtube ? `<div style="font-size: 12px; margin-top: 5px;"><a href="${data.youtube}" target="_blank" style="color: #4682B4">View Channel</a></div>` : '<div style="font-size: 11px; color: #999; margin-top: 5px; font-style: italic;">Not found on website</div>'}
           </div>
           <div class="metric-card">
             <div class="metric-label">TikTok</div>
             <div class="metric-value">${data.tiktok ? '✅ Found' : '⚠️ Not Detected'}</div>
-            ${data.tiktok ? `<div style="fontSize: '12px', marginTop: '5px'}"><a href="${data.tiktok}" target="_blank" style="color: #4682B4">View Profile</a></div>` : '<div style="fontSize: '11px', color: '#999', marginTop: '5px', fontStyle: 'italic'}">Not found on website</div>'}
+            ${data.tiktok ? `<div style="font-size: 12px; margin-top: 5px;"><a href="${data.tiktok}" target="_blank" style="color: #4682B4">View Profile</a></div>` : '<div style="font-size: 11px; color: #999; margin-top: 5px; font-style: italic;">Not found on website</div>'}
           </div>
         </div>
         
-        <div style="marginTop: '15px', padding: '12px', backgroundColor: '#e7f3ff', borderRadius: '6px', fontSize: '13px', color: '#666'}">
+        <div style="margin-top: 15px; padding: 12px; background-color: #e7f3ff; border-radius: 6px; font-size: 13px; color: #666;">
           <strong>ℹ️ Note:</strong> These results are based on links found on your website. If you have social media profiles not linked from your site, they won't appear here.
         </div>
         
-        <div style="marginTop: '15px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '8px'}">
+        <div style="margin-top: 15px; padding: 15px; background-color: #fff3cd; border-radius: 8px;">
           <strong>💡 Recommendation:</strong> ${data.allLinks.length < 3 ? 'Add social media links to your website footer or header. Even if you have profiles, they need to be discoverable!' : 'Great! Your social media profiles are linked. Keep them active with regular posts.'}
         </div>
       </div>
