@@ -18,6 +18,7 @@ import emailRoutes from './routes/email';
 import complianceRoutes from './routes/compliance';
 import tasksRoutes from './routes/tasks';
 import leadAssignmentRoutes from './routes/leadAssignment';
+import usersRoutes from './routes/users';
 
 dotenv.config();
 
@@ -94,6 +95,7 @@ app.use('/api/email', emailRoutes);
 app.use('/api/compliance', complianceRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/lead-assignment', leadAssignmentRoutes);
+app.use('/api/users', usersRoutes);
 
 // Serve React app (static files from public directory)
 const frontendPath = path.join(__dirname, 'public');
