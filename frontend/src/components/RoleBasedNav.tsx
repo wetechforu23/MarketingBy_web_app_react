@@ -27,9 +27,10 @@ interface UserPermissions {
 interface User {
   id: number
   email: string
-  is_admin: boolean
+  role: string
+  team_type?: string
   client_id?: number
-  permissions: UserPermissions
+  permissions?: any
 }
 
 export default function RoleBasedNav() {
@@ -40,18 +41,10 @@ export default function RoleBasedNav() {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const [userResponse, permissionsResponse] = await Promise.all([
-          http.get('/auth/me'),
-          http.get('/users/me/permissions')
-        ])
-        
+        const userResponse = await http.get('/auth/me')
         const userData = userResponse.data
-        const permissionsData = permissionsResponse.data
         
-        setUser({
-          ...userData,
-          permissions: permissionsData
-        })
+        setUser(userData)
       } catch (error) {
         console.error('Error fetching user data:', error)
       } finally {
@@ -92,50 +85,42 @@ export default function RoleBasedNav() {
   }, [])
 
   // Determine user type
-  const isSuperAdmin = user?.is_admin && (user.client_id === null || user.client_id === undefined);
-  const isClientAdmin = user?.is_admin && user.client_id && user.client_id > 0;
-  const isClientUser = !user?.is_admin && user?.client_id && user.client_id > 0;
+  const isSuperAdmin = user?.role === 'super_admin';
+  const isClientAdmin = user?.role === 'client_admin';
+  const isClientUser = user?.role === 'client_user';
+  const isWeTechForUUser = user?.team_type === 'wetechforu';
 
   const isActive = (path: string) => {
     return location.pathname === path
   }
 
   const hasPageAccess = (page: string) => {
-    if (!user?.permissions) return false
-    
     // Super Admin can access everything
     if (isSuperAdmin) return true
     
-    // Map page identifiers to permission properties
-    const permissionMap: { [key: string]: keyof UserPermissions } = {
-      'dashboard': 'canViewAnalytics',
-      'admin': 'canViewUsers',
-      'users': 'canViewUsers',
-      'clients': 'canViewClients',
-      'leads': 'canViewLeads',
-      'campaigns': 'canViewAnalytics',
-      'client-dashboard': 'canViewAnalytics',
-      'seo': 'canViewSEO',
-      'seo-analysis': 'canViewSEO',
-      'seo-audit': 'canViewSEOTasks',
-      'ai-seo': 'canViewAISEO',
-      'analytics': 'canViewAnalytics',
-      'reports': 'canViewAnalytics',
-      'calendar': 'canViewCalendar',
-      'compliance': 'canViewCompliance',
-      'customer': 'canViewAnalytics',
-      'customer/seo-reports': 'canViewSEO',
-      'customer/analytics': 'canViewAnalytics',
-      'customer/leads': 'canViewLeads',
-      'customer/performance': 'canViewAnalytics',
-      'customer/communications': 'canViewAnalytics',
-      'customer/plan': 'canViewAnalytics',
-      'settings': 'canManageCredentials',
-      'credentials': 'canViewCredentials'
+    // Simple role-based access for now
+    switch (page) {
+      case 'dashboard':
+        return true; // All users can access dashboard
+      case 'users':
+        return isSuperAdmin || isWeTechForUUser;
+      case 'clients':
+        return isSuperAdmin || isWeTechForUUser;
+      case 'leads':
+        return true; // All users can view leads (filtered by client)
+      case 'seo':
+      case 'seo-analysis':
+      case 'seo-audit':
+        return isSuperAdmin || isWeTechForUUser;
+      case 'analytics':
+      case 'reports':
+        return true; // All users can view analytics (filtered by client)
+      case 'settings':
+      case 'credentials':
+        return isSuperAdmin || isWeTechForUUser;
+      default:
+        return false;
     }
-    
-    const permission = permissionMap[page]
-    return permission ? user.permissions[permission] : false
   }
 
   if (loading) {
