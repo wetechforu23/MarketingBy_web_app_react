@@ -50,10 +50,12 @@ export default function AppLayout() {
   }
 
   const toggleMobileMenu = () => {
+    console.log('🔴 Mobile menu toggle clicked!', !isMobileMenuOpen)
     setIsMobileMenuOpen(!isMobileMenuOpen)
   }
 
   const closeMobileMenu = () => {
+    console.log('🔴 Mobile menu closing!')
     setIsMobileMenuOpen(false)
   }
 
@@ -72,6 +74,9 @@ export default function AppLayout() {
         return '👤 User'
     }
   }
+
+  // Debug: Log mobile menu state
+  console.log('🔴 Mobile menu state:', isMobileMenuOpen)
 
   return (
     <div className="layout">
@@ -141,6 +146,93 @@ export default function AppLayout() {
         </div>
       </aside>
       <main className="content">
+        {/* Mobile Menu Toggle - Multiple Approaches */}
+        {/* Approach 1: Floating Action Button */}
+        <div 
+          onClick={toggleMobileMenu}
+          style={{
+            position: 'fixed',
+            top: '20px',
+            left: '20px',
+            zIndex: 99999,
+            background: 'linear-gradient(45deg, #ff6b6b, #ee5a24)',
+            color: 'white',
+            width: '70px',
+            height: '70px',
+            borderRadius: '50%',
+            border: '4px solid white',
+            boxShadow: '0 10px 30px rgba(255, 107, 107, 0.7)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '2rem',
+            fontWeight: 'bold',
+            transition: 'all 0.3s ease',
+            animation: 'pulse 2s infinite',
+            userSelect: 'none'
+          }}
+        >
+          {isMobileMenuOpen ? '✕' : '☰'}
+        </div>
+
+        {/* Approach 2: Top Bar Button */}
+        <div 
+          onClick={toggleMobileMenu}
+          style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            zIndex: 99999,
+            background: 'linear-gradient(45deg, #4ecdc4, #44a08d)',
+            color: 'white',
+            width: '60px',
+            height: '60px',
+            borderRadius: '15px',
+            border: '3px solid white',
+            boxShadow: '0 8px 25px rgba(78, 205, 196, 0.6)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '1.8rem',
+            fontWeight: 'bold',
+            transition: 'all 0.3s ease',
+            userSelect: 'none'
+          }}
+        >
+          {isMobileMenuOpen ? '✕' : '☰'}
+        </div>
+
+        {/* Approach 3: Bottom Right FAB */}
+        <div 
+          onClick={toggleMobileMenu}
+          style={{
+            position: 'fixed',
+            bottom: '30px',
+            right: '30px',
+            zIndex: 99999,
+            background: 'linear-gradient(45deg, #667eea, #764ba2)',
+            color: 'white',
+            width: '80px',
+            height: '80px',
+            borderRadius: '50%',
+            border: '4px solid white',
+            boxShadow: '0 12px 35px rgba(102, 126, 234, 0.7)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '2.2rem',
+            fontWeight: 'bold',
+            transition: 'all 0.3s ease',
+            animation: 'pulse 2s infinite',
+            userSelect: 'none'
+          }}
+        >
+          {isMobileMenuOpen ? '✕' : '☰'}
+        </div>
+
         {/* Top Right Profile/Logout Bar */}
         <div style={{
           position: 'sticky',
