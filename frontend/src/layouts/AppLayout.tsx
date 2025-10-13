@@ -1,5 +1,6 @@
 import { Outlet, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import RoleBasedNav from '../components/RoleBasedNav'
 import { http } from '../api/http'
 import '../theme/brand.css'
@@ -78,8 +79,137 @@ export default function AppLayout() {
   // Debug: Log mobile menu state
   console.log('🔴 Mobile menu state:', isMobileMenuOpen)
 
+  // Force render mobile menu buttons using React Portal
+  const mobileMenuButtons = (
+    <>
+      {/* Emergency Mobile Menu - Top Left */}
+      <div 
+        onClick={toggleMobileMenu}
+        style={{
+          position: 'fixed',
+          top: '10px',
+          left: '10px',
+          zIndex: 999999,
+          background: '#ff0000',
+          color: 'white',
+          width: '80px',
+          height: '80px',
+          borderRadius: '50%',
+          border: '5px solid white',
+          boxShadow: '0 0 20px rgba(255,0,0,0.8)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '2.5rem',
+          fontWeight: 'bold',
+          transition: 'all 0.3s ease',
+          userSelect: 'none',
+          pointerEvents: 'auto'
+        }}
+      >
+        ☰
+      </div>
+
+      {/* Emergency Mobile Menu - Top Right */}
+      <div 
+        onClick={toggleMobileMenu}
+        style={{
+          position: 'fixed',
+          top: '10px',
+          right: '10px',
+          zIndex: 999999,
+          background: '#00ff00',
+          color: 'white',
+          width: '80px',
+          height: '80px',
+          borderRadius: '50%',
+          border: '5px solid white',
+          boxShadow: '0 0 20px rgba(0,255,0,0.8)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '2.5rem',
+          fontWeight: 'bold',
+          transition: 'all 0.3s ease',
+          userSelect: 'none',
+          pointerEvents: 'auto'
+        }}
+      >
+        ☰
+      </div>
+
+      {/* Emergency Mobile Menu - Bottom Center */}
+      <div 
+        onClick={toggleMobileMenu}
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 999999,
+          background: '#0000ff',
+          color: 'white',
+          width: '100px',
+          height: '100px',
+          borderRadius: '50%',
+          border: '5px solid white',
+          boxShadow: '0 0 25px rgba(0,0,255,0.8)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '3rem',
+          fontWeight: 'bold',
+          transition: 'all 0.3s ease',
+          userSelect: 'none',
+          pointerEvents: 'auto'
+        }}
+      >
+        ☰
+      </div>
+    </>
+  )
+
   return (
     <div className="layout">
+      {/* Debug Message - Should always be visible */}
+      <div style={{
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        zIndex: 999999,
+        background: 'yellow',
+        color: 'black',
+        padding: '20px',
+        borderRadius: '10px',
+        border: '3px solid red',
+        fontSize: '20px',
+        fontWeight: 'bold',
+        textAlign: 'center'
+      }}>
+        🔴 MOBILE MENU DEBUG - COMPONENT IS RENDERING! 🔴
+        <br />
+        Menu State: {isMobileMenuOpen ? 'OPEN' : 'CLOSED'}
+        <br />
+        <button onClick={toggleMobileMenu} style={{
+          background: 'red',
+          color: 'white',
+          padding: '10px 20px',
+          border: 'none',
+          borderRadius: '5px',
+          fontSize: '16px',
+          cursor: 'pointer',
+          marginTop: '10px'
+        }}>
+          TOGGLE MENU
+        </button>
+      </div>
+      
+      {/* Render mobile menu buttons at the very top */}
+      {mobileMenuButtons}
       {/* Mobile Menu Toggle Button */}
       <div 
         className="mobile-menu-toggle" 
@@ -330,6 +460,9 @@ export default function AppLayout() {
           <Outlet />
         </div>
       </main>
+      
+      {/* Portal Mobile Menu Buttons - Rendered directly to document.body */}
+      {createPortal(mobileMenuButtons, document.body)}
     </div>
   )
 }
