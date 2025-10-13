@@ -13,6 +13,8 @@ interface User {
 }
 
 export default function AppLayout() {
+  console.log('🚀 NEW NAVIGATION DESIGN LOADED - v1.0')
+  
   const navigate = useNavigate()
   const [user, setUser] = useState<User | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -252,6 +254,22 @@ export default function AppLayout() {
       </aside>
       
       <main className="content">
+        {/* Version Indicator */}
+        <div style={{
+          position: 'fixed',
+          top: '10px',
+          right: '10px',
+          background: '#28a745',
+          color: 'white',
+          padding: '5px 10px',
+          borderRadius: '5px',
+          fontSize: '12px',
+          zIndex: 1000,
+          fontWeight: 'bold'
+        }}>
+          NEW NAV v1.0
+        </div>
+        
         <div className="content-inner">
           <Outlet />
         </div>
