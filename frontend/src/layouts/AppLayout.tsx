@@ -471,6 +471,24 @@ export default function AppLayout() {
         </div>
         
         <div className="content-inner">
+          {/* EMERGENCY TEST - This should be visible */}
+          <div style={{
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            width: '100%',
+            height: '100px',
+            background: 'red',
+            color: 'white',
+            zIndex: 999999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '24px',
+            fontWeight: 'bold'
+          }}>
+            🚨 EMERGENCY TEST - IF YOU SEE THIS, DEPLOYMENT WORKS! 🚨
+          </div>
           <Outlet />
         </div>
       </main>
