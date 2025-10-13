@@ -613,7 +613,7 @@ router.get('/clients/list', requireAuth, async (req: Request, res: Response) => 
     }
 
     const result = await pool.query(
-      'SELECT id, name, email, website, created_at FROM clients ORDER BY name ASC'
+      'SELECT id, name, email, phone, company, created_at FROM clients ORDER BY name ASC'
     );
 
     res.json(result.rows);

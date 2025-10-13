@@ -296,7 +296,7 @@ router.get('/admin/clients', async (req, res) => {
     const offset = (Number(page) - 1) * Number(limit);
 
     const result = await pool.query(
-      `SELECT id, client_name, email, contact_name, phone, specialties, is_active, created_at 
+      `SELECT id, name, email, company, phone, status, created_at 
        FROM clients 
        ORDER BY created_at DESC 
        LIMIT $1 OFFSET $2`,
@@ -378,7 +378,7 @@ router.get('/admin/analytics/system', async (req, res) => {
 router.get('/clients', async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, client_name as name, email, phone, contact_name as company, specialties as industry, is_active as status, created_at FROM clients ORDER BY created_at DESC'
+      'SELECT id, name, email, phone, company, status, created_at FROM clients ORDER BY created_at DESC'
     );
     res.json(result.rows);
   } catch (error) {
@@ -869,7 +869,7 @@ router.get('/client-dashboard/analytics', async (req, res) => {
 router.get('/client-dashboard/clients', async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, client_name, email, contact_name, is_active, created_at FROM clients ORDER BY created_at DESC LIMIT 10'
+      'SELECT id, name, email, company, status, created_at FROM clients ORDER BY created_at DESC LIMIT 10'
     );
     res.json(result.rows);
   } catch (error) {
