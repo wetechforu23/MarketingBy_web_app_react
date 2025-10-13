@@ -33,7 +33,12 @@ interface User {
   permissions?: any
 }
 
-export default function RoleBasedNav() {
+interface RoleBasedNavProps {
+  isCollapsed?: boolean
+  onNavigate?: () => void
+}
+
+export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBasedNavProps) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const location = useLocation()
@@ -142,9 +147,11 @@ export default function RoleBasedNav() {
             <Link 
               className={`nav-link ${isActive('/app/dashboard') ? 'active' : ''}`} 
               to="/app/dashboard"
+              onClick={onNavigate}
+              title={isCollapsed ? 'Dashboard' : ''}
             >
               <i className="fas fa-tachometer-alt"></i>
-              Dashboard
+              {!isCollapsed && 'Dashboard'}
             </Link>
           </li>
         )}
@@ -155,9 +162,11 @@ export default function RoleBasedNav() {
             <Link 
               className={`nav-link ${isActive('/app/clients') ? 'active' : ''}`} 
               to="/app/clients"
+              onClick={onNavigate}
+              title={isCollapsed ? 'Clients' : ''}
             >
               <i className="fas fa-building"></i>
-              Clients
+              {!isCollapsed && 'Clients'}
             </Link>
           </li>
         )}
@@ -168,9 +177,11 @@ export default function RoleBasedNav() {
             <Link 
               className={`nav-link ${isActive('/app/leads') ? 'active' : ''}`} 
               to="/app/leads"
+              onClick={onNavigate}
+              title={isCollapsed ? 'Leads' : ''}
             >
               <i className="fas fa-user-plus"></i>
-              Leads
+              {!isCollapsed && 'Leads'}
             </Link>
           </li>
         )}

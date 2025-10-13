@@ -71,6 +71,29 @@ a:hover {
   overflow: hidden;
 }
 
+/* Collapsed Sidebar */
+.sidebar.collapsed {
+  width: 80px;
+}
+
+.sidebar.collapsed .brand h1 {
+  display: none;
+}
+
+.sidebar.collapsed .nav-link {
+  justify-content: center;
+  padding: 12px;
+}
+
+.sidebar.collapsed .nav-link span {
+  display: none;
+}
+
+.sidebar.collapsed .profile-info-name,
+.sidebar.collapsed .profile-info-role {
+  display: none;
+}
+
 .sidebar > div:nth-child(2) {
   flex: 1;
   overflow-y: auto;
