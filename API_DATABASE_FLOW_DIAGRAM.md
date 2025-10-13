@@ -115,10 +115,25 @@ erDiagram
     USERS {
         int id PK
         string email UK
+        string username
         string password_hash
-        boolean is_admin
+        string role
+        string team_type
+        int client_id FK
+        jsonb permissions
+        boolean is_active
+        boolean must_change_password
+        int created_by FK
+        datetime last_login
         datetime created_at
         datetime updated_at
+        string first_name
+        string last_name
+        string phone
+        string timezone
+        string language
+        boolean notifications_enabled
+        string profile_picture_url
     }
     
     CLIENTS {
@@ -371,6 +386,18 @@ erDiagram
         text error_message
     }
     
+    USER_ACTIVITY_LOG {
+        int id PK
+        int user_id FK
+        string action
+        string resource_type
+        int resource_id
+        jsonb details
+        string ip_address
+        string user_agent
+        datetime created_at
+    }
+    
     PLATFORM_SETTINGS {
         int id PK
         string setting_key
@@ -399,6 +426,7 @@ erDiagram
     
     ENCRYPTED_CREDENTIALS ||--o{ CREDENTIAL_ACCESS_LOGS : "tracks"
     USERS ||--o{ CREDENTIAL_ACCESS_LOGS : "accesses"
+    USERS ||--o{ USER_ACTIVITY_LOG : "performs"
     
     INDUSTRY_CATEGORIES ||--o{ INDUSTRY_SUBCATEGORIES : "contains"
     INDUSTRY_CATEGORIES ||--o{ LEADS : "categorizes"
@@ -1360,6 +1388,19 @@ PUT    /api/credentials/:id
 DELETE /api/credentials/:id
 ```
 
+### User Management APIs
+```
+GET    /api/users                    # List all users (role-filtered)
+GET    /api/users/:id                # Get single user
+POST   /api/users                    # Create new user with permissions
+PUT    /api/users/:id                # Update user
+DELETE /api/users/:id                # Delete user
+PATCH  /api/users/:id/toggle-active  # Enable/disable user
+POST   /api/users/:id/reset-password # Reset password
+GET    /api/users/clients/list       # Get clients for dropdown
+GET    /api/users/permissions/defaults/:role # Get default permissions
+```
+
 ### Client Dashboard APIs
 ```
 GET /api/client-dashboard/overview
@@ -1438,20 +1479,48 @@ POST /api/reports/generate
 
 ## 🎯 Role-Based Access Control Matrix
 
-| Feature | Super Admin | Client Admin | Client User |
-|---------|-------------|--------------|-------------|
-| View All Clients | ✅ | ❌ | ❌ |
-| Manage Clients | ✅ | ❌ | ❌ |
-| View Own Client | ✅ | ✅ | ✅ |
-| Manage Own Client | ✅ | ✅ | ❌ |
-| View Campaigns | All | Own Client | Own Client (RO) |
-| Manage Campaigns | All | Own Client | ❌ |
-| View Analytics | System-wide | Client-specific | Client-specific (RO) |
-| Manage Users | ✅ | Own Client | ❌ |
-| View Reports | All | Own Client | Own Client (RO) |
-| Manage Credentials | ✅ | ❌ | ❌ |
-| SEO Analysis | All | Own Client | Own Client (RO) |
-| Lead Management | All | Own Client | Own Client (RO) |
+### **7 User Roles Overview**
+1. **👑 Super Admin** - Full system access (WeTechForU)
+2. **💻 WeTechForU Developer** - Technical access
+3. **💼 WeTechForU Sales** - Sales-focused access  
+4. **📊 WeTechForU Manager** - Management access
+5. **🎯 WeTechForU Project Manager** - Project access
+6. **🔑 Client Admin** - Manage their client users
+7. **👤 Client User** - View-only access
+
+### **Permission Categories**
+- **📋 Leads**: View, Add, Edit, Delete, Assign
+- **👥 Users**: View, Add, Edit, Delete
+- **📊 Reports**: View, Generate, Export
+- **🏢 Clients**: View, Add, Edit, Delete
+- **🔍 SEO**: Basic, Comprehensive
+- **📧 Email**: Send, Templates
+
+| Feature | Super Admin | WTFU Dev | WTFU Sales | WTFU Mgr | WTFU PM | Client Admin | Client User |
+|---------|-------------|----------|------------|----------|---------|--------------|-------------|
+| **User Management** |
+| View All Users | ✅ | ✅ | ❌ | ✅ | ✅ | Own Client | ❌ |
+| Add Users | ✅ | ❌ | ❌ | ✅ | ❌ | Own Client | ❌ |
+| Edit Users | ✅ | ❌ | ❌ | ✅ | ❌ | Own Client | ❌ |
+| Delete Users | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Lead Management** |
+| View Leads | All | All | All | All | All | Own Client | Own Client |
+| Add Leads | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Edit Leads | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Delete Leads | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Assign Leads | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| **SEO & Reports** |
+| Basic SEO | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Comprehensive SEO | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| Generate Reports | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| Export Reports | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Email & Communication** |
+| Send Emails | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Email Templates | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **System Management** |
+| View All Clients | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| Manage Clients | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Manage Credentials | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 
 ## 🔒 Security & Data Isolation
 
@@ -1713,6 +1782,77 @@ NOTES:
 - **Trend Arrows**: Up/down indicators for metrics
 - **Chart Integration**: Line charts, bar charts, pie charts
 - **Real-time Updates**: Live data refresh capabilities
+
+---
+
+## Versioned Change Log
+
+**DATE**: 2025-01-10 15:45 PST
+**VERSION**: v1.0.0
+**AUTHOR**: Viral T.
+
+**FEATURE / CHANGE TITLE**:
+Comprehensive User Management System with Role-Based Access Control
+
+**TYPE**: major-feature
+
+**SUMMARY**:
+- Implemented complete user management system with 7 distinct user roles
+- Added granular permissions system with 6 permission categories
+- Created multi-tenant architecture (WeTechForU team vs Client users)
+- Built comprehensive User Management UI with add/edit/delete capabilities
+- Added role-based navigation and access control
+- Implemented user activity audit trail and password management
+- Created automatic permission defaults for each role
+
+**IMPACTED AREAS**:
+- Services: New UserManagementService, enhanced AuthService
+- APIs (new): /api/users/* (CRUD operations, permissions, password reset)
+- Database tables/columns: users table enhanced, new user_activity_log table
+- Frontend pages/components: New Users page, enhanced navigation, role-based UI
+- Middleware: Enhanced auth middleware with role-based access control
+
+**DATABASE & MIGRATIONS**:
+- DDL required: yes
+- New tables: user_activity_log
+- New columns: permissions (JSONB), is_active, must_change_password, created_by, last_login, updated_at, role, team_type
+- Migration files: add_user_permissions.sql
+- Indexes: Added indexes for role, team_type, is_active, permissions (GIN)
+
+**SECRETS & CONFIG**:
+- New secrets introduced: no
+- Stored encrypted in DB (not code/.env): existing system maintained
+- Access path: Enhanced credential management for user operations
+
+**FEATURE FLAGS**:
+- Flag name(s): n/a
+- Default state: n/a
+- Rollout plan: immediate deployment
+
+**API QUOTA / BILLING GUARDRAILS**:
+- Third-party APIs used: none (internal system)
+- Free tier quota tracked in DB: n/a
+- Projected usage vs free tier: n/a
+
+**ROLLBACK PLAN**:
+- Database rollback: Revert add_user_permissions.sql migration
+- Code rollback: Revert to previous navigation system
+- Data preservation: User data preserved, permissions can be reset
+
+**TESTING CHECKLIST**:
+- [x] User role detection working correctly
+- [x] System Management navigation visible for super_admin
+- [x] User CRUD operations functional
+- [x] Permission-based access control working
+- [x] Password reset functionality
+- [x] Multi-tenant data isolation
+- [x] Activity logging operational
+
+**DEPLOYMENT STATUS**:
+- [x] Local testing completed
+- [x] Database migration applied (local & Heroku)
+- [x] Code deployed to Heroku v116
+- [x] Production testing in progress
 
 ---
 
