@@ -36,7 +36,6 @@ interface User {
 export default function RoleBasedNav() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const location = useLocation()
 
   useEffect(() => {
@@ -95,13 +94,6 @@ export default function RoleBasedNav() {
     return location.pathname === path
   }
 
-  const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen)
-  }
-
-  const closeMobileMenu = () => {
-    setIsMobileMenuOpen(false)
-  }
 
   const hasPageAccess = (page: string) => {
     // Super Admin can access everything
@@ -141,44 +133,7 @@ export default function RoleBasedNav() {
   }
 
   return (
-    <>
-      {/* Mobile Menu Toggle Button */}
-      <div 
-        className="mobile-menu-toggle" 
-        onClick={toggleMobileMenu}
-        style={{
-          display: 'flex',
-          position: 'fixed',
-          top: '20px',
-          left: '20px',
-          zIndex: 9999,
-          background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
-          color: 'white',
-          width: '50px',
-          height: '50px',
-          borderRadius: '12px',
-          border: '2px solid #fff',
-          boxShadow: '0 6px 20px rgba(220, 53, 69, 0.4)',
-          cursor: 'pointer',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '1.2rem',
-          transition: 'all 0.3s ease'
-        }}
-      >
-        <i className={`fas ${isMobileMenuOpen ? 'fa-times' : 'fa-bars'}`}></i>
-      </div>
-
-      {/* Mobile Overlay */}
-      {isMobileMenuOpen && (
-        <div className="mobile-overlay" onClick={closeMobileMenu}></div>
-      )}
-
-      <div className={`sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
-        <div className="brand">
-          <img src="/logo.png" alt="WeTechForU" className="brand-logo" />
-          <h1>WeTechForU</h1>
-        </div>
+    <div>
       
       <ul className="nav-list">
         {/* Dashboard - Available to all users */}
@@ -187,7 +142,6 @@ export default function RoleBasedNav() {
             <Link 
               className={`nav-link ${isActive('/app/dashboard') ? 'active' : ''}`} 
               to="/app/dashboard"
-              onClick={closeMobileMenu}
             >
               <i className="fas fa-tachometer-alt"></i>
               Dashboard
@@ -201,7 +155,6 @@ export default function RoleBasedNav() {
             <Link 
               className={`nav-link ${isActive('/app/clients') ? 'active' : ''}`} 
               to="/app/clients"
-              onClick={closeMobileMenu}
             >
               <i className="fas fa-building"></i>
               Clients
@@ -215,7 +168,6 @@ export default function RoleBasedNav() {
             <Link 
               className={`nav-link ${isActive('/app/leads') ? 'active' : ''}`} 
               to="/app/leads"
-              onClick={closeMobileMenu}
             >
               <i className="fas fa-user-plus"></i>
               Leads
@@ -481,7 +433,6 @@ export default function RoleBasedNav() {
           </li>
         )}
       </ul>
-      </div>
-    </>
+    </div>
   )
 }

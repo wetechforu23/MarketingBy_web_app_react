@@ -15,6 +15,7 @@ interface User {
 export default function AppLayout() {
   const navigate = useNavigate()
   const [user, setUser] = useState<User | null>(null)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -48,6 +49,14 @@ export default function AppLayout() {
     }
   }
 
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen)
+  }
+
+  const closeMobileMenu = () => {
+    setIsMobileMenuOpen(false)
+  }
+
   // Get role display with emoji
   const getRoleDisplay = (role: string) => {
     switch (role) {
@@ -66,7 +75,39 @@ export default function AppLayout() {
 
   return (
     <div className="layout">
-      <aside className="sidebar">
+      {/* Mobile Menu Toggle Button */}
+      <div 
+        className="mobile-menu-toggle" 
+        onClick={toggleMobileMenu}
+        style={{
+          display: 'flex',
+          position: 'fixed',
+          top: '20px',
+          left: '20px',
+          zIndex: 9999,
+          background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
+          color: 'white',
+          width: '50px',
+          height: '50px',
+          borderRadius: '12px',
+          border: '2px solid #fff',
+          boxShadow: '0 6px 20px rgba(220, 53, 69, 0.4)',
+          cursor: 'pointer',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '1.2rem',
+          transition: 'all 0.3s ease'
+        }}
+      >
+        <i className={`fas ${isMobileMenuOpen ? 'fa-times' : 'fa-bars'}`}></i>
+      </div>
+
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div className="mobile-overlay" onClick={closeMobileMenu}></div>
+      )}
+
+      <aside className={`sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="brand">
           <img src="/logo.png" alt="WeTechForU" className="brand-logo" />
           <h1>WeTechForU</h1>
