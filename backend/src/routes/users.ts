@@ -99,7 +99,11 @@ function generateTempPassword(): string {
  */
 router.get('/', requireAuth, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const user = {
+      id: req.session.userId,
+      role: req.session.role,
+      client_id: req.session.clientId
+    };
 
     let query = `
       SELECT 
@@ -152,7 +156,11 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
 router.get('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const user = (req as any).user;
+    const user = {
+      id: req.session.userId,
+      role: req.session.role,
+      client_id: req.session.clientId
+    };
 
     // Build query with access control
     let query = `
@@ -226,7 +234,11 @@ router.post('/', requireAdmin, async (req: Request, res: Response) => {
       send_welcome_email,
     } = req.body;
 
-    const currentUser = (req as any).user;
+    const currentUser = {
+      id: req.session.userId,
+      role: req.session.role,
+      client_id: req.session.clientId
+    };
 
     // Validation
     if (!username || !email || !role) {
@@ -344,7 +356,11 @@ router.put('/:id', requireAdmin, async (req: Request, res: Response) => {
       must_change_password,
     } = req.body;
 
-    const currentUser = (req as any).user;
+    const currentUser = {
+      id: req.session.userId,
+      role: req.session.role,
+      client_id: req.session.clientId
+    };
 
     // Get existing user
     const existingResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
@@ -442,7 +458,11 @@ router.put('/:id', requireAdmin, async (req: Request, res: Response) => {
 router.delete('/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const currentUser = (req as any).user;
+    const currentUser = {
+      id: req.session.userId,
+      role: req.session.role,
+      client_id: req.session.clientId
+    };
 
     // Only super_admin and wtfu_manager can delete users
     if (!['super_admin', 'wtfu_manager'].includes(currentUser.role)) {
@@ -491,7 +511,11 @@ router.delete('/:id', requireAdmin, async (req: Request, res: Response) => {
 router.patch('/:id/toggle-active', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const currentUser = (req as any).user;
+    const currentUser = {
+      id: req.session.userId,
+      role: req.session.role,
+      client_id: req.session.clientId
+    };
 
     // Get existing user
     const existingResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
@@ -550,7 +574,11 @@ router.post('/:id/reset-password', requireAdmin, async (req: Request, res: Respo
   try {
     const { id } = req.params;
     const { new_password } = req.body;
-    const currentUser = (req as any).user;
+    const currentUser = {
+      id: req.session.userId,
+      role: req.session.role,
+      client_id: req.session.clientId
+    };
 
     // Get existing user
     const existingResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
@@ -605,10 +633,11 @@ router.post('/:id/reset-password', requireAdmin, async (req: Request, res: Respo
  */
 router.get('/clients/list', requireAuth, async (req: Request, res: Response) => {
   try {
-    const currentUser = (req as any).user;
+    // Get user info from session instead of req.user
+    const currentUserRole = req.session.role;
 
     // Only super_admin and wtfu team can see all clients
-    if (!['super_admin', 'wtfu_manager', 'wtfu_developer'].includes(currentUser.role)) {
+    if (!['super_admin', 'wtfu_manager', 'wtfu_developer'].includes(currentUserRole || '')) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
