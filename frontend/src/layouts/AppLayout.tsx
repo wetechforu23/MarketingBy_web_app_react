@@ -259,15 +259,17 @@ export default function AppLayout() {
           position: 'fixed',
           top: '10px',
           right: '10px',
-          background: '#28a745',
+          background: '#ff0000',
           color: 'white',
-          padding: '5px 10px',
-          borderRadius: '5px',
-          fontSize: '12px',
-          zIndex: 1000,
-          fontWeight: 'bold'
+          padding: '10px 15px',
+          borderRadius: '8px',
+          fontSize: '16px',
+          zIndex: 9999,
+          fontWeight: 'bold',
+          border: '3px solid white',
+          boxShadow: '0 4px 12px rgba(255,0,0,0.5)'
         }}>
-          NEW NAV v1.0
+          🚨 NEW NAV v1.1 DEPLOYED! 🚨
         </div>
         
         <div className="content-inner">

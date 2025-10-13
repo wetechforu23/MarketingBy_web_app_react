@@ -1,6 +1,6 @@
 {
   "name": "marketingby-healthcare-platform",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Healthcare Marketing Platform - Full Stack Application",
   "main": "backend/dist/server.js",
   "scripts": {
