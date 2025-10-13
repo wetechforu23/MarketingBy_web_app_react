@@ -36,6 +36,7 @@ interface User {
 export default function RoleBasedNav() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const location = useLocation()
 
   useEffect(() => {
@@ -94,6 +95,14 @@ export default function RoleBasedNav() {
     return location.pathname === path
   }
 
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen)
+  }
+
+  const closeMobileMenu = () => {
+    setIsMobileMenuOpen(false)
+  }
+
   const hasPageAccess = (page: string) => {
     // Super Admin can access everything
     if (isSuperAdmin) return true
@@ -132,11 +141,22 @@ export default function RoleBasedNav() {
   }
 
   return (
-    <div className="sidebar">
-      <div className="brand">
-        <img src="/logo.png" alt="WeTechForU" className="brand-logo" />
-        <h1>WeTechForU</h1>
+    <>
+      {/* Mobile Menu Toggle Button */}
+      <div className="mobile-menu-toggle" onClick={toggleMobileMenu}>
+        <i className={`fas ${isMobileMenuOpen ? 'fa-times' : 'fa-bars'}`}></i>
       </div>
+
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div className="mobile-overlay" onClick={closeMobileMenu}></div>
+      )}
+
+      <div className={`sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
+        <div className="brand">
+          <img src="/logo.png" alt="WeTechForU" className="brand-logo" />
+          <h1>WeTechForU</h1>
+        </div>
       
       <ul className="nav-list">
         {/* Dashboard - Available to all users */}
@@ -145,6 +165,7 @@ export default function RoleBasedNav() {
             <Link 
               className={`nav-link ${isActive('/app/dashboard') ? 'active' : ''}`} 
               to="/app/dashboard"
+              onClick={closeMobileMenu}
             >
               <i className="fas fa-tachometer-alt"></i>
               Dashboard
@@ -158,6 +179,7 @@ export default function RoleBasedNav() {
             <Link 
               className={`nav-link ${isActive('/app/clients') ? 'active' : ''}`} 
               to="/app/clients"
+              onClick={closeMobileMenu}
             >
               <i className="fas fa-building"></i>
               Clients
@@ -171,6 +193,7 @@ export default function RoleBasedNav() {
             <Link 
               className={`nav-link ${isActive('/app/leads') ? 'active' : ''}`} 
               to="/app/leads"
+              onClick={closeMobileMenu}
             >
               <i className="fas fa-user-plus"></i>
               Leads
@@ -436,6 +459,7 @@ export default function RoleBasedNav() {
           </li>
         )}
       </ul>
-    </div>
+      </div>
+    </>
   )
 }

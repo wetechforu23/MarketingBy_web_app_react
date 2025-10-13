@@ -1626,18 +1626,21 @@ const Leads: React.FC = () => {
                   Contact Email {getSortIcon('email')}
                 </th>
                 <th 
+                  className="d-none-mobile"
                   style={{ minWidth: '150px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
                   onClick={() => handleSort('phone')}
                 >
                   Phone {getSortIcon('phone')}
                 </th>
                 <th 
+                  className="d-none-mobile"
                   style={{ minWidth: '200px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
                   onClick={() => handleSort('website_url')}
                 >
                   Website {getSortIcon('website_url')}
                 </th>
                 <th 
+                  className="d-none-mobile"
                   style={{ minWidth: '250px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
                   onClick={() => handleSort('address')}
                 >
@@ -1671,6 +1674,7 @@ const Leads: React.FC = () => {
                   Assigned To
                 </th>
                 <th 
+                  className="d-none-mobile"
                   style={{ minWidth: '150px', padding: '12px 8px', cursor: 'pointer', userSelect: 'none' }}
                   onClick={() => handleSort('industry_category')}
                 >
@@ -1695,7 +1699,7 @@ const Leads: React.FC = () => {
               ) : (
                 paginatedLeads.map(lead => (
                   <tr key={lead.id} style={{ backgroundColor: selectedLeads.includes(lead.id) ? '#e3f2fd' : 'transparent' }}>
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ textAlign: 'center' }} data-label="Select">
                       <input
                         type="checkbox"
                         checked={selectedLeads.includes(lead.id)}
@@ -1703,8 +1707,8 @@ const Leads: React.FC = () => {
                         style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                       />
                     </td>
-                    <td>{lead.id}</td>
-                    <td>
+                    <td data-label="ID">{lead.id}</td>
+                    <td data-label="Company">
                       <div>
                         <strong 
                           onClick={(e) => {
@@ -1750,9 +1754,9 @@ const Leads: React.FC = () => {
                         )}
                       </div>
                     </td>
-                    <td>{lead.email || ''}</td>
-                    <td>{lead.phone || ''}</td>
-                    <td>
+                    <td data-label="Email">{lead.email || ''}</td>
+                    <td className="d-none-mobile" data-label="Phone">{lead.phone || ''}</td>
+                    <td className="d-none-mobile" data-label="Website">
                       {lead.website_url ? (
                         <a 
                           href={lead.website_url} 
@@ -1775,7 +1779,7 @@ const Leads: React.FC = () => {
                         ''
                       )}
                     </td>
-                    <td>
+                    <td className="d-none-mobile" data-label="Address">
                       {lead.address ? (
                         <a 
                           href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.address)}`}
@@ -1792,12 +1796,13 @@ const Leads: React.FC = () => {
                         ''
                       )}
                     </td>
-                    <td>
+                    <td data-label="Status">
                       <span className={`badge ${getStatusBadgeClass(lead.status)}`}>
                         {lead.status}
                       </span>
                     </td>
                     <td 
+                      data-label="Assigned To"
                       style={{ 
                         padding: '12px', 
                         borderBottom: '1px solid #dee2e6',
@@ -1890,7 +1895,7 @@ const Leads: React.FC = () => {
                         </div>
                       )}
                     </td>
-                    <td>
+                    <td className="d-none-mobile" data-label="Industry">
                       <div>
                         {lead.industry_category && (
                           <div style={{ fontSize: '0.9rem' }}>{lead.industry_category}</div>
@@ -1900,7 +1905,7 @@ const Leads: React.FC = () => {
                         )}
                       </div>
                     </td>
-                    <td style={{ fontSize: '0.85rem' }}>
+                    <td data-label="Created" style={{ fontSize: '0.85rem' }}>
                       <div>{new Date(lead.created_at).toLocaleDateString()}</div>
                       <div style={{ color: '#666', fontSize: '0.8rem' }}>
                         {new Date(lead.created_at).toLocaleTimeString()}
