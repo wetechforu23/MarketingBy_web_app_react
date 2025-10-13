@@ -14,6 +14,13 @@ interface User {
 }
 
 export default function AppLayout() {
+  console.log('🚨🚨🚨 APPLAYOUT COMPONENT IS RENDERING! 🚨🚨🚨')
+  
+  // Emergency alert to confirm component is rendering
+  useEffect(() => {
+    alert('🚨 APPLAYOUT IS RENDERING! 🚨')
+  }, [])
+  
   const navigate = useNavigate()
   const [user, setUser] = useState<User | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -190,9 +197,11 @@ export default function AppLayout() {
         fontWeight: 'bold',
         textAlign: 'center'
       }}>
-        🔴 MOBILE MENU DEBUG - COMPONENT IS RENDERING! 🔴
+        🔴 MOBILE MENU DEBUG v2.0 - COMPONENT IS RENDERING! 🔴
         <br />
         Menu State: {isMobileMenuOpen ? 'OPEN' : 'CLOSED'}
+        <br />
+        Timestamp: {new Date().toLocaleTimeString()}
         <br />
         <button onClick={toggleMobileMenu} style={{
           background: 'red',
