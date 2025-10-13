@@ -725,6 +725,14 @@ a:hover {
   100% { transform: scale(1); box-shadow: 0 8px 25px rgba(220, 53, 69, 0.6); }
 }
 
+/* Force debug elements to be on top */
+.debug-element {
+  z-index: 2147483647 !important;
+  position: fixed !important;
+  pointer-events: auto !important;
+  isolation: isolate !important;
+}
+
 /* Mobile Menu Toggle Button */
 .mobile-menu-toggle {
   display: none;

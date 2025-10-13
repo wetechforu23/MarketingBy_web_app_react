@@ -91,12 +91,13 @@ export default function AppLayout() {
     <>
       {/* Emergency Mobile Menu - Top Left */}
       <div 
+        className="debug-element"
         onClick={toggleMobileMenu}
         style={{
           position: 'fixed',
           top: '10px',
           left: '10px',
-          zIndex: 999999,
+          zIndex: 2147483647,
           background: '#ff0000',
           color: 'white',
           width: '80px',
@@ -120,12 +121,13 @@ export default function AppLayout() {
 
       {/* Emergency Mobile Menu - Top Right */}
       <div 
+        className="debug-element"
         onClick={toggleMobileMenu}
         style={{
           position: 'fixed',
           top: '10px',
           right: '10px',
-          zIndex: 999999,
+          zIndex: 2147483647,
           background: '#00ff00',
           color: 'white',
           width: '80px',
@@ -149,13 +151,14 @@ export default function AppLayout() {
 
       {/* Emergency Mobile Menu - Bottom Center */}
       <div 
+        className="debug-element"
         onClick={toggleMobileMenu}
         style={{
           position: 'fixed',
           bottom: '20px',
           left: '50%',
           transform: 'translateX(-50%)',
-          zIndex: 999999,
+          zIndex: 2147483647,
           background: '#0000ff',
           color: 'white',
           width: '100px',
@@ -182,12 +185,12 @@ export default function AppLayout() {
   return (
     <div className="layout">
       {/* Debug Message - Should always be visible */}
-      <div style={{
+      <div className="debug-element" style={{
         position: 'fixed',
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
-        zIndex: 999999,
+        zIndex: 2147483647,
         background: 'yellow',
         color: 'black',
         padding: '20px',
@@ -195,7 +198,9 @@ export default function AppLayout() {
         border: '3px solid red',
         fontSize: '20px',
         fontWeight: 'bold',
-        textAlign: 'center'
+        textAlign: 'center',
+        pointerEvents: 'auto',
+        isolation: 'isolate'
       }}>
         🔴 MOBILE MENU DEBUG v2.0 - COMPONENT IS RENDERING! 🔴
         <br />
