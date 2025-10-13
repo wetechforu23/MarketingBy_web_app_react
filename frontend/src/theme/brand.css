@@ -725,7 +725,7 @@ a:hover {
   position: fixed;
   top: 20px;
   left: 20px;
-  z-index: 1001;
+  z-index: 9999;
   background: linear-gradient(135deg, #87CEEB 0%, #B0E0E6 100%);
   color: #2C5F77;
   width: 50px;
@@ -738,6 +738,15 @@ a:hover {
   justify-content: center;
   font-size: 1.2rem;
   transition: all 0.3s ease;
+}
+
+/* Force show on mobile devices */
+@media (max-width: 1024px) {
+  .mobile-menu-toggle {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
 }
 
 .mobile-menu-toggle:hover {
@@ -770,7 +779,13 @@ a:hover {
 @media (max-width: 768px) {
   /* Show mobile menu toggle */
   .mobile-menu-toggle {
-    display: flex;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%) !important;
+    color: white !important;
+    border: 2px solid #fff !important;
+    box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4) !important;
   }
   
   /* Hide sidebar by default on mobile */
