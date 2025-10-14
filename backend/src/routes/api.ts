@@ -2386,4 +2386,81 @@ router.put('/users/:id', async (req, res) => {
   }
 });
 
+// Convert lead to client
+router.post('/leads/convert-to-client', async (req, res) => {
+  try {
+    const { leadId } = req.body;
+    
+    if (!leadId) {
+      return res.status(400).json({ error: 'Lead ID is required' });
+    }
+
+    // Get the lead details
+    const leadResult = await pool.query(
+      'SELECT * FROM leads WHERE id = $1',
+      [leadId]
+    );
+
+    if (leadResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    const lead = leadResult.rows[0];
+
+    // Check if client already exists with this email
+    const existingClient = await pool.query(
+      'SELECT id FROM clients WHERE email = $1',
+      [lead.email]
+    );
+
+    let clientId;
+
+    if (existingClient.rows.length > 0) {
+      // Use existing client
+      clientId = existingClient.rows[0].id;
+    } else {
+      // Create new client
+      const clientResult = await pool.query(
+        `INSERT INTO clients (
+          client_name, website, email, phone, contact_name, 
+          address, city, state, zip_code, specialties, 
+          is_active, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW()) 
+        RETURNING id`,
+        [
+          lead.company,
+          lead.website_url || '',
+          lead.email,
+          lead.phone,
+          lead.contact_first_name && lead.contact_last_name 
+            ? `${lead.contact_first_name} ${lead.contact_last_name}` 
+            : lead.company,
+          lead.address,
+          lead.city,
+          lead.state,
+          lead.zip_code,
+          lead.industry_category || 'Healthcare',
+          true
+        ]
+      );
+      clientId = clientResult.rows[0].id;
+    }
+
+    // Update the lead with client_id and status
+    await pool.query(
+      'UPDATE leads SET client_id = $1, status = $2, updated_at = NOW() WHERE id = $3',
+      [clientId, 'converted', leadId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Lead converted to client successfully',
+      clientId: clientId
+    });
+  } catch (error) {
+    console.error('Convert lead to client error:', error);
+    res.status(500).json({ error: 'Failed to convert lead to client' });
+  }
+});
+
 export default router;
