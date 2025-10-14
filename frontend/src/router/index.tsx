@@ -24,6 +24,8 @@ import CustomerCommunicationsPage from "../pages/CustomerCommunicationsPage";
 import CustomerPlanInfoPage from "../pages/CustomerPlanInfoPage";
 import SecureReportPage from "../pages/SecureReportPage";
 import CalendarPage from "../pages/CalendarPage";
+import Credentials from "../pages/Credentials";
+import Settings from "../pages/Settings";
 
 export const router = createBrowserRouter([
   { path: "/", element: <HomePage /> }, // Public home page
@@ -51,8 +53,8 @@ export const router = createBrowserRouter([
       { path: "seo-tasks", element: <SEOPage /> }, // SEO Tasks route (using SEO page for now)
       { path: "calendar", element: <CalendarPage /> },
       { path: "compliance", element: <CalendarPage /> }, // Compliance route (using Calendar page for now)
-      { path: "credentials", element: <Users /> }, // Credentials route (using Users page for now)
-      { path: "settings", element: <Users /> }, // Settings route (using Users page for now)
+      { path: "credentials", element: <Credentials /> }, // Credentials management page
+      { path: "settings", element: <Settings /> }, // System settings page
       {
         path: "customer",
         element: <CustomerPortalPage />,

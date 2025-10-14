@@ -767,6 +767,120 @@ export default function Users() {
                 )}
               </div>
 
+              {/* Role and Type Selection */}
+              <div style={{ marginTop: '24px', marginBottom: '1.5rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: '600', color: '#2c3e50', marginBottom: '1rem', borderBottom: '2px solid #4682B4', paddingBottom: '0.5rem' }}>
+                  Role & Type Configuration
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '14px', color: '#495057' }}>
+                      User Type *
+                    </label>
+                    <select
+                      value={formData.team_type}
+                      onChange={(e) => {
+                        const teamType = e.target.value;
+                        setFormData({ 
+                          ...formData, 
+                          team_type: teamType,
+                          role: teamType === 'wetechforu' ? 'wtfu_developer' : 'client_user'
+                        });
+                      }}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '6px',
+                        border: '2px solid #ddd',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <option value="client">Client User</option>
+                      <option value="wetechforu">WeTechForU Team</option>
+                    </select>
+                    <small style={{ color: '#6c757d', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                      {formData.team_type === 'client' 
+                        ? 'For client company users (admin or regular user)' 
+                        : 'For WeTechForU team members (developer, sales, manager, etc.)'
+                      }
+                    </small>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '14px', color: '#495057' }}>
+                      Role *
+                    </label>
+                    <select
+                      value={formData.role}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '6px',
+                        border: '2px solid #ddd',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {formData.team_type === 'client' ? (
+                        <>
+                          <option value="client_admin">Client Admin</option>
+                          <option value="client_user">Client Regular User</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="super_admin">Super Admin</option>
+                          <option value="wtfu_developer">Developer</option>
+                          <option value="wtfu_sales">Sales</option>
+                          <option value="wtfu_manager">Manager</option>
+                          <option value="wtfu_project_manager">Project Manager</option>
+                        </>
+                      )}
+                    </select>
+                    <small style={{ color: '#6c757d', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                      {formData.role === 'super_admin' && 'Full system access and control'}
+                      {formData.role === 'wtfu_developer' && 'Technical development and system access'}
+                      {formData.role === 'wtfu_sales' && 'Sales activities and lead management'}
+                      {formData.role === 'wtfu_manager' && 'Team management and oversight'}
+                      {formData.role === 'wtfu_project_manager' && 'Project coordination and management'}
+                      {formData.role === 'client_admin' && 'Client company administrator'}
+                      {formData.role === 'client_user' && 'Regular client user with limited access'}
+                    </small>
+                  </div>
+                </div>
+                
+                {/* Client Selection (only for client users) */}
+                {formData.team_type === 'client' && (
+                  <div style={{ marginTop: '16px' }}>
+                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '14px', color: '#495057' }}>
+                      Assign to Client *
+                    </label>
+                    <select
+                      value={formData.client_id || ''}
+                      onChange={(e) => setFormData({ ...formData, client_id: e.target.value ? parseInt(e.target.value) : null })}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '6px',
+                        border: '2px solid #ddd',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <option value="">Select a client...</option>
+                      {clients.map(client => (
+                        <option key={client.id} value={client.id}>
+                          {client.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
               {/* Due to character limits, I'll create a simpler version. The full modal with all permissions will be in the actual file */}
               
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px', paddingTop: '24px', borderTop: '1px solid #dee2e6' }}>
