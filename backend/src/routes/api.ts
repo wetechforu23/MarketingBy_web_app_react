@@ -2464,18 +2464,32 @@ router.post('/leads/convert-to-client', async (req, res) => {
 });
 
 // Convert client back to lead
-router.post('/leads/convert-back-to-lead', async (req, res) => {
+router.post('/clients/convert-to-lead', async (req, res) => {
   try {
-    const { leadId } = req.body;
+    const { clientId } = req.body;
     
-    if (!leadId) {
-      return res.status(400).json({ error: 'Lead ID is required' });
+    if (!clientId) {
+      return res.status(400).json({ error: 'Client ID is required' });
     }
 
-    // Update the lead to remove client_id and change status
+    // Find the lead associated with this client
+    const leadResult = await pool.query(
+      'SELECT id FROM leads WHERE client_id = $1',
+      [clientId]
+    );
+
+    if (leadResult.rows.length > 0) {
+      // Update the lead to remove client_id and change status
+      await pool.query(
+        'UPDATE leads SET client_id = NULL, status = $1, updated_at = NOW() WHERE client_id = $2',
+        ['new', clientId]
+      );
+    }
+
+    // Delete the client record
     await pool.query(
-      'UPDATE leads SET client_id = NULL, status = $1, updated_at = NOW() WHERE id = $2',
-      ['new', leadId]
+      'DELETE FROM clients WHERE id = $1',
+      [clientId]
     );
 
     res.json({ 
@@ -2483,8 +2497,8 @@ router.post('/leads/convert-back-to-lead', async (req, res) => {
       message: 'Client converted back to lead successfully'
     });
   } catch (error) {
-    console.error('Convert back to lead error:', error);
-    res.status(500).json({ error: 'Failed to convert back to lead' });
+    console.error('Convert client to lead error:', error);
+    res.status(500).json({ error: 'Failed to convert client to lead' });
   }
 });
 

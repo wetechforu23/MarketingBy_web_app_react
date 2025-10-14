@@ -31,6 +31,32 @@ const Clients: React.FC = () => {
     fetchClients();
   }, []);
 
+  const handleToggleClientStatus = async (clientId: number, isActive: boolean) => {
+    try {
+      await http.patch(`/clients/${clientId}/toggle-active`, { is_active: isActive });
+      alert(`Client ${isActive ? 'activated' : 'deactivated'} successfully`);
+      // Refresh the clients list
+      const response = await http.get('/admin/clients');
+      setClients(response.data.clients || []);
+    } catch (error) {
+      console.error('Error toggling client status:', error);
+      alert('Failed to update client status. Please try again.');
+    }
+  };
+
+  const handleConvertClientToLead = async (clientId: number) => {
+    try {
+      await http.post('/clients/convert-to-lead', { clientId });
+      alert('Client converted back to lead successfully');
+      // Refresh the clients list
+      const response = await http.get('/admin/clients');
+      setClients(response.data.clients || []);
+    } catch (error) {
+      console.error('Error converting client to lead:', error);
+      alert('Failed to convert client to lead. Please try again.');
+    }
+  };
+
   if (loading) {
     return <div className="loading">Loading clients...</div>;
   }
@@ -82,9 +108,97 @@ const Clients: React.FC = () => {
                   </td>
                   <td>{new Date(client.created_at).toLocaleDateString()}</td>
                   <td>
-                    <button className="btn btn-outline btn-sm">View</button>
-                    <button className="btn btn-secondary btn-sm">Edit</button>
-                    <button className="btn btn-danger btn-sm">Delete</button>
+                    <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      {/* View Button - Navigate to client portal */}
+                      <button
+                        onClick={() => {
+                          // Navigate to client portal
+                          window.open(`/app/customer/seo-reports?client_id=${client.id}`, '_blank');
+                        }}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '11px',
+                          borderRadius: '4px',
+                          border: '1px solid #007bff',
+                          backgroundColor: '#007bff',
+                          color: 'white',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#0056b3';
+                          e.currentTarget.style.transform = 'scale(1.05)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = '#007bff';
+                          e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                        title="View Client Portal"
+                      >
+                        <i className="fas fa-eye"></i>
+                      </button>
+                      
+                      {/* Mark as Inactive/Active */}
+                      <button
+                        onClick={() => {
+                          const action = client.is_active ? 'inactive' : 'active';
+                          if (window.confirm(`Mark this client as ${action}?`)) {
+                            handleToggleClientStatus(client.id, !client.is_active);
+                          }
+                        }}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '11px',
+                          borderRadius: '4px',
+                          border: `1px solid ${client.is_active ? '#ffc107' : '#28a745'}`,
+                          backgroundColor: client.is_active ? '#ffc107' : '#28a745',
+                          color: client.is_active ? '#333' : 'white',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = client.is_active ? '#e0a800' : '#1e7e34';
+                          e.currentTarget.style.transform = 'scale(1.05)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = client.is_active ? '#ffc107' : '#28a745';
+                          e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                        title={client.is_active ? 'Mark as Inactive' : 'Mark as Active'}
+                      >
+                        <i className={`fas ${client.is_active ? 'fa-pause' : 'fa-play'}`}></i>
+                      </button>
+                      
+                      {/* Convert back to Lead */}
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Convert this client back to a lead?')) {
+                            handleConvertClientToLead(client.id);
+                          }
+                        }}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '11px',
+                          borderRadius: '4px',
+                          border: '1px solid #6c757d',
+                          backgroundColor: '#6c757d',
+                          color: 'white',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#545b62';
+                          e.currentTarget.style.transform = 'scale(1.05)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = '#6c757d';
+                          e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                        title="Convert Back to Lead"
+                      >
+                        <i className="fas fa-undo"></i>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
