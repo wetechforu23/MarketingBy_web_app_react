@@ -142,6 +142,12 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
 
     const result = await pool.query(query, params);
 
+    // Debug logging
+    console.log('🔍 Users API Debug:');
+    console.log('Query:', query);
+    console.log('Params:', params);
+    console.log('Result rows:', result.rows);
+
     res.json(result.rows);
   } catch (error) {
     console.error('Get users error:', error);
