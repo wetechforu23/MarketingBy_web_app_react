@@ -155,121 +155,108 @@ export default function AppLayout() {
           <RoleBasedNav isCollapsed={isSidebarCollapsed} onNavigate={closeMobileMenu} />
         </div>
         
-        <div className="sidebar-footer">
+      </aside>
+      
+      <main className="content">
+        {/* User Profile in Top-Right Corner */}
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          zIndex: 1000
+        }}>
           {user && (
-            <div className="profile-card" onClick={toggleProfileMenu}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div className="profile-avatar">
-                  {user.email?.charAt(0).toUpperCase() || 'U'}
-                </div>
-                {!isSidebarCollapsed && (
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="profile-info-name">
-                      {user.email}
-                    </div>
-                    <div className="profile-info-role">
-                      {getRoleDisplay(user.role)}
-                    </div>
-                  </div>
-                )}
-                <i className="fas fa-user-circle" style={{ fontSize: '1.2rem', color: '#4682B4' }}></i>
-              </div>
+            <div 
+              className="profile-avatar" 
+              onClick={toggleProfileMenu} 
+              ref={profileRef}
+              style={{
+                width: '50px',
+                height: '50px',
+                borderRadius: '50%',
+                backgroundColor: '#007bff',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.1)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+              }}
+            >
+              {user.username?.charAt(0).toUpperCase() || 'U'}
             </div>
           )}
-          
-          {/* Profile Menu Dropdown */}
+
           {showProfileMenu && (
-            <div className="profile-menu" style={{
+            <div style={{
               position: 'absolute',
-              bottom: '80px',
-              left: '20px',
-              right: '20px',
-              background: 'white',
-              borderRadius: '12px',
-              boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15)',
-              border: '1px solid rgba(70, 130, 180, 0.2)',
-              zIndex: 1000,
-              overflow: 'hidden'
+              top: '60px',
+              right: '0',
+              backgroundColor: 'white',
+              border: '1px solid #ddd',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              minWidth: '200px',
+              zIndex: 1001
             }}>
-              <div style={{ padding: '15px', borderBottom: '1px solid #eee' }}>
-                <div style={{ fontSize: '0.9rem', fontWeight: '600', color: '#2C5F77' }}>
-                  {user?.email}
-                </div>
-                <div style={{ fontSize: '0.8rem', color: '#6c757d', marginTop: '2px' }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #eee' }}>
+                <div style={{ fontWeight: 'bold', color: '#333' }}>{user?.username}</div>
+                <div style={{ fontSize: '12px', color: '#666' }}>{user?.email}</div>
+                <div style={{ fontSize: '11px', color: '#007bff', marginTop: '4px' }}>
                   {getRoleDisplay(user?.role || '')}
                 </div>
               </div>
-              <div style={{ padding: '10px 0' }}>
+              <div style={{ padding: '8px 0' }}>
                 <button 
-                  onClick={() => {
-                    navigate('/app/profile')
-                    setShowProfileMenu(false)
-                  }}
                   style={{
                     width: '100%',
-                    padding: '12px 15px',
-                    background: 'transparent',
+                    padding: '8px 16px',
                     border: 'none',
+                    background: 'none',
                     textAlign: 'left',
                     cursor: 'pointer',
-                    fontSize: '0.9rem',
-                    color: '#2C5F77',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    transition: 'background 0.2s'
+                    fontSize: '14px',
+                    color: '#333'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#f8f9fa'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  onClick={() => { navigate('/app/profile'); setShowProfileMenu(false); }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
-                  <i className="fas fa-user-cog"></i>
+                  <i className="fas fa-user-circle" style={{ marginRight: '8px' }}></i>
                   Profile Settings
                 </button>
                 <button 
-                  onClick={handleLogout}
                   style={{
                     width: '100%',
-                    padding: '12px 15px',
-                    background: 'transparent',
+                    padding: '8px 16px',
                     border: 'none',
+                    background: 'none',
                     textAlign: 'left',
                     cursor: 'pointer',
-                    fontSize: '0.9rem',
-                    color: '#dc3545',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    transition: 'background 0.2s'
+                    fontSize: '14px',
+                    color: '#dc3545'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#fff5f5'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  onClick={handleLogout}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
-                  <i className="fas fa-sign-out-alt"></i>
+                  <i className="fas fa-sign-out-alt" style={{ marginRight: '8px' }}></i>
                   Logout
                 </button>
               </div>
             </div>
           )}
-        </div>
-      </aside>
-      
-      <main className="content">
-        {/* Version Indicator */}
-        <div style={{
-          position: 'fixed',
-          top: '10px',
-          right: '10px',
-          background: '#ff0000',
-          color: 'white',
-          padding: '10px 15px',
-          borderRadius: '8px',
-          fontSize: '16px',
-          zIndex: 9999,
-          fontWeight: 'bold',
-          border: '3px solid white',
-          boxShadow: '0 4px 12px rgba(255,0,0,0.5)'
-        }}>
-          🚨 NEW NAV v1.1 DEPLOYED! 🚨
         </div>
         
         <div className="content-inner">
