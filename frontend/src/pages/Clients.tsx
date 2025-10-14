@@ -3,10 +3,10 @@ import { http } from '../api/http';
 
 interface Client {
   id: number;
-  client_name: string;
+  client_name: string; // mapped from API 'name'
   email: string;
-  contact_name: string;
-  is_active: boolean;
+  contact_name: string; // mapped from API 'company'
+  is_active: boolean; // mapped from API 'status'
   created_at: string;
 }
 
@@ -19,7 +19,27 @@ const Clients: React.FC = () => {
     const fetchClients = async () => {
       try {
         const response = await http.get('/admin/clients');
-        setClients(response.data.clients || []);
+        const apiClients = (response.data?.clients || []) as Array<{
+          id: number;
+          name?: string;
+          email: string;
+          company?: string;
+          phone?: string;
+          status?: boolean;
+          created_at: string;
+        }>;
+
+        // Map API aliases to UI model to ensure proper display
+        const mapped: Client[] = apiClients.map(c => ({
+          id: c.id,
+          client_name: c.name || '',
+          email: c.email,
+          contact_name: c.company || '',
+          is_active: Boolean(c.status),
+          created_at: c.created_at
+        }));
+
+        setClients(mapped);
       } catch (err) {
         console.error('Failed to fetch clients:', err);
         setError('Failed to load clients.');
@@ -37,7 +57,16 @@ const Clients: React.FC = () => {
       alert(`Client ${isActive ? 'activated' : 'deactivated'} successfully`);
       // Refresh the clients list
       const response = await http.get('/admin/clients');
-      setClients(response.data.clients || []);
+      const apiClients = (response.data?.clients || []) as Array<any>;
+      const mapped: Client[] = apiClients.map((c: any) => ({
+        id: c.id,
+        client_name: c.name || '',
+        email: c.email,
+        contact_name: c.company || '',
+        is_active: Boolean(c.status),
+        created_at: c.created_at
+      }));
+      setClients(mapped);
     } catch (error) {
       console.error('Error toggling client status:', error);
       alert('Failed to update client status. Please try again.');
@@ -50,7 +79,16 @@ const Clients: React.FC = () => {
       alert('Client converted back to lead successfully');
       // Refresh the clients list
       const response = await http.get('/admin/clients');
-      setClients(response.data.clients || []);
+      const apiClients = (response.data?.clients || []) as Array<any>;
+      const mapped: Client[] = apiClients.map((c: any) => ({
+        id: c.id,
+        client_name: c.name || '',
+        email: c.email,
+        contact_name: c.company || '',
+        is_active: Boolean(c.status),
+        created_at: c.created_at
+      }));
+      setClients(mapped);
     } catch (error) {
       console.error('Error converting client to lead:', error);
       alert('Failed to convert client to lead. Please try again.');
@@ -102,9 +140,44 @@ const Clients: React.FC = () => {
                   <td>{client.email}</td>
                   <td>{client.contact_name}</td>
                   <td>
-                    <span className={`badge ${client.is_active ? 'badge-success' : 'badge-danger'}`}>
-                      {client.is_active ? 'Active' : 'Inactive'}
-                    </span>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={client.is_active}
+                        onChange={(e) => handleToggleClientStatus(client.id, e.target.checked)}
+                        style={{ width: '0', height: '0', opacity: 0, position: 'absolute' }}
+                      />
+                      <span 
+                        aria-label={client.is_active ? 'Active' : 'Inactive'}
+                        title={client.is_active ? 'Active' : 'Inactive'}
+                        style={{
+                          display: 'inline-block',
+                          width: '40px',
+                          height: '22px',
+                          backgroundColor: client.is_active ? '#28a745' : '#dc3545',
+                          borderRadius: '999px',
+                          position: 'relative',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <span 
+                          style={{
+                            position: 'absolute',
+                            top: '2px',
+                            left: client.is_active ? '20px' : '2px',
+                            width: '18px',
+                            height: '18px',
+                            borderRadius: '50%',
+                            background: '#fff',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                            transition: 'all 0.2s ease'
+                          }}
+                        />
+                      </span>
+                      <span style={{ fontSize: '12px', color: client.is_active ? '#28a745' : '#dc3545', fontWeight: 600 }}>
+                        {client.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </label>
                   </td>
                   <td>{new Date(client.created_at).toLocaleDateString()}</td>
                   <td>
@@ -138,36 +211,7 @@ const Clients: React.FC = () => {
                         <i className="fas fa-eye"></i>
                       </button>
                       
-                      {/* Mark as Inactive/Active */}
-                      <button
-                        onClick={() => {
-                          const action = client.is_active ? 'inactive' : 'active';
-                          if (window.confirm(`Mark this client as ${action}?`)) {
-                            handleToggleClientStatus(client.id, !client.is_active);
-                          }
-                        }}
-                        style={{
-                          padding: '4px 8px',
-                          fontSize: '11px',
-                          borderRadius: '4px',
-                          border: `1px solid ${client.is_active ? '#ffc107' : '#28a745'}`,
-                          backgroundColor: client.is_active ? '#ffc107' : '#28a745',
-                          color: client.is_active ? '#333' : 'white',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = client.is_active ? '#e0a800' : '#1e7e34';
-                          e.currentTarget.style.transform = 'scale(1.05)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = client.is_active ? '#ffc107' : '#28a745';
-                          e.currentTarget.style.transform = 'scale(1)';
-                        }}
-                        title={client.is_active ? 'Mark as Inactive' : 'Mark as Active'}
-                      >
-                        <i className={`fas ${client.is_active ? 'fa-pause' : 'fa-play'}`}></i>
-                      </button>
+                      {/* Status toggle moved into Status column */}
                       
                       {/* Convert back to Lead */}
                       <button
