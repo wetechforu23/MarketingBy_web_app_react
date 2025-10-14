@@ -2463,4 +2463,54 @@ router.post('/leads/convert-to-client', async (req, res) => {
   }
 });
 
+// Convert client back to lead
+router.post('/leads/convert-back-to-lead', async (req, res) => {
+  try {
+    const { leadId } = req.body;
+    
+    if (!leadId) {
+      return res.status(400).json({ error: 'Lead ID is required' });
+    }
+
+    // Update the lead to remove client_id and change status
+    await pool.query(
+      'UPDATE leads SET client_id = NULL, status = $1, updated_at = NOW() WHERE id = $2',
+      ['new', leadId]
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Client converted back to lead successfully'
+    });
+  } catch (error) {
+    console.error('Convert back to lead error:', error);
+    res.status(500).json({ error: 'Failed to convert back to lead' });
+  }
+});
+
+// Toggle client active status
+router.patch('/clients/:id/toggle-active', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { is_active } = req.body;
+    
+    if (is_active === undefined) {
+      return res.status(400).json({ error: 'is_active status is required' });
+    }
+
+    await pool.query(
+      'UPDATE clients SET is_active = $1, updated_at = NOW() WHERE id = $2',
+      [is_active, id]
+    );
+
+    res.json({ 
+      success: true, 
+      message: `Client ${is_active ? 'activated' : 'deactivated'} successfully`
+    });
+  } catch (error) {
+    console.error('Toggle client active status error:', error);
+    res.status(500).json({ error: 'Failed to update client status' });
+  }
+});
+
 export default router;

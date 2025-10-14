@@ -839,6 +839,29 @@ const Leads: React.FC = () => {
     }
   };
 
+  const handleMarkClientInactive = async (clientId: number) => {
+    try {
+      await http.patch(`/clients/${clientId}/toggle-active`, { is_active: false });
+      alert('Client marked as inactive successfully');
+      fetchData();
+    } catch (error) {
+      console.error('Error marking client as inactive:', error);
+      alert('Failed to mark client as inactive. Please try again.');
+    }
+  };
+
+  const handleConvertBackToLead = async (leadId: number) => {
+    try {
+      await http.post('/leads/convert-back-to-lead', { leadId });
+      alert('Client converted back to lead successfully');
+      fetchData();
+      fetchLeadStats();
+    } catch (error) {
+      console.error('Error converting back to lead:', error);
+      alert('Failed to convert back to lead. Please try again.');
+    }
+  };
+
   // Checkbox selection handlers
   const handleSelectAll = () => {
     if (selectAll) {
@@ -1686,12 +1709,32 @@ const Leads: React.FC = () => {
                 >
                   Created Date & Time {getSortIcon('created_at')}
                 </th>
+                <th 
+                  style={{ 
+                    minWidth: '120px', 
+                    padding: '12px 8px', 
+                    textAlign: 'center',
+                    fontWeight: '700',
+                    fontSize: '13px',
+                    color: '#495057',
+                    backgroundColor: '#f8f9fa',
+                    borderBottom: '2px solid #dee2e6',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    whiteSpace: 'nowrap',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 10
+                  }}
+                >
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
               {paginatedLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="empty-state">
+                  <td colSpan={12} className="empty-state">
                     <i className="fas fa-inbox"></i>
                     <p>No leads found matching your criteria.</p>
                   </td>
@@ -1909,6 +1952,138 @@ const Leads: React.FC = () => {
                       <div>{new Date(lead.created_at).toLocaleDateString()}</div>
                       <div style={{ color: '#666', fontSize: '0.8rem' }}>
                         {new Date(lead.created_at).toLocaleTimeString()}
+                      </div>
+                    </td>
+                    <td data-label="Actions" style={{ textAlign: 'center', padding: '8px' }}>
+                      <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                        {/* View Button - Navigate to client portal if converted, otherwise lead detail */}
+                        <button
+                          onClick={() => {
+                            if (lead.status === 'converted' && lead.client_id) {
+                              // Navigate to client portal
+                              window.open(`/app/customer/seo-reports?client_id=${lead.client_id}`, '_blank');
+                            } else {
+                              // Navigate to lead detail
+                              navigate(`/app/leads/${lead.id}`);
+                            }
+                          }}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            borderRadius: '4px',
+                            border: '1px solid #007bff',
+                            backgroundColor: '#007bff',
+                            color: 'white',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#0056b3';
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#007bff';
+                            e.currentTarget.style.transform = 'scale(1)';
+                          }}
+                          title={lead.status === 'converted' ? 'View Client Portal' : 'View Lead Details'}
+                        >
+                          <i className="fas fa-eye"></i>
+                        </button>
+                        
+                        {/* Status-specific actions */}
+                        {lead.status === 'converted' ? (
+                          <>
+                            {/* Mark as Inactive */}
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Mark this client as inactive?')) {
+                                  handleMarkClientInactive(lead.client_id);
+                                }
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: '11px',
+                                borderRadius: '4px',
+                                border: '1px solid #ffc107',
+                                backgroundColor: '#ffc107',
+                                color: '#333',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#e0a800';
+                                e.currentTarget.style.transform = 'scale(1.05)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = '#ffc107';
+                                e.currentTarget.style.transform = 'scale(1)';
+                              }}
+                              title="Mark Client as Inactive"
+                            >
+                              <i className="fas fa-pause"></i>
+                            </button>
+                            
+                            {/* Convert back to Lead */}
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Convert this client back to a lead?')) {
+                                  handleConvertBackToLead(lead.id);
+                                }
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: '11px',
+                                borderRadius: '4px',
+                                border: '1px solid #6c757d',
+                                backgroundColor: '#6c757d',
+                                color: 'white',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#545b62';
+                                e.currentTarget.style.transform = 'scale(1.05)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = '#6c757d';
+                                e.currentTarget.style.transform = 'scale(1)';
+                              }}
+                              title="Convert Back to Lead"
+                            >
+                              <i className="fas fa-undo"></i>
+                            </button>
+                          </>
+                        ) : (
+                          /* For non-converted leads, show convert to client button */
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Convert this lead to a client?')) {
+                                handleConvertToClient(lead.id);
+                              }
+                            }}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '11px',
+                              borderRadius: '4px',
+                              border: '1px solid #28a745',
+                              backgroundColor: '#28a745',
+                              color: 'white',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#1e7e34';
+                              e.currentTarget.style.transform = 'scale(1.05)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = '#28a745';
+                              e.currentTarget.style.transform = 'scale(1)';
+                            }}
+                            title="Convert to Client"
+                          >
+                            <i className="fas fa-user-plus"></i>
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
