@@ -31,7 +31,8 @@ export default function LoginPage() {
           localStorage.removeItem('rememberMe')
           localStorage.removeItem('rememberMeExpiry')
         }
-        navigate('/app/admin')
+        // Use SmartDashboard to route based on user role
+        navigate('/app/dashboard')
       } else {
         setError('Login failed')
       }

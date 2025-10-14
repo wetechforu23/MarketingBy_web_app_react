@@ -7,7 +7,9 @@ import ClientUserDashboard from '../pages/ClientUserDashboard';
 interface UserInfo {
   id: number;
   email: string;
-  is_admin: boolean;
+  username: string;
+  role: string;
+  team_type?: string;
   client_id?: number;
 }
 
@@ -23,7 +25,7 @@ const SmartDashboard: React.FC = () => {
         
         // Fetch user information
         const userResponse = await api.get('/auth/me');
-        setUser(userResponse.data.user);
+        setUser(userResponse.data);
         
       } catch (err) {
         console.error('Failed to fetch user info:', err);
@@ -64,13 +66,13 @@ const SmartDashboard: React.FC = () => {
   }
 
   // Determine user type and render appropriate dashboard
-  // Super Admin: is_admin = true AND (client_id = null OR client_id = undefined)
-  // Client Admin: is_admin = true AND client_id = [specific_client_id]
-  // Client User: is_admin = false AND client_id = [specific_client_id]
+  // Super Admin: role = 'super_admin' OR team_type = 'wetechforu'
+  // Client Admin: role = 'client_admin' AND client_id = [specific_client_id]
+  // Client User: role = 'client_user' AND client_id = [specific_client_id]
 
-  const isSuperAdmin = user.is_admin && (user.client_id === null || user.client_id === undefined || user.client_id === '');
-  const isClientAdmin = user.is_admin && user.client_id && user.client_id !== '' && user.client_id > 0;
-  const isClientUser = !user.is_admin && user.client_id && user.client_id !== '' && user.client_id > 0;
+  const isSuperAdmin = user.role === 'super_admin' || user.team_type === 'wetechforu';
+  const isClientAdmin = user.role === 'client_admin' && user.client_id && user.client_id > 0;
+  const isClientUser = user.role === 'client_user' && user.client_id && user.client_id > 0;
 
   if (isSuperAdmin) {
     return <SuperAdminDashboard />;
