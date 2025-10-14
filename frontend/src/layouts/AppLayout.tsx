@@ -149,10 +149,6 @@ export default function AppLayout() {
           <i className={`fas ${isSidebarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`} style={{ fontSize: '10px' }}></i>
         </div>
 
-        <div className="brand">
-          <img src="/logo.png" alt="WeTechForU" className="brand-logo" />
-          {!isSidebarCollapsed && <h1>WeTechForU</h1>}
-        </div>
         
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <RoleBasedNav isCollapsed={isSidebarCollapsed} onNavigate={closeMobileMenu} />
