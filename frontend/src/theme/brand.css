@@ -204,7 +204,7 @@ a:hover {
 /* Brand Section with 3D Shiny Logo */
 .brand {
   background: rgba(255, 255, 255, 0.2);
-  padding: 1.5rem 1rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid rgba(46, 134, 171, 0.3);
   display: flex;
   flex-direction: column;
@@ -218,7 +218,7 @@ a:hover {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  margin: 10px auto;
+  margin: 5px auto;
   border: 2px solid #b4b8b9;
   position: relative;
   transition: all 0.3s ease;
@@ -264,7 +264,8 @@ a:hover {
   text-align: center;
   font-weight: 500;
   font-size: 16px;
-  padding-bottom: 5px;
+  padding-bottom: 0px;
+  margin: 0;
   font-family: sans-serif;
   letter-spacing: 1px;
   color: #2E86AB;
