@@ -215,19 +215,19 @@ a:hover {
 }
 
 .brand-logo {
-  width: 60px;
-  height: 60px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   margin: 10px auto;
   border: 2px solid #b4b8b9;
   position: relative;
   transition: all 0.3s ease;
   box-shadow: 
-    0 0 15px rgba(46, 134, 171, 0.6),
-    0 0 25px rgba(74, 144, 226, 0.4),
-    0 0 35px rgba(135, 206, 235, 0.3),
-    inset 0 0 15px rgba(255, 255, 255, 0.2),
-    inset 0 0 25px rgba(46, 134, 171, 0.1);
+    0 0 10px rgba(46, 134, 171, 0.4),
+    0 0 15px rgba(74, 144, 226, 0.3),
+    0 0 20px rgba(135, 206, 235, 0.2),
+    inset 0 0 10px rgba(255, 255, 255, 0.1),
+    inset 0 0 15px rgba(46, 134, 171, 0.05);
   animation: logoGlow 3s ease-in-out infinite alternate;
 }
 

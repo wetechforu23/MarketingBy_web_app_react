@@ -131,19 +131,21 @@ export default function AppLayout() {
             right: '-15px',
             width: '30px',
             height: '30px',
-            background: 'linear-gradient(135deg, #87CEEB 0%, #B0E0E6 100%)',
+            background: '#ffffff',
             color: '#2C5F77',
             borderRadius: '50%',
-            border: '2px solid rgba(70, 130, 180, 0.3)',
+            border: '2px solid #2C5F77',
             cursor: 'pointer',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '0.8rem',
+            fontSize: '12px',
+            fontWeight: 'bold',
             zIndex: 1000,
-            transition: 'all 0.3s ease'
+            transition: 'all 0.3s ease',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
           }}
         >
-          <i className={`fas ${isSidebarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`}></i>
+          <i className={`fas ${isSidebarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`} style={{ fontSize: '10px' }}></i>
         </div>
 
         <div className="brand">
