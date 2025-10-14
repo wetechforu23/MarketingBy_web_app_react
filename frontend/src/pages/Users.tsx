@@ -102,9 +102,11 @@ export default function Users() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // Add cache-busting parameter to force fresh data
+      const cacheBuster = `?t=${Date.now()}`;
       const [usersRes, clientsRes] = await Promise.all([
-        http.get('/users'),
-        http.get('/users/clients/list'),
+        http.get(`/users${cacheBuster}`),
+        http.get(`/users/clients/list${cacheBuster}`),
       ]);
       setUsers(usersRes.data);
       setClients(clientsRes.data);
@@ -381,6 +383,38 @@ export default function Users() {
             Manage users, roles, and permissions
           </p>
         </div>
+        <button
+          onClick={fetchData}
+          style={{
+            padding: '12px 20px',
+            backgroundColor: '#28a745',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '15px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: '0 2px 6px rgba(40, 167, 69, 0.3)',
+            transition: 'all 0.2s',
+            marginRight: '12px',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#1e7e34';
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(40, 167, 69, 0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#28a745';
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 6px rgba(40, 167, 69, 0.3)';
+          }}
+        >
+          <i className="fas fa-sync-alt"></i>
+          Refresh
+        </button>
         <button
           onClick={handleOpenAddModal}
           style={{
