@@ -102,12 +102,18 @@ export default function Users() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Add cache-busting parameter to force fresh data
-      const cacheBuster = `?t=${Date.now()}`;
+      // Add aggressive cache-busting parameters to force fresh data
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(7);
+      const cacheBuster = `?t=${timestamp}&r=${random}&v=1.0.3`;
+      console.log('🔄 Fetching fresh user data with cache-buster:', cacheBuster);
+      
       const [usersRes, clientsRes] = await Promise.all([
         http.get(`/users${cacheBuster}`),
         http.get(`/users/clients/list${cacheBuster}`),
       ]);
+      
+      console.log('📊 Users data received:', usersRes.data);
       setUsers(usersRes.data);
       setClients(clientsRes.data);
     } catch (error) {
