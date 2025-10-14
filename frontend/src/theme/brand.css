@@ -863,11 +863,11 @@ a:hover {
   
   /* Mobile brand adjustments */
   .brand {
-    padding: 1rem;
+    padding: 0.25rem 1rem;
   }
   
   .brand h1 {
-    font-size: 1.2rem;
+    font-size: 14px;
   }
   
   /* Mobile navigation adjustments */
@@ -973,7 +973,7 @@ a:hover {
   }
   
   .brand h1 {
-    font-size: 1.1rem;
+    font-size: 14px;
   }
   
   .nav-link {
