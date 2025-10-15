@@ -93,11 +93,26 @@ const ClientManagementDashboard: React.FC = () => {
       const response = await http.get(`/admin/clients${cacheBuster}`);
       console.log('📊 Clients API response:', response);
       console.log('📊 Response data:', response.data);
+      console.log('📊 Response data type:', typeof response.data);
       console.log('📊 Is array?', Array.isArray(response.data));
       
       // Handle the response structure: {clients: [...], pagination: {...}}
-      const clientsData = response.data?.clients || [];
+      let clientsData = [];
+      
+      if (Array.isArray(response.data)) {
+        // If response.data is directly an array
+        clientsData = response.data;
+      } else if (response.data && typeof response.data === 'object' && Array.isArray(response.data.clients)) {
+        // If response.data is an object with clients array
+        clientsData = response.data.clients;
+      } else {
+        // Fallback: try to extract any array from the response
+        console.log('⚠️ Unexpected response structure, attempting to extract clients...');
+        clientsData = [];
+      }
+      
       console.log('📊 Processed clients data:', clientsData);
+      console.log('📊 Clients data length:', clientsData.length);
       
       setClients(clientsData);
       
