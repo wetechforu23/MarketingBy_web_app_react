@@ -120,7 +120,20 @@ export class GoogleSearchConsoleService {
         return null;
       }
 
-      return JSON.parse(result.rows[0].credentials);
+      console.log(`🔍 Getting client credentials for client ${clientId}:`, result.rows[0].credentials);
+      
+      let credentials;
+      if (typeof result.rows[0].credentials === 'string') {
+        credentials = JSON.parse(result.rows[0].credentials);
+      } else if (typeof result.rows[0].credentials === 'object') {
+        credentials = result.rows[0].credentials;
+      } else {
+        console.error(`❌ Invalid credentials type for client ${clientId}:`, typeof result.rows[0].credentials);
+        return null;
+      }
+      
+      console.log(`✅ Parsed credentials for client ${clientId}:`, credentials);
+      return credentials;
     } catch (error) {
       console.error('Error getting client credentials:', error);
       return null;
