@@ -38,6 +38,7 @@ interface ClientSettings {
     connected: boolean;
     propertyId: string;
     viewId: string;
+    lastConnected?: string | null;
   };
   facebook: {
     connected: boolean;
@@ -47,6 +48,7 @@ interface ClientSettings {
   searchConsole: {
     connected: boolean;
     siteUrl: string;
+    lastConnected?: string | null;
   };
   googleTag: {
     connected: boolean;
@@ -183,7 +185,7 @@ const ClientManagementDashboard: React.FC = () => {
     
     try {
       // Fetch client settings first to get property IDs and configuration
-      const settingsResponse = await http.get(`/clients/${clientId}/settings`);
+          const settingsResponse = await http.get(`/clients/${clientId}/settings`);
       setClientSettings(settingsResponse.data);
       console.log('✅ Client settings loaded:', settingsResponse.data);
 
@@ -737,6 +739,7 @@ const ClientManagementDashboard: React.FC = () => {
                           }
                         }}
                         id="ga-property-id"
+                        disabled={clientSettings?.googleAnalytics?.connected}
                       />
                       <input 
                         type="text" 
@@ -754,6 +757,7 @@ const ClientManagementDashboard: React.FC = () => {
                           }
                         }}
                         id="ga-view-id"
+                        disabled={clientSettings?.googleAnalytics?.connected}
                       />
                       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                         <button 
@@ -762,6 +766,7 @@ const ClientManagementDashboard: React.FC = () => {
                             viewId: clientSettings?.googleAnalytics?.viewId
                           })}
                           className="connect-btn"
+                          disabled={clientSettings?.googleAnalytics?.connected}
                         >
                           <i className="fab fa-google" style={{ marginRight: '8px' }}></i>
                           Connect Google Analytics
@@ -785,11 +790,35 @@ const ClientManagementDashboard: React.FC = () => {
                           }}
                           className="connect-btn"
                           style={{ backgroundColor: '#6c757d' }}
+                          disabled={clientSettings?.googleAnalytics?.connected}
                         >
                           <i className="fas fa-save" style={{ marginRight: '8px' }}></i>
                           Save Property ID
                         </button>
+                        {clientSettings?.googleAnalytics?.connected && selectedClient && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await http.post(`/clients/${selectedClient.id}/service/google_analytics/disconnect`, {});
+                                setSuccessMessage('✅ Disconnected Google Analytics');
+                                await fetchClientData(selectedClient.id);
+                              } catch (e) {
+                                setError('❌ Failed to disconnect Google Analytics');
+                              }
+                            }}
+                            className="connect-btn"
+                            style={{ backgroundColor: '#dc3545' }}
+                          >
+                            <i className="fas fa-unlink" style={{ marginRight: '8px' }}></i>
+                            Disconnect
+                          </button>
+                        )}
                       </div>
+                      {clientSettings?.googleAnalytics?.connected && clientSettings?.googleAnalytics?.lastConnected && (
+                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#555' }}>
+                          Last connected: {new Date(clientSettings.googleAnalytics.lastConnected).toLocaleString()}
+                        </div>
+                      )}
                       <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
                         <strong>For alignprimary:</strong> Property ID: 507408413<br/>
                         <strong>For PROMEDHCA:</strong> Check your Google Analytics account for the Property ID
@@ -853,6 +882,7 @@ const ClientManagementDashboard: React.FC = () => {
                           }
                         }}
                         id="gsc-site-url"
+                        disabled={clientSettings?.searchConsole?.connected}
                       />
                       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                         <button 
@@ -860,6 +890,7 @@ const ClientManagementDashboard: React.FC = () => {
                             siteUrl: clientSettings?.searchConsole?.siteUrl
                           })}
                           className="connect-btn"
+                          disabled={clientSettings?.searchConsole?.connected}
                         >
                           <i className="fab fa-google" style={{ marginRight: '8px' }}></i>
                           Connect Search Console
@@ -883,11 +914,35 @@ const ClientManagementDashboard: React.FC = () => {
                           }}
                           className="connect-btn"
                           style={{ backgroundColor: '#6c757d' }}
+                          disabled={clientSettings?.searchConsole?.connected}
                         >
                           <i className="fas fa-save" style={{ marginRight: '8px' }}></i>
                           Save Site URL
                         </button>
+                        {clientSettings?.searchConsole?.connected && selectedClient && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await http.post(`/clients/${selectedClient.id}/service/google_search_console/disconnect`, {});
+                                setSuccessMessage('✅ Disconnected Search Console');
+                                await fetchClientData(selectedClient.id);
+                              } catch (e) {
+                                setError('❌ Failed to disconnect Search Console');
+                              }
+                            }}
+                            className="connect-btn"
+                            style={{ backgroundColor: '#dc3545' }}
+                          >
+                            <i className="fas fa-unlink" style={{ marginRight: '8px' }}></i>
+                            Disconnect
+                          </button>
+                        )}
                       </div>
+                      {clientSettings?.searchConsole?.connected && clientSettings?.searchConsole?.lastConnected && (
+                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#555' }}>
+                          Last connected: {new Date(clientSettings.searchConsole.lastConnected).toLocaleString()}
+                        </div>
+                      )}
                       <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
                         <strong>For alignprimary:</strong> https://alignprimary.com<br/>
                         <strong>For PROMEDHCA:</strong> https://promedhca.com
