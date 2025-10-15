@@ -15,18 +15,34 @@ interface AnalyticsData {
     pageViews: number;
     sessions: number;
     bounceRate: number;
+    users?: number;
+    newUsers?: number;
+    avgSessionDuration?: number;
+    topPages?: any[];
+    trafficSources?: any[];
+    connected?: boolean;
+    status?: string;
   };
   facebook: {
     pageViews: number;
     followers: number;
     engagement: number;
+    connected?: boolean;
+    status?: string;
   };
   leads: {
     total: number;
     thisMonth: number;
     conversion: number;
+    connected?: boolean;
+    status?: string;
   };
   posts: {
+    total: number;
+    thisMonth: number;
+    engagement: number;
+  };
+  content?: {
     total: number;
     thisMonth: number;
     engagement: number;
@@ -80,6 +96,8 @@ const ClientManagementDashboard: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessageText, setSuccessMessageText] = useState<string>('');
+  const [syncDateFrom, setSyncDateFrom] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+  const [syncDateTo, setSyncDateTo] = useState<string>(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     fetchClients();
@@ -402,12 +420,22 @@ const ClientManagementDashboard: React.FC = () => {
     setSyncLoading(true);
     try {
       // Use comprehensive sync for all useful data
-      const response = await http.post(`/analytics/comprehensive-sync/${selectedClient.id}`, {
+      const syncResponse = await http.post(`/analytics/comprehensive-sync/${selectedClient.id}`, {
         dateFrom,
         dateTo
       });
       
-      setSuccessMessageText('✅ All analytics data synced successfully! (Google Analytics, Search Console, Leads)');
+      // Automatically generate a report after successful sync
+      const reportName = `${selectedClient.name} Analytics Report - ${new Date().toLocaleDateString()}`;
+      const reportResponse = await http.post(`/analytics/modern-report/${selectedClient.id}`, {
+        reportName,
+        reportType: 'comprehensive',
+        dateFrom,
+        dateTo,
+        groupBy: 'daily'
+      });
+      
+      setSuccessMessageText('✅ Data synced and report generated successfully! (Google Analytics, Search Console, Leads)');
       setShowSuccessModal(true);
       await fetchAnalyticsReports();
       setShowSyncModal(false);
@@ -864,41 +892,51 @@ const ClientManagementDashboard: React.FC = () => {
                 <div className="analytics-content">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                     <h3>Analytics Reports</h3>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-               <button 
-                 onClick={() => setShowSyncModal(true)}
-                 style={{
-                   padding: '10px 20px',
-                   backgroundColor: '#28a745',
-                   color: 'white',
-                   border: 'none',
-                   borderRadius: '8px',
-                   cursor: 'pointer',
-                   display: 'flex',
-                   alignItems: 'center',
-                   gap: '8px'
-                 }}
-               >
-                 <i className="fas fa-sync-alt"></i>
-                 Comprehensive Sync
-               </button>
-               <button 
-                 onClick={() => setShowReportModal(true)}
-                 style={{
-                   padding: '10px 20px',
-                   backgroundColor: '#007bff',
-                   color: 'white',
-                   border: 'none',
-                   borderRadius: '8px',
-                   cursor: 'pointer',
-                   display: 'flex',
-                   alignItems: 'center',
-                   gap: '8px'
-                 }}
-               >
-                 <i className="fas fa-file-pdf"></i>
-                 Modern Report
-               </button>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      {/* Date Range Filter */}
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <label style={{ fontSize: '14px', fontWeight: '500' }}>Date Range:</label>
+                        <input 
+                          type="date" 
+                          value={new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                          onChange={(e) => setSyncDateFrom(e.target.value)}
+                          style={{
+                            padding: '8px 12px',
+                            border: '1px solid #ddd',
+                            borderRadius: '6px',
+                            fontSize: '14px'
+                          }}
+                        />
+                        <span style={{ fontSize: '14px' }}>to</span>
+                        <input 
+                          type="date" 
+                          value={new Date().toISOString().split('T')[0]}
+                          onChange={(e) => setSyncDateTo(e.target.value)}
+                          style={{
+                            padding: '8px 12px',
+                            border: '1px solid #ddd',
+                            borderRadius: '6px',
+                            fontSize: '14px'
+                          }}
+                        />
+                      </div>
+                      <button 
+                        onClick={() => setShowSyncModal(true)}
+                        style={{
+                          padding: '10px 20px',
+                          backgroundColor: '#28a745',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}
+                      >
+                        <i className="fas fa-sync-alt"></i>
+                        Sync & Generate Report
+                      </button>
                     </div>
                   </div>
 
@@ -972,9 +1010,99 @@ const ClientManagementDashboard: React.FC = () => {
                     </div>
                   )}
 
+                  {/* Detailed Analytics Data Table */}
+                  <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                      <h4 style={{ margin: '0', color: '#333' }}>Detailed Analytics Data</h4>
+                      <button 
+                        onClick={async () => {
+                          if (selectedClient) {
+                            try {
+                              const response = await http.get(`/analytics/data/${selectedClient.id}?dateFrom=${syncDateFrom}&dateTo=${syncDateTo}`);
+                              setAnalyticsReportData(response.data.data);
+                            } catch (error) {
+                              console.error('Failed to fetch analytics data:', error);
+                            }
+                          }
+                        }}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: '#17a2b8',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <i className="fas fa-refresh"></i>
+                        Refresh Data
+                      </button>
+                    </div>
+                    
+                    {analyticsReportData ? (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                          <thead>
+                            <tr style={{ backgroundColor: '#f8f9fa' }}>
+                              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Date</th>
+                              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Service</th>
+                              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Data Type</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Value</th>
+                              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Details</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {analyticsReportData.detailedData && analyticsReportData.detailedData.length > 0 ? (
+                              analyticsReportData.detailedData.map((item: any, index: number) => (
+                                <tr key={index} style={{ borderBottom: '1px solid #dee2e6' }}>
+                                  <td style={{ padding: '12px' }}>{item.date}</td>
+                                  <td style={{ padding: '12px' }}>
+                                    <span style={{
+                                      padding: '4px 8px',
+                                      borderRadius: '4px',
+                                      fontSize: '12px',
+                                      fontWeight: '500',
+                                      backgroundColor: item.service_type === 'google_analytics' ? '#e3f2fd' : 
+                                                      item.service_type === 'search_console' ? '#f3e5f5' : '#e8f5e8',
+                                      color: item.service_type === 'google_analytics' ? '#1976d2' : 
+                                             item.service_type === 'search_console' ? '#7b1fa2' : '#388e3c'
+                                    }}>
+                                      {item.service_type === 'google_analytics' ? 'Google Analytics' :
+                                       item.service_type === 'search_console' ? 'Search Console' :
+                                       item.service_type === 'leads' ? 'Leads' : item.service_type}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '12px' }}>{item.data_type}</td>
+                                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>{item.value?.toLocaleString() || '0'}</td>
+                                  <td style={{ padding: '12px', fontSize: '12px', color: '#666' }}>
+                                    {item.metadata ? JSON.stringify(item.metadata).substring(0, 50) + '...' : '-'}
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={5} style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                                  No detailed data available. Click "Sync & Generate Report" to fetch data.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p style={{ color: '#666', textAlign: 'center', padding: '20px' }}>
+                        No analytics data loaded. Click "Sync & Generate Report" to fetch and display data.
+                      </p>
+                    )}
+                  </div>
+
                   {/* Recent Reports */}
                   <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                    <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>Recent Reports</h4>
+                    <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>Generated Reports</h4>
                     {reports.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         {reports.map((report: any) => (
@@ -1014,7 +1142,7 @@ const ClientManagementDashboard: React.FC = () => {
                       </div>
                     ) : (
                       <p style={{ color: '#666', textAlign: 'center', padding: '20px' }}>
-                        No reports generated yet. Click "Generate Report" to create your first analytics report.
+                        No reports generated yet. Click "Sync & Generate Report" to create your first analytics report.
                       </p>
                     )}
                   </div>
@@ -1318,7 +1446,7 @@ const ClientManagementDashboard: React.FC = () => {
         )}
       </div>
 
-      <style jsx>{`
+      <style>{`
         .client-management-dashboard {
           padding: 20px;
           max-width: 1200px;
@@ -1618,32 +1746,13 @@ const ClientManagementDashboard: React.FC = () => {
             width: '90%',
             maxWidth: '500px'
           }}>
-             <h3 style={{ margin: '0 0 20px 0' }}>Comprehensive Analytics Sync</h3>
+             <h3 style={{ margin: '0 0 20px 0' }}>Sync & Generate Analytics Report</h3>
              <p style={{ color: '#666', marginBottom: '20px' }}>
-               Select a date range to sync ALL analytics data for {selectedClient?.name}:<br/>
+               This will sync ALL analytics data for <strong>{selectedClient?.name}</strong> from <strong>{syncDateFrom}</strong> to <strong>{syncDateTo}</strong> and automatically generate a detailed report:<br/><br/>
                • Google Analytics (page views, sessions, users, devices, traffic sources)<br/>
                • Search Console (search queries, impressions, clicks)<br/>
                • Leads data (conversions, sources, daily counts)
              </p>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>From Date:</label>
-                <input 
-                  type="date" 
-                  id="sync-date-from"
-                  style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px' }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>To Date:</label>
-                <input 
-                  type="date" 
-                  id="sync-date-to"
-                  style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px' }}
-                />
-              </div>
-            </div>
 
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button 
@@ -1660,27 +1769,31 @@ const ClientManagementDashboard: React.FC = () => {
                 Cancel
               </button>
               <button 
-                onClick={() => {
-                  const dateFrom = (document.getElementById('sync-date-from') as HTMLInputElement)?.value;
-                  const dateTo = (document.getElementById('sync-date-to') as HTMLInputElement)?.value;
-                  if (dateFrom && dateTo) {
-                    syncAnalyticsData(dateFrom, dateTo);
-                  } else {
-                    setError('Please select both dates');
-                  }
-                }}
+                onClick={() => syncAnalyticsData(syncDateFrom, syncDateTo)}
                 disabled={syncLoading}
                 style={{
                   padding: '10px 20px',
-                  backgroundColor: '#28a745',
+                  backgroundColor: syncLoading ? '#6c757d' : '#28a745',
                   color: 'white',
                   border: 'none',
                   borderRadius: '6px',
                   cursor: syncLoading ? 'not-allowed' : 'pointer',
-                  opacity: syncLoading ? 0.6 : 1
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
                 }}
               >
-                {syncLoading ? 'Syncing...' : 'Sync Data'}
+                {syncLoading ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin"></i>
+                    Syncing & Generating Report...
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-sync-alt"></i>
+                    Start Sync & Generate Report
+                  </>
+                )}
               </button>
             </div>
           </div>
