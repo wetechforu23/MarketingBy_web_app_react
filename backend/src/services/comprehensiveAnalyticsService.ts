@@ -205,7 +205,7 @@ export class ComprehensiveAnalyticsService {
       const searchConsoleData = await this.googleSearchConsoleService.getSearchConsoleData(clientId, credentials.siteUrl || '');
       
       // Transform the existing data into keyword analysis format
-      const keywords: KeywordAnalysis[] = searchConsoleData.queries.map((query: any, index: number) => {
+      const keywords: KeywordAnalysis[] = searchConsoleData.topQueries.map((query: any, index: number) => {
         const ctr = query.clicks / query.impressions || 0;
         let category: 'high-value' | 'medium-value' | 'low-value' = 'low-value';
         
