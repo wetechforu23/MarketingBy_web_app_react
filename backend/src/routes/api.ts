@@ -2559,6 +2559,149 @@ router.post('/clients/:clientId/connect/:service', async (req, res) => {
   }
 });
 
+// Google OAuth routes
+router.get('/auth/google/:service', async (req, res) => {
+  try {
+    const { service } = req.params;
+    const { clientId } = req.query;
+    
+    if (!clientId) {
+      return res.status(400).json({ error: 'Client ID is required' });
+    }
+
+    let authUrl: string;
+    
+    if (service === 'analytics') {
+      const googleAnalyticsService = require('../services/googleAnalyticsService').default;
+      authUrl = googleAnalyticsService.generateAuthUrl(parseInt(clientId as string));
+    } else if (service === 'search-console') {
+      const googleSearchConsoleService = require('../services/googleSearchConsoleService').default;
+      authUrl = googleSearchConsoleService.generateAuthUrl(parseInt(clientId as string));
+    } else {
+      return res.status(400).json({ error: 'Invalid service type' });
+    }
+
+    res.json({ authUrl });
+  } catch (error) {
+    console.error('Generate auth URL error:', error);
+    res.status(500).json({ error: 'Failed to generate auth URL' });
+  }
+});
+
+router.get('/auth/google/callback', async (req, res) => {
+  try {
+    const { code, state } = req.query;
+    
+    if (!code || !state) {
+      return res.status(400).json({ error: 'Missing authorization code or state' });
+    }
+
+    const stateData = JSON.parse(state as string);
+    const { clientId, type } = stateData;
+
+    let tokens: any;
+    
+    if (type === 'google_analytics') {
+      const googleAnalyticsService = require('../services/googleAnalyticsService').default;
+      tokens = await googleAnalyticsService.exchangeCodeForTokens(code as string, state as string);
+    } else if (type === 'google_search_console') {
+      const googleSearchConsoleService = require('../services/googleSearchConsoleService').default;
+      tokens = await googleSearchConsoleService.exchangeCodeForTokens(code as string, state as string);
+    } else {
+      return res.status(400).json({ error: 'Invalid service type' });
+    }
+
+    // Redirect back to the client management dashboard
+    const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/app/client-management?connected=${type}&clientId=${clientId}`;
+    res.redirect(redirectUrl);
+  } catch (error) {
+    console.error('OAuth callback error:', error);
+    const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/app/client-management?error=oauth_failed`;
+    res.redirect(redirectUrl);
+  }
+});
+
+// Get real analytics data
+router.get('/analytics/client/:clientId/real', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { propertyId } = req.query;
+    
+    const googleAnalyticsService = require('../services/googleAnalyticsService').default;
+    const hasCredentials = await googleAnalyticsService.hasValidCredentials(parseInt(clientId));
+    
+    if (!hasCredentials) {
+      return res.status(400).json({ 
+        error: 'Google Analytics not connected',
+        needsAuth: true,
+        service: 'google_analytics'
+      });
+    }
+
+    const analyticsData = await googleAnalyticsService.getAnalyticsData(
+      parseInt(clientId), 
+      propertyId as string
+    );
+
+    res.json(analyticsData);
+  } catch (error) {
+    console.error('Get real analytics data error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics data' });
+  }
+});
+
+// Get real search console data
+router.get('/search-console/client/:clientId/real', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { siteUrl } = req.query;
+    
+    const googleSearchConsoleService = require('../services/googleSearchConsoleService').default;
+    const hasCredentials = await googleSearchConsoleService.hasValidCredentials(parseInt(clientId));
+    
+    if (!hasCredentials) {
+      return res.status(400).json({ 
+        error: 'Google Search Console not connected',
+        needsAuth: true,
+        service: 'google_search_console'
+      });
+    }
+
+    const searchConsoleData = await googleSearchConsoleService.getSearchConsoleData(
+      parseInt(clientId), 
+      siteUrl as string
+    );
+
+    res.json(searchConsoleData);
+  } catch (error) {
+    console.error('Get real search console data error:', error);
+    res.status(500).json({ error: 'Failed to fetch search console data' });
+  }
+});
+
+// Update client service configuration
+router.put('/clients/:clientId/service/:service/config', async (req, res) => {
+  try {
+    const { clientId, service } = req.params;
+    const { propertyId, siteUrl } = req.body;
+    
+    if (service === 'google_analytics' && propertyId) {
+      const googleAnalyticsService = require('../services/googleAnalyticsService').default;
+      await googleAnalyticsService.updateClientPropertyId(parseInt(clientId), propertyId);
+    } else if (service === 'google_search_console' && siteUrl) {
+      const googleSearchConsoleService = require('../services/googleSearchConsoleService').default;
+      await googleSearchConsoleService.updateClientSiteUrl(parseInt(clientId), siteUrl);
+    } else {
+      return res.status(400).json({ error: 'Invalid service or missing configuration' });
+    }
+
+    res.json({ success: true, message: 'Service configuration updated' });
+  } catch (error) {
+    console.error('Update service config error:', error);
+    res.status(500).json({ error: 'Failed to update service configuration' });
+  }
+});
+
 // Convert client back to lead
 router.post('/clients/convert-to-lead', async (req, res) => {
   try {

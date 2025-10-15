@@ -1,379 +1,377 @@
-import axios from 'axios';
-import dotenv from 'dotenv';
+import { google } from 'googleapis';
+import { pool } from '../config/database';
 
-dotenv.config();
-
-export interface SearchConsoleQuery {
-  query: string;
-  clicks: number;
-  impressions: number;
-  ctr: number;
-  position: number;
-}
-
-export interface SearchConsolePage {
-  page: string;
-  clicks: number;
-  impressions: number;
-  ctr: number;
-  position: number;
-}
-
-export interface SearchConsoleCountry {
-  country: string;
-  clicks: number;
-  impressions: number;
-  ctr: number;
-  position: number;
-}
-
-export interface SearchConsoleDevice {
-  device: string;
-  clicks: number;
-  impressions: number;
-  ctr: number;
-  position: number;
-}
-
-export interface SearchConsoleData {
-  queries: SearchConsoleQuery[];
-  pages: SearchConsolePage[];
-  countries: SearchConsoleCountry[];
-  devices: SearchConsoleDevice[];
+interface SearchConsoleData {
   totalClicks: number;
   totalImpressions: number;
-  averageCTR: number;
+  averageCtr: number;
   averagePosition: number;
+  topQueries: Array<{
+    query: string;
+    clicks: number;
+    impressions: number;
+    ctr: number;
+    position: number;
+  }>;
+  topPages: Array<{
+    page: string;
+    clicks: number;
+    impressions: number;
+    ctr: number;
+    position: number;
+  }>;
+  devices: Array<{
+    device: string;
+    clicks: number;
+    impressions: number;
+  }>;
+  countries: Array<{
+    country: string;
+    clicks: number;
+    impressions: number;
+  }>;
 }
 
 export class GoogleSearchConsoleService {
-  private static instance: GoogleSearchConsoleService;
-  private accessToken: string;
-  private baseUrl = 'https://www.googleapis.com/webmasters/v3';
+  private oauth2Client: any;
+  private credentials: any;
 
-  private constructor() {
-    this.accessToken = process.env.GOOGLE_SEARCH_CONSOLE_ACCESS_TOKEN || '';
-    if (!this.accessToken) {
-      console.warn('GOOGLE_SEARCH_CONSOLE_ACCESS_TOKEN is not set. Google Search Console API will not function.');
-    }
-  }
-
-  public static getInstance(): GoogleSearchConsoleService {
-    if (!GoogleSearchConsoleService.instance) {
-      GoogleSearchConsoleService.instance = new GoogleSearchConsoleService();
-    }
-    return GoogleSearchConsoleService.instance;
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': `Bearer ${this.accessToken}`,
-      'Content-Type': 'application/json',
+  constructor() {
+    this.credentials = {
+      client_id: process.env.GOOGLE_ANALYTICS_CLIENT_ID || '',
+      client_secret: process.env.GOOGLE_ANALYTICS_CLIENT_SECRET || '',
+      redirect_uri: process.env.GOOGLE_ANALYTICS_REDIRECT_URI || 'http://localhost:3000/api/auth/google/callback'
     };
+
+    this.oauth2Client = new google.auth.OAuth2(
+      this.credentials.client_id,
+      this.credentials.client_secret,
+      this.credentials.redirect_uri
+    );
   }
 
   /**
-   * Get search performance data for a website
+   * Generate OAuth authorization URL for Search Console
    */
-  async getSearchPerformance(
-    siteUrl: string,
-    startDate: string,
-    endDate: string,
-    dimensions: string[] = ['query', 'page', 'country', 'device']
-  ): Promise<SearchConsoleData> {
-    if (!this.accessToken) {
-      throw new Error('Google Search Console access token is not configured');
-    }
+  generateAuthUrl(clientId: number): string {
+    const scopes = [
+      'https://www.googleapis.com/auth/webmasters.readonly'
+    ];
 
+    return this.oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      scope: scopes,
+      state: JSON.stringify({ clientId, type: 'google_search_console' }),
+      prompt: 'consent'
+    });
+  }
+
+  /**
+   * Exchange authorization code for tokens
+   */
+  async exchangeCodeForTokens(code: string, state: string): Promise<any> {
     try {
-      const results: SearchConsoleData = {
-        queries: [],
-        pages: [],
-        countries: [],
-        devices: [],
-        totalClicks: 0,
-        totalImpressions: 0,
-        averageCTR: 0,
-        averagePosition: 0
-      };
+      const { tokens } = await this.oauth2Client.getToken(code);
+      const stateData = JSON.parse(state);
+      
+      // Store tokens in database
+      await this.storeClientCredentials(stateData.clientId, {
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_at: new Date(Date.now() + (tokens.expiry_date || 3600 * 1000))
+      });
 
-      // Get data for each dimension
-      for (const dimension of dimensions) {
-        const response = await axios.post(
-          `${this.baseUrl}/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
-          {
-            startDate: startDate,
-            endDate: endDate,
-            dimensions: [dimension],
-            rowLimit: 1000,
-            startRow: 0
-          },
-          {
-            headers: this.getHeaders()
-          }
-        );
+      return tokens;
+    } catch (error) {
+      console.error('Error exchanging code for tokens:', error);
+      throw error;
+    }
+  }
 
-        const data = response.data.rows || [];
-        
-        switch (dimension) {
-          case 'query':
-            results.queries = data.map((row: any) => ({
-              query: row.keys[0],
-              clicks: row.clicks,
-              impressions: row.impressions,
-              ctr: row.ctr,
-              position: row.position
-            }));
-            break;
-          case 'page':
-            results.pages = data.map((row: any) => ({
-              page: row.keys[0],
-              clicks: row.clicks,
-              impressions: row.impressions,
-              ctr: row.ctr,
-              position: row.position
-            }));
-            break;
-          case 'country':
-            results.countries = data.map((row: any) => ({
-              country: row.keys[0],
-              clicks: row.clicks,
-              impressions: row.impressions,
-              ctr: row.ctr,
-              position: row.position
-            }));
-            break;
-          case 'device':
-            results.devices = data.map((row: any) => ({
-              device: row.keys[0],
-              clicks: row.clicks,
-              impressions: row.impressions,
-              ctr: row.ctr,
-              position: row.position
-            }));
-            break;
-        }
+  /**
+   * Store client credentials in database
+   */
+  private async storeClientCredentials(clientId: number, credentials: any): Promise<void> {
+    try {
+      await pool.query(
+        `INSERT INTO client_credentials (client_id, service_type, credentials, created_at, updated_at)
+         VALUES ($1, $2, $3, NOW(), NOW())
+         ON CONFLICT (client_id, service_type)
+         DO UPDATE SET credentials = $3, updated_at = NOW()`,
+        [clientId, 'google_search_console', JSON.stringify(credentials)]
+      );
+    } catch (error) {
+      console.error('Error storing client credentials:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get client credentials from database
+   */
+  private async getClientCredentials(clientId: number): Promise<any> {
+    try {
+      const result = await pool.query(
+        'SELECT credentials FROM client_credentials WHERE client_id = $1 AND service_type = $2',
+        [clientId, 'google_search_console']
+      );
+
+      if (result.rows.length === 0) {
+        return null;
       }
 
-      // Calculate totals
-      const allData = [...results.queries, ...results.pages, ...results.countries, ...results.devices];
-      results.totalClicks = allData.reduce((sum, item) => sum + item.clicks, 0);
-      results.totalImpressions = allData.reduce((sum, item) => sum + item.impressions, 0);
-      results.averageCTR = allData.length > 0 ? allData.reduce((sum, item) => sum + item.ctr, 0) / allData.length : 0;
-      results.averagePosition = allData.length > 0 ? allData.reduce((sum, item) => sum + item.position, 0) / allData.length : 0;
-
-      return results;
+      return JSON.parse(result.rows[0].credentials);
     } catch (error) {
-      console.error('Error fetching Google Search Console data:', error);
-      throw error;
+      console.error('Error getting client credentials:', error);
+      return null;
     }
   }
 
   /**
-   * Get top performing keywords
+   * Refresh access token if needed
    */
-  async getTopKeywords(
-    siteUrl: string,
-    startDate: string,
-    endDate: string,
-    limit: number = 50
-  ): Promise<SearchConsoleQuery[]> {
-    if (!this.accessToken) {
-      throw new Error('Google Search Console access token is not configured');
-    }
-
+  private async refreshTokenIfNeeded(clientId: number): Promise<string | null> {
     try {
-      const response = await axios.post(
-        `${this.baseUrl}/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
-        {
-          startDate: startDate,
-          endDate: endDate,
+      const credentials = await this.getClientCredentials(clientId);
+      if (!credentials) {
+        return null;
+      }
+
+      this.oauth2Client.setCredentials({
+        access_token: credentials.access_token,
+        refresh_token: credentials.refresh_token
+      });
+
+      // Check if token is expired
+      if (credentials.expires_at && new Date(credentials.expires_at) <= new Date()) {
+        const { credentials: newCredentials } = await this.oauth2Client.refreshAccessToken();
+        
+        // Update stored credentials
+        await this.storeClientCredentials(clientId, {
+          access_token: newCredentials.access_token,
+          refresh_token: credentials.refresh_token,
+          expires_at: new Date(Date.now() + (newCredentials.expiry_date || 3600 * 1000))
+        });
+
+        return newCredentials.access_token;
+      }
+
+      return credentials.access_token;
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get search console data for a client
+   */
+  async getSearchConsoleData(clientId: number, siteUrl?: string): Promise<SearchConsoleData> {
+    try {
+      const accessToken = await this.refreshTokenIfNeeded(clientId);
+      if (!accessToken) {
+        throw new Error('No valid access token available');
+      }
+
+      this.oauth2Client.setCredentials({ access_token: accessToken });
+
+      // Get client's site URL if not provided
+      if (!siteUrl) {
+        siteUrl = await this.getClientSiteUrl(clientId);
+      }
+
+      if (!siteUrl) {
+        throw new Error('No site URL configured for client');
+      }
+
+      const searchconsole = google.searchconsole({ version: 'v1', auth: this.oauth2Client });
+
+      // Get overall performance data
+      const performanceResponse = await searchconsole.searchanalytics.query({
+        siteUrl: siteUrl,
+        requestBody: {
+          startDate: '2024-09-14', // 30 days ago
+          endDate: '2024-10-14',   // today
+          dimensions: [],
+          rowLimit: 1
+        }
+      });
+
+      // Get top queries
+      const topQueriesResponse = await searchconsole.searchanalytics.query({
+        siteUrl: siteUrl,
+        requestBody: {
+          startDate: '2024-09-14',
+          endDate: '2024-10-14',
           dimensions: ['query'],
-          rowLimit: limit,
-          startRow: 0
-        },
-        {
-          headers: this.getHeaders()
-        }
-      );
-
-      return response.data.rows?.map((row: any) => ({
-        query: row.keys[0],
-        clicks: row.clicks,
-        impressions: row.impressions,
-        ctr: row.ctr,
-        position: row.position
-      })) || [];
-    } catch (error) {
-      console.error('Error fetching top keywords:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get top performing pages
-   */
-  async getTopPages(
-    siteUrl: string,
-    startDate: string,
-    endDate: string,
-    limit: number = 50
-  ): Promise<SearchConsolePage[]> {
-    if (!this.accessToken) {
-      throw new Error('Google Search Console access token is not configured');
-    }
-
-    try {
-      const response = await axios.post(
-        `${this.baseUrl}/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
-        {
-          startDate: startDate,
-          endDate: endDate,
-          dimensions: ['page'],
-          rowLimit: limit,
-          startRow: 0
-        },
-        {
-          headers: this.getHeaders()
-        }
-      );
-
-      return response.data.rows?.map((row: any) => ({
-        page: row.keys[0],
-        clicks: row.clicks,
-        impressions: row.impressions,
-        ctr: row.ctr,
-        position: row.position
-      })) || [];
-    } catch (error) {
-      console.error('Error fetching top pages:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get geographic performance data
-   */
-  async getGeographicData(
-    siteUrl: string,
-    startDate: string,
-    endDate: string
-  ): Promise<SearchConsoleCountry[]> {
-    if (!this.accessToken) {
-      throw new Error('Google Search Console access token is not configured');
-    }
-
-    try {
-      const response = await axios.post(
-        `${this.baseUrl}/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
-        {
-          startDate: startDate,
-          endDate: endDate,
-          dimensions: ['country'],
-          rowLimit: 100,
-          startRow: 0
-        },
-        {
-          headers: this.getHeaders()
-        }
-      );
-
-      return response.data.rows?.map((row: any) => ({
-        country: row.keys[0],
-        clicks: row.clicks,
-        impressions: row.impressions,
-        ctr: row.ctr,
-        position: row.position
-      })) || [];
-    } catch (error) {
-      console.error('Error fetching geographic data:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get device performance data
-   */
-  async getDeviceData(
-    siteUrl: string,
-    startDate: string,
-    endDate: string
-  ): Promise<SearchConsoleDevice[]> {
-    if (!this.accessToken) {
-      throw new Error('Google Search Console access token is not configured');
-    }
-
-    try {
-      const response = await axios.post(
-        `${this.baseUrl}/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
-        {
-          startDate: startDate,
-          endDate: endDate,
-          dimensions: ['device'],
           rowLimit: 10,
-          startRow: 0
-        },
-        {
-          headers: this.getHeaders()
+          orderBys: [
+            {
+              dimension: 'clicks',
+              sortOrder: 'DESCENDING'
+            }
+          ]
         }
-      );
+      });
 
-      return response.data.rows?.map((row: any) => ({
-        device: row.keys[0],
-        clicks: row.clicks,
-        impressions: row.impressions,
-        ctr: row.ctr,
-        position: row.position
+      // Get top pages
+      const topPagesResponse = await searchconsole.searchanalytics.query({
+        siteUrl: siteUrl,
+        requestBody: {
+          startDate: '2024-09-14',
+          endDate: '2024-10-14',
+          dimensions: ['page'],
+          rowLimit: 10,
+          orderBys: [
+            {
+              dimension: 'clicks',
+              sortOrder: 'DESCENDING'
+            }
+          ]
+        }
+      });
+
+      // Get device data
+      const devicesResponse = await searchconsole.searchanalytics.query({
+        siteUrl: siteUrl,
+        requestBody: {
+          startDate: '2024-09-14',
+          endDate: '2024-10-14',
+          dimensions: ['device'],
+          rowLimit: 10
+        }
+      });
+
+      // Get country data
+      const countriesResponse = await searchconsole.searchanalytics.query({
+        siteUrl: siteUrl,
+        requestBody: {
+          startDate: '2024-09-14',
+          endDate: '2024-10-14',
+          dimensions: ['country'],
+          rowLimit: 10,
+          orderBys: [
+            {
+              dimension: 'clicks',
+              sortOrder: 'DESCENDING'
+            }
+          ]
+        }
+      });
+
+      // Process the data
+      const overallData = performanceResponse.data.rows?.[0] || {};
+      const totalClicks = overallData.clicks || 0;
+      const totalImpressions = overallData.impressions || 0;
+      const averageCtr = overallData.ctr || 0;
+      const averagePosition = overallData.position || 0;
+
+      const topQueries = topQueriesResponse.data.rows?.map(row => ({
+        query: row.keys?.[0] || '',
+        clicks: row.clicks || 0,
+        impressions: row.impressions || 0,
+        ctr: row.ctr || 0,
+        position: row.position || 0
       })) || [];
+
+      const topPages = topPagesResponse.data.rows?.map(row => ({
+        page: row.keys?.[0] || '',
+        clicks: row.clicks || 0,
+        impressions: row.impressions || 0,
+        ctr: row.ctr || 0,
+        position: row.position || 0
+      })) || [];
+
+      const devices = devicesResponse.data.rows?.map(row => ({
+        device: row.keys?.[0] || '',
+        clicks: row.clicks || 0,
+        impressions: row.impressions || 0
+      })) || [];
+
+      const countries = countriesResponse.data.rows?.map(row => ({
+        country: row.keys?.[0] || '',
+        clicks: row.clicks || 0,
+        impressions: row.impressions || 0
+      })) || [];
+
+      return {
+        totalClicks,
+        totalImpressions,
+        averageCtr,
+        averagePosition,
+        topQueries,
+        topPages,
+        devices,
+        countries
+      };
+
     } catch (error) {
-      console.error('Error fetching device data:', error);
+      console.error('Error getting search console data:', error);
       throw error;
     }
   }
 
   /**
-   * Get crawl errors
+   * Get client's site URL from database
    */
-  async getCrawlErrors(siteUrl: string): Promise<any[]> {
-    if (!this.accessToken) {
-      throw new Error('Google Search Console access token is not configured');
-    }
-
+  private async getClientSiteUrl(clientId: number): Promise<string | null> {
     try {
-      const response = await axios.get(
-        `${this.baseUrl}/sites/${encodeURIComponent(siteUrl)}/urlCrawlErrorsCounts/query`,
-        {
-          headers: this.getHeaders()
-        }
+      const result = await pool.query(
+        'SELECT credentials FROM client_credentials WHERE client_id = $1 AND service_type = $2',
+        [clientId, 'google_search_console']
       );
 
-      return response.data.countPerTypes || [];
+      if (result.rows.length === 0) {
+        return null;
+      }
+
+      const credentials = JSON.parse(result.rows[0].credentials);
+      return credentials.site_url || null;
     } catch (error) {
-      console.error('Error fetching crawl errors:', error);
+      console.error('Error getting site URL:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update client's site URL
+   */
+  async updateClientSiteUrl(clientId: number, siteUrl: string): Promise<void> {
+    try {
+      const result = await pool.query(
+        'SELECT credentials FROM client_credentials WHERE client_id = $1 AND service_type = $2',
+        [clientId, 'google_search_console']
+      );
+
+      if (result.rows.length === 0) {
+        throw new Error('No credentials found for client');
+      }
+
+      const credentials = JSON.parse(result.rows[0].credentials);
+      credentials.site_url = siteUrl;
+
+      await pool.query(
+        'UPDATE client_credentials SET credentials = $1, updated_at = NOW() WHERE client_id = $2 AND service_type = $3',
+        [JSON.stringify(credentials), clientId, 'google_search_console']
+      );
+    } catch (error) {
+      console.error('Error updating site URL:', error);
       throw error;
     }
   }
 
   /**
-   * Get sitemaps
+   * Check if client has valid credentials
    */
-  async getSitemaps(siteUrl: string): Promise<any[]> {
-    if (!this.accessToken) {
-      throw new Error('Google Search Console access token is not configured');
-    }
-
+  async hasValidCredentials(clientId: number): Promise<boolean> {
     try {
-      const response = await axios.get(
-        `${this.baseUrl}/sites/${encodeURIComponent(siteUrl)}/sitemaps`,
-        {
-          headers: this.getHeaders()
-        }
-      );
-
-      return response.data.sitemap || [];
+      const credentials = await this.getClientCredentials(clientId);
+      return credentials && credentials.access_token && credentials.refresh_token;
     } catch (error) {
-      console.error('Error fetching sitemaps:', error);
-      throw error;
+      console.error('Error checking credentials:', error);
+      return false;
     }
   }
 }
+
+export default new GoogleSearchConsoleService();

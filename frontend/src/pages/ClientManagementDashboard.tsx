@@ -116,9 +116,26 @@ const ClientManagementDashboard: React.FC = () => {
 
   const fetchClientData = async (clientId: number) => {
     try {
-      // Fetch analytics data
-      const analyticsResponse = await http.get(`/api/analytics/client/${clientId}`);
-      setAnalyticsData(analyticsResponse.data);
+      // Try to fetch real analytics data first
+      try {
+        const realAnalyticsResponse = await http.get(`/api/analytics/client/${clientId}/real`);
+        setAnalyticsData(realAnalyticsResponse.data);
+        console.log('✅ Real analytics data loaded');
+      } catch (realError) {
+        console.log('⚠️ Real analytics not available, using mock data');
+        // Fall back to mock data
+        const mockAnalyticsResponse = await http.get(`/api/analytics/client/${clientId}`);
+        setAnalyticsData(mockAnalyticsResponse.data);
+      }
+
+      // Try to fetch real search console data
+      try {
+        const realSearchConsoleResponse = await http.get(`/api/search-console/client/${clientId}/real`);
+        console.log('✅ Real search console data loaded:', realSearchConsoleResponse.data);
+        // You can add this to analyticsData or create a separate state
+      } catch (realError) {
+        console.log('⚠️ Real search console not available');
+      }
 
       // Fetch client settings
       const settingsResponse = await http.get(`/api/clients/${clientId}/settings`);
@@ -132,10 +149,20 @@ const ClientManagementDashboard: React.FC = () => {
     if (!selectedClient) return;
     
     try {
-      await http.post(`/api/clients/${selectedClient.id}/connect/${service}`, data);
-      // Refresh client settings
-      fetchClientData(selectedClient.id);
-      alert(`${service} connected successfully!`);
+      if (service === 'google-analytics' || service === 'google_search_console') {
+        // Handle OAuth flow for Google services
+        const serviceName = service === 'google-analytics' ? 'analytics' : 'search-console';
+        const response = await http.get(`/api/auth/google/${serviceName}?clientId=${selectedClient.id}`);
+        
+        // Redirect to Google OAuth
+        window.location.href = response.data.authUrl;
+      } else {
+        // Handle other services with mock connection
+        await http.post(`/api/clients/${selectedClient.id}/connect/${service}`, data);
+        // Refresh client settings
+        fetchClientData(selectedClient.id);
+        alert(`${service} connected successfully!`);
+      }
     } catch (error) {
       console.error(`Error connecting ${service}:`, error);
       alert(`Failed to connect ${service}`);
@@ -394,23 +421,53 @@ const ClientManagementDashboard: React.FC = () => {
                     <div className="integration-form">
                       <input 
                         type="text" 
-                        placeholder="Property ID" 
+                        placeholder="Property ID (e.g., 507408413 for alignprimary)" 
                         defaultValue={clientSettings?.googleAnalytics?.propertyId || ''}
+                        id="ga-property-id"
                       />
                       <input 
                         type="text" 
-                        placeholder="View ID" 
+                        placeholder="View ID (optional)" 
                         defaultValue={clientSettings?.googleAnalytics?.viewId || ''}
+                        id="ga-view-id"
                       />
-                      <button 
-                        onClick={() => handleConnectService('google-analytics', {
-                          propertyId: 'GA-XXXXX-X',
-                          viewId: '123456789'
-                        })}
-                        className="connect-btn"
-                      >
-                        Connect Google Analytics
-                      </button>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        <button 
+                          onClick={() => handleConnectService('google-analytics', {
+                            propertyId: (document.getElementById('ga-property-id') as HTMLInputElement)?.value,
+                            viewId: (document.getElementById('ga-view-id') as HTMLInputElement)?.value
+                          })}
+                          className="connect-btn"
+                        >
+                          <i className="fab fa-google" style={{ marginRight: '8px' }}></i>
+                          Connect Google Analytics
+                        </button>
+                        <button 
+                          onClick={async () => {
+                            const propertyId = (document.getElementById('ga-property-id') as HTMLInputElement)?.value;
+                            if (propertyId && selectedClient) {
+                              try {
+                                await http.put(`/api/clients/${selectedClient.id}/service/google_analytics/config`, {
+                                  propertyId: propertyId
+                                });
+                                alert('Property ID updated successfully!');
+                                fetchClientData(selectedClient.id);
+                              } catch (error) {
+                                alert('Failed to update Property ID');
+                              }
+                            }
+                          }}
+                          className="connect-btn"
+                          style={{ backgroundColor: '#6c757d' }}
+                        >
+                          <i className="fas fa-save" style={{ marginRight: '8px' }}></i>
+                          Save Property ID
+                        </button>
+                      </div>
+                      <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+                        <strong>For alignprimary:</strong> Property ID: 507408413<br/>
+                        <strong>For PROMEDHCA:</strong> Check your Google Analytics account for the Property ID
+                      </div>
                     </div>
                   </div>
 
@@ -456,17 +513,46 @@ const ClientManagementDashboard: React.FC = () => {
                     <div className="integration-form">
                       <input 
                         type="text" 
-                        placeholder="Site URL" 
+                        placeholder="Site URL (e.g., https://alignprimary.com)" 
                         defaultValue={clientSettings?.searchConsole?.siteUrl || ''}
+                        id="gsc-site-url"
                       />
-                      <button 
-                        onClick={() => handleConnectService('search-console', {
-                          siteUrl: 'https://example.com'
-                        })}
-                        className="connect-btn"
-                      >
-                        Connect Search Console
-                      </button>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        <button 
+                          onClick={() => handleConnectService('google_search_console', {
+                            siteUrl: (document.getElementById('gsc-site-url') as HTMLInputElement)?.value
+                          })}
+                          className="connect-btn"
+                        >
+                          <i className="fab fa-google" style={{ marginRight: '8px' }}></i>
+                          Connect Search Console
+                        </button>
+                        <button 
+                          onClick={async () => {
+                            const siteUrl = (document.getElementById('gsc-site-url') as HTMLInputElement)?.value;
+                            if (siteUrl && selectedClient) {
+                              try {
+                                await http.put(`/api/clients/${selectedClient.id}/service/google_search_console/config`, {
+                                  siteUrl: siteUrl
+                                });
+                                alert('Site URL updated successfully!');
+                                fetchClientData(selectedClient.id);
+                              } catch (error) {
+                                alert('Failed to update Site URL');
+                              }
+                            }
+                          }}
+                          className="connect-btn"
+                          style={{ backgroundColor: '#6c757d' }}
+                        >
+                          <i className="fas fa-save" style={{ marginRight: '8px' }}></i>
+                          Save Site URL
+                        </button>
+                      </div>
+                      <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+                        <strong>For alignprimary:</strong> https://alignprimary.com<br/>
+                        <strong>For PROMEDHCA:</strong> https://promedhca.com
+                      </div>
                     </div>
                   </div>
 
