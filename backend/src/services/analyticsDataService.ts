@@ -419,8 +419,8 @@ export class AnalyticsDataService {
       const sessionDurationSum = Object.values(processed.dailyData)
         .reduce((sum: number, day: any) => sum + (day.avgSessionDuration || 0), 0);
       
-      processed.summary.avgBounceRate = bounceRateSum / dayCount;
-      processed.summary.avgSessionDuration = sessionDurationSum / dayCount;
+      processed.summary.avgBounceRate = Number(bounceRateSum) / Number(dayCount);
+      processed.summary.avgSessionDuration = Number(sessionDurationSum) / Number(dayCount);
     }
 
     // Process device breakdown
