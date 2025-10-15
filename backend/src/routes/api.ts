@@ -2463,6 +2463,102 @@ router.post('/leads/convert-to-client', async (req, res) => {
   }
 });
 
+// Get client analytics data
+router.get('/analytics/client/:clientId', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    // Mock analytics data - replace with real API calls
+    const analyticsData = {
+      googleAnalytics: {
+        pageViews: Math.floor(Math.random() * 10000) + 1000,
+        sessions: Math.floor(Math.random() * 5000) + 500,
+        bounceRate: Math.floor(Math.random() * 30) + 40
+      },
+      facebook: {
+        pageViews: Math.floor(Math.random() * 5000) + 500,
+        followers: Math.floor(Math.random() * 2000) + 200,
+        engagement: Math.floor(Math.random() * 10) + 5
+      },
+      leads: {
+        total: Math.floor(Math.random() * 100) + 20,
+        thisMonth: Math.floor(Math.random() * 20) + 5,
+        conversion: Math.floor(Math.random() * 15) + 5
+      },
+      posts: {
+        total: Math.floor(Math.random() * 50) + 10,
+        thisMonth: Math.floor(Math.random() * 10) + 2,
+        engagement: Math.floor(Math.random() * 20) + 10
+      }
+    };
+
+    res.json(analyticsData);
+  } catch (error) {
+    console.error('Get client analytics error:', error);
+    res.status(500).json({ error: 'Failed to fetch client analytics' });
+  }
+});
+
+// Get client settings
+router.get('/clients/:clientId/settings', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    // Mock settings data - replace with real database queries
+    const settings = {
+      googleAnalytics: {
+        connected: Math.random() > 0.5,
+        propertyId: 'GA-XXXXX-X',
+        viewId: '123456789'
+      },
+      facebook: {
+        connected: Math.random() > 0.5,
+        pageId: '123456789',
+        accessToken: 'your-access-token'
+      },
+      searchConsole: {
+        connected: Math.random() > 0.5,
+        siteUrl: 'https://example.com'
+      },
+      googleTag: {
+        connected: Math.random() > 0.5,
+        tagId: 'GTM-XXXXXXX'
+      },
+      businessManager: {
+        connected: Math.random() > 0.5,
+        managerId: '123456789'
+      }
+    };
+
+    res.json(settings);
+  } catch (error) {
+    console.error('Get client settings error:', error);
+    res.status(500).json({ error: 'Failed to fetch client settings' });
+  }
+});
+
+// Connect service to client
+router.post('/clients/:clientId/connect/:service', async (req, res) => {
+  try {
+    const { clientId, service } = req.params;
+    const connectionData = req.body;
+    
+    // Mock connection - replace with real service integration
+    console.log(`Connecting ${service} to client ${clientId}:`, connectionData);
+    
+    res.json({ 
+      success: true, 
+      message: `${service} connected successfully`,
+      service,
+      clientId,
+      data: connectionData
+    });
+  } catch (error) {
+    console.error('Connect service error:', error);
+    res.status(500).json({ error: 'Failed to connect service' });
+  }
+});
+
 // Convert client back to lead
 router.post('/clients/convert-to-lead', async (req, res) => {
   try {

@@ -26,6 +26,7 @@ import SecureReportPage from "../pages/SecureReportPage";
 import CalendarPage from "../pages/CalendarPage";
 import Credentials from "../pages/Credentials";
 import Settings from "../pages/Settings";
+import ClientManagementDashboard from "../pages/ClientManagementDashboard";
 
 export const router = createBrowserRouter([
   { path: "/", element: <HomePage /> }, // Public home page
@@ -42,8 +43,8 @@ export const router = createBrowserRouter([
       { path: "client-user", element: <ClientUserDashboard /> }, // Client User Dashboard
       { path: "profile", element: <Profile /> }, // User Profile page
       { path: "users", element: <Users /> },
-      { path: "clients", element: <Clients /> },
       { path: "client-dashboard", element: <ClientAdminDashboard /> }, // Client dashboard route
+      { path: "client-management", element: <ClientManagementDashboard /> }, // New client management dashboard
       { path: "leads", element: <Leads /> },
       { path: "leads/:id", element: <LeadDetail /> }, // Lead detail page
       { path: "campaigns", element: <CampaignsPage /> },
@@ -55,6 +56,7 @@ export const router = createBrowserRouter([
       { path: "compliance", element: <CalendarPage /> }, // Compliance route (using Calendar page for now)
       { path: "credentials", element: <Credentials /> }, // Credentials management page
       { path: "settings", element: <Settings /> }, // System settings page
+      { path: "settings/clients", element: <Clients /> }, // Clients management in settings
       {
         path: "customer",
         element: <CustomerPortalPage />,

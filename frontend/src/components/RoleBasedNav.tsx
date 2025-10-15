@@ -156,20 +156,20 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
           </li>
         )}
 
-        {/* Clients - Own Section */}
-        {hasPageAccess('clients') && (
-          <li className="nav-item">
-            <Link 
-              className={`nav-link ${isActive('/app/clients') ? 'active' : ''}`} 
-              to="/app/clients"
-              onClick={onNavigate}
-              title={isCollapsed ? 'Clients' : ''}
-            >
-              <i className="fas fa-building"></i>
-              {!isCollapsed && 'Clients'}
-            </Link>
-          </li>
-        )}
+               {/* Client Management - New Dashboard */}
+               {hasPageAccess('clients') && (
+                 <li className="nav-item">
+                   <Link
+                     className={`nav-link ${isActive('/app/client-management') ? 'active' : ''}`}
+                     to="/app/client-management"
+                     onClick={onNavigate}
+                     title={isCollapsed ? 'Client Management' : ''}
+                   >
+                     <i className="fas fa-chart-line"></i>
+                     {!isCollapsed && 'Client Management'}
+                   </Link>
+                 </li>
+               )}
 
         {/* Leads - Own Section */}
         {hasPageAccess('leads') && (
@@ -417,6 +417,16 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
                     to="/app/users"
                   >
                     Users
+                  </Link>
+                </li>
+              )}
+              {hasPageAccess('clients') && (
+                <li>
+                  <Link 
+                    className={`nav-link ${isActive('/app/settings/clients') ? 'active' : ''}`} 
+                    to="/app/settings/clients"
+                  >
+                    Clients
                   </Link>
                 </li>
               )}
