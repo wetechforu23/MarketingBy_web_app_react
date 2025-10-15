@@ -118,19 +118,19 @@ const ClientManagementDashboard: React.FC = () => {
     try {
       // Try to fetch real analytics data first
       try {
-        const realAnalyticsResponse = await http.get(`/api/analytics/client/${clientId}/real`);
+        const realAnalyticsResponse = await http.get(`/analytics/client/${clientId}/real`);
         setAnalyticsData(realAnalyticsResponse.data);
         console.log('✅ Real analytics data loaded');
       } catch (realError) {
         console.log('⚠️ Real analytics not available, using mock data');
         // Fall back to mock data
-        const mockAnalyticsResponse = await http.get(`/api/analytics/client/${clientId}`);
+        const mockAnalyticsResponse = await http.get(`/analytics/client/${clientId}`);
         setAnalyticsData(mockAnalyticsResponse.data);
       }
 
       // Try to fetch real search console data
       try {
-        const realSearchConsoleResponse = await http.get(`/api/search-console/client/${clientId}/real`);
+        const realSearchConsoleResponse = await http.get(`/search-console/client/${clientId}/real`);
         console.log('✅ Real search console data loaded:', realSearchConsoleResponse.data);
         // You can add this to analyticsData or create a separate state
       } catch (realError) {
@@ -138,7 +138,7 @@ const ClientManagementDashboard: React.FC = () => {
       }
 
       // Fetch client settings
-      const settingsResponse = await http.get(`/api/clients/${clientId}/settings`);
+      const settingsResponse = await http.get(`/clients/${clientId}/settings`);
       setClientSettings(settingsResponse.data);
     } catch (error) {
       console.error('Error fetching client data:', error);
@@ -152,13 +152,13 @@ const ClientManagementDashboard: React.FC = () => {
       if (service === 'google-analytics' || service === 'google_search_console') {
         // Handle OAuth flow for Google services
         const serviceName = service === 'google-analytics' ? 'analytics' : 'search-console';
-        const response = await http.get(`/api/auth/google/${serviceName}?clientId=${selectedClient.id}`);
+        const response = await http.get(`/auth/google/${serviceName}?clientId=${selectedClient.id}`);
         
         // Redirect to Google OAuth
         window.location.href = response.data.authUrl;
       } else {
         // Handle other services with mock connection
-        await http.post(`/api/clients/${selectedClient.id}/connect/${service}`, data);
+        await http.post(`/clients/${selectedClient.id}/connect/${service}`, data);
         // Refresh client settings
         fetchClientData(selectedClient.id);
         alert(`${service} connected successfully!`);
@@ -447,7 +447,7 @@ const ClientManagementDashboard: React.FC = () => {
                             const propertyId = (document.getElementById('ga-property-id') as HTMLInputElement)?.value;
                             if (propertyId && selectedClient) {
                               try {
-                                await http.put(`/api/clients/${selectedClient.id}/service/google_analytics/config`, {
+                                await http.put(`/clients/${selectedClient.id}/service/google_analytics/config`, {
                                   propertyId: propertyId
                                 });
                                 alert('Property ID updated successfully!');
@@ -532,7 +532,7 @@ const ClientManagementDashboard: React.FC = () => {
                             const siteUrl = (document.getElementById('gsc-site-url') as HTMLInputElement)?.value;
                             if (siteUrl && selectedClient) {
                               try {
-                                await http.put(`/api/clients/${selectedClient.id}/service/google_search_console/config`, {
+                                await http.put(`/clients/${selectedClient.id}/service/google_search_console/config`, {
                                   siteUrl: siteUrl
                                 });
                                 alert('Site URL updated successfully!');
