@@ -72,7 +72,9 @@ const ClientManagementDashboard: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    console.log('🔄 Client changed, selectedClient:', selectedClient);
     if (selectedClient) {
+      console.log('📊 Fetching data for client:', selectedClient.id, selectedClient.name);
       fetchClientData(selectedClient.id);
     }
   }, [selectedClient]);
@@ -239,7 +241,9 @@ const ClientManagementDashboard: React.FC = () => {
           <select 
             value={selectedClient?.id || ''} 
             onChange={(e) => {
+              console.log('🎯 Client selection changed to:', e.target.value);
               const client = clients.find(c => c.id === parseInt(e.target.value));
+              console.log('🎯 Found client:', client);
               setSelectedClient(client || null);
             }}
             style={{

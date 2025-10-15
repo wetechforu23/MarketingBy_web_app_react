@@ -2588,6 +2588,13 @@ router.get('/auth/google/:service', async (req, res) => {
   }
 });
 
+// Add a catch-all route for debugging
+router.get('/auth/google/callback*', async (req, res) => {
+  console.log('🚨 ANY CALLBACK ROUTE HIT! 🚨', req.path);
+  console.log('🚨 Query params:', req.query);
+  console.log('🚨 Full URL:', req.url);
+});
+
 router.get('/auth/google/callback', async (req, res) => {
   console.log('🚨 CALLBACK ROUTE HIT! 🚨');
   try {
