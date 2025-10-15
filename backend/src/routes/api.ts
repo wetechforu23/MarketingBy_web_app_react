@@ -2651,17 +2651,17 @@ router.get('/auth/google/callback', async (req, res) => {
       }
     } catch (tokenError) {
       console.error('❌ Token exchange failed:', tokenError);
-      const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/app/client-management?error=token_exchange_failed&clientId=${clientId}`;
+      const redirectUrl = `${process.env.FRONTEND_URL || 'https://marketingby.wetechforu.com'}/app/client-management?error=token_exchange_failed&clientId=${clientId}`;
       return res.redirect(redirectUrl);
     }
 
     // Redirect back to the client management dashboard
     console.log('🔄 Redirecting to client management dashboard...');
-    const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/app/client-management?connected=${type}&clientId=${clientId}`;
+    const redirectUrl = `${process.env.FRONTEND_URL || 'https://marketingby.wetechforu.com'}/app/client-management?connected=${type}&clientId=${clientId}`;
     res.redirect(redirectUrl);
   } catch (error) {
     console.error('OAuth callback error:', error);
-    const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/app/client-management?error=oauth_failed`;
+    const redirectUrl = `${process.env.FRONTEND_URL || 'https://marketingby.wetechforu.com'}/app/client-management?error=oauth_failed`;
     res.redirect(redirectUrl);
   }
 });

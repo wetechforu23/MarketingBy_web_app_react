@@ -36,7 +36,7 @@ export class GoogleAnalyticsService {
     this.credentials = {
       client_id: process.env.GOOGLE_ANALYTICS_CLIENT_ID || '',
       client_secret: process.env.GOOGLE_ANALYTICS_CLIENT_SECRET || '',
-      redirect_uri: process.env.GOOGLE_ANALYTICS_REDIRECT_URI || 'http://localhost:3000/api/auth/google/callback'
+      redirect_uri: process.env.GOOGLE_ANALYTICS_REDIRECT_URI || 'https://marketingby.wetechforu.com/api/auth/google/callback'
     };
 
     this.oauth2Client = new google.auth.OAuth2(
