@@ -83,7 +83,12 @@ const ClientManagementDashboard: React.FC = () => {
       setError(null);
       console.log('🔍 Fetching clients from /admin/clients...');
       
-      const response = await http.get('/admin/clients');
+      // Add cache-busting parameters
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(7);
+      const cacheBuster = `?t=${timestamp}&r=${random}&v=1.0.4`;
+      
+      const response = await http.get(`/admin/clients${cacheBuster}`);
       console.log('📊 Clients API response:', response);
       console.log('📊 Response data:', response.data);
       console.log('📊 Is array?', Array.isArray(response.data));
@@ -167,12 +172,43 @@ const ClientManagementDashboard: React.FC = () => {
           <h1>Client Management</h1>
           <p>Manage client analytics, settings, and integrations</p>
         </div>
+        <button
+          onClick={fetchClients}
+          style={{
+            padding: '12px 20px',
+            backgroundColor: '#28a745',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '15px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: '0 2px 6px rgba(40, 167, 69, 0.3)',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#1e7e34';
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(40, 167, 69, 0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#28a745';
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 6px rgba(40, 167, 69, 0.3)';
+          }}
+        >
+          <i className="fas fa-sync-alt"></i>
+          Refresh Clients
+        </button>
       </div>
 
       <div className="dashboard-content">
         {/* Client Selection */}
         <div className="client-selector">
-          <label>Select Client:</label>
+          <label>Select Client: ({Array.isArray(clients) ? clients.length : 0} clients found)</label>
           <select 
             value={selectedClient?.id || ''} 
             onChange={(e) => {
@@ -498,6 +534,9 @@ const ClientManagementDashboard: React.FC = () => {
         }
 
         .page-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
           margin-bottom: 30px;
         }
 
