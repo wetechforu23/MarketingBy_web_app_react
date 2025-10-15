@@ -415,37 +415,6 @@ const ClientManagementDashboard: React.FC = () => {
           <h1>Client Management</h1>
           <p>Manage client analytics, settings, and integrations</p>
         </div>
-        <button
-          onClick={fetchClients}
-          style={{
-            padding: '12px 20px',
-            backgroundColor: '#28a745',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '15px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            boxShadow: '0 2px 6px rgba(40, 167, 69, 0.3)',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#1e7e34';
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(40, 167, 69, 0.4)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = '#28a745';
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 2px 6px rgba(40, 167, 69, 0.3)';
-          }}
-        >
-          <i className="fas fa-sync-alt"></i>
-          Refresh Clients
-        </button>
       </div>
 
       {/* Success Message */}
@@ -488,111 +457,189 @@ const ClientManagementDashboard: React.FC = () => {
         </div>
       )}
 
-      <div className="dashboard-content">
-        {/* Client Selection */}
-        <div className="client-selector" style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <label style={{ fontWeight: '600', fontSize: '14px' }}>Select Client: ({Array.isArray(clients) ? clients.length : 0} clients found)</label>
-            <select 
-              value={selectedClient?.id || ''} 
-              onChange={(e) => {
-                console.log('🎯 Client selection changed to:', e.target.value);
-                const client = clients.find(c => c.id === parseInt(e.target.value));
-                console.log('🎯 Found client:', client);
-                // Clear stale state while switching clients
-                setClientSettings(null);
-                setAnalyticsData(null);
-                setSuccessMessage(null);
-                setSelectedClient(client || null);
-              }}
-              style={{
-                padding: '10px 15px',
-                borderRadius: '8px',
-                border: '2px solid #ddd',
-                fontSize: '16px',
-                minWidth: '300px'
-              }}
-            >
-              <option value="">Choose a client...</option>
-              {Array.isArray(clients) && clients.map(client => (
-                <option key={client.id} value={client.id}>
-                  {client.name} ({client.email})
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          {/* Refresh Client Data Button */}
-          <button
-            onClick={refreshClientData}
-            disabled={!selectedClient || refreshing}
+      {/* Top Corner Practice Switcher */}
+      <div style={{ 
+        position: 'absolute', 
+        top: '20px', 
+        right: '20px', 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '15px',
+        zIndex: 1000
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          <label style={{ fontWeight: '600', fontSize: '12px', color: '#666' }}>Switch Practice:</label>
+          <select 
+            value={selectedClient?.id || ''} 
+            onChange={(e) => {
+              console.log('🎯 Client selection changed to:', e.target.value);
+              const client = clients.find(c => c.id === parseInt(e.target.value));
+              console.log('🎯 Found client:', client);
+              // Clear stale state while switching clients
+              setClientSettings(null);
+              setAnalyticsData(null);
+              setSuccessMessage(null);
+              setSelectedClient(client || null);
+            }}
             style={{
-              padding: '10px 15px',
-              backgroundColor: (selectedClient && !refreshing) ? '#007bff' : '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              border: '1px solid #ddd',
               fontSize: '14px',
-              fontWeight: '600',
-              cursor: (selectedClient && !refreshing) ? 'pointer' : 'not-allowed',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              boxShadow: '0 2px 6px rgba(0, 123, 255, 0.3)',
-              transition: 'all 0.2s',
-              opacity: (selectedClient && !refreshing) ? 1 : 0.6
+              minWidth: '200px',
+              backgroundColor: 'white'
             }}
-            onMouseEnter={(e) => {
-              if (selectedClient) {
-                e.currentTarget.style.backgroundColor = '#0056b3';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 123, 255, 0.4)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (selectedClient) {
-                e.currentTarget.style.backgroundColor = '#007bff';
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 123, 255, 0.3)';
-              }
-            }}
-            title={selectedClient ? (refreshing ? 'Refreshing data...' : 'Refresh data for selected client') : 'Select a client first'}
           >
-            <i className={`fas ${refreshing ? 'fa-spinner fa-spin' : 'fa-sync-alt'}`}></i>
-            {refreshing ? 'Refreshing...' : 'Refresh Data'}
-          </button>
+            <option value="">Choose a practice...</option>
+            {Array.isArray(clients) && clients.map(client => (
+              <option key={client.id} value={client.id}>
+                {client.name}
+              </option>
+            ))}
+          </select>
         </div>
+        <button 
+          onClick={fetchClients}
+          style={{
+            padding: '8px 12px',
+            backgroundColor: '#28a745',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            fontSize: '12px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+        >
+          <i className="fas fa-sync-alt"></i>
+          Refresh
+        </button>
+      </div>
+
+      <div className="dashboard-content">
 
         {selectedClient && (
           <>
-            {/* Client Info Header */}
-            <div className="client-header">
-              <div className="client-info">
-                <h2>{selectedClient.name}</h2>
-                <p>{selectedClient.email} • {selectedClient.website}</p>
-                <span className={`status-badge ${selectedClient.is_active ? 'active' : 'inactive'}`}>
-                  {selectedClient.is_active ? 'Active' : 'Inactive'}
-                </span>
+            {/* Practice Title Block */}
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '24px',
+              marginBottom: '20px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              border: '1px solid #e9ecef'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <h2 style={{ margin: '0 0 8px 0', fontSize: '24px', fontWeight: '700', color: '#2c3e50' }}>
+                    {selectedClient.name}
+                  </h2>
+                  <p style={{ margin: '0 0 12px 0', color: '#6c757d', fontSize: '16px' }}>
+                    {selectedClient.email} • {selectedClient.website}
+                  </p>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    backgroundColor: selectedClient.is_active ? '#d4edda' : '#f8d7da',
+                    color: selectedClient.is_active ? '#155724' : '#721c24',
+                    border: `1px solid ${selectedClient.is_active ? '#c3e6cb' : '#f5c6cb'}`
+                  }}>
+                    {selectedClient.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <button 
+                  onClick={() => selectedClient && fetchClientData(selectedClient.id)}
+                  disabled={!selectedClient || refreshing}
+                  style={{
+                    padding: '10px 16px',
+                    backgroundColor: (selectedClient && !refreshing) ? '#007bff' : '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: (selectedClient && !refreshing) ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    opacity: (selectedClient && !refreshing) ? 1 : 0.6
+                  }}
+                >
+                  <i className={`fas ${refreshing ? 'fa-spinner fa-spin' : 'fa-sync-alt'}`}></i>
+                  {refreshing ? 'Refreshing...' : 'Refresh Data'}
+                </button>
               </div>
             </div>
 
             {/* Tabs */}
-            <div className="tabs">
+            <div style={{
+              display: 'flex',
+              borderBottom: '2px solid #e9ecef',
+              marginBottom: '20px',
+              backgroundColor: 'white',
+              borderRadius: '8px 8px 0 0',
+              padding: '0 20px'
+            }}>
               <button 
-                className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
                 onClick={() => setActiveTab('overview')}
+                style={{
+                  padding: '16px 24px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  borderBottom: activeTab === 'overview' ? '3px solid #007bff' : '3px solid transparent',
+                  color: activeTab === 'overview' ? '#007bff' : '#6c757d',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
               >
                 📊 Overview
               </button>
               <button 
-                className={`tab ${activeTab === 'analytics' ? 'active' : ''}`}
                 onClick={() => setActiveTab('analytics')}
+                style={{
+                  padding: '16px 24px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  borderBottom: activeTab === 'analytics' ? '3px solid #007bff' : '3px solid transparent',
+                  color: activeTab === 'analytics' ? '#007bff' : '#6c757d',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
               >
                 📈 Analytics
               </button>
               <button 
-                className={`tab ${activeTab === 'settings' ? 'active' : ''}`}
                 onClick={() => setActiveTab('settings')}
+                style={{
+                  padding: '16px 24px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  borderBottom: activeTab === 'settings' ? '3px solid #007bff' : '3px solid transparent',
+                  color: activeTab === 'settings' ? '#007bff' : '#6c757d',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
               >
                 ⚙️ Settings
               </button>
