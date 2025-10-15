@@ -499,6 +499,10 @@ const ClientManagementDashboard: React.FC = () => {
                 console.log('🎯 Client selection changed to:', e.target.value);
                 const client = clients.find(c => c.id === parseInt(e.target.value));
                 console.log('🎯 Found client:', client);
+                // Clear stale state while switching clients
+                setClientSettings(null);
+                setAnalyticsData(null);
+                setSuccessMessage(null);
                 setSelectedClient(client || null);
               }}
               style={{
@@ -725,7 +729,7 @@ const ClientManagementDashboard: React.FC = () => {
                     <div className="integration-form">
                       <input 
                         type="text" 
-                        placeholder="Property ID (e.g., 507408413 for alignprimary)" 
+                        placeholder="Property ID (numeric)" 
                         value={clientSettings?.googleAnalytics?.propertyId || ''}
                         onChange={(e) => {
                           if (clientSettings) {
@@ -819,10 +823,11 @@ const ClientManagementDashboard: React.FC = () => {
                           Last connected: {new Date(clientSettings.googleAnalytics.lastConnected).toLocaleString()}
                         </div>
                       )}
-                      <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
-                        <strong>For alignprimary:</strong> Property ID: 507408413<br/>
-                        <strong>For PROMEDHCA:</strong> Check your Google Analytics account for the Property ID
-                      </div>
+                      {selectedClient && (
+                        <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+                          Current client: {selectedClient.name}. {clientSettings?.googleAnalytics?.propertyId ? `Property ID: ${clientSettings.googleAnalytics.propertyId}` : 'No Property ID saved yet.'}
+                        </div>
+                      )}
                     </div>
                   </div>
 
