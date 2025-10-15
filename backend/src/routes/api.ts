@@ -2589,6 +2589,7 @@ router.get('/auth/google/:service', async (req, res) => {
 });
 
 router.get('/auth/google/callback', async (req, res) => {
+  console.log('🚨 CALLBACK ROUTE HIT! 🚨');
   try {
     const { code, state } = req.query;
     
