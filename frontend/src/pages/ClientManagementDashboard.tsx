@@ -76,6 +76,10 @@ const ClientManagementDashboard: React.FC = () => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessageText, setSuccessMessageText] = useState<string>('');
 
   useEffect(() => {
     fetchClients();
@@ -402,11 +406,14 @@ const ClientManagementDashboard: React.FC = () => {
         dateTo
       });
       
-      setSuccessMessage('✅ Analytics data synced successfully!');
+      setSuccessMessageText('✅ Analytics data synced successfully!');
+      setShowSuccessModal(true);
       await fetchAnalyticsReports();
       setShowSyncModal(false);
-    } catch (error) {
-      setError('❌ Failed to sync analytics data');
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to sync analytics data';
+      setErrorMessage(`❌ ${errorMsg}`);
+      setShowErrorModal(true);
     } finally {
       setSyncLoading(false);
     }
@@ -424,11 +431,14 @@ const ClientManagementDashboard: React.FC = () => {
         dateTo
       });
       
-      setSuccessMessage('✅ Analytics report generated successfully!');
+      setSuccessMessageText('✅ Analytics report generated successfully!');
+      setShowSuccessModal(true);
       await fetchAnalyticsReports();
       setShowReportModal(false);
-    } catch (error) {
-      setError('❌ Failed to generate analytics report');
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to generate analytics report';
+      setErrorMessage(`❌ ${errorMsg}`);
+      setShowErrorModal(true);
     } finally {
       setReportLoading(false);
     }
@@ -463,9 +473,12 @@ const ClientManagementDashboard: React.FC = () => {
       link.remove();
       window.URL.revokeObjectURL(url);
       
-      setSuccessMessage('✅ Report exported successfully!');
-    } catch (error) {
-      setError('❌ Failed to export report');
+      setSuccessMessageText('✅ Report exported successfully!');
+      setShowSuccessModal(true);
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to export report';
+      setErrorMessage(`❌ ${errorMsg}`);
+      setShowErrorModal(true);
     }
   };
 
@@ -508,9 +521,29 @@ const ClientManagementDashboard: React.FC = () => {
         alignItems: 'center',
         marginBottom: '20px'
       }}>
-        <div>
-          <h1>Client Management</h1>
-          <p>Manage client analytics, settings, and integrations</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <button 
+            onClick={() => window.history.back()}
+            style={{
+              padding: '8px 12px',
+              backgroundColor: '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              fontSize: '14px'
+            }}
+          >
+            <i className="fas fa-arrow-left"></i>
+            Back
+          </button>
+          <div>
+            <h1>Client Management</h1>
+            <p>Manage client analytics, settings, and integrations</p>
+          </div>
         </div>
         {/* Profile will be handled by the main layout */}
       </div>
@@ -1753,6 +1786,114 @@ const ClientManagementDashboard: React.FC = () => {
                 }}
               >
                 {reportLoading ? 'Generating...' : 'Generate Report'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Modal */}
+      {showErrorModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 10000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '12px',
+            width: '90%',
+            maxWidth: '500px',
+            textAlign: 'center'
+          }}>
+            <div style={{ 
+              fontSize: '3rem', 
+              color: '#dc3545', 
+              marginBottom: '20px' 
+            }}>
+              <i className="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>Error</h3>
+            <p style={{ color: '#666', marginBottom: '30px', fontSize: '16px' }}>
+              {errorMessage}
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button 
+                onClick={() => setShowErrorModal(false)}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: '#dc3545',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: '600'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 10000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '12px',
+            width: '90%',
+            maxWidth: '500px',
+            textAlign: 'center'
+          }}>
+            <div style={{ 
+              fontSize: '3rem', 
+              color: '#28a745', 
+              marginBottom: '20px' 
+            }}>
+              <i className="fas fa-check-circle"></i>
+            </div>
+            <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>Success</h3>
+            <p style={{ color: '#666', marginBottom: '30px', fontSize: '16px' }}>
+              {successMessageText}
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button 
+                onClick={() => setShowSuccessModal(false)}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: '600'
+                }}
+              >
+                Close
               </button>
             </div>
           </div>
