@@ -232,16 +232,26 @@ export class GoogleAnalyticsService {
       );
 
       if (result.rows.length === 0) {
-        throw new Error('No credentials found for client');
+        // Create new credentials record with just the property ID
+        const newCredentials = {
+          property_id: propertyId,
+          connected: false
+        };
+        
+        await pool.query(
+          'INSERT INTO client_credentials (client_id, service_type, credentials, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())',
+          [clientId, 'google_analytics', JSON.stringify(newCredentials)]
+        );
+      } else {
+        // Update existing credentials with new property ID
+        const credentials = JSON.parse(result.rows[0].credentials);
+        credentials.property_id = propertyId;
+
+        await pool.query(
+          'UPDATE client_credentials SET credentials = $1, updated_at = NOW() WHERE client_id = $2 AND service_type = $3',
+          [JSON.stringify(credentials), clientId, 'google_analytics']
+        );
       }
-
-      const credentials = JSON.parse(result.rows[0].credentials);
-      credentials.property_id = propertyId;
-
-      await pool.query(
-        'UPDATE client_credentials SET credentials = $1, updated_at = NOW() WHERE client_id = $2 AND service_type = $3',
-        [JSON.stringify(credentials), clientId, 'google_analytics']
-      );
     } catch (error) {
       console.error('Error updating property ID:', error);
       throw error;

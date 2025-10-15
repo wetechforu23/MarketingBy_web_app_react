@@ -243,16 +243,26 @@ export class GoogleSearchConsoleService {
       );
 
       if (result.rows.length === 0) {
-        throw new Error('No credentials found for client');
+        // Create new credentials record with just the site URL
+        const newCredentials = {
+          site_url: siteUrl,
+          connected: false
+        };
+        
+        await pool.query(
+          'INSERT INTO client_credentials (client_id, service_type, credentials, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())',
+          [clientId, 'google_search_console', JSON.stringify(newCredentials)]
+        );
+      } else {
+        // Update existing credentials with new site URL
+        const credentials = JSON.parse(result.rows[0].credentials);
+        credentials.site_url = siteUrl;
+
+        await pool.query(
+          'UPDATE client_credentials SET credentials = $1, updated_at = NOW() WHERE client_id = $2 AND service_type = $3',
+          [JSON.stringify(credentials), clientId, 'google_search_console']
+        );
       }
-
-      const credentials = JSON.parse(result.rows[0].credentials);
-      credentials.site_url = siteUrl;
-
-      await pool.query(
-        'UPDATE client_credentials SET credentials = $1, updated_at = NOW() WHERE client_id = $2 AND service_type = $3',
-        [JSON.stringify(credentials), clientId, 'google_search_console']
-      );
     } catch (error) {
       console.error('Error updating site URL:', error);
       throw error;
