@@ -118,7 +118,13 @@ export class ComprehensiveAnalyticsService {
       }
 
       const analytics = google.analyticsdata('v1beta');
-      const oauth2Client = this.googleAnalyticsService.getOAuth2Client();
+      
+      // Create OAuth2 client
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_ANALYTICS_CLIENT_ID,
+        process.env.GOOGLE_ANALYTICS_CLIENT_SECRET,
+        process.env.GOOGLE_ANALYTICS_REDIRECT_URI || 'https://marketingby.wetechforu.com/api/auth/google/callback'
+      );
       
       // Set credentials
       oauth2Client.setCredentials({
@@ -153,7 +159,7 @@ export class ComprehensiveAnalyticsService {
       const pages: PageInsights[] = [];
       const pageMap = new Map<string, PageInsights>();
 
-      if (response.data.rows) {
+      if (response.data && response.data.rows) {
         for (const row of response.data.rows) {
           const pagePath = row.dimensionValues?.[0]?.value || '';
           const country = row.dimensionValues?.[1]?.value || '';
@@ -213,7 +219,13 @@ export class ComprehensiveAnalyticsService {
       }
 
       const analytics = google.analyticsdata('v1beta');
-      const oauth2Client = this.googleAnalyticsService.getOAuth2Client();
+      
+      // Create OAuth2 client
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_ANALYTICS_CLIENT_ID,
+        process.env.GOOGLE_ANALYTICS_CLIENT_SECRET,
+        process.env.GOOGLE_ANALYTICS_REDIRECT_URI || 'https://marketingby.wetechforu.com/api/auth/google/callback'
+      );
       
       oauth2Client.setCredentials({
         access_token: credentials.access_token,
@@ -241,7 +253,7 @@ export class ComprehensiveAnalyticsService {
 
       const geographicData: GeographicData[] = [];
 
-      if (response.data.rows) {
+      if (response.data && response.data.rows) {
         for (const row of response.data.rows) {
           const country = row.dimensionValues?.[0]?.value || '';
           const city = row.dimensionValues?.[1]?.value || '';
@@ -277,7 +289,13 @@ export class ComprehensiveAnalyticsService {
       }
 
       const searchconsole = google.searchconsole('v1');
-      const oauth2Client = this.googleSearchConsoleService.getOAuth2Client();
+      
+      // Create OAuth2 client
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_ANALYTICS_CLIENT_ID,
+        process.env.GOOGLE_ANALYTICS_CLIENT_SECRET,
+        process.env.GOOGLE_ANALYTICS_REDIRECT_URI || 'https://marketingby.wetechforu.com/api/auth/google/callback'
+      );
       
       oauth2Client.setCredentials({
         access_token: credentials.access_token,
@@ -304,7 +322,7 @@ export class ComprehensiveAnalyticsService {
 
       const keywords: KeywordAnalysis[] = [];
 
-      if (response.data.rows) {
+      if (response.data && response.data.rows) {
         for (const row of response.data.rows) {
           const keyword = row.keys?.[0] || '';
           const impressions = row.impressions || 0;
