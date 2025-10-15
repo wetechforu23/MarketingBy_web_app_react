@@ -66,6 +66,7 @@ const ClientManagementDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'settings'>('overview');
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchClients();
@@ -78,6 +79,22 @@ const ClientManagementDashboard: React.FC = () => {
       fetchClientData(selectedClient.id);
     }
   }, [selectedClient]);
+
+  // Function to refresh all data for current client
+  const refreshClientData = async () => {
+    if (selectedClient) {
+      console.log('🔄 Refreshing all data for client:', selectedClient.id);
+      setRefreshing(true);
+      try {
+        await fetchClientData(selectedClient.id);
+        console.log('✅ Client data refreshed successfully');
+      } catch (error) {
+        console.error('❌ Error refreshing client data:', error);
+      } finally {
+        setRefreshing(false);
+      }
+    }
+  };
 
   const fetchClients = async () => {
     try {
@@ -132,33 +149,139 @@ const ClientManagementDashboard: React.FC = () => {
   };
 
   const fetchClientData = async (clientId: number) => {
+    console.log(`🔄 Fetching real data for client ${clientId}...`);
+    
     try {
-      // Try to fetch real analytics data first
-      try {
-        const realAnalyticsResponse = await http.get(`/analytics/client/${clientId}/real`);
-        setAnalyticsData(realAnalyticsResponse.data);
-        console.log('✅ Real analytics data loaded');
-      } catch (realError) {
-        console.log('⚠️ Real analytics not available, using mock data');
-        // Fall back to mock data
-        const mockAnalyticsResponse = await http.get(`/analytics/client/${clientId}`);
-        setAnalyticsData(mockAnalyticsResponse.data);
-      }
-
-      // Try to fetch real search console data
-      try {
-        const realSearchConsoleResponse = await http.get(`/search-console/client/${clientId}/real`);
-        console.log('✅ Real search console data loaded:', realSearchConsoleResponse.data);
-        // You can add this to analyticsData or create a separate state
-      } catch (realError) {
-        console.log('⚠️ Real search console not available');
-      }
-
-      // Fetch client settings
+      // Fetch client settings first to get property IDs and configuration
       const settingsResponse = await http.get(`/clients/${clientId}/settings`);
       setClientSettings(settingsResponse.data);
+      console.log('✅ Client settings loaded:', settingsResponse.data);
+
+      // Initialize analytics data structure
+      let analyticsData = {
+        googleAnalytics: {
+          pageViews: 0,
+          sessions: 0,
+          bounceRate: 0,
+          users: 0,
+          newUsers: 0,
+          avgSessionDuration: 0,
+          topPages: [],
+          trafficSources: []
+        },
+        facebook: {
+          pageViews: 0,
+          followers: 0,
+          engagement: 0
+        },
+        leads: {
+          total: 0,
+          thisMonth: 0,
+          conversion: 0
+        },
+        content: {
+          total: 0,
+          thisMonth: 0,
+          engagement: 0
+        }
+      };
+
+      // Try to fetch real Google Analytics data
+      try {
+        const propertyId = settingsResponse.data?.googleAnalytics?.propertyId;
+        if (propertyId) {
+          console.log(`🔍 Fetching real Google Analytics data for property: ${propertyId}`);
+          const realAnalyticsResponse = await http.get(`/analytics/client/${clientId}/real?propertyId=${propertyId}`);
+          console.log('✅ Real Google Analytics data loaded:', realAnalyticsResponse.data);
+          
+          // Map real data to our structure
+          analyticsData.googleAnalytics = {
+            pageViews: realAnalyticsResponse.data.pageViews || 0,
+            sessions: realAnalyticsResponse.data.sessions || 0,
+            bounceRate: realAnalyticsResponse.data.bounceRate || 0,
+            users: realAnalyticsResponse.data.users || 0,
+            newUsers: realAnalyticsResponse.data.newUsers || 0,
+            avgSessionDuration: realAnalyticsResponse.data.avgSessionDuration || 0,
+            topPages: realAnalyticsResponse.data.topPages || [],
+            trafficSources: realAnalyticsResponse.data.trafficSources || []
+          };
+        } else {
+          console.log('⚠️ No Google Analytics property ID found, using mock data');
+          const mockAnalyticsResponse = await http.get(`/analytics/client/${clientId}`);
+          analyticsData.googleAnalytics = mockAnalyticsResponse.data.googleAnalytics || analyticsData.googleAnalytics;
+        }
+      } catch (realError) {
+        console.log('⚠️ Real Google Analytics not available, using mock data:', realError);
+        const mockAnalyticsResponse = await http.get(`/analytics/client/${clientId}`);
+        analyticsData.googleAnalytics = mockAnalyticsResponse.data.googleAnalytics || analyticsData.googleAnalytics;
+      }
+
+      // Try to fetch real Search Console data
+      try {
+        const siteUrl = settingsResponse.data?.googleSearchConsole?.siteUrl;
+        if (siteUrl) {
+          console.log(`🔍 Fetching real Search Console data for site: ${siteUrl}`);
+          const realSearchConsoleResponse = await http.get(`/search-console/client/${clientId}/real?siteUrl=${siteUrl}`);
+          console.log('✅ Real Search Console data loaded:', realSearchConsoleResponse.data);
+          
+          // You can integrate this data into analytics or create separate state
+          // For now, we'll add it to the analytics data
+          analyticsData.googleAnalytics.searchConsoleData = realSearchConsoleResponse.data;
+        }
+      } catch (realError) {
+        console.log('⚠️ Real Search Console not available:', realError);
+      }
+
+      // Fetch real leads data for this client
+      try {
+        console.log(`🔍 Fetching real leads data for client ${clientId}`);
+        const leadsResponse = await http.get(`/leads?client_id=${clientId}`);
+        const leads = leadsResponse.data.leads || leadsResponse.data || [];
+        
+        // Calculate lead metrics
+        const totalLeads = leads.length;
+        const thisMonth = new Date();
+        const thisMonthLeads = leads.filter((lead: any) => {
+          const leadDate = new Date(lead.created_at);
+          return leadDate.getMonth() === thisMonth.getMonth() && 
+                 leadDate.getFullYear() === thisMonth.getFullYear();
+        }).length;
+        
+        analyticsData.leads = {
+          total: totalLeads,
+          thisMonth: thisMonthLeads,
+          conversion: totalLeads > 0 ? Math.round((thisMonthLeads / totalLeads) * 100) : 0
+        };
+        
+        console.log('✅ Real leads data loaded:', analyticsData.leads);
+      } catch (leadsError) {
+        console.log('⚠️ Real leads data not available, using mock data:', leadsError);
+        const mockAnalyticsResponse = await http.get(`/analytics/client/${clientId}`);
+        analyticsData.leads = mockAnalyticsResponse.data.leads || analyticsData.leads;
+      }
+
+      // For Facebook and Content, we'll use mock data for now since we don't have real APIs
+      try {
+        const mockAnalyticsResponse = await http.get(`/analytics/client/${clientId}`);
+        analyticsData.facebook = mockAnalyticsResponse.data.facebook || analyticsData.facebook;
+        analyticsData.content = mockAnalyticsResponse.data.content || analyticsData.content;
+      } catch (mockError) {
+        console.log('⚠️ Mock data not available, using defaults');
+      }
+
+      // Set the combined analytics data
+      setAnalyticsData(analyticsData);
+      console.log('✅ All client data loaded successfully:', analyticsData);
+
     } catch (error) {
-      console.error('Error fetching client data:', error);
+      console.error('❌ Error fetching client data:', error);
+      // Set default data structure on error
+      setAnalyticsData({
+        googleAnalytics: { pageViews: 0, sessions: 0, bounceRate: 0, users: 0, newUsers: 0, avgSessionDuration: 0, topPages: [], trafficSources: [] },
+        facebook: { pageViews: 0, followers: 0, engagement: 0 },
+        leads: { total: 0, thisMonth: 0, conversion: 0 },
+        content: { total: 0, thisMonth: 0, engagement: 0 }
+      });
     }
   };
 
@@ -251,31 +374,73 @@ const ClientManagementDashboard: React.FC = () => {
 
       <div className="dashboard-content">
         {/* Client Selection */}
-        <div className="client-selector">
-          <label>Select Client: ({Array.isArray(clients) ? clients.length : 0} clients found)</label>
-          <select 
-            value={selectedClient?.id || ''} 
-            onChange={(e) => {
-              console.log('🎯 Client selection changed to:', e.target.value);
-              const client = clients.find(c => c.id === parseInt(e.target.value));
-              console.log('🎯 Found client:', client);
-              setSelectedClient(client || null);
-            }}
+        <div className="client-selector" style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <label style={{ fontWeight: '600', fontSize: '14px' }}>Select Client: ({Array.isArray(clients) ? clients.length : 0} clients found)</label>
+            <select 
+              value={selectedClient?.id || ''} 
+              onChange={(e) => {
+                console.log('🎯 Client selection changed to:', e.target.value);
+                const client = clients.find(c => c.id === parseInt(e.target.value));
+                console.log('🎯 Found client:', client);
+                setSelectedClient(client || null);
+              }}
+              style={{
+                padding: '10px 15px',
+                borderRadius: '8px',
+                border: '2px solid #ddd',
+                fontSize: '16px',
+                minWidth: '300px'
+              }}
+            >
+              <option value="">Choose a client...</option>
+              {Array.isArray(clients) && clients.map(client => (
+                <option key={client.id} value={client.id}>
+                  {client.name} ({client.email})
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Refresh Client Data Button */}
+          <button
+            onClick={refreshClientData}
+            disabled={!selectedClient || refreshing}
             style={{
               padding: '10px 15px',
+              backgroundColor: (selectedClient && !refreshing) ? '#007bff' : '#6c757d',
+              color: 'white',
+              border: 'none',
               borderRadius: '8px',
-              border: '2px solid #ddd',
-              fontSize: '16px',
-              minWidth: '300px'
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: (selectedClient && !refreshing) ? 'pointer' : 'not-allowed',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 2px 6px rgba(0, 123, 255, 0.3)',
+              transition: 'all 0.2s',
+              opacity: (selectedClient && !refreshing) ? 1 : 0.6
             }}
+            onMouseEnter={(e) => {
+              if (selectedClient) {
+                e.currentTarget.style.backgroundColor = '#0056b3';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 123, 255, 0.4)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (selectedClient) {
+                e.currentTarget.style.backgroundColor = '#007bff';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 123, 255, 0.3)';
+              }
+            }}
+            title={selectedClient ? (refreshing ? 'Refreshing data...' : 'Refresh data for selected client') : 'Select a client first'}
           >
-            <option value="">Choose a client...</option>
-            {Array.isArray(clients) && clients.map(client => (
-              <option key={client.id} value={client.id}>
-                {client.name} ({client.email})
-              </option>
-            ))}
-          </select>
+            <i className={`fas ${refreshing ? 'fa-spinner fa-spin' : 'fa-sync-alt'}`}></i>
+            {refreshing ? 'Refreshing...' : 'Refresh Data'}
+          </button>
         </div>
 
         {selectedClient && (
