@@ -70,6 +70,12 @@ const ClientManagementDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [analyticsReportData, setAnalyticsReportData] = useState<any>(null);
+  const [reports, setReports] = useState<any[]>([]);
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
 
   useEffect(() => {
     fetchClients();
@@ -384,6 +390,91 @@ const ClientManagementDashboard: React.FC = () => {
       alert(`Failed to connect ${service}`);
     }
   };
+
+  // Analytics functions
+  const syncAnalyticsData = async (dateFrom: string, dateTo: string) => {
+    if (!selectedClient) return;
+    
+    setSyncLoading(true);
+    try {
+      const response = await http.post(`/analytics/sync/${selectedClient.id}`, {
+        dateFrom,
+        dateTo
+      });
+      
+      setSuccessMessage('✅ Analytics data synced successfully!');
+      await fetchAnalyticsReports();
+      setShowSyncModal(false);
+    } catch (error) {
+      setError('❌ Failed to sync analytics data');
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  const generateReport = async (reportName: string, reportType: string, dateFrom: string, dateTo: string) => {
+    if (!selectedClient) return;
+    
+    setReportLoading(true);
+    try {
+      const response = await http.post(`/analytics/reports/${selectedClient.id}`, {
+        reportName,
+        reportType,
+        dateFrom,
+        dateTo
+      });
+      
+      setSuccessMessage('✅ Analytics report generated successfully!');
+      await fetchAnalyticsReports();
+      setShowReportModal(false);
+    } catch (error) {
+      setError('❌ Failed to generate analytics report');
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const fetchAnalyticsReports = async () => {
+    if (!selectedClient) return;
+    
+    try {
+      const response = await http.get(`/analytics/reports/${selectedClient.id}`);
+      setReports(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching analytics reports:', error);
+    }
+  };
+
+  const exportReport = async (reportId: number) => {
+    try {
+      const response = await http.post(`/analytics/export/${reportId}`, {
+        format: 'pdf'
+      }, {
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `analytics-report-${reportId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      setSuccessMessage('✅ Report exported successfully!');
+    } catch (error) {
+      setError('❌ Failed to export report');
+    }
+  };
+
+  // Fetch analytics data when client changes
+  useEffect(() => {
+    if (selectedClient && activeTab === 'analytics') {
+      fetchAnalyticsReports();
+    }
+  }, [selectedClient, activeTab]);
 
   if (loading) {
     return (
@@ -735,14 +826,161 @@ const ClientManagementDashboard: React.FC = () => {
 
               {activeTab === 'analytics' && (
                 <div className="analytics-content">
-                  <h3>Detailed Analytics</h3>
-                  <p>Detailed analytics charts and reports will be displayed here.</p>
-                  {/* Placeholder for charts */}
-                  <div className="chart-placeholder">
-                    <div className="placeholder-content">
-                      <i className="fas fa-chart-line" style={{ fontSize: '3rem', color: '#ddd' }}></i>
-                      <p>Analytics charts coming soon...</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3>Analytics Reports</h3>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button 
+                        onClick={() => setShowSyncModal(true)}
+                        style={{
+                          padding: '10px 20px',
+                          backgroundColor: '#28a745',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}
+                      >
+                        <i className="fas fa-sync-alt"></i>
+                        Sync Data
+                      </button>
+                      <button 
+                        onClick={() => setShowReportModal(true)}
+                        style={{
+                          padding: '10px 20px',
+                          backgroundColor: '#007bff',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}
+                      >
+                        <i className="fas fa-file-pdf"></i>
+                        Generate Report
+                      </button>
                     </div>
+                  </div>
+
+                  {/* Analytics Summary Cards */}
+                  {analyticsReportData && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+                      <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                        <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Total Page Views</h4>
+                        <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#007bff' }}>
+                          {analyticsReportData.summary?.totalPageViews?.toLocaleString() || 0}
+                        </div>
+                      </div>
+                      <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                        <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Total Sessions</h4>
+                        <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#28a745' }}>
+                          {analyticsReportData.summary?.totalSessions?.toLocaleString() || 0}
+                        </div>
+                      </div>
+                      <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                        <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Bounce Rate</h4>
+                        <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#dc3545' }}>
+                          {analyticsReportData.summary?.avgBounceRate?.toFixed(1) || 0}%
+                        </div>
+                      </div>
+                      <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                        <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Total Users</h4>
+                        <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#6f42c1' }}>
+                          {analyticsReportData.summary?.totalUsers?.toLocaleString() || 0}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Device Breakdown */}
+                  {analyticsReportData?.deviceBreakdown && Object.keys(analyticsReportData.deviceBreakdown).length > 0 && (
+                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
+                      <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>Device Breakdown</h4>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px' }}>
+                        {Object.entries(analyticsReportData.deviceBreakdown).map(([device, views]: [string, any]) => (
+                          <div key={device} style={{ 
+                            padding: '10px 15px', 
+                            backgroundColor: '#f8f9fa', 
+                            borderRadius: '8px',
+                            border: '1px solid #dee2e6'
+                          }}>
+                            <div style={{ fontWeight: 'bold', color: '#333' }}>{device}</div>
+                            <div style={{ color: '#666' }}>{views.toLocaleString()} views</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Traffic Source Breakdown */}
+                  {analyticsReportData?.trafficSourceBreakdown && Object.keys(analyticsReportData.trafficSourceBreakdown).length > 0 && (
+                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
+                      <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>Traffic Sources</h4>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px' }}>
+                        {Object.entries(analyticsReportData.trafficSourceBreakdown).map(([source, views]: [string, any]) => (
+                          <div key={source} style={{ 
+                            padding: '10px 15px', 
+                            backgroundColor: '#f8f9fa', 
+                            borderRadius: '8px',
+                            border: '1px solid #dee2e6'
+                          }}>
+                            <div style={{ fontWeight: 'bold', color: '#333' }}>{source}</div>
+                            <div style={{ color: '#666' }}>{views.toLocaleString()} views</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recent Reports */}
+                  <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                    <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>Recent Reports</h4>
+                    {reports.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {reports.map((report: any) => (
+                          <div key={report.id} style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            padding: '15px',
+                            backgroundColor: '#f8f9fa',
+                            borderRadius: '8px',
+                            border: '1px solid #dee2e6'
+                          }}>
+                            <div>
+                              <div style={{ fontWeight: 'bold', color: '#333' }}>{report.report_name}</div>
+                              <div style={{ color: '#666', fontSize: '14px' }}>
+                                {report.date_from} to {report.date_to} • {report.report_type}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                              <button 
+                                onClick={() => exportReport(report.id)}
+                                style={{
+                                  padding: '8px 12px',
+                                  backgroundColor: '#dc3545',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                <i className="fas fa-download"></i> Export PDF
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ color: '#666', textAlign: 'center', padding: '20px' }}>
+                        No reports generated yet. Click "Generate Report" to create your first analytics report.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -1322,6 +1560,204 @@ const ClientManagementDashboard: React.FC = () => {
           background: #0056b3;
         }
       `}</style>
+
+      {/* Sync Data Modal */}
+      {showSyncModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 10000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '12px',
+            width: '90%',
+            maxWidth: '500px'
+          }}>
+            <h3 style={{ margin: '0 0 20px 0' }}>Sync Analytics Data</h3>
+            <p style={{ color: '#666', marginBottom: '20px' }}>
+              Select a date range to sync Google Analytics data for {selectedClient?.name}
+            </p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>From Date:</label>
+                <input 
+                  type="date" 
+                  id="sync-date-from"
+                  style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>To Date:</label>
+                <input 
+                  type="date" 
+                  id="sync-date-to"
+                  style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button 
+                onClick={() => setShowSyncModal(false)}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  const dateFrom = (document.getElementById('sync-date-from') as HTMLInputElement)?.value;
+                  const dateTo = (document.getElementById('sync-date-to') as HTMLInputElement)?.value;
+                  if (dateFrom && dateTo) {
+                    syncAnalyticsData(dateFrom, dateTo);
+                  } else {
+                    setError('Please select both dates');
+                  }
+                }}
+                disabled={syncLoading}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: syncLoading ? 'not-allowed' : 'pointer',
+                  opacity: syncLoading ? 0.6 : 1
+                }}
+              >
+                {syncLoading ? 'Syncing...' : 'Sync Data'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generate Report Modal */}
+      {showReportModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 10000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '12px',
+            width: '90%',
+            maxWidth: '500px'
+          }}>
+            <h3 style={{ margin: '0 0 20px 0' }}>Generate Analytics Report</h3>
+            <p style={{ color: '#666', marginBottom: '20px' }}>
+              Create a comprehensive analytics report for {selectedClient?.name}
+            </p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Report Name:</label>
+                <input 
+                  type="text" 
+                  id="report-name"
+                  placeholder="e.g., Monthly Analytics Report"
+                  style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Report Type:</label>
+                <select 
+                  id="report-type"
+                  style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px' }}
+                >
+                  <option value="daily">Daily Report</option>
+                  <option value="weekly">Weekly Report</option>
+                  <option value="monthly">Monthly Report</option>
+                  <option value="custom">Custom Period</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>From Date:</label>
+                <input 
+                  type="date" 
+                  id="report-date-from"
+                  style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>To Date:</label>
+                <input 
+                  type="date" 
+                  id="report-date-to"
+                  style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button 
+                onClick={() => setShowReportModal(false)}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  const reportName = (document.getElementById('report-name') as HTMLInputElement)?.value;
+                  const reportType = (document.getElementById('report-type') as HTMLSelectElement)?.value;
+                  const dateFrom = (document.getElementById('report-date-from') as HTMLInputElement)?.value;
+                  const dateTo = (document.getElementById('report-date-to') as HTMLInputElement)?.value;
+                  
+                  if (reportName && dateFrom && dateTo) {
+                    generateReport(reportName, reportType, dateFrom, dateTo);
+                  } else {
+                    setError('Please fill in all fields');
+                  }
+                }}
+                disabled={reportLoading}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#007bff',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: reportLoading ? 'not-allowed' : 'pointer',
+                  opacity: reportLoading ? 0.6 : 1
+                }}
+              >
+                {reportLoading ? 'Generating...' : 'Generate Report'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

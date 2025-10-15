@@ -6,6 +6,7 @@ import EnhancedScrapingService from '../services/enhancedScrapingService';
 import { stripeService } from '../services/stripeService';
 import subscriptionService from '../services/subscriptionService';
 import { AdvancedEmailService } from '../services/advancedEmailService';
+import { AnalyticsDataService } from '../services/analyticsDataService';
 import Stripe from 'stripe';
 // import { WebScrapingService } from '../services/webScrapingService';
 // import { LeadScrapingService } from '../services/leadScrapingService';
@@ -2865,5 +2866,203 @@ router.patch('/clients/:id/toggle-active', async (req, res) => {
     res.status(500).json({ error: 'Failed to update client status' });
   }
 });
+
+// ==================== ANALYTICS DATA ENDPOINTS ====================
+
+// Initialize analytics data service
+const analyticsDataService = new AnalyticsDataService();
+
+// Sync Google Analytics data for a client
+router.post('/analytics/sync/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { dateFrom, dateTo } = req.body;
+    const userId = req.session.userId;
+
+    if (!dateFrom || !dateTo) {
+      return res.status(400).json({ error: 'dateFrom and dateTo are required' });
+    }
+
+    console.log(`🔄 Starting analytics sync for client ${clientId} from ${dateFrom} to ${dateTo}`);
+
+    const result = await analyticsDataService.syncGoogleAnalyticsData(
+      parseInt(clientId),
+      dateFrom,
+      dateTo,
+      userId
+    );
+
+    res.json({
+      success: true,
+      message: 'Analytics data synced successfully',
+      data: result
+    });
+  } catch (error) {
+    console.error('Analytics sync error:', error);
+    res.status(500).json({ error: error.message || 'Failed to sync analytics data' });
+  }
+});
+
+// Get analytics data for a client
+router.get('/analytics/data/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { dateFrom, dateTo, serviceType } = req.query;
+
+    if (!dateFrom || !dateTo) {
+      return res.status(400).json({ error: 'dateFrom and dateTo are required' });
+    }
+
+    const data = await analyticsDataService.getAnalyticsData(
+      parseInt(clientId),
+      dateFrom as string,
+      dateTo as string,
+      serviceType as string
+    );
+
+    res.json({
+      success: true,
+      data: data
+    });
+  } catch (error) {
+    console.error('Get analytics data error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics data' });
+  }
+});
+
+// Generate analytics report
+router.post('/analytics/reports/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { reportName, reportType, dateFrom, dateTo } = req.body;
+    const userId = req.session.userId;
+
+    if (!reportName || !reportType || !dateFrom || !dateTo) {
+      return res.status(400).json({ error: 'reportName, reportType, dateFrom, and dateTo are required' });
+    }
+
+    const report = await analyticsDataService.generateAnalyticsReport(
+      parseInt(clientId),
+      reportName,
+      reportType,
+      dateFrom,
+      dateTo,
+      userId
+    );
+
+    res.json({
+      success: true,
+      message: 'Analytics report generated successfully',
+      data: report
+    });
+  } catch (error) {
+    console.error('Generate analytics report error:', error);
+    res.status(500).json({ error: 'Failed to generate analytics report' });
+  }
+});
+
+// Get analytics reports for a client
+router.get('/analytics/reports/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { limit = 10, offset = 0 } = req.query;
+
+    const result = await pool.query(`
+      SELECT id, report_name, report_type, date_from, date_to, generated_at, is_exported
+      FROM analytics_reports
+      WHERE client_id = $1
+      ORDER BY generated_at DESC
+      LIMIT $2 OFFSET $3
+    `, [clientId, parseInt(limit as string), parseInt(offset as string)]);
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Get analytics reports error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics reports' });
+  }
+});
+
+// Get sync logs for a client
+router.get('/analytics/sync-logs/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { limit = 10 } = req.query;
+
+    const logs = await analyticsDataService.getSyncLogs(parseInt(clientId), parseInt(limit as string));
+
+    res.json({
+      success: true,
+      data: logs
+    });
+  } catch (error) {
+    console.error('Get sync logs error:', error);
+    res.status(500).json({ error: 'Failed to fetch sync logs' });
+  }
+});
+
+// Export analytics report to PDF
+router.post('/analytics/export/:reportId', requireAuth, async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const { format = 'pdf' } = req.body;
+
+    // Get report data
+    const result = await pool.query(`
+      SELECT ar.*, c.name as client_name, c.email as client_email
+      FROM analytics_reports ar
+      JOIN clients c ON ar.client_id = c.id
+      WHERE ar.id = $1
+    `, [reportId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    const report = result.rows[0];
+    const reportData = typeof report.report_data === 'string' 
+      ? JSON.parse(report.report_data) 
+      : report.report_data;
+
+    if (format === 'pdf') {
+      // Generate PDF (placeholder - you'll need to implement PDF generation)
+      const pdfBuffer = await generateAnalyticsPDF(report, reportData);
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="analytics-report-${reportId}.pdf"`);
+      res.send(pdfBuffer);
+    } else {
+      res.status(400).json({ error: 'Unsupported export format' });
+    }
+  } catch (error) {
+    console.error('Export analytics report error:', error);
+    res.status(500).json({ error: 'Failed to export analytics report' });
+  }
+});
+
+// Helper function to generate PDF (placeholder)
+async function generateAnalyticsPDF(report: any, reportData: any): Promise<Buffer> {
+  // This is a placeholder - you'll need to implement actual PDF generation
+  // using libraries like puppeteer, jsPDF, or similar
+  const pdfContent = `
+    Analytics Report: ${report.report_name}
+    Client: ${report.client_name}
+    Date Range: ${report.date_from} to ${report.date_to}
+    Generated: ${report.generated_at}
+    
+    Summary:
+    - Total Page Views: ${reportData.summary?.totalPageViews || 0}
+    - Total Sessions: ${reportData.summary?.totalSessions || 0}
+    - Average Bounce Rate: ${reportData.summary?.avgBounceRate?.toFixed(2) || 0}%
+    - Total Users: ${reportData.summary?.totalUsers || 0}
+    - Total New Users: ${reportData.summary?.totalNewUsers || 0}
+    - Average Session Duration: ${reportData.summary?.avgSessionDuration?.toFixed(2) || 0} seconds
+  `;
+  
+  // Return a simple text buffer for now - replace with actual PDF generation
+  return Buffer.from(pdfContent, 'utf-8');
+}
 
 export default router;
