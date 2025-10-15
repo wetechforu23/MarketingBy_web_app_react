@@ -2588,15 +2588,11 @@ router.get('/auth/google/:service', async (req, res) => {
   }
 });
 
-// Add a catch-all route for debugging
-router.get('/auth/google/callback*', async (req, res) => {
-  console.log('🚨 ANY CALLBACK ROUTE HIT! 🚨', req.path);
-  console.log('🚨 Query params:', req.query);
-  console.log('🚨 Full URL:', req.url);
-});
-
 router.get('/auth/google/callback', async (req, res) => {
   console.log('🚨 CALLBACK ROUTE HIT! 🚨');
+  console.log('🔍 Full URL:', req.url);
+  console.log('🔍 Query params:', req.query);
+  
   try {
     const { code, state } = req.query;
     
@@ -2605,33 +2601,53 @@ router.get('/auth/google/callback', async (req, res) => {
     console.log('State:', state);
     
     if (!code || !state) {
+      console.log('❌ Missing code or state');
       return res.status(400).json({ error: 'Missing authorization code or state' });
     }
 
-    const stateData = JSON.parse(state as string);
-    console.log('Parsed state data:', stateData);
-    const { clientId, type } = stateData;
+    let stateData;
+    try {
+      stateData = JSON.parse(state as string);
+      console.log('✅ Parsed state data:', stateData);
+    } catch (parseError) {
+      console.log('❌ Failed to parse state:', parseError);
+      return res.status(400).json({ error: 'Invalid state parameter' });
+    }
     
+    const { clientId, type } = stateData;
     console.log('Client ID:', clientId);
     console.log('Type:', type);
     
     if (!clientId) {
+      console.log('❌ Missing clientId in state');
       return res.status(400).json({ error: 'Client ID is required' });
     }
 
     let tokens: any;
     
-    if (type === 'google_analytics') {
-      const googleAnalyticsService = require('../services/googleAnalyticsService').default;
-      tokens = await googleAnalyticsService.exchangeCodeForTokens(code as string, state as string);
-    } else if (type === 'google_search_console') {
-      const googleSearchConsoleService = require('../services/googleSearchConsoleService').default;
-      tokens = await googleSearchConsoleService.exchangeCodeForTokens(code as string, state as string);
-    } else {
-      return res.status(400).json({ error: 'Invalid service type' });
+    try {
+      if (type === 'google_analytics') {
+        console.log('🔄 Exchanging code for Google Analytics tokens...');
+        const googleAnalyticsService = require('../services/googleAnalyticsService').default;
+        tokens = await googleAnalyticsService.exchangeCodeForTokens(code as string, state as string);
+        console.log('✅ Google Analytics tokens received');
+      } else if (type === 'google_search_console') {
+        console.log('🔄 Exchanging code for Google Search Console tokens...');
+        const googleSearchConsoleService = require('../services/googleSearchConsoleService').default;
+        tokens = await googleSearchConsoleService.exchangeCodeForTokens(code as string, state as string);
+        console.log('✅ Google Search Console tokens received');
+      } else {
+        console.log('❌ Invalid service type:', type);
+        return res.status(400).json({ error: 'Invalid service type' });
+      }
+    } catch (tokenError) {
+      console.error('❌ Token exchange failed:', tokenError);
+      const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/app/client-management?error=token_exchange_failed&clientId=${clientId}`;
+      return res.redirect(redirectUrl);
     }
 
     // Redirect back to the client management dashboard
+    console.log('🔄 Redirecting to client management dashboard...');
     const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/app/client-management?connected=${type}&clientId=${clientId}`;
     res.redirect(redirectUrl);
   } catch (error) {
