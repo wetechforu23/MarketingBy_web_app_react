@@ -2463,41 +2463,7 @@ router.post('/leads/convert-to-client', async (req, res) => {
   }
 });
 
-// Get client analytics data
-router.get('/analytics/client/:clientId', async (req, res) => {
-  try {
-    const { clientId } = req.params;
-    
-    // Mock analytics data - replace with real API calls
-    const analyticsData = {
-      googleAnalytics: {
-        pageViews: Math.floor(Math.random() * 10000) + 1000,
-        sessions: Math.floor(Math.random() * 5000) + 500,
-        bounceRate: Math.floor(Math.random() * 30) + 40
-      },
-      facebook: {
-        pageViews: Math.floor(Math.random() * 5000) + 500,
-        followers: Math.floor(Math.random() * 2000) + 200,
-        engagement: Math.floor(Math.random() * 10) + 5
-      },
-      leads: {
-        total: Math.floor(Math.random() * 100) + 20,
-        thisMonth: Math.floor(Math.random() * 20) + 5,
-        conversion: Math.floor(Math.random() * 15) + 5
-      },
-      posts: {
-        total: Math.floor(Math.random() * 50) + 10,
-        thisMonth: Math.floor(Math.random() * 10) + 2,
-        engagement: Math.floor(Math.random() * 20) + 10
-      }
-    };
-
-    res.json(analyticsData);
-  } catch (error) {
-    console.error('Get client analytics error:', error);
-    res.status(500).json({ error: 'Failed to fetch client analytics' });
-  }
-});
+// Mock analytics endpoint removed - using only real data now
 
 // Get client settings
 router.get('/clients/:clientId/settings', async (req, res) => {

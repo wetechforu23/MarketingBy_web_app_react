@@ -149,7 +149,7 @@ const ClientManagementDashboard: React.FC = () => {
   };
 
   const fetchClientData = async (clientId: number) => {
-    console.log(`🔄 Fetching real data for client ${clientId}...`);
+    console.log(`🔄 Fetching REAL data only for client ${clientId}...`);
     
     try {
       // Fetch client settings first to get property IDs and configuration
@@ -157,7 +157,7 @@ const ClientManagementDashboard: React.FC = () => {
       setClientSettings(settingsResponse.data);
       console.log('✅ Client settings loaded:', settingsResponse.data);
 
-      // Initialize analytics data structure
+      // Initialize analytics data structure with ZERO values (NO MOCK DATA)
       let analyticsData = {
         googleAnalytics: {
           pageViews: 0,
@@ -167,29 +167,39 @@ const ClientManagementDashboard: React.FC = () => {
           newUsers: 0,
           avgSessionDuration: 0,
           topPages: [],
-          trafficSources: []
+          trafficSources: [],
+          connected: false,
+          status: 'Not Connected'
         },
         facebook: {
           pageViews: 0,
           followers: 0,
-          engagement: 0
+          engagement: 0,
+          connected: false,
+          status: 'Not Connected'
         },
         leads: {
           total: 0,
           thisMonth: 0,
-          conversion: 0
+          conversion: 0,
+          connected: true, // Leads are always connected (from our database)
+          status: 'Connected'
         },
         content: {
           total: 0,
           thisMonth: 0,
-          engagement: 0
+          engagement: 0,
+          connected: false,
+          status: 'Not Connected'
         }
       };
 
-      // Try to fetch real Google Analytics data
+      // Try to fetch real Google Analytics data ONLY
       try {
         const propertyId = settingsResponse.data?.googleAnalytics?.propertyId;
-        if (propertyId) {
+        const isConnected = settingsResponse.data?.googleAnalytics?.connected;
+        
+        if (propertyId && isConnected) {
           console.log(`🔍 Fetching real Google Analytics data for property: ${propertyId}`);
           const realAnalyticsResponse = await http.get(`/analytics/client/${clientId}/real?propertyId=${propertyId}`);
           console.log('✅ Real Google Analytics data loaded:', realAnalyticsResponse.data);
@@ -203,36 +213,41 @@ const ClientManagementDashboard: React.FC = () => {
             newUsers: realAnalyticsResponse.data.newUsers || 0,
             avgSessionDuration: realAnalyticsResponse.data.avgSessionDuration || 0,
             topPages: realAnalyticsResponse.data.topPages || [],
-            trafficSources: realAnalyticsResponse.data.trafficSources || []
+            trafficSources: realAnalyticsResponse.data.trafficSources || [],
+            connected: true,
+            status: 'Connected'
           };
         } else {
-          console.log('⚠️ No Google Analytics property ID found, using mock data');
-          const mockAnalyticsResponse = await http.get(`/analytics/client/${clientId}`);
-          analyticsData.googleAnalytics = mockAnalyticsResponse.data.googleAnalytics || analyticsData.googleAnalytics;
+          console.log('⚠️ Google Analytics not connected - showing 0 values');
+          analyticsData.googleAnalytics.connected = false;
+          analyticsData.googleAnalytics.status = 'Not Connected';
         }
       } catch (realError) {
-        console.log('⚠️ Real Google Analytics not available, using mock data:', realError);
-        const mockAnalyticsResponse = await http.get(`/analytics/client/${clientId}`);
-        analyticsData.googleAnalytics = mockAnalyticsResponse.data.googleAnalytics || analyticsData.googleAnalytics;
+        console.log('⚠️ Real Google Analytics not available - showing 0 values:', realError);
+        analyticsData.googleAnalytics.connected = false;
+        analyticsData.googleAnalytics.status = 'Not Connected';
       }
 
-      // Try to fetch real Search Console data
+      // Try to fetch real Search Console data ONLY
       try {
-        const siteUrl = settingsResponse.data?.googleSearchConsole?.siteUrl;
-        if (siteUrl) {
+        const siteUrl = settingsResponse.data?.searchConsole?.siteUrl;
+        const isConnected = settingsResponse.data?.searchConsole?.connected;
+        
+        if (siteUrl && isConnected) {
           console.log(`🔍 Fetching real Search Console data for site: ${siteUrl}`);
           const realSearchConsoleResponse = await http.get(`/search-console/client/${clientId}/real?siteUrl=${siteUrl}`);
           console.log('✅ Real Search Console data loaded:', realSearchConsoleResponse.data);
           
-          // You can integrate this data into analytics or create separate state
-          // For now, we'll add it to the analytics data
+          // Add search console data to analytics
           analyticsData.googleAnalytics.searchConsoleData = realSearchConsoleResponse.data;
+        } else {
+          console.log('⚠️ Search Console not connected - no data available');
         }
       } catch (realError) {
         console.log('⚠️ Real Search Console not available:', realError);
       }
 
-      // Fetch real leads data for this client
+      // Fetch real leads data for this client (ALWAYS REAL DATA)
       try {
         console.log(`🔍 Fetching real leads data for client ${clientId}`);
         const leadsResponse = await http.get(`/leads?client_id=${clientId}`);
@@ -250,37 +265,66 @@ const ClientManagementDashboard: React.FC = () => {
         analyticsData.leads = {
           total: totalLeads,
           thisMonth: thisMonthLeads,
-          conversion: totalLeads > 0 ? Math.round((thisMonthLeads / totalLeads) * 100) : 0
+          conversion: totalLeads > 0 ? Math.round((thisMonthLeads / totalLeads) * 100) : 0,
+          connected: true,
+          status: 'Connected'
         };
         
         console.log('✅ Real leads data loaded:', analyticsData.leads);
       } catch (leadsError) {
-        console.log('⚠️ Real leads data not available, using mock data:', leadsError);
-        const mockAnalyticsResponse = await http.get(`/analytics/client/${clientId}`);
-        analyticsData.leads = mockAnalyticsResponse.data.leads || analyticsData.leads;
+        console.log('⚠️ Real leads data not available - showing 0 values:', leadsError);
+        analyticsData.leads = {
+          total: 0,
+          thisMonth: 0,
+          conversion: 0,
+          connected: false,
+          status: 'Not Connected'
+        };
       }
 
-      // For Facebook and Content, we'll use mock data for now since we don't have real APIs
-      try {
-        const mockAnalyticsResponse = await http.get(`/analytics/client/${clientId}`);
-        analyticsData.facebook = mockAnalyticsResponse.data.facebook || analyticsData.facebook;
-        analyticsData.content = mockAnalyticsResponse.data.content || analyticsData.content;
-      } catch (mockError) {
-        console.log('⚠️ Mock data not available, using defaults');
+      // Check Facebook connection status (NO MOCK DATA)
+      const facebookConnected = settingsResponse.data?.facebook?.connected;
+      if (facebookConnected) {
+        analyticsData.facebook.connected = true;
+        analyticsData.facebook.status = 'Connected';
+        // TODO: Add real Facebook API integration here
+        console.log('⚠️ Facebook connected but no real API integration yet - showing 0 values');
+      } else {
+        analyticsData.facebook.connected = false;
+        analyticsData.facebook.status = 'Not Connected';
+        console.log('⚠️ Facebook not connected - showing 0 values');
       }
+
+      // Content is always not connected (NO MOCK DATA)
+      analyticsData.content.connected = false;
+      analyticsData.content.status = 'Not Connected';
+      console.log('⚠️ Content management not connected - showing 0 values');
 
       // Set the combined analytics data
       setAnalyticsData(analyticsData);
-      console.log('✅ All client data loaded successfully:', analyticsData);
+      console.log('✅ All REAL client data loaded successfully:', analyticsData);
 
     } catch (error) {
       console.error('❌ Error fetching client data:', error);
-      // Set default data structure on error
+      // Set default data structure on error (ALL ZEROS, NO MOCK DATA)
       setAnalyticsData({
-        googleAnalytics: { pageViews: 0, sessions: 0, bounceRate: 0, users: 0, newUsers: 0, avgSessionDuration: 0, topPages: [], trafficSources: [] },
-        facebook: { pageViews: 0, followers: 0, engagement: 0 },
-        leads: { total: 0, thisMonth: 0, conversion: 0 },
-        content: { total: 0, thisMonth: 0, engagement: 0 }
+        googleAnalytics: { 
+          pageViews: 0, sessions: 0, bounceRate: 0, users: 0, newUsers: 0, 
+          avgSessionDuration: 0, topPages: [], trafficSources: [], 
+          connected: false, status: 'Not Connected' 
+        },
+        facebook: { 
+          pageViews: 0, followers: 0, engagement: 0, 
+          connected: false, status: 'Not Connected' 
+        },
+        leads: { 
+          total: 0, thisMonth: 0, conversion: 0, 
+          connected: false, status: 'Not Connected' 
+        },
+        content: { 
+          total: 0, thisMonth: 0, engagement: 0, 
+          connected: false, status: 'Not Connected' 
+        }
       });
     }
   };
@@ -486,8 +530,8 @@ const ClientManagementDashboard: React.FC = () => {
                   <div className="metric-card">
                     <div className="metric-header">
                       <h3>Google Analytics</h3>
-                      <span className={`status ${analyticsData?.googleAnalytics ? 'connected' : 'disconnected'}`}>
-                        {analyticsData?.googleAnalytics ? 'Connected' : 'Not Connected'}
+                      <span className={`status ${analyticsData?.googleAnalytics?.connected ? 'connected' : 'disconnected'}`}>
+                        {analyticsData?.googleAnalytics?.status || 'Not Connected'}
                       </span>
                     </div>
                     <div className="metric-stats">
@@ -510,8 +554,8 @@ const ClientManagementDashboard: React.FC = () => {
                   <div className="metric-card">
                     <div className="metric-header">
                       <h3>Facebook</h3>
-                      <span className={`status ${analyticsData?.facebook ? 'connected' : 'disconnected'}`}>
-                        {analyticsData?.facebook ? 'Connected' : 'Not Connected'}
+                      <span className={`status ${analyticsData?.facebook?.connected ? 'connected' : 'disconnected'}`}>
+                        {analyticsData?.facebook?.status || 'Not Connected'}
                       </span>
                     </div>
                     <div className="metric-stats">
@@ -534,7 +578,9 @@ const ClientManagementDashboard: React.FC = () => {
                   <div className="metric-card">
                     <div className="metric-header">
                       <h3>Leads</h3>
-                      <span className="status active">Active</span>
+                      <span className={`status ${analyticsData?.leads?.connected ? 'connected' : 'disconnected'}`}>
+                        {analyticsData?.leads?.status || 'Not Connected'}
+                      </span>
                     </div>
                     <div className="metric-stats">
                       <div className="stat">
@@ -552,23 +598,25 @@ const ClientManagementDashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Posts Card */}
+                  {/* Content Card */}
                   <div className="metric-card">
                     <div className="metric-header">
                       <h3>Content</h3>
-                      <span className="status active">Active</span>
+                      <span className={`status ${analyticsData?.content?.connected ? 'connected' : 'disconnected'}`}>
+                        {analyticsData?.content?.status || 'Not Connected'}
+                      </span>
                     </div>
                     <div className="metric-stats">
                       <div className="stat">
-                        <span className="value">{analyticsData?.posts?.total || 0}</span>
+                        <span className="value">{analyticsData?.content?.total || 0}</span>
                         <span className="label">Total Posts</span>
                       </div>
                       <div className="stat">
-                        <span className="value">{analyticsData?.posts?.thisMonth || 0}</span>
+                        <span className="value">{analyticsData?.content?.thisMonth || 0}</span>
                         <span className="label">This Month</span>
                       </div>
                       <div className="stat">
-                        <span className="value">{analyticsData?.posts?.engagement || 0}%</span>
+                        <span className="value">{analyticsData?.content?.engagement || 0}%</span>
                         <span className="label">Engagement</span>
                       </div>
                     </div>
