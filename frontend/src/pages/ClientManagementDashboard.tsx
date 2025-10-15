@@ -67,10 +67,38 @@ const ClientManagementDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'settings'>('overview');
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchClients();
-  }, []);
+    
+    // Handle OAuth success/error messages from URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const connected = urlParams.get('connected');
+    const clientId = urlParams.get('clientId');
+    const error = urlParams.get('error');
+    
+    if (connected && clientId) {
+      const serviceName = connected === 'google_analytics' ? 'Google Analytics' : 
+                         connected === 'google_search_console' ? 'Google Search Console' : 
+                         connected;
+      setSuccessMessage(`✅ Successfully connected to ${serviceName}!`);
+      
+      // Auto-select the client if it matches
+      setTimeout(() => {
+        const client = clients.find(c => c.id === parseInt(clientId));
+        if (client) {
+          setSelectedClient(client);
+        }
+      }, 1000);
+      
+      // Clear URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (error) {
+      setError(`❌ Connection failed: ${error}`);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [clients]);
 
   useEffect(() => {
     console.log('🔄 Client changed, selectedClient:', selectedClient);
@@ -416,6 +444,46 @@ const ClientManagementDashboard: React.FC = () => {
         </button>
       </div>
 
+      {/* Success Message */}
+      {successMessage && (
+        <div style={{
+          margin: '20px',
+          padding: '15px 20px',
+          backgroundColor: '#d4edda',
+          border: '1px solid #c3e6cb',
+          borderRadius: '8px',
+          color: '#155724',
+          fontSize: '16px',
+          fontWeight: '600',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          animation: 'fadeIn 0.5s ease-in'
+        }}>
+          <i className="fas fa-check-circle" style={{ color: '#28a745' }}></i>
+          {successMessage}
+          <button
+            onClick={() => setSuccessMessage(null)}
+            style={{
+              marginLeft: 'auto',
+              background: 'none',
+              border: 'none',
+              color: '#155724',
+              fontSize: '18px',
+              cursor: 'pointer',
+              padding: '0',
+              width: '24px',
+              height: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <div className="dashboard-content">
         {/* Client Selection */}
         <div className="client-selector" style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
@@ -654,20 +722,42 @@ const ClientManagementDashboard: React.FC = () => {
                       <input 
                         type="text" 
                         placeholder="Property ID (e.g., 507408413 for alignprimary)" 
-                        defaultValue={clientSettings?.googleAnalytics?.propertyId || ''}
+                        value={clientSettings?.googleAnalytics?.propertyId || ''}
+                        onChange={(e) => {
+                          if (clientSettings) {
+                            setClientSettings({
+                              ...clientSettings,
+                              googleAnalytics: {
+                                ...clientSettings.googleAnalytics,
+                                propertyId: e.target.value
+                              }
+                            });
+                          }
+                        }}
                         id="ga-property-id"
                       />
                       <input 
                         type="text" 
                         placeholder="View ID (optional)" 
-                        defaultValue={clientSettings?.googleAnalytics?.viewId || ''}
+                        value={clientSettings?.googleAnalytics?.viewId || ''}
+                        onChange={(e) => {
+                          if (clientSettings) {
+                            setClientSettings({
+                              ...clientSettings,
+                              googleAnalytics: {
+                                ...clientSettings.googleAnalytics,
+                                viewId: e.target.value
+                              }
+                            });
+                          }
+                        }}
                         id="ga-view-id"
                       />
                       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                         <button 
                           onClick={() => handleConnectService('google-analytics', {
-                            propertyId: (document.getElementById('ga-property-id') as HTMLInputElement)?.value,
-                            viewId: (document.getElementById('ga-view-id') as HTMLInputElement)?.value
+                            propertyId: clientSettings?.googleAnalytics?.propertyId,
+                            viewId: clientSettings?.googleAnalytics?.viewId
                           })}
                           className="connect-btn"
                         >
@@ -676,17 +766,19 @@ const ClientManagementDashboard: React.FC = () => {
                         </button>
                         <button 
                           onClick={async () => {
-                            const propertyId = (document.getElementById('ga-property-id') as HTMLInputElement)?.value;
+                            const propertyId = clientSettings?.googleAnalytics?.propertyId;
                             if (propertyId && selectedClient) {
                               try {
                                 await http.put(`/clients/${selectedClient.id}/service/google_analytics/config`, {
                                   propertyId: propertyId
                                 });
-                                alert('Property ID updated successfully!');
+                                setSuccessMessage('✅ Property ID updated successfully!');
                                 fetchClientData(selectedClient.id);
                               } catch (error) {
-                                alert('Failed to update Property ID');
+                                setError('❌ Failed to update Property ID');
                               }
+                            } else {
+                              setError('❌ Please enter a Property ID');
                             }
                           }}
                           className="connect-btn"
@@ -746,13 +838,24 @@ const ClientManagementDashboard: React.FC = () => {
                       <input 
                         type="text" 
                         placeholder="Site URL (e.g., https://alignprimary.com)" 
-                        defaultValue={clientSettings?.searchConsole?.siteUrl || ''}
+                        value={clientSettings?.searchConsole?.siteUrl || ''}
+                        onChange={(e) => {
+                          if (clientSettings) {
+                            setClientSettings({
+                              ...clientSettings,
+                              searchConsole: {
+                                ...clientSettings.searchConsole,
+                                siteUrl: e.target.value
+                              }
+                            });
+                          }
+                        }}
                         id="gsc-site-url"
                       />
                       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                         <button 
                           onClick={() => handleConnectService('google_search_console', {
-                            siteUrl: (document.getElementById('gsc-site-url') as HTMLInputElement)?.value
+                            siteUrl: clientSettings?.searchConsole?.siteUrl
                           })}
                           className="connect-btn"
                         >
@@ -761,17 +864,19 @@ const ClientManagementDashboard: React.FC = () => {
                         </button>
                         <button 
                           onClick={async () => {
-                            const siteUrl = (document.getElementById('gsc-site-url') as HTMLInputElement)?.value;
+                            const siteUrl = clientSettings?.searchConsole?.siteUrl;
                             if (siteUrl && selectedClient) {
                               try {
                                 await http.put(`/clients/${selectedClient.id}/service/google_search_console/config`, {
                                   siteUrl: siteUrl
                                 });
-                                alert('Site URL updated successfully!');
+                                setSuccessMessage('✅ Site URL updated successfully!');
                                 fetchClientData(selectedClient.id);
                               } catch (error) {
-                                alert('Failed to update Site URL');
+                                setError('❌ Failed to update Site URL');
                               }
+                            } else {
+                              setError('❌ Please enter a Site URL');
                             }
                           }}
                           className="connect-btn"
