@@ -2620,10 +2620,14 @@ router.get('/auth/google/callback', async (req, res) => {
     }
     
     const { clientId, type } = stateData;
-    console.log('Client ID:', clientId);
-    console.log('Type:', type);
+    console.log('🔍 Extracted clientId:', clientId, 'Type:', typeof clientId);
+    console.log('🔍 Extracted type:', type, 'Type:', typeof type);
+    console.log('🔍 clientId truthiness:', !!clientId);
+    console.log('🔍 clientId === 0:', clientId === 0);
+    console.log('🔍 clientId === null:', clientId === null);
+    console.log('🔍 clientId === undefined:', clientId === undefined);
     
-    if (!clientId) {
+    if (clientId === null || clientId === undefined || clientId === '') {
       console.log('❌ Missing clientId in state');
       return res.status(400).json({ error: 'Client ID is required' });
     }
