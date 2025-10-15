@@ -93,8 +93,8 @@ const ClientManagementDashboard: React.FC = () => {
       console.log('📊 Response data:', response.data);
       console.log('📊 Is array?', Array.isArray(response.data));
       
-      // Ensure response.data is an array
-      const clientsData = Array.isArray(response.data) ? response.data : [];
+      // Handle the response structure: {clients: [...], pagination: {...}}
+      const clientsData = response.data?.clients || [];
       console.log('📊 Processed clients data:', clientsData);
       
       setClients(clientsData);
