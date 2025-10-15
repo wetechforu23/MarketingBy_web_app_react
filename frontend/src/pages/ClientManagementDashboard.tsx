@@ -65,6 +65,7 @@ const ClientManagementDashboard: React.FC = () => {
   const [clientSettings, setClientSettings] = useState<ClientSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'settings'>('overview');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchClients();
@@ -79,13 +80,30 @@ const ClientManagementDashboard: React.FC = () => {
   const fetchClients = async () => {
     try {
       setLoading(true);
+      setError(null);
+      console.log('🔍 Fetching clients from /admin/clients...');
+      
       const response = await http.get('/admin/clients');
-      setClients(response.data);
-      if (response.data.length > 0) {
-        setSelectedClient(response.data[0]);
+      console.log('📊 Clients API response:', response);
+      console.log('📊 Response data:', response.data);
+      console.log('📊 Is array?', Array.isArray(response.data));
+      
+      // Ensure response.data is an array
+      const clientsData = Array.isArray(response.data) ? response.data : [];
+      console.log('📊 Processed clients data:', clientsData);
+      
+      setClients(clientsData);
+      
+      if (clientsData.length > 0) {
+        setSelectedClient(clientsData[0]);
+        console.log('📊 Selected first client:', clientsData[0]);
+      } else {
+        console.log('📊 No clients found');
       }
     } catch (error) {
-      console.error('Error fetching clients:', error);
+      console.error('❌ Error fetching clients:', error);
+      setError('Failed to load clients. Please try again.');
+      setClients([]); // Ensure clients is always an array
     } finally {
       setLoading(false);
     }
@@ -128,6 +146,20 @@ const ClientManagementDashboard: React.FC = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="error-container">
+        <div className="error-message">
+          <h2>Error Loading Client Management</h2>
+          <p>{error}</p>
+          <button onClick={fetchClients} className="retry-btn">
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="client-management-dashboard">
       <div className="page-header">
@@ -156,7 +188,7 @@ const ClientManagementDashboard: React.FC = () => {
             }}
           >
             <option value="">Choose a client...</option>
-            {clients.map(client => (
+            {Array.isArray(clients) && clients.map(client => (
               <option key={client.id} value={client.id}>
                 {client.name} ({client.email})
               </option>
@@ -689,6 +721,48 @@ const ClientManagementDashboard: React.FC = () => {
 
         .connect-btn:hover {
           background: #218838;
+        }
+
+        .error-container {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          min-height: 400px;
+          padding: 20px;
+        }
+
+        .error-message {
+          text-align: center;
+          background: white;
+          padding: 40px;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          max-width: 500px;
+        }
+
+        .error-message h2 {
+          color: #dc3545;
+          margin-bottom: 15px;
+        }
+
+        .error-message p {
+          color: #666;
+          margin-bottom: 20px;
+        }
+
+        .retry-btn {
+          padding: 12px 24px;
+          background: #007bff;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: 600;
+          transition: background 0.2s;
+        }
+
+        .retry-btn:hover {
+          background: #0056b3;
         }
       `}</style>
     </div>
