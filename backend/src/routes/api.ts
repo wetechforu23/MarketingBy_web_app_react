@@ -2564,35 +2564,7 @@ router.post('/clients/:clientId/connect/:service', async (req, res) => {
   }
 });
 
-// Google OAuth routes
-router.get('/auth/google/:service', async (req, res) => {
-  try {
-    const { service } = req.params;
-    const { clientId } = req.query;
-    
-    if (!clientId) {
-      return res.status(400).json({ error: 'Client ID is required' });
-    }
-
-    let authUrl: string;
-    
-    if (service === 'analytics') {
-      const googleAnalyticsService = require('../services/googleAnalyticsService').default;
-      authUrl = googleAnalyticsService.generateAuthUrl(parseInt(clientId as string));
-    } else if (service === 'search-console') {
-      const googleSearchConsoleService = require('../services/googleSearchConsoleService').default;
-      authUrl = googleSearchConsoleService.generateAuthUrl(parseInt(clientId as string));
-    } else {
-      return res.status(400).json({ error: 'Invalid service type' });
-    }
-
-    res.json({ authUrl });
-  } catch (error) {
-    console.error('Generate auth URL error:', error);
-    res.status(500).json({ error: 'Failed to generate auth URL' });
-  }
-});
-
+// Google OAuth routes - SPECIFIC ROUTES FIRST
 router.get('/auth/google/callback', async (req, res) => {
   console.log('🚨🚨🚨 CALLBACK ROUTE HIT! 🚨🚨🚨');
   console.log('🔍 Full URL:', req.url);
@@ -2665,6 +2637,35 @@ router.get('/auth/google/callback', async (req, res) => {
     console.error('OAuth callback error:', error);
     const redirectUrl = `${process.env.FRONTEND_URL || 'https://marketingby.wetechforu.com'}/app/client-management?error=oauth_failed`;
     res.redirect(redirectUrl);
+  }
+});
+
+// Google OAuth service routes (catch-all for /auth/google/:service)
+router.get('/auth/google/:service', async (req, res) => {
+  try {
+    const { service } = req.params;
+    const { clientId } = req.query;
+    
+    if (!clientId) {
+      return res.status(400).json({ error: 'Client ID is required' });
+    }
+
+    let authUrl: string;
+    
+    if (service === 'analytics') {
+      const googleAnalyticsService = require('../services/googleAnalyticsService').default;
+      authUrl = googleAnalyticsService.generateAuthUrl(parseInt(clientId as string));
+    } else if (service === 'search-console') {
+      const googleSearchConsoleService = require('../services/googleSearchConsoleService').default;
+      authUrl = googleSearchConsoleService.generateAuthUrl(parseInt(clientId as string));
+    } else {
+      return res.status(400).json({ error: 'Invalid service type' });
+    }
+
+    res.json({ authUrl });
+  } catch (error) {
+    console.error('Generate auth URL error:', error);
+    res.status(500).json({ error: 'Failed to generate auth URL' });
   }
 });
 
