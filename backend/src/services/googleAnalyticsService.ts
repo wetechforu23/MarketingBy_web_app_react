@@ -244,8 +244,20 @@ export class GoogleAnalyticsService {
         );
       } else {
         // Update existing credentials with new property ID
-        const credentials = JSON.parse(result.rows[0].credentials);
+        console.log(`🔍 Updating property ID for client ${clientId}, existing credentials:`, result.rows[0].credentials);
+        
+        let credentials;
+        if (typeof result.rows[0].credentials === 'string') {
+          credentials = JSON.parse(result.rows[0].credentials);
+        } else if (typeof result.rows[0].credentials === 'object') {
+          credentials = result.rows[0].credentials;
+        } else {
+          console.error(`❌ Invalid credentials type for client ${clientId}:`, typeof result.rows[0].credentials);
+          throw new Error('Invalid credentials format');
+        }
+        
         credentials.property_id = propertyId;
+        console.log(`✅ Updated credentials with property ID ${propertyId}:`, credentials);
 
         await pool.query(
           'UPDATE client_credentials SET credentials = $1, updated_at = NOW() WHERE client_id = $2 AND service_type = $3',

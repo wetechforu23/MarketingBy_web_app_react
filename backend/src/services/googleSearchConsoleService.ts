@@ -255,8 +255,20 @@ export class GoogleSearchConsoleService {
         );
       } else {
         // Update existing credentials with new site URL
-        const credentials = JSON.parse(result.rows[0].credentials);
+        console.log(`🔍 Updating site URL for client ${clientId}, existing credentials:`, result.rows[0].credentials);
+        
+        let credentials;
+        if (typeof result.rows[0].credentials === 'string') {
+          credentials = JSON.parse(result.rows[0].credentials);
+        } else if (typeof result.rows[0].credentials === 'object') {
+          credentials = result.rows[0].credentials;
+        } else {
+          console.error(`❌ Invalid credentials type for client ${clientId}:`, typeof result.rows[0].credentials);
+          throw new Error('Invalid credentials format');
+        }
+        
         credentials.site_url = siteUrl;
+        console.log(`✅ Updated credentials with site URL ${siteUrl}:`, credentials);
 
         await pool.query(
           'UPDATE client_credentials SET credentials = $1, updated_at = NOW() WHERE client_id = $2 AND service_type = $3',
