@@ -3083,7 +3083,7 @@ router.post('/analytics/export/:reportId', requireAuth, async (req, res) => {
 
     // Get report data
     const result = await pool.query(`
-      SELECT ar.*, c.name as client_name, c.email as client_email
+      SELECT ar.*, c.client_name, c.email as client_email
       FROM analytics_reports ar
       JOIN clients c ON ar.client_id = c.id
       WHERE ar.id = $1
