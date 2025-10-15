@@ -88,6 +88,10 @@ const ClientManagementDashboard: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [analyticsReportData, setAnalyticsReportData] = useState<any>(null);
   const [reports, setReports] = useState<any[]>([]);
+  const [pageInsights, setPageInsights] = useState<any[]>([]);
+  const [geographicData, setGeographicData] = useState<any[]>([]);
+  const [keywordAnalysis, setKeywordAnalysis] = useState<any[]>([]);
+  const [monthlyComparison, setMonthlyComparison] = useState<any[]>([]);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
@@ -486,6 +490,26 @@ const ClientManagementDashboard: React.FC = () => {
     }
   };
 
+  const fetchComprehensiveAnalytics = async () => {
+    if (!selectedClient) return;
+    
+    try {
+      const [pageInsightsRes, geographicRes, keywordsRes, monthlyRes] = await Promise.all([
+        http.get(`/analytics/page-insights/${selectedClient.id}?dateFrom=${syncDateFrom}&dateTo=${syncDateTo}`),
+        http.get(`/analytics/geographic/${selectedClient.id}?dateFrom=${syncDateFrom}&dateTo=${syncDateTo}`),
+        http.get(`/analytics/keywords/${selectedClient.id}?dateFrom=${syncDateFrom}&dateTo=${syncDateTo}`),
+        http.get(`/analytics/monthly-comparison/${selectedClient.id}?months=6`)
+      ]);
+
+      setPageInsights(pageInsightsRes.data.data || []);
+      setGeographicData(geographicRes.data.data || []);
+      setKeywordAnalysis(keywordsRes.data.data || []);
+      setMonthlyComparison(monthlyRes.data.data || []);
+    } catch (error) {
+      console.error('Error fetching comprehensive analytics:', error);
+    }
+  };
+
   const exportReport = async (reportId: number) => {
     try {
       const response = await http.post(`/analytics/export/${reportId}`, {
@@ -517,8 +541,9 @@ const ClientManagementDashboard: React.FC = () => {
   useEffect(() => {
     if (selectedClient && activeTab === 'analytics') {
       fetchAnalyticsReports();
+      fetchComprehensiveAnalytics();
     }
-  }, [selectedClient, activeTab]);
+  }, [selectedClient, activeTab, syncDateFrom, syncDateTo]);
 
   if (loading) {
     return (
@@ -967,6 +992,142 @@ const ClientManagementDashboard: React.FC = () => {
                       </div>
                     </div>
                   </div>
+
+                  {/* Page Insights */}
+                  {pageInsights.length > 0 && (
+                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
+                      <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>📄 Page Performance</h4>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                          <thead>
+                            <tr style={{ backgroundColor: '#f8f9fa' }}>
+                              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Page</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Page Views</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Unique Users</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Bounce Rate</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Avg Time</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Conversions</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Conv Rate</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pageInsights.slice(0, 10).map((page, index) => (
+                              <tr key={index} style={{ borderBottom: '1px solid #dee2e6' }}>
+                                <td style={{ padding: '12px', fontWeight: '500' }}>{page.page}</td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                  {page.pageViews.toLocaleString()}
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                  {page.uniqueUsers.toLocaleString()}
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: page.bounceRate > 70 ? '#dc3545' : '#28a745' }}>
+                                  {page.bounceRate.toFixed(1)}%
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                  {Math.round(page.avgTimeOnPage)}s
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                  {page.conversions}
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: page.conversionRate > 2 ? '#28a745' : '#dc3545' }}>
+                                  {page.conversionRate.toFixed(2)}%
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Geographic Data */}
+                  {geographicData.length > 0 && (
+                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
+                      <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>🌍 Geographic Distribution</h4>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                          <thead>
+                            <tr style={{ backgroundColor: '#f8f9fa' }}>
+                              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Country</th>
+                              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>City</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Users</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Sessions</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Bounce Rate</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {geographicData.slice(0, 15).map((geo, index) => (
+                              <tr key={index} style={{ borderBottom: '1px solid #dee2e6' }}>
+                                <td style={{ padding: '12px', fontWeight: '500' }}>{geo.country}</td>
+                                <td style={{ padding: '12px' }}>{geo.city}</td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                  {geo.users.toLocaleString()}
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                  {geo.sessions.toLocaleString()}
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: geo.bounceRate > 70 ? '#dc3545' : '#28a745' }}>
+                                  {geo.bounceRate.toFixed(1)}%
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Keyword Analysis */}
+                  {keywordAnalysis.length > 0 && (
+                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
+                      <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>🔍 Keyword Performance</h4>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                          <thead>
+                            <tr style={{ backgroundColor: '#f8f9fa' }}>
+                              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Keyword</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Impressions</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Clicks</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>CTR</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Position</th>
+                              <th style={{ padding: '12px', textAlign: 'center', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Value</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {keywordAnalysis.slice(0, 20).map((keyword, index) => (
+                              <tr key={index} style={{ borderBottom: '1px solid #dee2e6' }}>
+                                <td style={{ padding: '12px', fontWeight: '500' }}>{keyword.keyword}</td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                  {keyword.impressions.toLocaleString()}
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                  {keyword.clicks.toLocaleString()}
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                  {(keyword.ctr * 100).toFixed(2)}%
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                  {keyword.position.toFixed(1)}
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'center' }}>
+                                  <span style={{
+                                    padding: '4px 8px',
+                                    borderRadius: '4px',
+                                    fontSize: '12px',
+                                    fontWeight: '500',
+                                    backgroundColor: keyword.category === 'high-value' ? '#28a74520' : keyword.category === 'medium-value' ? '#ffc10720' : '#dc354520',
+                                    color: keyword.category === 'high-value' ? '#28a745' : keyword.category === 'medium-value' ? '#ffc107' : '#dc3545'
+                                  }}>
+                                    {keyword.category.replace('-', ' ')}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Device Breakdown */}
                   {analyticsReportData?.deviceBreakdown && Object.keys(analyticsReportData.deviceBreakdown).length > 0 && (
