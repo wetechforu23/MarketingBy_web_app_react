@@ -2592,12 +2592,24 @@ router.get('/auth/google/callback', async (req, res) => {
   try {
     const { code, state } = req.query;
     
+    console.log('🔍 OAuth Callback Debug:');
+    console.log('Code:', code);
+    console.log('State:', state);
+    
     if (!code || !state) {
       return res.status(400).json({ error: 'Missing authorization code or state' });
     }
 
     const stateData = JSON.parse(state as string);
+    console.log('Parsed state data:', stateData);
     const { clientId, type } = stateData;
+    
+    console.log('Client ID:', clientId);
+    console.log('Type:', type);
+    
+    if (!clientId) {
+      return res.status(400).json({ error: 'Client ID is required' });
+    }
 
     let tokens: any;
     
