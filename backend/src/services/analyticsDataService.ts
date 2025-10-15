@@ -39,6 +39,38 @@ export class AnalyticsDataService {
     this.googleAnalyticsService = new GoogleAnalyticsService();
   }
 
+  // Get client credentials from database
+  private async getClientCredentials(clientId: number): Promise<any> {
+    try {
+      const result = await pool.query(
+        'SELECT credentials FROM client_credentials WHERE client_id = $1 AND service_type = $2',
+        [clientId, 'google_analytics']
+      );
+
+      if (result.rows.length === 0) {
+        return null;
+      }
+
+      console.log(`🔍 Getting client credentials for client ${clientId}:`, result.rows[0].credentials);
+      
+      let credentials;
+      if (typeof result.rows[0].credentials === 'string') {
+        credentials = JSON.parse(result.rows[0].credentials);
+      } else if (typeof result.rows[0].credentials === 'object') {
+        credentials = result.rows[0].credentials;
+      } else {
+        console.error(`❌ Invalid credentials type for client ${clientId}:`, typeof result.rows[0].credentials);
+        return null;
+      }
+      
+      console.log(`✅ Parsed credentials for client ${clientId}:`, credentials);
+      return credentials;
+    } catch (error) {
+      console.error('Error getting client credentials:', error);
+      return null;
+    }
+  }
+
   // Store analytics data in database
   async storeAnalyticsData(
     clientId: number,
@@ -76,8 +108,8 @@ export class AnalyticsDataService {
     try {
       console.log(`🔄 Starting Google Analytics sync for client ${clientId} from ${dateFrom} to ${dateTo}`);
       
-      // Get client credentials
-      const credentials = await this.googleAnalyticsService.getClientCredentials(clientId);
+      // Get client credentials directly from database
+      const credentials = await this.getClientCredentials(clientId);
       if (!credentials || !credentials.access_token) {
         throw new Error('Google Analytics not connected for this client');
       }
@@ -382,10 +414,13 @@ export class AnalyticsDataService {
     // Calculate averages
     const dayCount = Object.keys(groupedData).length;
     if (dayCount > 0) {
-      processed.summary.avgBounceRate = Object.values(processed.dailyData)
-        .reduce((sum: number, day: any) => sum + day.bounceRate, 0) / dayCount;
-      processed.summary.avgSessionDuration = Object.values(processed.dailyData)
-        .reduce((sum: number, day: any) => sum + day.avgSessionDuration, 0) / dayCount;
+      const bounceRateSum = Object.values(processed.dailyData)
+        .reduce((sum: number, day: any) => sum + (day.bounceRate || 0), 0);
+      const sessionDurationSum = Object.values(processed.dailyData)
+        .reduce((sum: number, day: any) => sum + (day.avgSessionDuration || 0), 0);
+      
+      processed.summary.avgBounceRate = bounceRateSum / dayCount;
+      processed.summary.avgSessionDuration = sessionDurationSum / dayCount;
     }
 
     // Process device breakdown
