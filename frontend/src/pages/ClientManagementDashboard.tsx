@@ -71,19 +71,21 @@ const ClientManagementDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchClients();
-    
-    // Handle OAuth success/error messages from URL parameters
+  }, []);
+
+  useEffect(() => {
+    // Handle OAuth success/error messages from URL parameters (no refetch here)
     const urlParams = new URLSearchParams(window.location.search);
     const connected = urlParams.get('connected');
     const clientId = urlParams.get('clientId');
     const error = urlParams.get('error');
-    
+
     if (connected && clientId) {
-      const serviceName = connected === 'google_analytics' ? 'Google Analytics' : 
-                         connected === 'google_search_console' ? 'Google Search Console' : 
+      const serviceName = connected === 'google_analytics' ? 'Google Analytics' :
+                         connected === 'google_search_console' ? 'Google Search Console' :
                          connected;
       setSuccessMessage(`✅ Successfully connected to ${serviceName}!`);
-      
+
       // Auto-select the client if it matches
       setTimeout(() => {
         const client = clients.find(c => c.id === parseInt(clientId));
@@ -91,7 +93,7 @@ const ClientManagementDashboard: React.FC = () => {
           setSelectedClient(client);
         }
       }, 1000);
-      
+
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (error) {
