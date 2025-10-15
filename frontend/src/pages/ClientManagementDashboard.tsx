@@ -941,34 +941,32 @@ const ClientManagementDashboard: React.FC = () => {
                   </div>
 
                   {/* Analytics Summary Cards */}
-                  {analyticsReportData && (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-                      <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                        <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Total Page Views</h4>
-                        <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#007bff' }}>
-                          {analyticsReportData.summary?.totalPageViews?.toLocaleString() || 0}
-                        </div>
-                      </div>
-                      <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                        <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Total Sessions</h4>
-                        <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#28a745' }}>
-                          {analyticsReportData.summary?.totalSessions?.toLocaleString() || 0}
-                        </div>
-                      </div>
-                      <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                        <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Bounce Rate</h4>
-                        <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#dc3545' }}>
-                          {analyticsReportData.summary?.avgBounceRate?.toFixed(1) || 0}%
-                        </div>
-                      </div>
-                      <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                        <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Total Users</h4>
-                        <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#6f42c1' }}>
-                          {analyticsReportData.summary?.totalUsers?.toLocaleString() || 0}
-                        </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                      <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Total Page Views</h4>
+                      <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#007bff' }}>
+                        {analyticsData?.googleAnalytics?.pageViews?.toLocaleString() || 0}
                       </div>
                     </div>
-                  )}
+                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                      <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Total Sessions</h4>
+                      <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#28a745' }}>
+                        {analyticsData?.googleAnalytics?.sessions?.toLocaleString() || 0}
+                      </div>
+                    </div>
+                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                      <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Bounce Rate</h4>
+                      <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#dc3545' }}>
+                        {analyticsData?.googleAnalytics?.bounceRate?.toFixed(1) || 0}%
+                      </div>
+                    </div>
+                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                      <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Total Users</h4>
+                      <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#6f42c1' }}>
+                        {analyticsData?.googleAnalytics?.users?.toLocaleString() || 0}
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Device Breakdown */}
                   {analyticsReportData?.deviceBreakdown && Object.keys(analyticsReportData.deviceBreakdown).length > 0 && (
@@ -1043,61 +1041,125 @@ const ClientManagementDashboard: React.FC = () => {
                       </button>
                     </div>
                     
-                    {analyticsReportData ? (
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                          <thead>
-                            <tr style={{ backgroundColor: '#f8f9fa' }}>
-                              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Date</th>
-                              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Service</th>
-                              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Data Type</th>
-                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Value</th>
-                              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Details</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {analyticsReportData.detailedData && analyticsReportData.detailedData.length > 0 ? (
-                              analyticsReportData.detailedData.map((item: any, index: number) => (
-                                <tr key={index} style={{ borderBottom: '1px solid #dee2e6' }}>
-                                  <td style={{ padding: '12px' }}>{item.date}</td>
-                                  <td style={{ padding: '12px' }}>
-                                    <span style={{
-                                      padding: '4px 8px',
-                                      borderRadius: '4px',
-                                      fontSize: '12px',
-                                      fontWeight: '500',
-                                      backgroundColor: item.service_type === 'google_analytics' ? '#e3f2fd' : 
-                                                      item.service_type === 'search_console' ? '#f3e5f5' : '#e8f5e8',
-                                      color: item.service_type === 'google_analytics' ? '#1976d2' : 
-                                             item.service_type === 'search_console' ? '#7b1fa2' : '#388e3c'
-                                    }}>
-                                      {item.service_type === 'google_analytics' ? 'Google Analytics' :
-                                       item.service_type === 'search_console' ? 'Search Console' :
-                                       item.service_type === 'leads' ? 'Leads' : item.service_type}
-                                    </span>
-                                  </td>
-                                  <td style={{ padding: '12px' }}>{item.data_type}</td>
-                                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>{item.value?.toLocaleString() || '0'}</td>
-                                  <td style={{ padding: '12px', fontSize: '12px', color: '#666' }}>
-                                    {item.metadata ? JSON.stringify(item.metadata).substring(0, 50) + '...' : '-'}
-                                  </td>
-                                </tr>
-                              ))
-                            ) : (
-                              <tr>
-                                <td colSpan={5} style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
-                                  No detailed data available. Click "Sync & Generate Report" to fetch data.
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <p style={{ color: '#666', textAlign: 'center', padding: '20px' }}>
-                        No analytics data loaded. Click "Sync & Generate Report" to fetch and display data.
-                      </p>
-                    )}
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: '#f8f9fa' }}>
+                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Metric</th>
+                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Service</th>
+                            <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Value</th>
+                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr style={{ borderBottom: '1px solid #dee2e6' }}>
+                            <td style={{ padding: '12px', fontWeight: '500' }}>Page Views</td>
+                            <td style={{ padding: '12px' }}>
+                              <span style={{
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                backgroundColor: '#e3f2fd',
+                                color: '#1976d2'
+                              }}>
+                                Google Analytics
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                              {analyticsData?.googleAnalytics?.pageViews?.toLocaleString() || '0'}
+                            </td>
+                            <td style={{ padding: '12px', fontSize: '12px', color: analyticsData?.googleAnalytics?.connected ? '#28a745' : '#dc3545' }}>
+                              {analyticsData?.googleAnalytics?.connected ? '✅ Connected' : '❌ Not Connected'}
+                            </td>
+                          </tr>
+                          <tr style={{ borderBottom: '1px solid #dee2e6' }}>
+                            <td style={{ padding: '12px', fontWeight: '500' }}>Sessions</td>
+                            <td style={{ padding: '12px' }}>
+                              <span style={{
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                backgroundColor: '#e3f2fd',
+                                color: '#1976d2'
+                              }}>
+                                Google Analytics
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                              {analyticsData?.googleAnalytics?.sessions?.toLocaleString() || '0'}
+                            </td>
+                            <td style={{ padding: '12px', fontSize: '12px', color: analyticsData?.googleAnalytics?.connected ? '#28a745' : '#dc3545' }}>
+                              {analyticsData?.googleAnalytics?.connected ? '✅ Connected' : '❌ Not Connected'}
+                            </td>
+                          </tr>
+                          <tr style={{ borderBottom: '1px solid #dee2e6' }}>
+                            <td style={{ padding: '12px', fontWeight: '500' }}>Users</td>
+                            <td style={{ padding: '12px' }}>
+                              <span style={{
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                backgroundColor: '#e3f2fd',
+                                color: '#1976d2'
+                              }}>
+                                Google Analytics
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                              {analyticsData?.googleAnalytics?.users?.toLocaleString() || '0'}
+                            </td>
+                            <td style={{ padding: '12px', fontSize: '12px', color: analyticsData?.googleAnalytics?.connected ? '#28a745' : '#dc3545' }}>
+                              {analyticsData?.googleAnalytics?.connected ? '✅ Connected' : '❌ Not Connected'}
+                            </td>
+                          </tr>
+                          <tr style={{ borderBottom: '1px solid #dee2e6' }}>
+                            <td style={{ padding: '12px', fontWeight: '500' }}>Bounce Rate</td>
+                            <td style={{ padding: '12px' }}>
+                              <span style={{
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                backgroundColor: '#e3f2fd',
+                                color: '#1976d2'
+                              }}>
+                                Google Analytics
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                              {analyticsData?.googleAnalytics?.bounceRate?.toFixed(1) || '0'}%
+                            </td>
+                            <td style={{ padding: '12px', fontSize: '12px', color: analyticsData?.googleAnalytics?.connected ? '#28a745' : '#dc3545' }}>
+                              {analyticsData?.googleAnalytics?.connected ? '✅ Connected' : '❌ Not Connected'}
+                            </td>
+                          </tr>
+                          <tr style={{ borderBottom: '1px solid #dee2e6' }}>
+                            <td style={{ padding: '12px', fontWeight: '500' }}>Total Leads</td>
+                            <td style={{ padding: '12px' }}>
+                              <span style={{
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                backgroundColor: '#e8f5e8',
+                                color: '#388e3c'
+                              }}>
+                                Leads
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                              {analyticsData?.leads?.total?.toLocaleString() || '0'}
+                            </td>
+                            <td style={{ padding: '12px', fontSize: '12px', color: analyticsData?.leads?.connected ? '#28a745' : '#dc3545' }}>
+                              {analyticsData?.leads?.connected ? '✅ Connected' : '❌ Not Connected'}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
 
                   {/* Recent Reports */}
