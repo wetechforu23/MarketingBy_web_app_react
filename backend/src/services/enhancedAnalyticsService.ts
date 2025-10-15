@@ -133,7 +133,7 @@ export class EnhancedAnalyticsService {
     ];
 
     const data = await this.googleAnalyticsService.getAnalyticsData(
-      propertyId, dateFrom, dateTo
+      clientId, propertyId
     );
 
     // Process and store the data
@@ -159,8 +159,8 @@ export class EnhancedAnalyticsService {
     }
 
     // Fetch Search Console data
-    const searchData = await this.googleSearchConsoleService.getSearchAnalytics(
-      siteUrl, dateFrom, dateTo
+    const searchData = await this.googleSearchConsoleService.getSearchConsoleData(
+      clientId, siteUrl
     );
 
     // Process and store the data
