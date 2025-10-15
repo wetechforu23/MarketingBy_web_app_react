@@ -1,4 +1,4 @@
-import { pool } from '../config/database';
+import pool from '../config/database';
 import { GoogleAnalyticsService } from './googleAnalyticsService';
 import { GoogleSearchConsoleService } from './googleSearchConsoleService';
 
@@ -133,7 +133,7 @@ export class EnhancedAnalyticsService {
     ];
 
     const data = await this.googleAnalyticsService.getAnalyticsData(
-      propertyId, dateFrom, dateTo, metrics, dimensions
+      propertyId, dateFrom, dateTo
     );
 
     // Process and store the data
@@ -160,7 +160,7 @@ export class EnhancedAnalyticsService {
 
     // Fetch Search Console data
     const searchData = await this.googleSearchConsoleService.getSearchAnalytics(
-      siteUrl, dateFrom, dateTo, ['query', 'page', 'country', 'device']
+      siteUrl, dateFrom, dateTo
     );
 
     // Process and store the data
