@@ -2472,7 +2472,7 @@ router.get('/clients/:clientId/settings', async (req, res) => {
     
     // Get real settings from client_credentials table
     const credentialsResult = await pool.query(
-      'SELECT service_type, credentials FROM client_credentials WHERE client_id = $1',
+      'SELECT service_type, credentials, updated_at FROM client_credentials WHERE client_id = $1',
       [clientId]
     );
 
@@ -2481,7 +2481,8 @@ router.get('/clients/:clientId/settings', async (req, res) => {
       googleAnalytics: {
         connected: false,
         propertyId: null,
-        viewId: null
+        viewId: null,
+        lastConnected: null
       },
       facebook: {
         connected: false,
@@ -2490,7 +2491,8 @@ router.get('/clients/:clientId/settings', async (req, res) => {
       },
       searchConsole: {
         connected: false,
-        siteUrl: null
+        siteUrl: null,
+        lastConnected: null
       },
       googleTag: {
         connected: false,
@@ -2522,14 +2524,16 @@ router.get('/clients/:clientId/settings', async (req, res) => {
             settings.googleAnalytics = {
               connected: !!credentials.access_token || credentials.connected === true,
               propertyId: credentials.property_id || null,
-              viewId: credentials.view_id || null
+              viewId: credentials.view_id || null,
+              lastConnected: (!!credentials.access_token || credentials.connected === true) ? (row.updated_at || null) : null
             };
             console.log(`✅ Google Analytics settings updated:`, settings.googleAnalytics);
             break;
           case 'google_search_console':
             settings.searchConsole = {
               connected: !!credentials.access_token || credentials.connected === true,
-              siteUrl: credentials.site_url || null
+              siteUrl: credentials.site_url || null,
+              lastConnected: (!!credentials.access_token || credentials.connected === true) ? (row.updated_at || null) : null
             };
             break;
           case 'facebook':
@@ -2773,6 +2777,28 @@ router.put('/clients/:clientId/service/:service/config', async (req, res) => {
   } catch (error) {
     console.error('Update service config error:', error);
     res.status(500).json({ error: 'Failed to update service configuration' });
+  }
+});
+
+// Disconnect/deauthorize a client service (removes stored OAuth tokens/config)
+router.post('/clients/:clientId/service/:service/disconnect', async (req, res) => {
+  try {
+    const { clientId, service } = req.params;
+
+    const validServices = ['google_analytics', 'google_search_console', 'facebook'];
+    if (!validServices.includes(service)) {
+      return res.status(400).json({ error: 'Invalid service type' });
+    }
+
+    await pool.query(
+      'DELETE FROM client_credentials WHERE client_id = $1 AND service_type = $2',
+      [clientId, service]
+    );
+
+    res.json({ success: true, message: `${service} disconnected` });
+  } catch (error) {
+    console.error('Disconnect service error:', error);
+    res.status(500).json({ error: 'Failed to disconnect service' });
   }
 });
 
