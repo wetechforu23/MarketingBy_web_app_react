@@ -498,25 +498,6 @@ const ClientManagementDashboard: React.FC = () => {
             ))}
           </select>
         </div>
-        <button 
-          onClick={fetchClients}
-          style={{
-            padding: '8px 12px',
-            backgroundColor: '#28a745',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '12px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}
-        >
-          <i className="fas fa-sync-alt"></i>
-          Refresh
-        </button>
       </div>
 
       <div className="dashboard-content">
