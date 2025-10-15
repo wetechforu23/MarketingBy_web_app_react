@@ -2505,7 +2505,17 @@ router.get('/clients/:clientId/settings', async (req, res) => {
     // Parse credentials and update settings
     credentialsResult.rows.forEach(row => {
       try {
-        const credentials = JSON.parse(row.credentials);
+        console.log(`🔍 Parsing credentials for ${row.service_type}:`, row.credentials);
+        
+        let credentials;
+        if (typeof row.credentials === 'string') {
+          credentials = JSON.parse(row.credentials);
+        } else if (typeof row.credentials === 'object') {
+          credentials = row.credentials;
+        } else {
+          console.error(`❌ Invalid credentials type for ${row.service_type}:`, typeof row.credentials);
+          return;
+        }
         
         switch (row.service_type) {
           case 'google_analytics':
@@ -2514,6 +2524,7 @@ router.get('/clients/:clientId/settings', async (req, res) => {
               propertyId: credentials.property_id || null,
               viewId: credentials.view_id || null
             };
+            console.log(`✅ Google Analytics settings updated:`, settings.googleAnalytics);
             break;
           case 'google_search_console':
             settings.searchConsole = {
@@ -2530,7 +2541,9 @@ router.get('/clients/:clientId/settings', async (req, res) => {
             break;
         }
       } catch (parseError) {
-        console.error(`Error parsing credentials for ${row.service_type}:`, parseError);
+        console.error(`❌ Error parsing credentials for ${row.service_type}:`, parseError);
+        console.error(`❌ Raw credentials data:`, row.credentials);
+        console.error(`❌ Credentials type:`, typeof row.credentials);
       }
     });
 
