@@ -2522,24 +2522,33 @@ router.get('/clients/:clientId/settings', async (req, res) => {
         
         switch (row.service_type) {
           case 'google_analytics':
+            // Only show connected if we have BOTH access_token AND propertyId
+            const hasGaToken = !!credentials.access_token;
+            const hasGaPropertyId = !!credentials.property_id;
             settings.googleAnalytics = {
-              connected: !!credentials.access_token || credentials.connected === true,
+              connected: hasGaToken && hasGaPropertyId,
               propertyId: credentials.property_id || null,
               viewId: credentials.view_id || null,
-              lastConnected: (!!credentials.access_token || credentials.connected === true) ? (row.updated_at || null) : null
+              lastConnected: (hasGaToken && hasGaPropertyId) ? (row.updated_at || null) : null
             };
             console.log(`✅ Google Analytics settings updated:`, settings.googleAnalytics);
             break;
           case 'google_search_console':
+            // Only show connected if we have BOTH access_token AND siteUrl
+            const hasScToken = !!credentials.access_token;
+            const hasScSiteUrl = !!credentials.site_url;
             settings.searchConsole = {
-              connected: !!credentials.access_token || credentials.connected === true,
+              connected: hasScToken && hasScSiteUrl,
               siteUrl: credentials.site_url || null,
-              lastConnected: (!!credentials.access_token || credentials.connected === true) ? (row.updated_at || null) : null
+              lastConnected: (hasScToken && hasScSiteUrl) ? (row.updated_at || null) : null
             };
             break;
           case 'facebook':
+            // Only show connected if we have BOTH access_token AND pageId
+            const hasFbToken = !!credentials.access_token;
+            const hasFbPageId = !!credentials.page_id;
             settings.facebook = {
-              connected: !!credentials.access_token || credentials.connected === true,
+              connected: hasFbToken && hasFbPageId,
               pageId: credentials.page_id || null,
               accessToken: credentials.access_token ? '***hidden***' : null
             };
