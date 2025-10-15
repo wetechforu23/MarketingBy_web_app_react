@@ -2504,32 +2504,71 @@ router.get('/clients/:clientId/settings', async (req, res) => {
   try {
     const { clientId } = req.params;
     
-    // Mock settings data - replace with real database queries
+    // Get real settings from client_credentials table
+    const credentialsResult = await pool.query(
+      'SELECT service_type, credentials FROM client_credentials WHERE client_id = $1',
+      [clientId]
+    );
+
+    // Initialize settings structure
     const settings = {
       googleAnalytics: {
-        connected: Math.random() > 0.5,
-        propertyId: 'GA-XXXXX-X',
-        viewId: '123456789'
+        connected: false,
+        propertyId: null,
+        viewId: null
       },
       facebook: {
-        connected: Math.random() > 0.5,
-        pageId: '123456789',
-        accessToken: 'your-access-token'
+        connected: false,
+        pageId: null,
+        accessToken: null
       },
       searchConsole: {
-        connected: Math.random() > 0.5,
-        siteUrl: 'https://example.com'
+        connected: false,
+        siteUrl: null
       },
       googleTag: {
-        connected: Math.random() > 0.5,
-        tagId: 'GTM-XXXXXXX'
+        connected: false,
+        tagId: null
       },
       businessManager: {
-        connected: Math.random() > 0.5,
-        managerId: '123456789'
+        connected: false,
+        managerId: null
       }
     };
 
+    // Parse credentials and update settings
+    credentialsResult.rows.forEach(row => {
+      try {
+        const credentials = JSON.parse(row.credentials);
+        
+        switch (row.service_type) {
+          case 'google_analytics':
+            settings.googleAnalytics = {
+              connected: !!credentials.access_token || credentials.connected === true,
+              propertyId: credentials.property_id || null,
+              viewId: credentials.view_id || null
+            };
+            break;
+          case 'google_search_console':
+            settings.searchConsole = {
+              connected: !!credentials.access_token || credentials.connected === true,
+              siteUrl: credentials.site_url || null
+            };
+            break;
+          case 'facebook':
+            settings.facebook = {
+              connected: !!credentials.access_token || credentials.connected === true,
+              pageId: credentials.page_id || null,
+              accessToken: credentials.access_token ? '***hidden***' : null
+            };
+            break;
+        }
+      } catch (parseError) {
+        console.error(`Error parsing credentials for ${row.service_type}:`, parseError);
+      }
+    });
+
+    console.log(`📊 Client ${clientId} settings loaded:`, settings);
     res.json(settings);
   } catch (error) {
     console.error('Get client settings error:', error);
@@ -2663,22 +2702,35 @@ router.get('/analytics/client/:clientId/real', async (req, res) => {
     const { clientId } = req.params;
     const { propertyId } = req.query;
     
+    console.log(`🔍 Real analytics request for client ${clientId}, propertyId: ${propertyId}`);
+    
+    if (!propertyId) {
+      return res.status(400).json({ 
+        error: 'Property ID is required',
+        needsPropertyId: true
+      });
+    }
+    
     const googleAnalyticsService = require('../services/googleAnalyticsService').default;
     const hasCredentials = await googleAnalyticsService.hasValidCredentials(parseInt(clientId));
     
     if (!hasCredentials) {
+      console.log(`⚠️ No OAuth credentials for client ${clientId}, but Property ID provided: ${propertyId}`);
       return res.status(400).json({ 
-        error: 'Google Analytics not connected',
+        error: 'Google Analytics OAuth not connected. Please connect your Google Analytics account first.',
         needsAuth: true,
-        service: 'google_analytics'
+        service: 'google_analytics',
+        propertyId: propertyId
       });
     }
 
+    console.log(`✅ OAuth credentials found for client ${clientId}, fetching real data...`);
     const analyticsData = await googleAnalyticsService.getAnalyticsData(
       parseInt(clientId), 
       propertyId as string
     );
 
+    console.log(`✅ Real analytics data fetched for client ${clientId}:`, analyticsData);
     res.json(analyticsData);
   } catch (error) {
     console.error('Get real analytics data error:', error);
