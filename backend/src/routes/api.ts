@@ -2885,6 +2885,10 @@ const analyticsDataService = new AnalyticsDataService();
 const { EnhancedAnalyticsService } = require('../services/enhancedAnalyticsService');
 const enhancedAnalyticsService = new EnhancedAnalyticsService();
 
+// Initialize comprehensive analytics service
+const { ComprehensiveAnalyticsService } = require('../services/comprehensiveAnalyticsService');
+const comprehensiveAnalyticsService = new ComprehensiveAnalyticsService();
+
 // Comprehensive sync for all analytics data
 router.post('/analytics/comprehensive-sync/:clientId', requireAuth, async (req, res) => {
   try {
@@ -3008,6 +3012,159 @@ router.post('/analytics/modern-report/:clientId', requireAuth, async (req, res) 
   } catch (error) {
     console.error('Generate modern analytics report error:', error);
     res.status(500).json({ error: 'Failed to generate modern analytics report' });
+  }
+});
+
+// ==================== COMPREHENSIVE ANALYTICS ENDPOINTS ====================
+
+// Get detailed page insights
+router.get('/analytics/page-insights/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { dateFrom, dateTo } = req.query;
+
+    if (!dateFrom || !dateTo) {
+      return res.status(400).json({ error: 'dateFrom and dateTo are required' });
+    }
+
+    const pageInsights = await comprehensiveAnalyticsService.getPageInsights(
+      parseInt(clientId),
+      dateFrom as string,
+      dateTo as string
+    );
+
+    res.json({
+      success: true,
+      data: pageInsights
+    });
+  } catch (error) {
+    console.error('Get page insights error:', error);
+    res.status(500).json({ error: 'Failed to get page insights' });
+  }
+});
+
+// Get geographic data
+router.get('/analytics/geographic/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { dateFrom, dateTo } = req.query;
+
+    if (!dateFrom || !dateTo) {
+      return res.status(400).json({ error: 'dateFrom and dateTo are required' });
+    }
+
+    const geographicData = await comprehensiveAnalyticsService.getGeographicData(
+      parseInt(clientId),
+      dateFrom as string,
+      dateTo as string
+    );
+
+    res.json({
+      success: true,
+      data: geographicData
+    });
+  } catch (error) {
+    console.error('Get geographic data error:', error);
+    res.status(500).json({ error: 'Failed to get geographic data' });
+  }
+});
+
+// Get keyword analysis
+router.get('/analytics/keywords/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { dateFrom, dateTo } = req.query;
+
+    if (!dateFrom || !dateTo) {
+      return res.status(400).json({ error: 'dateFrom and dateTo are required' });
+    }
+
+    const keywordAnalysis = await comprehensiveAnalyticsService.getKeywordAnalysis(
+      parseInt(clientId),
+      dateFrom as string,
+      dateTo as string
+    );
+
+    res.json({
+      success: true,
+      data: keywordAnalysis
+    });
+  } catch (error) {
+    console.error('Get keyword analysis error:', error);
+    res.status(500).json({ error: 'Failed to get keyword analysis' });
+  }
+});
+
+// Get monthly comparison
+router.get('/analytics/monthly-comparison/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { months = 6 } = req.query;
+
+    const monthlyComparison = await comprehensiveAnalyticsService.getMonthlyComparison(
+      parseInt(clientId),
+      parseInt(months as string)
+    );
+
+    res.json({
+      success: true,
+      data: monthlyComparison
+    });
+  } catch (error) {
+    console.error('Get monthly comparison error:', error);
+    res.status(500).json({ error: 'Failed to get monthly comparison' });
+  }
+});
+
+// Get developer insights
+router.get('/analytics/developer-insights/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { dateFrom, dateTo } = req.query;
+
+    if (!dateFrom || !dateTo) {
+      return res.status(400).json({ error: 'dateFrom and dateTo are required' });
+    }
+
+    const developerInsights = await comprehensiveAnalyticsService.getDeveloperInsights(
+      parseInt(clientId),
+      dateFrom as string,
+      dateTo as string
+    );
+
+    res.json({
+      success: true,
+      data: developerInsights
+    });
+  } catch (error) {
+    console.error('Get developer insights error:', error);
+    res.status(500).json({ error: 'Failed to get developer insights' });
+  }
+});
+
+// Get comprehensive client report
+router.get('/analytics/client-report/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { dateFrom, dateTo } = req.query;
+
+    if (!dateFrom || !dateTo) {
+      return res.status(400).json({ error: 'dateFrom and dateTo are required' });
+    }
+
+    const clientReport = await comprehensiveAnalyticsService.getClientReport(
+      parseInt(clientId),
+      dateFrom as string,
+      dateTo as string
+    );
+
+    res.json({
+      success: true,
+      data: clientReport
+    });
+  } catch (error) {
+    console.error('Get client report error:', error);
+    res.status(500).json({ error: 'Failed to get client report' });
   }
 });
 

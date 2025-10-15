@@ -171,6 +171,21 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
                  </li>
                )}
 
+               {/* Comprehensive Analytics Dashboard */}
+               {hasPageAccess('clients') && (
+                 <li className="nav-item">
+                   <Link
+                     className={`nav-link ${isActive('/app/comprehensive-analytics') ? 'active' : ''}`}
+                     to="/app/comprehensive-analytics"
+                     onClick={onNavigate}
+                     title={isCollapsed ? 'Comprehensive Analytics' : ''}
+                   >
+                     <i className="fas fa-chart-bar"></i>
+                     {!isCollapsed && 'Comprehensive Analytics'}
+                   </Link>
+                 </li>
+               )}
+
         {/* Leads - Own Section */}
         {hasPageAccess('leads') && (
           <li className="nav-item">
