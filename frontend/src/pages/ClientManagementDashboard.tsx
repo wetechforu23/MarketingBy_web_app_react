@@ -410,10 +410,58 @@ const ClientManagementDashboard: React.FC = () => {
 
   return (
     <div className="client-management-dashboard">
-      <div className="page-header">
+      {/* Header with Title and Profile */}
+      <div className="page-header" style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        marginBottom: '20px'
+      }}>
         <div>
           <h1>Client Management</h1>
           <p>Manage client analytics, settings, and integrations</p>
+        </div>
+        {/* Profile will be handled by the main layout */}
+      </div>
+
+      {/* Left Side Practice Switcher */}
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '15px',
+        marginBottom: '20px',
+        padding: '0 20px'
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          <label style={{ fontWeight: '600', fontSize: '14px', color: '#333' }}>Switch Practice:</label>
+          <select 
+            value={selectedClient?.id || ''} 
+            onChange={(e) => {
+              console.log('🎯 Client selection changed to:', e.target.value);
+              const client = clients.find(c => c.id === parseInt(e.target.value));
+              console.log('🎯 Found client:', client);
+              // Clear stale state while switching clients
+              setClientSettings(null);
+              setAnalyticsData(null);
+              setSuccessMessage(null);
+              setSelectedClient(client || null);
+            }}
+            style={{
+              padding: '10px 15px',
+              borderRadius: '8px',
+              border: '2px solid #ddd',
+              fontSize: '16px',
+              minWidth: '250px',
+              backgroundColor: 'white'
+            }}
+          >
+            <option value="">Choose a practice...</option>
+            {Array.isArray(clients) && clients.map(client => (
+              <option key={client.id} value={client.id}>
+                {client.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -456,49 +504,6 @@ const ClientManagementDashboard: React.FC = () => {
           </button>
         </div>
       )}
-
-      {/* Top Corner Practice Switcher */}
-      <div style={{ 
-        position: 'absolute', 
-        top: '20px', 
-        right: '20px', 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: '15px',
-        zIndex: 1000
-      }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          <label style={{ fontWeight: '600', fontSize: '12px', color: '#666' }}>Switch Practice:</label>
-          <select 
-            value={selectedClient?.id || ''} 
-            onChange={(e) => {
-              console.log('🎯 Client selection changed to:', e.target.value);
-              const client = clients.find(c => c.id === parseInt(e.target.value));
-              console.log('🎯 Found client:', client);
-              // Clear stale state while switching clients
-              setClientSettings(null);
-              setAnalyticsData(null);
-              setSuccessMessage(null);
-              setSelectedClient(client || null);
-            }}
-            style={{
-              padding: '8px 12px',
-              borderRadius: '6px',
-              border: '1px solid #ddd',
-              fontSize: '14px',
-              minWidth: '200px',
-              backgroundColor: 'white'
-            }}
-          >
-            <option value="">Choose a practice...</option>
-            {Array.isArray(clients) && clients.map(client => (
-              <option key={client.id} value={client.id}>
-                {client.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
 
       <div className="dashboard-content">
 
