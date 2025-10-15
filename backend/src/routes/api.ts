@@ -2872,7 +2872,42 @@ router.patch('/clients/:id/toggle-active', async (req, res) => {
 // Initialize analytics data service
 const analyticsDataService = new AnalyticsDataService();
 
-// Sync Google Analytics data for a client
+// Initialize enhanced analytics service
+const { EnhancedAnalyticsService } = require('../services/enhancedAnalyticsService');
+const enhancedAnalyticsService = new EnhancedAnalyticsService();
+
+// Comprehensive sync for all analytics data
+router.post('/analytics/comprehensive-sync/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { dateFrom, dateTo } = req.body;
+    const userId = req.session.userId;
+
+    if (!dateFrom || !dateTo) {
+      return res.status(400).json({ error: 'dateFrom and dateTo are required' });
+    }
+
+    console.log(`🔄 Starting comprehensive analytics sync for client ${clientId} from ${dateFrom} to ${dateTo}`);
+
+    const result = await enhancedAnalyticsService.performComprehensiveSync(
+      parseInt(clientId),
+      dateFrom,
+      dateTo,
+      userId
+    );
+
+    res.json({
+      success: true,
+      message: 'Comprehensive analytics sync completed successfully',
+      data: result
+    });
+  } catch (error) {
+    console.error('Comprehensive analytics sync error:', error);
+    res.status(500).json({ error: error.message || 'Failed to perform comprehensive analytics sync' });
+  }
+});
+
+// Sync Google Analytics data for a client (legacy endpoint)
 router.post('/analytics/sync/:clientId', requireAuth, async (req, res) => {
   try {
     const { clientId } = req.params;
@@ -2930,7 +2965,44 @@ router.get('/analytics/data/:clientId', requireAuth, async (req, res) => {
   }
 });
 
-// Generate analytics report
+// Generate modern analytics report
+router.post('/analytics/modern-report/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { reportName, reportType, dateFrom, dateTo, groupBy, serviceType, dataType } = req.body;
+    const userId = req.session.userId;
+
+    if (!reportName || !dateFrom || !dateTo) {
+      return res.status(400).json({ error: 'reportName, dateFrom, and dateTo are required' });
+    }
+
+    const filters = {
+      dateFrom,
+      dateTo,
+      groupBy: groupBy || 'daily',
+      serviceType,
+      dataType
+    };
+
+    const report = await enhancedAnalyticsService.generateModernReport(
+      parseInt(clientId),
+      reportName,
+      filters,
+      userId
+    );
+
+    res.json({
+      success: true,
+      message: 'Modern analytics report generated successfully',
+      data: report
+    });
+  } catch (error) {
+    console.error('Generate modern analytics report error:', error);
+    res.status(500).json({ error: 'Failed to generate modern analytics report' });
+  }
+});
+
+// Generate analytics report (legacy endpoint)
 router.post('/analytics/reports/:clientId', requireAuth, async (req, res) => {
   try {
     const { clientId } = req.params;

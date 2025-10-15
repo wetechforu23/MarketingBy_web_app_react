@@ -454,10 +454,10 @@ export class AnalyticsDataService {
     userId?: number
   ): Promise<number> {
     const result = await pool.query(`
-      INSERT INTO analytics_sync_logs (client_id, service_type, sync_type, date_from, date_to, synced_by)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO analytics_sync_logs (client_id, service_type, sync_type, date_from, date_to, status, synced_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id
-    `, [clientId, serviceType, syncType, dateFrom, dateTo, userId]);
+    `, [clientId, serviceType, syncType, dateFrom, dateTo, 'in_progress', userId]);
     
     return result.rows[0].id;
   }

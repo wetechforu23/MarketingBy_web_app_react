@@ -401,12 +401,13 @@ const ClientManagementDashboard: React.FC = () => {
     
     setSyncLoading(true);
     try {
-      const response = await http.post(`/analytics/sync/${selectedClient.id}`, {
+      // Use comprehensive sync for all useful data
+      const response = await http.post(`/analytics/comprehensive-sync/${selectedClient.id}`, {
         dateFrom,
         dateTo
       });
       
-      setSuccessMessageText('✅ Analytics data synced successfully!');
+      setSuccessMessageText('✅ All analytics data synced successfully! (Google Analytics, Search Console, Leads)');
       setShowSuccessModal(true);
       await fetchAnalyticsReports();
       setShowSyncModal(false);
@@ -424,14 +425,16 @@ const ClientManagementDashboard: React.FC = () => {
     
     setReportLoading(true);
     try {
-      const response = await http.post(`/analytics/reports/${selectedClient.id}`, {
+      // Use modern report generation with comprehensive data
+      const response = await http.post(`/analytics/modern-report/${selectedClient.id}`, {
         reportName,
         reportType,
         dateFrom,
-        dateTo
+        dateTo,
+        groupBy: 'daily'
       });
       
-      setSuccessMessageText('✅ Analytics report generated successfully!');
+      setSuccessMessageText('✅ Modern analytics report generated successfully!');
       setShowSuccessModal(true);
       await fetchAnalyticsReports();
       setShowReportModal(false);
@@ -862,40 +865,40 @@ const ClientManagementDashboard: React.FC = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                     <h3>Analytics Reports</h3>
                     <div style={{ display: 'flex', gap: '10px' }}>
-                      <button 
-                        onClick={() => setShowSyncModal(true)}
-                        style={{
-                          padding: '10px 20px',
-                          backgroundColor: '#28a745',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px'
-                        }}
-                      >
-                        <i className="fas fa-sync-alt"></i>
-                        Sync Data
-                      </button>
-                      <button 
-                        onClick={() => setShowReportModal(true)}
-                        style={{
-                          padding: '10px 20px',
-                          backgroundColor: '#007bff',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px'
-                        }}
-                      >
-                        <i className="fas fa-file-pdf"></i>
-                        Generate Report
-                      </button>
+               <button 
+                 onClick={() => setShowSyncModal(true)}
+                 style={{
+                   padding: '10px 20px',
+                   backgroundColor: '#28a745',
+                   color: 'white',
+                   border: 'none',
+                   borderRadius: '8px',
+                   cursor: 'pointer',
+                   display: 'flex',
+                   alignItems: 'center',
+                   gap: '8px'
+                 }}
+               >
+                 <i className="fas fa-sync-alt"></i>
+                 Comprehensive Sync
+               </button>
+               <button 
+                 onClick={() => setShowReportModal(true)}
+                 style={{
+                   padding: '10px 20px',
+                   backgroundColor: '#007bff',
+                   color: 'white',
+                   border: 'none',
+                   borderRadius: '8px',
+                   cursor: 'pointer',
+                   display: 'flex',
+                   alignItems: 'center',
+                   gap: '8px'
+                 }}
+               >
+                 <i className="fas fa-file-pdf"></i>
+                 Modern Report
+               </button>
                     </div>
                   </div>
 
@@ -1615,10 +1618,13 @@ const ClientManagementDashboard: React.FC = () => {
             width: '90%',
             maxWidth: '500px'
           }}>
-            <h3 style={{ margin: '0 0 20px 0' }}>Sync Analytics Data</h3>
-            <p style={{ color: '#666', marginBottom: '20px' }}>
-              Select a date range to sync Google Analytics data for {selectedClient?.name}
-            </p>
+             <h3 style={{ margin: '0 0 20px 0' }}>Comprehensive Analytics Sync</h3>
+             <p style={{ color: '#666', marginBottom: '20px' }}>
+               Select a date range to sync ALL analytics data for {selectedClient?.name}:<br/>
+               • Google Analytics (page views, sessions, users, devices, traffic sources)<br/>
+               • Search Console (search queries, impressions, clicks)<br/>
+               • Leads data (conversions, sources, daily counts)
+             </p>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
               <div>
@@ -1702,10 +1708,13 @@ const ClientManagementDashboard: React.FC = () => {
             width: '90%',
             maxWidth: '500px'
           }}>
-            <h3 style={{ margin: '0 0 20px 0' }}>Generate Analytics Report</h3>
-            <p style={{ color: '#666', marginBottom: '20px' }}>
-              Create a comprehensive analytics report for {selectedClient?.name}
-            </p>
+             <h3 style={{ margin: '0 0 20px 0' }}>Generate Modern Analytics Report</h3>
+             <p style={{ color: '#666', marginBottom: '20px' }}>
+               Create a comprehensive modern analytics report for {selectedClient?.name} with:<br/>
+               • Complete data visualization and insights<br/>
+               • Filterable data by date, service, and metrics<br/>
+               • Exportable PDF reports for client presentations
+             </p>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
               <div>
