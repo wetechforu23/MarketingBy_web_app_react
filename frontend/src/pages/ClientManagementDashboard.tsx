@@ -563,6 +563,23 @@ const ClientManagementDashboard: React.FC = () => {
     }
   }, [selectedClient, activeTab, syncDateFrom, syncDateTo]);
 
+  // Set default report name when modal opens
+  useEffect(() => {
+    if (showReportModal && selectedClient) {
+      const reportNameInput = document.getElementById('report-name') as HTMLInputElement;
+      const reportTypeSelect = document.getElementById('report-type') as HTMLSelectElement;
+      
+      if (reportNameInput && reportTypeSelect) {
+        // Set default to daily report
+        reportTypeSelect.value = 'daily';
+        
+        // Trigger the onChange to generate the report name
+        const event = new Event('change', { bubbles: true });
+        reportTypeSelect.dispatchEvent(event);
+      }
+    }
+  }, [showReportModal, selectedClient]);
+
   if (loading) {
     return (
       <div className="loading-full-screen">
@@ -940,29 +957,6 @@ const ClientManagementDashboard: React.FC = () => {
                     </div>
 
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                      <input
-                        type="date"
-                        value={reportDateFrom}
-                        onChange={(e) => setReportDateFrom(e.target.value)}
-                        style={{
-                          padding: '8px 12px',
-                          border: '1px solid #ddd',
-                          borderRadius: '6px',
-                          fontSize: '14px'
-                        }}
-                      />
-                      <span>to</span>
-                      <input
-                        type="date"
-                        value={reportDateTo}
-                        onChange={(e) => setReportDateTo(e.target.value)}
-                        style={{
-                          padding: '8px 12px',
-                          border: '1px solid #ddd',
-                          borderRadius: '6px',
-                          fontSize: '14px'
-                        }}
-                      />
                       <button
                         onClick={() => setShowReportModal(true)}
                         style={{
@@ -2400,7 +2394,7 @@ const ClientManagementDashboard: React.FC = () => {
                 <input 
                   type="text" 
                   id="report-name"
-                  placeholder="e.g., Monthly Analytics Report"
+                  placeholder="Auto-generated report name"
                   style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px' }}
                 />
               </div>
@@ -2408,29 +2402,39 @@ const ClientManagementDashboard: React.FC = () => {
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Report Type:</label>
                 <select 
                   id="report-type"
+                  onChange={(e) => {
+                    const reportType = e.target.value;
+                    const reportNameInput = document.getElementById('report-name') as HTMLInputElement;
+                    if (reportNameInput) {
+                      const clientName = selectedClient?.name || 'Client';
+                      const today = new Date();
+                      let reportName = '';
+                      
+                      if (reportType === 'daily') {
+                        const dateStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        reportName = `${clientName} - Daily Report - ${dateStr}`;
+                      } else if (reportType === 'weekly') {
+                        const weekStart = new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000);
+                        const weekEnd = today;
+                        const startStr = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        const endStr = weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        reportName = `${clientName} - Weekly Report - ${startStr} to ${endStr}`;
+                      } else if (reportType === 'monthly') {
+                        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                        const startStr = monthStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        const endStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        reportName = `${clientName} - Monthly Report - ${startStr} to ${endStr}`;
+                      }
+                      
+                      reportNameInput.value = reportName;
+                    }
+                  }}
                   style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px' }}
                 >
                   <option value="daily">Daily Report</option>
                   <option value="weekly">Weekly Report</option>
                   <option value="monthly">Monthly Report</option>
-                  <option value="custom">Custom Period</option>
                 </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>From Date:</label>
-                <input 
-                  type="date" 
-                  id="report-date-from"
-                  style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px' }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>To Date:</label>
-                <input 
-                  type="date" 
-                  id="report-date-to"
-                  style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px' }}
-                />
               </div>
             </div>
 
@@ -2452,10 +2456,22 @@ const ClientManagementDashboard: React.FC = () => {
                 onClick={() => {
                   const reportName = (document.getElementById('report-name') as HTMLInputElement)?.value;
                   const reportType = (document.getElementById('report-type') as HTMLSelectElement)?.value;
-                  const dateFrom = (document.getElementById('report-date-from') as HTMLInputElement)?.value;
-                  const dateTo = (document.getElementById('report-date-to') as HTMLInputElement)?.value;
                   
-                  if (reportName && dateFrom && dateTo) {
+                  if (reportName && reportType) {
+                    const today = new Date();
+                    let dateFrom = '';
+                    let dateTo = today.toISOString().split('T')[0];
+                    
+                    if (reportType === 'daily') {
+                      dateFrom = today.toISOString().split('T')[0];
+                    } else if (reportType === 'weekly') {
+                      const weekStart = new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000);
+                      dateFrom = weekStart.toISOString().split('T')[0];
+                    } else if (reportType === 'monthly') {
+                      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                      dateFrom = monthStart.toISOString().split('T')[0];
+                    }
+                    
                     generateReport(reportName, reportType, dateFrom, dateTo);
                   } else {
                     setError('Please fill in all fields');
