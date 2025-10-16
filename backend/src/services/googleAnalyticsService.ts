@@ -190,7 +190,6 @@ export class GoogleAnalyticsService {
       
       // Set up the request for basic metrics
       const request = {
-        property: `properties/${propertyId}`,
         dateRanges: [
           {
             startDate: '30daysAgo',
@@ -212,13 +211,13 @@ export class GoogleAnalyticsService {
       };
 
       const response = await analytics.properties.runReport({
-        ...request,
+        property: `properties/${propertyId}`,
+        requestBody: request,
         auth: this.oauth2Client
       });
 
       // Get traffic source data
       const trafficRequest = {
-        property: `properties/${propertyId}`,
         dateRanges: [
           {
             startDate: '30daysAgo',
@@ -235,7 +234,8 @@ export class GoogleAnalyticsService {
       };
 
       const trafficResponse = await analytics.properties.runReport({
-        ...trafficRequest,
+        property: `properties/${propertyId}`,
+        requestBody: trafficRequest,
         auth: this.oauth2Client
       });
 
