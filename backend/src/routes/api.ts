@@ -3527,7 +3527,7 @@ function generateAnalyticsReportHTML(report: any, reportData: any): string {
         </div>
         ` : ''}
 
-        ${pages.topPages ? `
+        ${pages.topPages && Array.isArray(pages.topPages) ? `
         <div class="section">
             <h2>📄 Top Performing Pages</h2>
             <table class="data-table">
@@ -3540,7 +3540,7 @@ function generateAnalyticsReportHTML(report: any, reportData: any): string {
                     </tr>
                 </thead>
                 <tbody>
-                    ${(pages.topPages.slice(0, 5) || []).map((page: any) => `
+                    ${pages.topPages.slice(0, 5).map((page: any) => `
                     <tr>
                         <td>${page.page || 'N/A'}</td>
                         <td>${page.views || 0}</td>
@@ -3553,10 +3553,10 @@ function generateAnalyticsReportHTML(report: any, reportData: any): string {
         </div>
         ` : ''}
 
-        ${recommendations.immediateActions ? `
+        ${recommendations.immediateActions && Array.isArray(recommendations.immediateActions) ? `
         <div class="section">
             <h2>💡 Key Recommendations</h2>
-            ${(recommendations.immediateActions || []).map((action: any) => `
+            ${recommendations.immediateActions.map((action: any) => `
             <div class="recommendation">
                 <h4>${action.title || 'Action Item'}</h4>
                 <p>${action.description || 'No description available'}</p>
