@@ -200,8 +200,7 @@ export class GoogleAnalyticsService {
           newUsers: 0,
           avgSessionDuration: 0,
           topPages: [],
-          trafficSources: [],
-          error: 'GA4 Measurement ID provided. Need numeric Property ID for Data API access.'
+          trafficSources: []
         };
       }
       
