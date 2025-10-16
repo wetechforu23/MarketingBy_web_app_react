@@ -1875,6 +1875,44 @@ NOTES:
 
 ## Versioned Change Log
 
+**DATE**: 2025-10-16 23:00 PST
+**VERSION**: v1.2.3
+**AUTHOR**: Viral T.
+
+**FEATURE / CHANGE TITLE**:
+PDF Export Array Error Fix - Robust Data Handling
+
+**TYPE**: bugfix
+
+**SUMMARY**:
+- Fixed "TypeError: pages.topPages.slice is not a function" error in PDF generation
+- Added Array.isArray() validation before calling array methods (.slice, .map)
+- Enhanced error handling for malformed report data structures
+- Improved robustness of HTML generation for PDF reports
+- Prevented crashes when report data doesn't match expected structure
+
+**IMPACTED AREAS**:
+- Backend: api.ts (generateAnalyticsReportHTML function)
+- PDF Generation: Enhanced array validation and error handling
+- Data Processing: Improved handling of non-array data in report sections
+
+**MIGRATIONS**:
+- None required - existing report data structure maintained
+
+**FEATURE FLAGS**:
+- PDF export functionality remains enabled
+- Enhanced error handling applied to all report generation
+
+**QUOTA TRACKING**:
+- No additional third-party API usage
+- Improved reliability reduces failed export attempts
+
+**ROLLBACKS**:
+- Can revert array validation if needed
+- Existing fallback mechanisms remain in place
+
+---
+
 **DATE**: 2025-10-16 22:45 PST
 **VERSION**: v1.2.2
 **AUTHOR**: Viral T.
