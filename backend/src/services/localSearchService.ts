@@ -1,5 +1,5 @@
 import { GooglePlacesService, GooglePlace } from './googlePlacesService';
-import { pool } from '../config/database';
+import pool from '../config/database';
 
 export interface LocalSearchResult {
   place_id: string;
