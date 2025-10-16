@@ -185,6 +185,89 @@ export class GoogleAnalyticsService {
 
       console.log(`Getting REAL analytics data for client ${clientId} with property ${propertyId}`);
       
+      // For GA4 Measurement IDs (G-XXXXX-X), we need to convert to numeric Property ID
+      if (propertyId.startsWith('G-')) {
+        console.log(`GA4 Measurement ID detected: ${propertyId}. Attempting to get numeric Property ID.`);
+        
+        try {
+          // Use Google Analytics Admin API to get the numeric Property ID
+          const analyticsadmin = google.analyticsadmin('v1beta');
+          
+          // List all properties to find the one with our Measurement ID
+          const accountsResponse = await analyticsadmin.accounts.list({
+            auth: this.oauth2Client
+          });
+          
+          let numericPropertyId = null;
+          
+          if (accountsResponse.data.accounts) {
+            for (const account of accountsResponse.data.accounts) {
+              if (account.name) {
+                const propertiesResponse = await analyticsadmin.accounts.properties.list({
+                  parent: account.name,
+                  auth: this.oauth2Client
+                });
+                
+                if (propertiesResponse.data.properties) {
+                  for (const property of propertiesResponse.data.properties) {
+                    if (property.displayName && property.name) {
+                      // Check if this property has our Measurement ID
+                      const dataStreamsResponse = await analyticsadmin.properties.dataStreams.list({
+                        parent: property.name,
+                        auth: this.oauth2Client
+                      });
+                      
+                      if (dataStreamsResponse.data.dataStreams) {
+                        for (const stream of dataStreamsResponse.data.dataStreams) {
+                          if (stream.webStreamData?.measurementId === propertyId) {
+                            // Extract numeric Property ID from the property name
+                            const match = property.name.match(/properties\/(\d+)/);
+                            if (match) {
+                              numericPropertyId = match[1];
+                              console.log(`Found numeric Property ID: ${numericPropertyId} for Measurement ID: ${propertyId}`);
+                              break;
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          
+          if (!numericPropertyId) {
+            console.log(`Could not find numeric Property ID for Measurement ID: ${propertyId}. Using fallback.`);
+            return {
+              pageViews: 0,
+              sessions: 0,
+              bounceRate: 0,
+              users: 0,
+              newUsers: 0,
+              avgSessionDuration: 0,
+              topPages: [],
+              trafficSources: []
+            };
+          }
+          
+          // Use the numeric Property ID for the API call
+          propertyId = numericPropertyId;
+        } catch (error) {
+          console.error(`Error getting numeric Property ID for ${propertyId}:`, error);
+          return {
+            pageViews: 0,
+            sessions: 0,
+            bounceRate: 0,
+            users: 0,
+            newUsers: 0,
+            avgSessionDuration: 0,
+            topPages: [],
+            trafficSources: []
+          };
+        }
+      }
+      
       // Get real data from Google Analytics API
       const analytics = google.analyticsdata('v1beta');
       
