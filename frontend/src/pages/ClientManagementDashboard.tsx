@@ -109,6 +109,7 @@ const ClientManagementDashboard: React.FC = () => {
   const [localSearchLoading, setLocalSearchLoading] = useState(false);
   const [localSearchQueries, setLocalSearchQueries] = useState<string>('');
   const [localSearchRadius, setLocalSearchRadius] = useState<number>(10000);
+  const [analyticsReports, setAnalyticsReports] = useState<any[]>([]);
 
   useEffect(() => {
     fetchClients();
@@ -497,7 +498,9 @@ const ClientManagementDashboard: React.FC = () => {
     
     try {
       const response = await http.get(`/analytics/reports/${selectedClient.id}`);
-      setReports(response.data.data || []);
+      const reportsData = response.data.data || [];
+      setReports(reportsData);
+      setAnalyticsReports(reportsData);
     } catch (error) {
       console.error('Error fetching analytics reports:', error);
     }
@@ -552,9 +555,11 @@ const ClientManagementDashboard: React.FC = () => {
 
   // Fetch analytics data when client changes
   useEffect(() => {
-    if (selectedClient && activeTab === 'analytics') {
+    if (selectedClient && (activeTab === 'analytics' || activeTab === 'reports')) {
       fetchAnalyticsReports();
-      fetchComprehensiveAnalytics();
+      if (activeTab === 'analytics') {
+        fetchComprehensiveAnalytics();
+      }
     }
   }, [selectedClient, activeTab, syncDateFrom, syncDateTo]);
 
