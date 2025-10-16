@@ -119,10 +119,10 @@ export class SEOChecklistService {
         pages_audited: pageResults.length,
         pages: pageResults,
         summary: {
-          total_checks,
-          passed_checks,
-          failed_checks,
-          warning_checks,
+          total_checks: totalChecks,
+          passed_checks: passedChecks,
+          failed_checks: failedChecks,
+          warning_checks: warningChecks,
           critical_issues: criticalIssues,
           improvement_opportunities: improvementOpportunities
         },
@@ -138,7 +138,7 @@ export class SEOChecklistService {
   /**
    * Get SEO configuration for a client
    */
-  private async getSEOConfiguration(clientId: number): Promise<any> {
+  async getSEOConfiguration(clientId: number): Promise<any> {
     try {
       const result = await pool.query(
         'SELECT * FROM seo_configurations WHERE client_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
@@ -1099,24 +1099,4 @@ export class SEOChecklistService {
     }
   }
 
-  /**
-   * Get SEO configuration for a client
-   */
-  async getSEOConfiguration(clientId: number): Promise<any> {
-    try {
-      const result = await pool.query(
-        'SELECT * FROM seo_configurations WHERE client_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
-        [clientId]
-      );
-
-      if (result.rows.length === 0) {
-        return this.getDefaultSEOConfiguration();
-      }
-
-      return result.rows[0];
-    } catch (error) {
-      console.error('Error getting SEO configuration:', error);
-      return this.getDefaultSEOConfiguration();
-    }
-  }
 }

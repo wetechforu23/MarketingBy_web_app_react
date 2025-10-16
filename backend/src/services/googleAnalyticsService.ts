@@ -106,7 +106,7 @@ export class GoogleAnalyticsService {
   /**
    * Get client credentials from database
    */
-  private async getClientCredentials(clientId: number): Promise<any> {
+  async getClientCredentials(clientId: number): Promise<any> {
     try {
       const result = await pool.query(
         'SELECT credentials FROM client_credentials WHERE client_id = $1 AND service_type = $2',
