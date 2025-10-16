@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { http } from '../api/http';
+import SEODashboard from './SEODashboard';
 
 interface Client {
   id: number;
@@ -82,7 +83,7 @@ const ClientManagementDashboard: React.FC = () => {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [clientSettings, setClientSettings] = useState<ClientSettings | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'settings' | 'seo'>('overview');
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -791,6 +792,25 @@ const ClientManagementDashboard: React.FC = () => {
                 📈 Analytics
               </button>
               <button 
+                onClick={() => setActiveTab('seo')}
+                style={{
+                  padding: '16px 24px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  borderBottom: activeTab === 'seo' ? '3px solid #007bff' : '3px solid transparent',
+                  color: activeTab === 'seo' ? '#007bff' : '#6c757d',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                🔍 SEO Analysis
+              </button>
+              <button 
                 onClick={() => setActiveTab('settings')}
                 style={{
                   padding: '16px 24px',
@@ -813,6 +833,9 @@ const ClientManagementDashboard: React.FC = () => {
 
             {/* Tab Content */}
             <div className="tab-content">
+              {activeTab === 'seo' && selectedClient && (
+                <SEODashboard clientId={selectedClient.id} clientName={selectedClient.name} />
+              )}
               {activeTab === 'overview' && (
                 <div className="overview-grid">
                   {/* Google Analytics Card */}
