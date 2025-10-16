@@ -213,7 +213,19 @@ export class GoogleSearchConsoleService {
         if (error.code === 403) {
           console.log(`❌ Search Console permission denied for site: ${siteUrl}`);
           console.log(`❌ Error: ${error.message}`);
-          throw new Error(`Search Console permission denied for site '${siteUrl}'. Please ensure the site is verified in Google Search Console and the OAuth account has access.`);
+          console.log(`⚠️ Returning empty Search Console data for site: ${siteUrl}`);
+          
+          // Return empty data instead of throwing error to prevent 500 errors
+          return {
+            totalClicks: 0,
+            totalImpressions: 0,
+            averageCtr: 0,
+            averagePosition: 0,
+            topQueries: [],
+            topPages: [],
+            devices: [],
+            countries: []
+          };
         }
         throw error;
       }
@@ -237,7 +249,19 @@ export class GoogleSearchConsoleService {
         if (error.code === 403) {
           console.log(`❌ Search Console permission denied for site: ${siteUrl}`);
           console.log(`❌ Error: ${error.message}`);
-          throw new Error(`Search Console permission denied for site '${siteUrl}'. Please ensure the site is verified in Google Search Console and the OAuth account has access.`);
+          console.log(`⚠️ Returning empty Search Console data for site: ${siteUrl}`);
+          
+          // Return empty data instead of throwing error to prevent 500 errors
+          return {
+            totalClicks: 0,
+            totalImpressions: 0,
+            averageCtr: 0,
+            averagePosition: 0,
+            topQueries: [],
+            topPages: [],
+            devices: [],
+            countries: []
+          };
         }
         throw error;
       }

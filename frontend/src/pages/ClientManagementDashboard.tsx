@@ -314,6 +314,7 @@ const ClientManagementDashboard: React.FC = () => {
         // Check if it's a permission error and show helpful message
         if (realError.response?.status === 500 && realError.response?.data?.error?.includes('permission denied')) {
           console.log('❌ Search Console permission issue detected');
+          console.log('💡 To fix: Verify the site in Google Search Console and ensure OAuth account has access');
           // You could show a toast notification here if you have a toast system
         }
       }
