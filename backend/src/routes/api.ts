@@ -3281,12 +3281,35 @@ router.post('/analytics/export/:reportId', requireAuth, async (req, res) => {
       : report.report_data;
 
     if (format === 'pdf') {
-      // Generate simple text-based report for now
-      const reportContent = generateAnalyticsReportContent(report, reportData);
+      // Generate HTML content for PDF
+      const htmlContent = generateAnalyticsReportHTML(report, reportData);
       
-      res.setHeader('Content-Type', 'text/plain');
-      res.setHeader('Content-Disposition', `attachment; filename="analytics-report-${reportId}.txt"`);
-      res.send(reportContent);
+      // Use puppeteer to generate PDF
+      const puppeteer = require('puppeteer');
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+      
+      const page = await browser.newPage();
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '20mm',
+          right: '20mm',
+          bottom: '20mm',
+          left: '20mm'
+        }
+      });
+      
+      await browser.close();
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="analytics-report-${reportId}.pdf"`);
+      res.send(pdfBuffer);
     } else {
       res.status(400).json({ error: 'Unsupported export format' });
     }
@@ -3296,60 +3319,249 @@ router.post('/analytics/export/:reportId', requireAuth, async (req, res) => {
   }
 });
 
-// Helper function to generate analytics report content
-function generateAnalyticsReportContent(report: any, reportData: any): string {
+// Helper function to generate analytics report HTML content
+function generateAnalyticsReportHTML(report: any, reportData: any): string {
   const summary = reportData.summary || {};
-  const detailedData = reportData.detailedData || [];
-  
-  let content = `
-========================================
-ANALYTICS REPORT
-========================================
+  const overview = reportData.overview || {};
+  const analytics = reportData.analytics || {};
+  const seo = reportData.seo || {};
+  const pages = reportData.pages || {};
+  const technical = reportData.technical || {};
+  const recommendations = reportData.recommendations || {};
+  const comparison = reportData.comparison || {};
 
-Report Name: ${report.report_name}
-Client: ${report.client_name}
-Date Range: ${report.date_from} to ${report.date_to}
-Generated: ${report.generated_at}
-Report Type: ${report.report_type}
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Report - ${report.report_name}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #007bff;
+            margin: 0;
+            font-size: 28px;
+        }
+        .header .subtitle {
+            color: #666;
+            margin: 10px 0 0 0;
+            font-size: 16px;
+        }
+        .report-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 30px;
+            border-left: 4px solid #007bff;
+        }
+        .section {
+            margin-bottom: 30px;
+            page-break-inside: avoid;
+        }
+        .section h2 {
+            color: #007bff;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            font-size: 22px;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .metric-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 5px;
+        }
+        .metric-label {
+            font-size: 14px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .data-table th,
+        .data-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .data-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+        .recommendation {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .recommendation h4 {
+            margin: 0 0 10px 0;
+            color: #1976d2;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            color: #666;
+            font-size: 12px;
+        }
+        @media print {
+            body { background: white; }
+            .container { box-shadow: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Analytics Report</h1>
+            <p class="subtitle">Comprehensive Business Intelligence Report</p>
+        </div>
 
-========================================
-SUMMARY
-========================================
+        <div class="report-info">
+            <strong>Report Name:</strong> ${report.report_name}<br>
+            <strong>Client:</strong> ${report.client_name}<br>
+            <strong>Date Range:</strong> ${new Date(report.date_from).toLocaleDateString()} to ${new Date(report.date_to).toLocaleDateString()}<br>
+            <strong>Generated:</strong> ${new Date(report.generated_at).toLocaleDateString()}
+        </div>
 
-Total Page Views: ${summary.totalPageViews || 0}
-Total Clicks: ${summary.totalClicks || 0}
-Total Leads: ${summary.totalLeads || 0}
-Total Sessions: ${summary.totalSessions || 0}
-Total Users: ${summary.totalUsers || 0}
-Bounce Rate: ${summary.bounceRate || 0}%
-Average Session Duration: ${summary.avgSessionDuration || 0} seconds
+        ${overview.summary ? `
+        <div class="section">
+            <h2>📈 Executive Summary</h2>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-value">${overview.summary.totalPageViews || 0}</div>
+                    <div class="metric-label">Total Page Views</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${overview.summary.totalSessions || 0}</div>
+                    <div class="metric-label">Total Sessions</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${overview.summary.bounceRate || 0}%</div>
+                    <div class="metric-label">Bounce Rate</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${overview.summary.totalUsers || 0}</div>
+                    <div class="metric-label">Total Users</div>
+                </div>
+            </div>
+        </div>
+        ` : ''}
 
-========================================
-DETAILED DATA
-========================================
+        ${analytics.trafficData ? `
+        <div class="section">
+            <h2>🚀 Traffic Analysis</h2>
+            <p><strong>Traffic Overview:</strong> Your website received ${analytics.trafficData.totalVisits || 0} total visits during this period.</p>
+            <p><strong>User Engagement:</strong> Average session duration was ${analytics.trafficData.avgSessionDuration || 'N/A'} with a bounce rate of ${analytics.trafficData.bounceRate || 0}%.</p>
+        </div>
+        ` : ''}
 
-`;
+        ${seo.searchPerformance ? `
+        <div class="section">
+            <h2>🔍 SEO Performance</h2>
+            <p><strong>Search Visibility:</strong> Your website's search performance shows ${seo.searchPerformance.overallScore || 'N/A'} overall SEO score.</p>
+            <p><strong>Keyword Rankings:</strong> ${seo.searchPerformance.totalKeywords || 0} keywords are being tracked.</p>
+        </div>
+        ` : ''}
 
-  if (detailedData && detailedData.length > 0) {
-    content += `Date\t\tService\t\tData Type\t\tValue\n`;
-    content += `----\t\t-------\t\t---------\t\t-----\n`;
-    
-    detailedData.forEach((item: any) => {
-      content += `${item.date}\t${item.service_type || 'N/A'}\t${item.data_type || 'N/A'}\t\t${item.value || 0}\n`;
-    });
-  } else {
-    content += `No detailed data available for this report.\n`;
-  }
+        ${pages.topPages ? `
+        <div class="section">
+            <h2>📄 Top Performing Pages</h2>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Page</th>
+                        <th>Views</th>
+                        <th>Bounce Rate</th>
+                        <th>Avg. Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${(pages.topPages.slice(0, 5) || []).map((page: any) => `
+                    <tr>
+                        <td>${page.page || 'N/A'}</td>
+                        <td>${page.views || 0}</td>
+                        <td>${page.bounceRate || 0}%</td>
+                        <td>${page.avgTime || 'N/A'}</td>
+                    </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+        ` : ''}
 
-  content += `
-========================================
-END OF REPORT
-========================================
+        ${recommendations.immediateActions ? `
+        <div class="section">
+            <h2>💡 Key Recommendations</h2>
+            ${(recommendations.immediateActions || []).map((action: any) => `
+            <div class="recommendation">
+                <h4>${action.title || 'Action Item'}</h4>
+                <p>${action.description || 'No description available'}</p>
+                <strong>Priority:</strong> ${action.priority || 'Medium'}
+            </div>
+            `).join('')}
+        </div>
+        ` : ''}
 
-Generated by MarketingBy Analytics System
-`;
+        ${comparison.periodComparison ? `
+        <div class="section">
+            <h2>📊 Period Comparison</h2>
+            <p><strong>Growth Analysis:</strong> ${comparison.periodComparison.growthSummary || 'No comparison data available'}</p>
+        </div>
+        ` : ''}
 
-  return content;
+        <div class="footer">
+            <p>This report was generated by MarketingBy Analytics Platform</p>
+            <p>For questions about this report, please contact your account manager</p>
+        </div>
+    </div>
+</body>
+</html>
+  `;
 }
 
 // ==================== SEO ANALYSIS ENDPOINTS ====================
