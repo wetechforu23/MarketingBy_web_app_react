@@ -3239,6 +3239,57 @@ router.get('/analytics/reports/:clientId', requireAuth, async (req, res) => {
   }
 });
 
+// Delete analytics report
+router.delete('/analytics/reports/:reportId', requireAuth, async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const userId = req.session.userId;
+
+    // Check if report exists and user has permission
+    const reportResult = await pool.query(`
+      SELECT ar.*, c.client_name
+      FROM analytics_reports ar
+      JOIN clients c ON ar.client_id = c.id
+      WHERE ar.id = $1
+    `, [reportId]);
+
+    if (reportResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    const report = reportResult.rows[0];
+
+    // Check if user has permission to delete this report
+    const userResult = await pool.query(`
+      SELECT role, client_id, team_type
+      FROM users
+      WHERE id = $1
+    `, [userId]);
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+
+    // Super admin can delete any report, others can only delete their own client's reports
+    if (user.role !== 'super_admin' && user.client_id !== report.client_id) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    // Delete the report
+    await pool.query('DELETE FROM analytics_reports WHERE id = $1', [reportId]);
+
+    res.json({
+      success: true,
+      message: 'Report deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete analytics report error:', error);
+    res.status(500).json({ error: 'Failed to delete analytics report' });
+  }
+});
+
 // Get sync logs for a client
 router.get('/analytics/sync-logs/:clientId', requireAuth, async (req, res) => {
   try {

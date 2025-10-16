@@ -553,6 +553,26 @@ const ClientManagementDashboard: React.FC = () => {
     }
   };
 
+  const deleteReport = async (reportId: number) => {
+    if (!confirm('Are you sure you want to delete this report? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await http.delete(`/analytics/reports/${reportId}`);
+      
+      // Refresh the reports list
+      await fetchAnalyticsReports();
+      
+      setSuccessMessageText('✅ Report deleted successfully!');
+      setShowSuccessModal(true);
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to delete report';
+      setErrorMessage(`❌ ${errorMsg}`);
+      setShowErrorModal(true);
+    }
+  };
+
   // Fetch analytics data when client changes
   useEffect(() => {
     if (selectedClient && (activeTab === 'analytics' || activeTab === 'reports')) {
@@ -1008,20 +1028,36 @@ const ClientManagementDashboard: React.FC = () => {
                                 {new Date(report.date_from).toLocaleDateString()} to {new Date(report.date_to).toLocaleDateString()} • {report.group_by}
                               </div>
                             </div>
-                            <button
-                              onClick={() => exportReport(report.id)}
-                              style={{
-                                backgroundColor: '#dc3545',
-                                color: 'white',
-                                border: 'none',
-                                padding: '8px 16px',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                fontSize: '12px'
-                              }}
-                            >
-                              <i className="fas fa-download"></i> Export PDF
-                            </button>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button
+                                onClick={() => exportReport(report.id)}
+                                style={{
+                                  backgroundColor: '#dc3545',
+                                  color: 'white',
+                                  border: 'none',
+                                  padding: '8px 16px',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                <i className="fas fa-download"></i> Export PDF
+                              </button>
+                              <button
+                                onClick={() => deleteReport(report.id)}
+                                style={{
+                                  backgroundColor: '#6c757d',
+                                  color: 'white',
+                                  border: 'none',
+                                  padding: '8px 16px',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                <i className="fas fa-trash"></i> Delete
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
