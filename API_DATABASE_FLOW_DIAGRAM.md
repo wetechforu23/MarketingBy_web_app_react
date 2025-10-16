@@ -40,6 +40,7 @@ graph TB
         CampaignService[Campaign Service]
         SEOService[SEO Service]
         AISEOService[AI-Based SEO Service]
+        SEOChecklistService[SEO Checklist Service]
         EmailService[Email Service]
         SubscriptionService[Subscription Service]
         CredentialService[Credential Management Service]
@@ -444,6 +445,83 @@ erDiagram
     FEATURES ||--o{ FEATURE_USAGE : "tracked"
     
     USERS ||--o{ CONTENT_APPROVALS : "approves"
+    
+    SEO_CONFIGURATIONS {
+        int id PK
+        int client_id FK
+        string configuration_name
+        int title_min_length
+        int title_max_length
+        boolean title_require_keyword
+        boolean title_require_brand
+        boolean h1_require_keyword
+        int h1_max_count
+        int h1_min_length
+        int h1_max_length
+        int meta_desc_min_length
+        int meta_desc_max_length
+        boolean meta_desc_require_keyword
+        int url_max_length
+        boolean url_require_keyword
+        boolean url_avoid_stop_words
+        boolean url_require_lowercase
+        int content_min_words
+        decimal keyword_density_min
+        decimal keyword_density_max
+        boolean content_require_subheadings
+        int content_min_subheadings
+        int internal_links_min
+        int internal_links_max
+        int images_min_count
+        boolean images_require_alt
+        boolean images_require_optimization
+        boolean schema_require_organization
+        boolean schema_require_website
+        boolean schema_require_breadcrumb
+        boolean schema_require_article
+        boolean schema_require_local_business
+        decimal page_speed_lcp_max
+        decimal page_speed_cls_max
+        decimal page_speed_fid_max
+        boolean mobile_friendly_required
+        boolean ssl_required
+        boolean indexing_required
+        boolean sitemap_required
+        boolean robots_txt_required
+        boolean gtm_required
+        boolean ga4_required
+        boolean gsc_required
+        boolean social_meta_required
+        boolean canonical_required
+        jsonb custom_rules
+        boolean is_active
+        datetime created_at
+        datetime updated_at
+        int created_by FK
+    }
+    
+    SEO_PAGE_AUDITS {
+        int id PK
+        int client_id FK
+        string page_url
+        string page_title
+        jsonb audit_data
+        int overall_score
+        int total_checks
+        int passed_checks
+        int failed_checks
+        int warning_checks
+        datetime last_audited_at
+        int audit_duration_ms
+        string audit_source
+        boolean is_active
+        datetime created_at
+        datetime updated_at
+    }
+    
+    CLIENTS ||--o{ SEO_CONFIGURATIONS : "has"
+    CLIENTS ||--o{ SEO_PAGE_AUDITS : "audited"
+    USERS ||--o{ SEO_CONFIGURATIONS : "creates"
 ```
 
 ## 🔄 API Request Flow
@@ -675,6 +753,16 @@ POST   /seo_audit           - Create SEO audit
 GET    /seo_audit/<id>      - Get audit details
 GET    /analytics           - Get analytics data
 POST   /analytics/export    - Export analytics
+```
+
+### SEO Checklist Endpoints
+```
+GET    /seo/checklist/<clientId>           - Get comprehensive SEO checklist for client
+GET    /seo/configuration/<clientId>       - Get SEO configuration for client
+PUT    /seo/configuration/<clientId>       - Update SEO configuration for client
+GET    /seo/analysis/<clientId>            - Get SEO analysis for client
+GET    /seo/score/<clientId>               - Get SEO score only
+GET    /seo/recommendations/<clientId>     - Get SEO recommendations only
 ```
 
 ### AI-Based SEO Endpoints
@@ -3249,5 +3337,54 @@ GET    /api/leads/:id/email-activity      // Get email engagement timeline
 6. Add Azure Calendar integration for booking links
 7. Test end-to-end email workflow
 8. Deploy to Heroku and test in production
+
+---
+
+### Latest Entry
+
+**Date**: 2025-10-16 19:45 UTC  
+**Version**: v1.4.0  
+**Change Summary**: Comprehensive SEO Checklist System with Industry-Standard Metrics
+
+**IMPACTED SERVICES/TABLES/APIS**:
+- **New Tables**: `seo_configurations`, `seo_page_audits`
+- **New Service**: `SEOChecklistService`
+- **New API Endpoints**: `/seo/checklist/:clientId`, `/seo/configuration/:clientId`
+- **Updated Frontend**: `SEODashboard.tsx` with new SEO Checklist tab
+- **Updated Services**: `GoogleAnalyticsService`, `GoogleSearchConsoleService` (made methods public)
+
+**MIGRATIONS**:
+- `backend/database/add_seo_configurations.sql` - Creates SEO configuration and audit tables
+- Fixed numeric precision issues in database schema
+- Added default SEO configurations for existing clients
+
+**FEATURE FLAGS**:
+- SEO Checklist system enabled by default
+- Industry-standard metrics based on SEMrush, Ahrefs standards
+- Configurable per-client SEO targets
+
+**QUOTA TRACKING**:
+- No additional API quotas (uses existing Google Analytics/Search Console APIs)
+- Database storage for audit results and configurations
+
+**ROLLBACKS**:
+- Can disable SEO Checklist tab in frontend
+- Can remove SEO configuration tables if needed
+- Service methods can be made private again
+
+**ERD/DIAGRAM UPDATES**:
+- Added `SEO_CONFIGURATIONS` and `SEO_PAGE_AUDITS` tables to database schema
+- Added `SEOChecklistService` to service layer
+- Added new API endpoints to endpoint structure
+- Updated service integration flow
+
+**NOTES**:
+- 14 industry-standard SEO checks implemented
+- Per-page analysis with current vs target values
+- Status indicators (passed/failed/warning) with color coding
+- Priority levels (high/medium/low) for each check
+- Configurable SEO targets per client/clinic
+- Real-time SEO scoring and recommendations
+- Integration with existing Google Analytics and Search Console data
 
 ---
