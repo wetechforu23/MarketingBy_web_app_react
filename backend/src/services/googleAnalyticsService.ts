@@ -183,27 +183,96 @@ export class GoogleAnalyticsService {
         throw new Error('No valid access token available');
       }
 
-      // For now, return mock data with real property ID
-      // TODO: Implement actual Google Analytics API calls
-      console.log(`Getting analytics data for client ${clientId} with property ${propertyId}`);
+      console.log(`Getting REAL analytics data for client ${clientId} with property ${propertyId}`);
       
-      return {
-        pageViews: Math.floor(Math.random() * 10000) + 1000,
-        sessions: Math.floor(Math.random() * 5000) + 500,
-        bounceRate: Math.floor(Math.random() * 30) + 40,
-        users: Math.floor(Math.random() * 3000) + 300,
-        newUsers: Math.floor(Math.random() * 2000) + 200,
-        avgSessionDuration: Math.floor(Math.random() * 300) + 60,
-        topPages: [
-          { page: '/', pageViews: Math.floor(Math.random() * 1000) + 100 },
-          { page: '/about', pageViews: Math.floor(Math.random() * 500) + 50 },
-          { page: '/contact', pageViews: Math.floor(Math.random() * 300) + 30 }
+      // Get real data from Google Analytics API
+      const analytics = google.analyticsdata('v1beta');
+      
+      // Set up the request for basic metrics
+      const request = {
+        property: `properties/${propertyId}`,
+        dateRanges: [
+          {
+            startDate: '30daysAgo',
+            endDate: 'today'
+          }
         ],
-        trafficSources: [
-          { source: 'Organic Search', sessions: Math.floor(Math.random() * 2000) + 200 },
-          { source: 'Direct', sessions: Math.floor(Math.random() * 1000) + 100 },
-          { source: 'Social', sessions: Math.floor(Math.random() * 500) + 50 }
-        ]
+        metrics: [
+          { name: 'screenPageViews' },
+          { name: 'sessions' },
+          { name: 'bounceRate' },
+          { name: 'totalUsers' },
+          { name: 'newUsers' },
+          { name: 'averageSessionDuration' }
+        ],
+        dimensions: [
+          { name: 'pagePath' }
+        ],
+        limit: 10
+      };
+
+      const response = await analytics.properties.runReport({
+        ...request,
+        auth: this.oauth2Client
+      });
+
+      // Get traffic source data
+      const trafficRequest = {
+        property: `properties/${propertyId}`,
+        dateRanges: [
+          {
+            startDate: '30daysAgo',
+            endDate: 'today'
+          }
+        ],
+        metrics: [
+          { name: 'sessions' }
+        ],
+        dimensions: [
+          { name: 'sessionDefaultChannelGrouping' }
+        ],
+        limit: 10
+      };
+
+      const trafficResponse = await analytics.properties.runReport({
+        ...trafficRequest,
+        auth: this.oauth2Client
+      });
+
+      // Process the real data
+      const rows = response.data.rows || [];
+      const trafficRows = trafficResponse.data.rows || [];
+      
+      // Extract metrics from the first row (aggregated data)
+      const metrics = rows.length > 0 ? rows[0].metricValues : [];
+      const pageViews = metrics[0]?.value ? parseInt(metrics[0].value) : 0;
+      const sessions = metrics[1]?.value ? parseInt(metrics[1].value) : 0;
+      const bounceRate = metrics[2]?.value ? parseFloat(metrics[2].value) * 100 : 0;
+      const users = metrics[3]?.value ? parseInt(metrics[3].value) : 0;
+      const newUsers = metrics[4]?.value ? parseInt(metrics[4].value) : 0;
+      const avgSessionDuration = metrics[5]?.value ? parseFloat(metrics[5].value) : 0;
+
+      // Process top pages
+      const topPages = rows.slice(1).map(row => ({
+        page: row.dimensionValues?.[0]?.value || '',
+        pageViews: row.metricValues?.[0]?.value ? parseInt(row.metricValues[0].value) : 0
+      }));
+
+      // Process traffic sources
+      const trafficSources = trafficRows.map(row => ({
+        source: row.dimensionValues?.[0]?.value || '',
+        sessions: row.metricValues?.[0]?.value ? parseInt(row.metricValues[0].value) : 0
+      }));
+
+      return {
+        pageViews,
+        sessions,
+        bounceRate,
+        users,
+        newUsers,
+        avgSessionDuration,
+        topPages,
+        trafficSources
       };
 
     } catch (error) {

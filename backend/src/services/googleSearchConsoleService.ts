@@ -186,35 +186,79 @@ export class GoogleSearchConsoleService {
         throw new Error('No valid access token available');
       }
 
-      // For now, return mock data with real site URL
-      // TODO: Implement actual Google Search Console API calls
-      console.log(`Getting search console data for client ${clientId} with site ${siteUrl}`);
+      console.log(`Getting REAL search console data for client ${clientId} with site ${siteUrl}`);
       
+      // Get real data from Google Search Console API
+      const searchconsole = google.searchconsole('v1');
+      
+      // Get search analytics data
+      const searchRequest = {
+        siteUrl: siteUrl,
+        requestBody: {
+          startDate: '2025-09-15',
+          endDate: '2025-10-15',
+          dimensions: ['query'],
+          rowLimit: 20,
+          startRow: 0
+        },
+        auth: this.oauth2Client
+      };
+
+      const searchResponse = await searchconsole.searchanalytics.query(searchRequest);
+      
+      // Get page analytics data
+      const pageRequest = {
+        siteUrl: siteUrl,
+        requestBody: {
+          startDate: '2025-09-15',
+          endDate: '2025-10-15',
+          dimensions: ['page'],
+          rowLimit: 10,
+          startRow: 0
+        },
+        auth: this.oauth2Client
+      };
+
+      const pageResponse = await searchconsole.searchanalytics.query(pageRequest);
+
+      // Process the real data
+      const searchRows = searchResponse.data.rows || [];
+      const pageRows = pageResponse.data.rows || [];
+      
+      // Calculate totals
+      const totalClicks = searchRows.reduce((sum, row) => sum + (row.clicks || 0), 0);
+      const totalImpressions = searchRows.reduce((sum, row) => sum + (row.impressions || 0), 0);
+      const averageCtr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+      const averagePosition = searchRows.length > 0 ? 
+        searchRows.reduce((sum, row) => sum + (row.position || 0), 0) / searchRows.length : 0;
+
+      // Process top queries
+      const topQueries = searchRows.map(row => ({
+        query: row.keys?.[0] || '',
+        clicks: row.clicks || 0,
+        impressions: row.impressions || 0,
+        ctr: row.ctr || 0,
+        position: row.position || 0
+      }));
+
+      // Process top pages
+      const topPages = pageRows.map(row => ({
+        page: row.keys?.[0] || '',
+        clicks: row.clicks || 0,
+        impressions: row.impressions || 0,
+        ctr: row.ctr || 0,
+        position: row.position || 0
+      }));
+
       return {
-        totalClicks: Math.floor(Math.random() * 5000) + 500,
-        totalImpressions: Math.floor(Math.random() * 50000) + 5000,
-        averageCtr: Math.floor(Math.random() * 5) + 2,
-        averagePosition: Math.floor(Math.random() * 20) + 5,
-        topQueries: [
-          { query: 'healthcare services', clicks: Math.floor(Math.random() * 100) + 10, impressions: Math.floor(Math.random() * 1000) + 100, ctr: Math.floor(Math.random() * 10) + 1, position: Math.floor(Math.random() * 10) + 1 },
-          { query: 'medical consultation', clicks: Math.floor(Math.random() * 80) + 8, impressions: Math.floor(Math.random() * 800) + 80, ctr: Math.floor(Math.random() * 8) + 1, position: Math.floor(Math.random() * 8) + 1 },
-          { query: 'doctor appointment', clicks: Math.floor(Math.random() * 60) + 6, impressions: Math.floor(Math.random() * 600) + 60, ctr: Math.floor(Math.random() * 6) + 1, position: Math.floor(Math.random() * 6) + 1 }
-        ],
-        topPages: [
-          { page: '/', clicks: Math.floor(Math.random() * 200) + 20, impressions: Math.floor(Math.random() * 2000) + 200, ctr: Math.floor(Math.random() * 10) + 1, position: Math.floor(Math.random() * 5) + 1 },
-          { page: '/services', clicks: Math.floor(Math.random() * 150) + 15, impressions: Math.floor(Math.random() * 1500) + 150, ctr: Math.floor(Math.random() * 8) + 1, position: Math.floor(Math.random() * 7) + 1 },
-          { page: '/contact', clicks: Math.floor(Math.random() * 100) + 10, impressions: Math.floor(Math.random() * 1000) + 100, ctr: Math.floor(Math.random() * 6) + 1, position: Math.floor(Math.random() * 9) + 1 }
-        ],
-        devices: [
-          { device: 'desktop', clicks: Math.floor(Math.random() * 3000) + 300, impressions: Math.floor(Math.random() * 30000) + 3000 },
-          { device: 'mobile', clicks: Math.floor(Math.random() * 2000) + 200, impressions: Math.floor(Math.random() * 20000) + 2000 },
-          { device: 'tablet', clicks: Math.floor(Math.random() * 500) + 50, impressions: Math.floor(Math.random() * 5000) + 500 }
-        ],
-        countries: [
-          { country: 'United States', clicks: Math.floor(Math.random() * 4000) + 400, impressions: Math.floor(Math.random() * 40000) + 4000 },
-          { country: 'Canada', clicks: Math.floor(Math.random() * 800) + 80, impressions: Math.floor(Math.random() * 8000) + 800 },
-          { country: 'United Kingdom', clicks: Math.floor(Math.random() * 600) + 60, impressions: Math.floor(Math.random() * 6000) + 600 }
-        ]
+        totalClicks,
+        totalImpressions,
+        averageCtr,
+        averagePosition,
+        topQueries,
+        topPages,
+        devices: [], // Would need separate API call for device data
+        countries: [] // Would need separate API call for country data
       };
 
     } catch (error) {
