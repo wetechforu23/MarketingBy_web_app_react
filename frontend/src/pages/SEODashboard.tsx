@@ -762,7 +762,7 @@ const SEODashboard: React.FC<SEODashboardProps> = ({ clientId, clientName }) => 
                       </div>
                     </div>
                   </div>
-                )))
+                ))
                 )}
               </div>
             </>
