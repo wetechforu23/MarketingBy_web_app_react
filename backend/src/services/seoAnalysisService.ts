@@ -131,8 +131,15 @@ export class SEOAnalysisService {
         return null;
       }
       return await this.googleSearchConsoleService.getSearchConsoleData(clientId, credentials.site_url);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error getting search console data for SEO:', error);
+      
+      // Check if it's a permission error
+      if (error.message && error.message.includes('sufficient permission')) {
+        console.warn(`Search Console permission error for client ${clientId}. The OAuth token doesn't have access to the site.`);
+        return null; // Return null instead of throwing to prevent 500 errors
+      }
+      
       return null;
     }
   }

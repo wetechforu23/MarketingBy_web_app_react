@@ -193,7 +193,7 @@ export class GoogleSearchConsoleService {
       
       // Get search analytics data
       const searchRequest = {
-        siteUrl: siteUrl,
+        siteUrl: siteUrl.trim(), // Remove any leading/trailing spaces
         requestBody: {
           startDate: '2025-09-15',
           endDate: '2025-10-15',
@@ -208,7 +208,7 @@ export class GoogleSearchConsoleService {
       
       // Get page analytics data
       const pageRequest = {
-        siteUrl: siteUrl,
+        siteUrl: siteUrl.trim(), // Remove any leading/trailing spaces
         requestBody: {
           startDate: '2025-09-15',
           endDate: '2025-10-15',
