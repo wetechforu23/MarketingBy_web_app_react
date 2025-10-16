@@ -207,12 +207,12 @@ export class GoogleAnalyticsService {
         dimensions: [
           { name: 'pagePath' }
         ],
-        limit: 10
+        limit: '10'
       };
 
       const response = await analytics.properties.runReport({
         property: `properties/${propertyId}`,
-        requestBody: request,
+        ...request,
         auth: this.oauth2Client
       });
 
@@ -230,12 +230,12 @@ export class GoogleAnalyticsService {
         dimensions: [
           { name: 'sessionDefaultChannelGrouping' }
         ],
-        limit: 10
+        limit: '10'
       };
 
       const trafficResponse = await analytics.properties.runReport({
         property: `properties/${propertyId}`,
-        requestBody: trafficRequest,
+        ...trafficRequest,
         auth: this.oauth2Client
       });
 
