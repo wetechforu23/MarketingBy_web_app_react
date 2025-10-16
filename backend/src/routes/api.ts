@@ -3281,35 +3281,54 @@ router.post('/analytics/export/:reportId', requireAuth, async (req, res) => {
       : report.report_data;
 
     if (format === 'pdf') {
-      // Generate HTML content for PDF
-      const htmlContent = generateAnalyticsReportHTML(report, reportData);
-      
-      // Use puppeteer to generate PDF
-      const puppeteer = require('puppeteer');
-      const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      });
-      
-      const page = await browser.newPage();
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      
-      const pdfBuffer = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: {
-          top: '20mm',
-          right: '20mm',
-          bottom: '20mm',
-          left: '20mm'
-        }
-      });
-      
-      await browser.close();
-      
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="analytics-report-${reportId}.pdf"`);
-      res.send(pdfBuffer);
+      try {
+        // Generate HTML content for PDF
+        const htmlContent = generateAnalyticsReportHTML(report, reportData);
+        
+        // Try to use puppeteer for PDF generation
+        const puppeteer = require('puppeteer');
+        const browser = await puppeteer.launch({
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu'
+          ]
+        });
+        
+        const page = await browser.newPage();
+        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+        
+        const pdfBuffer = await page.pdf({
+          format: 'A4',
+          printBackground: true,
+          margin: {
+            top: '20mm',
+            right: '20mm',
+            bottom: '20mm',
+            left: '20mm'
+          }
+        });
+        
+        await browser.close();
+        
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="analytics-report-${reportId}.pdf"`);
+        res.send(pdfBuffer);
+      } catch (puppeteerError) {
+        console.error('Puppeteer PDF generation failed:', puppeteerError);
+        
+        // Fallback to HTML download if PDF generation fails
+        const htmlContent = generateAnalyticsReportHTML(report, reportData);
+        res.setHeader('Content-Type', 'text/html');
+        res.setHeader('Content-Disposition', `attachment; filename="analytics-report-${reportId}.html"`);
+        res.send(htmlContent);
+      }
     } else {
       res.status(400).json({ error: 'Unsupported export format' });
     }
