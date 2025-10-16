@@ -567,6 +567,24 @@ const SEODashboard: React.FC<SEODashboardProps> = ({ clientId, clientName }) => 
           
           {seoChecklist ? (
             <>
+              {/* Real Data Notice */}
+              <div style={{ 
+                backgroundColor: '#fff3cd', 
+                border: '1px solid #ffeaa7',
+                padding: '15px', 
+                borderRadius: '8px', 
+                marginBottom: '20px' 
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '18px', marginRight: '8px' }}>⚠️</span>
+                  <strong style={{ color: '#856404' }}>Real Data Analysis Required</strong>
+                </div>
+                <p style={{ margin: '0', color: '#856404', fontSize: '14px' }}>
+                  This SEO checklist shows the framework for analysis. To get real results, we need to implement actual page crawling and real-time analysis. 
+                  Currently showing only pages found in Google Analytics and Search Console data.
+                </p>
+              </div>
+
               {/* Overall Summary */}
               <div style={{ 
                 backgroundColor: '#f8f9fa', 
@@ -576,31 +594,31 @@ const SEODashboard: React.FC<SEODashboardProps> = ({ clientId, clientName }) => 
               }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: getScoreColor(seoChecklist.overall_score) }}>
+                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#6c757d' }}>
                       {seoChecklist.overall_score}%
                     </div>
                     <div style={{ color: '#666', fontSize: '14px' }}>Overall Score</div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#28a745' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6c757d' }}>
                       {seoChecklist.summary.passed_checks}
                     </div>
                     <div style={{ color: '#666', fontSize: '14px' }}>Passed</div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6c757d' }}>
                       {seoChecklist.summary.failed_checks}
                     </div>
                     <div style={{ color: '#666', fontSize: '14px' }}>Failed</div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffc107' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6c757d' }}>
                       {seoChecklist.summary.warning_checks}
                     </div>
                     <div style={{ color: '#666', fontSize: '14px' }}>Warnings</div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6c757d' }}>
                       {seoChecklist.summary.critical_issues}
                     </div>
                     <div style={{ color: '#666', fontSize: '14px' }}>Critical Issues</div>
@@ -612,7 +630,24 @@ const SEODashboard: React.FC<SEODashboardProps> = ({ clientId, clientName }) => 
               <div style={{ marginBottom: '30px' }}>
                 <h3 style={{ margin: '0 0 15px 0', color: '#333' }}>Pages Analysis ({seoChecklist.pages.length} pages)</h3>
                 
-                {seoChecklist.pages.map((page, pageIndex) => (
+                {seoChecklist.pages.length === 0 ? (
+                  <div style={{ 
+                    backgroundColor: '#f8f9fa', 
+                    padding: '20px', 
+                    borderRadius: '8px', 
+                    textAlign: 'center',
+                    border: '1px solid #dee2e6'
+                  }}>
+                    <div style={{ fontSize: '18px', marginBottom: '10px', color: '#6c757d' }}>
+                      📊 No Real Pages Found
+                    </div>
+                    <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
+                      No pages were found in Google Analytics or Search Console data for this client. 
+                      This could mean the client hasn't connected their analytics accounts yet, or there's no traffic data available.
+                    </p>
+                  </div>
+                ) : (
+                  seoChecklist.pages.map((page, pageIndex) => (
                   <div key={pageIndex} style={{ 
                     border: '1px solid #dee2e6', 
                     borderRadius: '8px', 
@@ -727,7 +762,8 @@ const SEODashboard: React.FC<SEODashboardProps> = ({ clientId, clientName }) => 
                       </div>
                     </div>
                   </div>
-                ))}
+                )))
+                )}
               </div>
             </>
           ) : (

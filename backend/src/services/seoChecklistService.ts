@@ -146,7 +146,6 @@ export class SEOChecklistService {
       );
 
       if (result.rows.length === 0) {
-        // Return default configuration
         return this.getDefaultSEOConfiguration();
       }
 
@@ -241,9 +240,13 @@ export class SEOChecklistService {
         const gaCredentials = await this.googleAnalyticsService.getClientCredentials(clientId);
         if (gaCredentials && gaCredentials.property_id) {
           const gaData = await this.googleAnalyticsService.getAnalyticsData(clientId, gaCredentials.property_id);
-          gaData.topPages.forEach((page: any) => {
-            pages.add(page.page);
-          });
+          if (gaData.topPages && Array.isArray(gaData.topPages)) {
+            gaData.topPages.forEach((page: any) => {
+              if (page.page) {
+                pages.add(page.page);
+              }
+            });
+          }
         }
       } catch (error) {
         console.warn('Could not get GA pages:', error);
@@ -254,19 +257,25 @@ export class SEOChecklistService {
         const scCredentials = await this.googleSearchConsoleService.getClientCredentials(clientId);
         if (scCredentials && scCredentials.site_url) {
           const scData = await this.googleSearchConsoleService.getSearchConsoleData(clientId, scCredentials.site_url);
-          scData.topPages.forEach((page: any) => {
-            pages.add(page.page);
-          });
+          if (scData.topPages && Array.isArray(scData.topPages)) {
+            scData.topPages.forEach((page: any) => {
+              if (page.page) {
+                pages.add(page.page);
+              }
+            });
+          }
         }
       } catch (error) {
         console.warn('Could not get SC pages:', error);
       }
 
-      // Convert to array and add some common pages if none found
+      // Convert to array - only return real pages from analytics data
       const pageArray = Array.from(pages);
+      
+      // If no real pages found, return empty array - NO FALLBACK PAGES
       if (pageArray.length === 0) {
-        // Add common pages as fallback
-        pageArray.push('/', '/about', '/contact', '/services');
+        console.log(`No real pages found for client ${clientId} from Google Analytics or Search Console. Real data required.`);
+        return [];
       }
 
       return pageArray.map(url => ({
@@ -275,11 +284,7 @@ export class SEOChecklistService {
       }));
     } catch (error) {
       console.error('Error getting client pages:', error);
-      return [
-        { url: '/', title: 'Home' },
-        { url: '/about', title: 'About' },
-        { url: '/contact', title: 'Contact' }
-      ];
+      return []; // Return empty array - NO FALLBACK PAGES, REAL DATA ONLY
     }
   }
 
@@ -301,59 +306,33 @@ export class SEOChecklistService {
   }
 
   /**
-   * Audit a single page for SEO
+   * Audit a single page for SEO - NO MOCK DATA
    */
   private async auditPage(clientId: number, page: any, config: any): Promise<PageSEOResult> {
     const checklist: SEOChecklistItem[] = [];
 
-    // 1. Title Tag Check
-    checklist.push(this.checkTitleTag(page, config));
-
-    // 2. H1 Tag Check
-    checklist.push(this.checkH1Tag(page, config));
-
-    // 3. Meta Description Check
-    checklist.push(this.checkMetaDescription(page, config));
-
-    // 4. URL Check
-    checklist.push(this.checkURL(page, config));
-
-    // 5. Content Quality Check
-    checklist.push(this.checkContentQuality(page, config));
-
-    // 6. Subheadings Check
-    checklist.push(this.checkSubheadings(page, config));
-
-    // 7. Internal Links Check
-    checklist.push(this.checkInternalLinks(page, config));
-
-    // 8. Images Check
-    checklist.push(this.checkImages(page, config));
-
-    // 9. Schema Markup Check
-    checklist.push(this.checkSchemaMarkup(page, config));
-
-    // 10. Page Speed Check
-    checklist.push(this.checkPageSpeed(page, config));
-
-    // 11. Mobile Friendly Check
-    checklist.push(this.checkMobileFriendly(page, config));
-
-    // 12. SSL Check
-    checklist.push(this.checkSSL(page, config));
-
-    // 13. Indexing Check
-    checklist.push(this.checkIndexing(page, config));
-
-    // 14. Technical SEO Check
-    checklist.push(this.checkTechnicalSEO(page, config));
+    // All checks return "not_checked" status with clear messaging about real analysis needed
+    checklist.push(this.createNotCheckedItem('title_tag', 'Title Tag Optimization', 'title', config, 'Real-time page crawling required to analyze title tag length, keyword inclusion, and brand presence.'));
+    checklist.push(this.createNotCheckedItem('h1_tag', 'H1 Tag Optimization', 'content', config, 'Real-time page crawling required to analyze H1 tag structure, count, and keyword optimization.'));
+    checklist.push(this.createNotCheckedItem('meta_description', 'Meta Description Optimization', 'meta', config, 'Real-time page crawling required to analyze meta description length, keyword inclusion, and call-to-action presence.'));
+    checklist.push(this.createNotCheckedItem('url_optimization', 'URL Optimization', 'technical', config, 'URL analysis requires crawling the actual page to check length, keyword inclusion, and structure.'));
+    checklist.push(this.createNotCheckedItem('content_quality', 'Content Quality', 'content', config, 'Content analysis requires crawling the page to check word count, keyword density, and readability.'));
+    checklist.push(this.createNotCheckedItem('subheadings', 'Subheading Structure', 'content', config, 'Subheading analysis requires crawling the page to check H2/H3 structure and hierarchy.'));
+    checklist.push(this.createNotCheckedItem('internal_links', 'Internal Linking', 'links', config, 'Internal link analysis requires crawling the page to count and analyze link relevance.'));
+    checklist.push(this.createNotCheckedItem('images', 'Image Optimization', 'images', config, 'Image analysis requires crawling the page to check alt text, file sizes, and optimization.'));
+    checklist.push(this.createNotCheckedItem('schema_markup', 'Schema Markup', 'schema', config, 'Schema markup analysis requires crawling the page to detect structured data implementation.'));
+    checklist.push(this.createNotCheckedItem('page_speed', 'Page Speed (Core Web Vitals)', 'performance', config, 'Page speed analysis requires real-time performance testing using Google PageSpeed Insights API.'));
+    checklist.push(this.createNotCheckedItem('mobile_friendly', 'Mobile Friendliness', 'technical', config, 'Mobile analysis requires crawling the page to check responsive design and mobile optimization.'));
+    checklist.push(this.createNotCheckedItem('ssl_certificate', 'SSL Certificate', 'technical', config, 'SSL analysis requires checking the actual page URL for HTTPS implementation.'));
+    checklist.push(this.createNotCheckedItem('indexing', 'Search Engine Indexing', 'technical', config, 'Indexing analysis requires checking Google Search Console data for page indexing status.'));
+    checklist.push(this.createNotCheckedItem('technical_seo', 'Technical SEO', 'technical', config, 'Technical SEO analysis requires crawling the page to check canonical URLs, social meta tags, and tracking codes.'));
 
     // Calculate scores
     const totalChecks = checklist.length;
     const passedChecks = checklist.filter(item => item.status === 'passed').length;
     const failedChecks = checklist.filter(item => item.status === 'failed').length;
     const warningChecks = checklist.filter(item => item.status === 'warning').length;
-    const overallScore = totalChecks > 0 ? Math.round((passedChecks / totalChecks) * 100) : 0;
+    const overallScore = 0; // No real analysis performed yet
 
     return {
       page_url: page.url,
@@ -369,633 +348,20 @@ export class SEOChecklistService {
   }
 
   /**
-   * Check title tag optimization
+   * Create a "not checked" item with clear messaging
    */
-  private checkTitleTag(page: any, config: any): SEOChecklistItem {
-    // Simulate title tag analysis (in real implementation, this would crawl the page)
-    const titleLength = Math.floor(Math.random() * 50) + 20; // 20-70 chars
-    const hasKeyword = Math.random() > 0.3; // 70% chance
-    const hasBrand = Math.random() > 0.2; // 80% chance
-
-    let status: 'passed' | 'failed' | 'warning' = 'passed';
-    let score = 100;
-    let recommendation = 'Title tag is well optimized.';
-
-    if (titleLength < config.title_min_length) {
-      status = 'failed';
-      score = 20;
-      recommendation = `Title is too short (${titleLength} chars). Should be ${config.title_min_length}-${config.title_max_length} characters.`;
-    } else if (titleLength > config.title_max_length) {
-      status = 'warning';
-      score = 60;
-      recommendation = `Title is too long (${titleLength} chars). Should be ${config.title_min_length}-${config.title_max_length} characters.`;
-    }
-
-    if (config.title_require_keyword && !hasKeyword) {
-      status = 'failed';
-      score = Math.min(score, 30);
-      recommendation += ' Include primary keyword in title tag.';
-    }
-
-    if (config.title_require_brand && !hasBrand) {
-      status = 'warning';
-      score = Math.min(score, 70);
-      recommendation += ' Consider including brand name in title.';
-    }
-
+  private createNotCheckedItem(id: string, name: string, category: any, config: any, recommendation: string): SEOChecklistItem {
     return {
-      id: 'title_tag',
-      name: 'Title Tag Optimization',
-      category: 'title',
-      status,
-      current_value: `${titleLength} characters`,
-      target_value: `${config.title_min_length}-${config.title_max_length} characters`,
-      score,
+      id,
+      name,
+      category,
+      status: 'not_checked',
+      current_value: 'Real analysis required',
+      target_value: 'See configuration',
+      score: 0,
       recommendation,
       priority: 'high',
       page_specific: true
-    };
-  }
-
-  /**
-   * Check H1 tag optimization
-   */
-  private checkH1Tag(page: any, config: any): SEOChecklistItem {
-    const h1Count = Math.floor(Math.random() * 3) + 1; // 1-3 H1s
-    const hasKeyword = Math.random() > 0.4; // 60% chance
-    const h1Length = Math.floor(Math.random() * 60) + 10; // 10-70 chars
-
-    let status: 'passed' | 'failed' | 'warning' = 'passed';
-    let score = 100;
-    let recommendation = 'H1 tag is properly optimized.';
-
-    if (h1Count > config.h1_max_count) {
-      status = 'failed';
-      score = 30;
-      recommendation = `Multiple H1 tags found (${h1Count}). Use only one H1 per page.`;
-    } else if (h1Count === 0) {
-      status = 'failed';
-      score = 0;
-      recommendation = 'No H1 tag found. Add a descriptive H1 tag.';
-    }
-
-    if (config.h1_require_keyword && !hasKeyword) {
-      status = 'failed';
-      score = Math.min(score, 40);
-      recommendation += ' Include primary keyword in H1 tag.';
-    }
-
-    if (h1Length < config.h1_min_length || h1Length > config.h1_max_length) {
-      status = 'warning';
-      score = Math.min(score, 70);
-      recommendation += ` H1 length (${h1Length} chars) should be ${config.h1_min_length}-${config.h1_max_length} characters.`;
-    }
-
-    return {
-      id: 'h1_tag',
-      name: 'H1 Tag Optimization',
-      category: 'content',
-      status,
-      current_value: `${h1Count} H1 tag(s), ${h1Length} chars`,
-      target_value: `1 H1 tag, ${config.h1_min_length}-${config.h1_max_length} chars`,
-      score,
-      recommendation,
-      priority: 'high',
-      page_specific: true
-    };
-  }
-
-  /**
-   * Check meta description optimization
-   */
-  private checkMetaDescription(page: any, config: any): SEOChecklistItem {
-    const metaLength = Math.floor(Math.random() * 80) + 80; // 80-160 chars
-    const hasKeyword = Math.random() > 0.3; // 70% chance
-    const hasCallToAction = Math.random() > 0.5; // 50% chance
-
-    let status: 'passed' | 'failed' | 'warning' = 'passed';
-    let score = 100;
-    let recommendation = 'Meta description is well optimized.';
-
-    if (metaLength < config.meta_desc_min_length) {
-      status = 'failed';
-      score = 30;
-      recommendation = `Meta description is too short (${metaLength} chars). Should be ${config.meta_desc_min_length}-${config.meta_desc_max_length} characters.`;
-    } else if (metaLength > config.meta_desc_max_length) {
-      status = 'warning';
-      score = 60;
-      recommendation = `Meta description is too long (${metaLength} chars). Should be ${config.meta_desc_min_length}-${config.meta_desc_max_length} characters.`;
-    }
-
-    if (config.meta_desc_require_keyword && !hasKeyword) {
-      status = 'failed';
-      score = Math.min(score, 40);
-      recommendation += ' Include primary keyword in meta description.';
-    }
-
-    if (!hasCallToAction) {
-      status = 'warning';
-      score = Math.min(score, 80);
-      recommendation += ' Add a call-to-action to increase click-through rate.';
-    }
-
-    return {
-      id: 'meta_description',
-      name: 'Meta Description Optimization',
-      category: 'meta',
-      status,
-      current_value: `${metaLength} characters`,
-      target_value: `${config.meta_desc_min_length}-${config.meta_desc_max_length} characters`,
-      score,
-      recommendation,
-      priority: 'medium',
-      page_specific: true
-    };
-  }
-
-  /**
-   * Check URL optimization
-   */
-  private checkURL(page: any, config: any): SEOChecklistItem {
-    const url = page.url;
-    const urlLength = url.length;
-    const hasKeyword = Math.random() > 0.4; // 60% chance
-    const isLowercase = url === url.toLowerCase();
-    const hasStopWords = /^(the|a|an|and|or|but|in|on|at|to|for|of|with|by)\b/.test(url);
-
-    let status: 'passed' | 'failed' | 'warning' = 'passed';
-    let score = 100;
-    let recommendation = 'URL is well optimized.';
-
-    if (urlLength > config.url_max_length) {
-      status = 'failed';
-      score = 30;
-      recommendation = `URL is too long (${urlLength} chars). Should be under ${config.url_max_length} characters.`;
-    }
-
-    if (config.url_require_keyword && !hasKeyword) {
-      status = 'failed';
-      score = Math.min(score, 40);
-      recommendation += ' Include primary keyword in URL.';
-    }
-
-    if (config.url_require_lowercase && !isLowercase) {
-      status = 'warning';
-      score = Math.min(score, 70);
-      recommendation += ' Use lowercase letters in URL.';
-    }
-
-    if (config.url_avoid_stop_words && hasStopWords) {
-      status = 'warning';
-      score = Math.min(score, 80);
-      recommendation += ' Remove stop words from URL.';
-    }
-
-    return {
-      id: 'url_optimization',
-      name: 'URL Optimization',
-      category: 'technical',
-      status,
-      current_value: `${urlLength} characters`,
-      target_value: `< ${config.url_max_length} characters`,
-      score,
-      recommendation,
-      priority: 'medium',
-      page_specific: true
-    };
-  }
-
-  /**
-   * Check content quality
-   */
-  private checkContentQuality(page: any, config: any): SEOChecklistItem {
-    const wordCount = Math.floor(Math.random() * 1000) + 200; // 200-1200 words
-    const keywordDensity = Math.random() * 3; // 0-3%
-    const readabilityScore = Math.floor(Math.random() * 40) + 60; // 60-100
-
-    let status: 'passed' | 'failed' | 'warning' = 'passed';
-    let score = 100;
-    let recommendation = 'Content quality is good.';
-
-    if (wordCount < config.content_min_words) {
-      status = 'failed';
-      score = 30;
-      recommendation = `Content is too short (${wordCount} words). Should be at least ${config.content_min_words} words.`;
-    }
-
-    if (keywordDensity < config.keyword_density_min) {
-      status = 'warning';
-      score = Math.min(score, 60);
-      recommendation += ` Keyword density is low (${keywordDensity.toFixed(2)}%). Target ${config.keyword_density_min}-${config.keyword_density_max}%.`;
-    } else if (keywordDensity > config.keyword_density_max) {
-      status = 'warning';
-      score = Math.min(score, 70);
-      recommendation += ` Keyword density is high (${keywordDensity.toFixed(2)}%). Target ${config.keyword_density_min}-${config.keyword_density_max}%.`;
-    }
-
-    if (readabilityScore < 70) {
-      status = 'warning';
-      score = Math.min(score, 80);
-      recommendation += ' Improve content readability.';
-    }
-
-    return {
-      id: 'content_quality',
-      name: 'Content Quality',
-      category: 'content',
-      status,
-      current_value: `${wordCount} words, ${keywordDensity.toFixed(2)}% density`,
-      target_value: `≥${config.content_min_words} words, ${config.keyword_density_min}-${config.keyword_density_max}% density`,
-      score,
-      recommendation,
-      priority: 'high',
-      page_specific: true
-    };
-  }
-
-  /**
-   * Check subheadings structure
-   */
-  private checkSubheadings(page: any, config: any): SEOChecklistItem {
-    const subheadingCount = Math.floor(Math.random() * 5) + 1; // 1-5 subheadings
-    const hasProperStructure = Math.random() > 0.3; // 70% chance
-
-    let status: 'passed' | 'failed' | 'warning' = 'passed';
-    let score = 100;
-    let recommendation = 'Subheading structure is good.';
-
-    if (config.content_require_subheadings && subheadingCount < config.content_min_subheadings) {
-      status = 'failed';
-      score = 40;
-      recommendation = `Insufficient subheadings (${subheadingCount}). Add at least ${config.content_min_subheadings} H2/H3 tags.`;
-    }
-
-    if (!hasProperStructure) {
-      status = 'warning';
-      score = Math.min(score, 70);
-      recommendation += ' Use proper H2/H3 hierarchy.';
-    }
-
-    return {
-      id: 'subheadings',
-      name: 'Subheading Structure',
-      category: 'content',
-      status,
-      current_value: `${subheadingCount} subheadings`,
-      target_value: `≥${config.content_min_subheadings} subheadings`,
-      score,
-      recommendation,
-      priority: 'medium',
-      page_specific: true
-    };
-  }
-
-  /**
-   * Check internal linking
-   */
-  private checkInternalLinks(page: any, config: any): SEOChecklistItem {
-    const internalLinkCount = Math.floor(Math.random() * 8) + 1; // 1-8 links
-    const hasRelevantLinks = Math.random() > 0.3; // 70% chance
-
-    let status: 'passed' | 'failed' | 'warning' = 'passed';
-    let score = 100;
-    let recommendation = 'Internal linking is well implemented.';
-
-    if (internalLinkCount < config.internal_links_min) {
-      status = 'failed';
-      score = 40;
-      recommendation = `Insufficient internal links (${internalLinkCount}). Add at least ${config.internal_links_min} relevant internal links.`;
-    } else if (internalLinkCount > config.internal_links_max) {
-      status = 'warning';
-      score = 70;
-      recommendation = `Too many internal links (${internalLinkCount}). Keep under ${config.internal_links_max} links.`;
-    }
-
-    if (!hasRelevantLinks) {
-      status = 'warning';
-      score = Math.min(score, 80);
-      recommendation += ' Ensure internal links are contextually relevant.';
-    }
-
-    return {
-      id: 'internal_links',
-      name: 'Internal Linking',
-      category: 'links',
-      status,
-      current_value: `${internalLinkCount} internal links`,
-      target_value: `${config.internal_links_min}-${config.internal_links_max} links`,
-      score,
-      recommendation,
-      priority: 'medium',
-      page_specific: true
-    };
-  }
-
-  /**
-   * Check images optimization
-   */
-  private checkImages(page: any, config: any): SEOChecklistItem {
-    const imageCount = Math.floor(Math.random() * 5) + 1; // 1-5 images
-    const hasAltText = Math.random() > 0.2; // 80% chance
-    const isOptimized = Math.random() > 0.3; // 70% chance
-
-    let status: 'passed' | 'failed' | 'warning' = 'passed';
-    let score = 100;
-    let recommendation = 'Images are well optimized.';
-
-    if (imageCount < config.images_min_count) {
-      status = 'warning';
-      score = 70;
-      recommendation = `Add more images (${imageCount}). Include at least ${config.images_min_count} relevant image.`;
-    }
-
-    if (config.images_require_alt && !hasAltText) {
-      status = 'failed';
-      score = Math.min(score, 30);
-      recommendation += ' Add alt text to all images.';
-    }
-
-    if (config.images_require_optimization && !isOptimized) {
-      status = 'warning';
-      score = Math.min(score, 60);
-      recommendation += ' Optimize image file sizes and formats.';
-    }
-
-    return {
-      id: 'images',
-      name: 'Image Optimization',
-      category: 'images',
-      status,
-      current_value: `${imageCount} images`,
-      target_value: `≥${config.images_min_count} images with alt text`,
-      score,
-      recommendation,
-      priority: 'medium',
-      page_specific: true
-    };
-  }
-
-  /**
-   * Check schema markup
-   */
-  private checkSchemaMarkup(page: any, config: any): SEOChecklistItem {
-    const hasOrganization = Math.random() > 0.4; // 60% chance
-    const hasWebsite = Math.random() > 0.3; // 70% chance
-    const hasBreadcrumb = Math.random() > 0.5; // 50% chance
-
-    let status: 'passed' | 'failed' | 'warning' = 'passed';
-    let score = 100;
-    let recommendation = 'Schema markup is properly implemented.';
-
-    if (config.schema_require_organization && !hasOrganization) {
-      status = 'failed';
-      score = Math.min(score, 40);
-      recommendation += ' Add Organization schema markup.';
-    }
-
-    if (config.schema_require_website && !hasWebsite) {
-      status = 'failed';
-      score = Math.min(score, 40);
-      recommendation += ' Add Website schema markup.';
-    }
-
-    if (config.schema_require_breadcrumb && !hasBreadcrumb) {
-      status = 'warning';
-      score = Math.min(score, 70);
-      recommendation += ' Add BreadcrumbList schema markup.';
-    }
-
-    return {
-      id: 'schema_markup',
-      name: 'Schema Markup',
-      category: 'schema',
-      status,
-      current_value: `${hasOrganization ? 'Org' : ''} ${hasWebsite ? 'Website' : ''} ${hasBreadcrumb ? 'Breadcrumb' : ''}`.trim(),
-      target_value: 'Organization + Website + Breadcrumb',
-      score,
-      recommendation,
-      priority: 'medium',
-      page_specific: true
-    };
-  }
-
-  /**
-   * Check page speed (Core Web Vitals)
-   */
-  private checkPageSpeed(page: any, config: any): SEOChecklistItem {
-    const lcp = Math.random() * 4 + 1; // 1-5 seconds
-    const cls = Math.random() * 0.2; // 0-0.2
-    const fid = Math.random() * 200 + 50; // 50-250ms
-
-    let status: 'passed' | 'failed' | 'warning' = 'passed';
-    let score = 100;
-    let recommendation = 'Page speed is optimized.';
-
-    if (lcp > config.page_speed_lcp_max) {
-      status = 'failed';
-      score = 30;
-      recommendation = `LCP is too slow (${lcp.toFixed(2)}s). Should be under ${config.page_speed_lcp_max}s.`;
-    }
-
-    if (cls > config.page_speed_cls_max) {
-      status = 'failed';
-      score = Math.min(score, 40);
-      recommendation += ` CLS is too high (${cls.toFixed(3)}). Should be under ${config.page_speed_cls_max}.`;
-    }
-
-    if (fid > config.page_speed_fid_max) {
-      status = 'warning';
-      score = Math.min(score, 60);
-      recommendation += ` FID is too high (${fid.toFixed(0)}ms). Should be under ${config.page_speed_fid_max}ms.`;
-    }
-
-    return {
-      id: 'page_speed',
-      name: 'Page Speed (Core Web Vitals)',
-      category: 'performance',
-      status,
-      current_value: `LCP: ${lcp.toFixed(2)}s, CLS: ${cls.toFixed(3)}, FID: ${fid.toFixed(0)}ms`,
-      target_value: `LCP: <${config.page_speed_lcp_max}s, CLS: <${config.page_speed_cls_max}, FID: <${config.page_speed_fid_max}ms`,
-      score,
-      recommendation,
-      priority: 'high',
-      page_specific: true
-    };
-  }
-
-  /**
-   * Check mobile friendliness
-   */
-  private checkMobileFriendly(page: any, config: any): SEOChecklistItem {
-    const isMobileFriendly = Math.random() > 0.2; // 80% chance
-    const hasViewport = Math.random() > 0.1; // 90% chance
-    const touchTargets = Math.random() > 0.3; // 70% chance
-
-    let status: 'passed' | 'failed' | 'warning' = 'passed';
-    let score = 100;
-    let recommendation = 'Page is mobile-friendly.';
-
-    if (config.mobile_friendly_required && !isMobileFriendly) {
-      status = 'failed';
-      score = 20;
-      recommendation = 'Page is not mobile-friendly. Implement responsive design.';
-    }
-
-    if (!hasViewport) {
-      status = 'failed';
-      score = Math.min(score, 30);
-      recommendation += ' Add viewport meta tag.';
-    }
-
-    if (!touchTargets) {
-      status = 'warning';
-      score = Math.min(score, 70);
-      recommendation += ' Ensure touch targets are at least 44px.';
-    }
-
-    return {
-      id: 'mobile_friendly',
-      name: 'Mobile Friendliness',
-      category: 'technical',
-      status,
-      current_value: isMobileFriendly ? 'Mobile-friendly' : 'Not mobile-friendly',
-      target_value: 'Mobile-friendly',
-      score,
-      recommendation,
-      priority: 'high',
-      page_specific: true
-    };
-  }
-
-  /**
-   * Check SSL certificate
-   */
-  private checkSSL(page: any, config: any): SEOChecklistItem {
-    const hasSSL = Math.random() > 0.1; // 90% chance
-    const isHTTPS = Math.random() > 0.05; // 95% chance
-
-    let status: 'passed' | 'failed' | 'warning' = 'passed';
-    let score = 100;
-    let recommendation = 'SSL certificate is properly configured.';
-
-    if (config.ssl_required && !hasSSL) {
-      status = 'failed';
-      score = 0;
-      recommendation = 'Install SSL certificate for security and SEO.';
-    }
-
-    if (!isHTTPS) {
-      status = 'failed';
-      score = Math.min(score, 20);
-      recommendation += ' Use HTTPS instead of HTTP.';
-    }
-
-    return {
-      id: 'ssl_certificate',
-      name: 'SSL Certificate',
-      category: 'technical',
-      status,
-      current_value: hasSSL ? 'SSL enabled' : 'No SSL',
-      target_value: 'SSL enabled',
-      score,
-      recommendation,
-      priority: 'high',
-      page_specific: false
-    };
-  }
-
-  /**
-   * Check indexing status
-   */
-  private checkIndexing(page: any, config: any): SEOChecklistItem {
-    const isIndexed = Math.random() > 0.2; // 80% chance
-    const hasSitemap = Math.random() > 0.3; // 70% chance
-    const hasRobotsTxt = Math.random() > 0.1; // 90% chance
-
-    let status: 'passed' | 'failed' | 'warning' = 'passed';
-    let score = 100;
-    let recommendation = 'Page indexing is properly configured.';
-
-    if (config.indexing_required && !isIndexed) {
-      status = 'failed';
-      score = 30;
-      recommendation = 'Page is not indexed. Submit to Google Search Console.';
-    }
-
-    if (config.sitemap_required && !hasSitemap) {
-      status = 'warning';
-      score = Math.min(score, 70);
-      recommendation += ' Create and submit XML sitemap.';
-    }
-
-    if (config.robots_txt_required && !hasRobotsTxt) {
-      status = 'warning';
-      score = Math.min(score, 80);
-      recommendation += ' Create robots.txt file.';
-    }
-
-    return {
-      id: 'indexing',
-      name: 'Search Engine Indexing',
-      category: 'technical',
-      status,
-      current_value: isIndexed ? 'Indexed' : 'Not indexed',
-      target_value: 'Indexed',
-      score,
-      recommendation,
-      priority: 'high',
-      page_specific: true
-    };
-  }
-
-  /**
-   * Check technical SEO elements
-   */
-  private checkTechnicalSEO(page: any, config: any): SEOChecklistItem {
-    const hasCanonical = Math.random() > 0.2; // 80% chance
-    const hasSocialMeta = Math.random() > 0.3; // 70% chance
-    const hasGTM = Math.random() > 0.4; // 60% chance
-    const hasGA4 = Math.random() > 0.3; // 70% chance
-
-    let status: 'passed' | 'failed' | 'warning' = 'passed';
-    let score = 100;
-    let recommendation = 'Technical SEO is properly implemented.';
-
-    if (config.canonical_required && !hasCanonical) {
-      status = 'failed';
-      score = Math.min(score, 40);
-      recommendation += ' Add canonical URL tag.';
-    }
-
-    if (config.social_meta_required && !hasSocialMeta) {
-      status = 'warning';
-      score = Math.min(score, 70);
-      recommendation += ' Add Open Graph and Twitter Card meta tags.';
-    }
-
-    if (config.gtm_required && !hasGTM) {
-      status = 'warning';
-      score = Math.min(score, 80);
-      recommendation += ' Install Google Tag Manager.';
-    }
-
-    if (config.ga4_required && !hasGA4) {
-      status = 'warning';
-      score = Math.min(score, 80);
-      recommendation += ' Install Google Analytics 4.';
-    }
-
-    return {
-      id: 'technical_seo',
-      name: 'Technical SEO',
-      category: 'technical',
-      status,
-      current_value: `${hasCanonical ? 'Canonical' : ''} ${hasSocialMeta ? 'Social' : ''} ${hasGTM ? 'GTM' : ''} ${hasGA4 ? 'GA4' : ''}`.trim(),
-      target_value: 'Canonical + Social + GTM + GA4',
-      score,
-      recommendation,
-      priority: 'medium',
-      page_specific: false
     };
   }
 
@@ -1098,5 +464,4 @@ export class SEOChecklistService {
       throw error;
     }
   }
-
 }
