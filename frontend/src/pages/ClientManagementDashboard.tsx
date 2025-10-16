@@ -1573,7 +1573,7 @@ const ClientManagementDashboard: React.FC = () => {
                       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                         <button 
                           onClick={() => handleConnectService('google_search_console', {
-                            siteUrl: clientSettings?.searchConsole?.siteUrl
+                            siteUrl: clientSettings?.searchConsole?.siteUrl?.trim()
                           })}
                           className="connect-btn"
                           disabled={clientSettings?.searchConsole?.connected}
@@ -1587,7 +1587,7 @@ const ClientManagementDashboard: React.FC = () => {
                             if (siteUrl && selectedClient) {
                               try {
                                 await http.put(`/clients/${selectedClient.id}/service/google_search_console/config`, {
-                                  siteUrl: siteUrl
+                                  siteUrl: siteUrl.trim() // Trim whitespace before sending
                                 });
                                 setSuccessMessage('✅ Site URL updated successfully!');
                                 fetchClientData(selectedClient.id);

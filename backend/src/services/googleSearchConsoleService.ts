@@ -294,6 +294,9 @@ export class GoogleSearchConsoleService {
    */
   async updateClientSiteUrl(clientId: number, siteUrl: string): Promise<void> {
     try {
+      // Trim the site URL to remove any leading/trailing spaces
+      const trimmedSiteUrl = siteUrl.trim();
+      
       const result = await pool.query(
         'SELECT credentials FROM client_credentials WHERE client_id = $1 AND service_type = $2',
         [clientId, 'google_search_console']
@@ -302,7 +305,7 @@ export class GoogleSearchConsoleService {
       if (result.rows.length === 0) {
         // Create new credentials record with just the site URL
         const newCredentials = {
-          site_url: siteUrl,
+          site_url: trimmedSiteUrl,
           connected: false
         };
         
@@ -324,8 +327,8 @@ export class GoogleSearchConsoleService {
           throw new Error('Invalid credentials format');
         }
         
-        credentials.site_url = siteUrl;
-        console.log(`✅ Updated credentials with site URL ${siteUrl}:`, credentials);
+        credentials.site_url = trimmedSiteUrl;
+        console.log(`✅ Updated credentials with site URL ${trimmedSiteUrl}:`, credentials);
 
         await pool.query(
           'UPDATE client_credentials SET credentials = $1, updated_at = NOW() WHERE client_id = $2 AND service_type = $3',
