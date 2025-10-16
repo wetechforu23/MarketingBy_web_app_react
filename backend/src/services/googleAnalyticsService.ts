@@ -212,7 +212,7 @@ export class GoogleAnalyticsService {
 
       const response = await analytics.properties.runReport({
         property: `properties/${propertyId}`,
-        ...request,
+        requestBody: request,
         auth: this.oauth2Client
       });
 
@@ -235,7 +235,7 @@ export class GoogleAnalyticsService {
 
       const trafficResponse = await analytics.properties.runReport({
         property: `properties/${propertyId}`,
-        ...trafficRequest,
+        requestBody: trafficRequest,
         auth: this.oauth2Client
       });
 
