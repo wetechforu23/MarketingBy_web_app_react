@@ -3333,11 +3333,17 @@ router.post('/analytics/export/:reportId', requireAuth, async (req, res) => {
 
     if (format === 'pdf') {
       try {
+        console.log(`📄 Generating PDF for report ${reportId}...`);
+        console.log(`📊 Report data structure:`, JSON.stringify(reportData, null, 2));
+        
         // Generate HTML content for PDF
         const htmlContent = generateAnalyticsReportHTML(report, reportData);
+        console.log(`📄 HTML content generated, length: ${htmlContent.length}`);
         
         // Try to use puppeteer for PDF generation
         const puppeteer = require('puppeteer');
+        console.log(`🚀 Launching Puppeteer browser...`);
+        
         const browser = await puppeteer.launch({
           headless: true,
           args: [
@@ -3352,9 +3358,11 @@ router.post('/analytics/export/:reportId', requireAuth, async (req, res) => {
           ]
         });
         
+        console.log(`📄 Creating new page...`);
         const page = await browser.newPage();
         await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
         
+        console.log(`📄 Generating PDF...`);
         const pdfBuffer = await page.pdf({
           format: 'A4',
           printBackground: true,
@@ -3366,19 +3374,22 @@ router.post('/analytics/export/:reportId', requireAuth, async (req, res) => {
           }
         });
         
+        console.log(`📄 PDF generated, size: ${pdfBuffer.length} bytes`);
         await browser.close();
         
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="analytics-report-${reportId}.pdf"`);
         res.send(pdfBuffer);
+        console.log(`✅ PDF sent successfully`);
       } catch (puppeteerError) {
-        console.error('Puppeteer PDF generation failed:', puppeteerError);
+        console.error('❌ Puppeteer PDF generation failed:', puppeteerError);
         
         // Fallback to HTML download if PDF generation fails
         const htmlContent = generateAnalyticsReportHTML(report, reportData);
         res.setHeader('Content-Type', 'text/html');
         res.setHeader('Content-Disposition', `attachment; filename="analytics-report-${reportId}.html"`);
         res.send(htmlContent);
+        console.log(`📄 Fallback HTML sent`);
       }
     } else {
       res.status(400).json({ error: 'Unsupported export format' });

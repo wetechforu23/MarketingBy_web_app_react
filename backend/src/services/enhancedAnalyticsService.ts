@@ -461,12 +461,12 @@ export class EnhancedAnalyticsService {
   async generateModernReport(clientId: number, reportName: string, filters: AnalyticsFilters, userId?: number): Promise<ModernAnalyticsReport> {
     console.log(`📊 Generating comprehensive modern analytics report for client ${clientId}`);
 
-    // Fetch all analytics data for the date range
-    const analyticsData = await this.getAnalyticsData(clientId, filters);
+    // Fetch real-time data directly from Google Analytics and other services
+    const realTimeData = await this.fetchRealTimeData(clientId, filters);
     const leadsData = await this.getLeadsData(clientId, filters);
 
-    // Generate comprehensive report data with all sections
-    const reportData = await this.generateComprehensiveReportData(clientId, filters, analyticsData, leadsData);
+    // Generate comprehensive report data with all sections using real-time data
+    const reportData = await this.generateComprehensiveReportData(clientId, filters, realTimeData, leadsData);
 
     // Store the report
     const result = await pool.query(`
@@ -565,6 +565,41 @@ export class EnhancedAnalyticsService {
     };
 
     return reportData;
+  }
+
+  // Fetch real-time data directly from Google Analytics and other services
+  private async fetchRealTimeData(clientId: number, filters: AnalyticsFilters): Promise<any> {
+    console.log(`🔄 Fetching real-time data for client ${clientId} from ${filters.dateFrom} to ${filters.dateTo}`);
+    
+    const realTimeData: any = {
+      googleAnalytics: null,
+      searchConsole: null,
+      leads: null
+    };
+
+    try {
+      // Get Google Analytics data directly
+      console.log(`📊 Fetching Google Analytics data...`);
+      const gaData = await this.googleAnalyticsService.getAnalyticsData(clientId);
+      realTimeData.googleAnalytics = gaData;
+      console.log(`✅ Google Analytics data fetched: ${JSON.stringify(gaData, null, 2)}`);
+    } catch (error) {
+      console.error(`❌ Google Analytics data fetch failed:`, error);
+      realTimeData.googleAnalytics = null;
+    }
+
+    try {
+      // Get Search Console data directly
+      console.log(`🔍 Fetching Search Console data...`);
+      const scData = await this.googleSearchConsoleService.getSearchConsoleData(clientId);
+      realTimeData.searchConsole = scData;
+      console.log(`✅ Search Console data fetched: ${JSON.stringify(scData, null, 2)}`);
+    } catch (error) {
+      console.error(`❌ Search Console data fetch failed:`, error);
+      realTimeData.searchConsole = null;
+    }
+
+    return realTimeData;
   }
 
   // Get analytics data with filters
