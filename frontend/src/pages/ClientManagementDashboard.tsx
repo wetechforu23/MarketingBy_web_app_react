@@ -308,8 +308,14 @@ const ClientManagementDashboard: React.FC = () => {
         } else {
           console.log('⚠️ Search Console not connected - no data available');
         }
-      } catch (realError) {
+      } catch (realError: any) {
         console.log('⚠️ Real Search Console not available:', realError);
+        
+        // Check if it's a permission error and show helpful message
+        if (realError.response?.status === 500 && realError.response?.data?.error?.includes('permission denied')) {
+          console.log('❌ Search Console permission issue detected');
+          // You could show a toast notification here if you have a toast system
+        }
       }
 
       // Fetch real leads data for this client (ALWAYS REAL DATA)

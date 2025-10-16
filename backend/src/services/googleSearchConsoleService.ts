@@ -204,7 +204,19 @@ export class GoogleSearchConsoleService {
         auth: this.oauth2Client
       };
 
-      const searchResponse = await searchconsole.searchanalytics.query(searchRequest);
+      let searchResponse;
+      let pageResponse;
+      
+      try {
+        searchResponse = await searchconsole.searchanalytics.query(searchRequest);
+      } catch (error: any) {
+        if (error.code === 403) {
+          console.log(`❌ Search Console permission denied for site: ${siteUrl}`);
+          console.log(`❌ Error: ${error.message}`);
+          throw new Error(`Search Console permission denied for site '${siteUrl}'. Please ensure the site is verified in Google Search Console and the OAuth account has access.`);
+        }
+        throw error;
+      }
       
       // Get page analytics data
       const pageRequest = {
@@ -219,7 +231,16 @@ export class GoogleSearchConsoleService {
         auth: this.oauth2Client
       };
 
-      const pageResponse = await searchconsole.searchanalytics.query(pageRequest);
+      try {
+        pageResponse = await searchconsole.searchanalytics.query(pageRequest);
+      } catch (error: any) {
+        if (error.code === 403) {
+          console.log(`❌ Search Console permission denied for site: ${siteUrl}`);
+          console.log(`❌ Error: ${error.message}`);
+          throw new Error(`Search Console permission denied for site '${siteUrl}'. Please ensure the site is verified in Google Search Console and the OAuth account has access.`);
+        }
+        throw error;
+      }
 
       // Process the real data
       const searchRows = searchResponse.data.rows || [];
