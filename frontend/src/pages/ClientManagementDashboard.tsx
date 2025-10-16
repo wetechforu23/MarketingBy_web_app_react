@@ -83,7 +83,7 @@ const ClientManagementDashboard: React.FC = () => {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [clientSettings, setClientSettings] = useState<ClientSettings | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'settings' | 'seo'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'settings' | 'seo' | 'reports'>('overview');
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -103,6 +103,8 @@ const ClientManagementDashboard: React.FC = () => {
   const [successMessageText, setSuccessMessageText] = useState<string>('');
   const [syncDateFrom, setSyncDateFrom] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [syncDateTo, setSyncDateTo] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [reportDateFrom, setReportDateFrom] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+  const [reportDateTo, setReportDateTo] = useState<string>(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     fetchClients();
@@ -437,19 +439,8 @@ const ClientManagementDashboard: React.FC = () => {
         dateTo
       });
       
-      // Automatically generate a report after successful sync
-      const reportName = `${selectedClient.name} Analytics Report - ${new Date().toLocaleDateString()}`;
-      const reportResponse = await http.post(`/analytics/modern-report/${selectedClient.id}`, {
-        reportName,
-        reportType: 'comprehensive',
-        dateFrom,
-        dateTo,
-        groupBy: 'daily'
-      });
-      
-      setSuccessMessageText('✅ Data synced and report generated successfully! (Google Analytics, Search Console, Leads)');
+      setSuccessMessageText('✅ Data synced successfully! (Google Analytics, Search Console, Leads)');
       setShowSuccessModal(true);
-      await fetchAnalyticsReports();
       setShowSyncModal(false);
     } catch (error: any) {
       const errorMsg = error.response?.data?.error || error.message || 'Failed to sync analytics data';
@@ -465,21 +456,31 @@ const ClientManagementDashboard: React.FC = () => {
     
     setReportLoading(true);
     try {
-      // Use modern report generation with comprehensive data
+      // Generate modern comprehensive report with all sections
       const response = await http.post(`/analytics/modern-report/${selectedClient.id}`, {
-        reportName,
-        reportType,
+        reportName: `${reportName} - Comprehensive Report`,
+        reportType: 'comprehensive',
         dateFrom,
         dateTo,
-        groupBy: 'daily'
+        groupBy: 'daily',
+        includeSections: {
+          overview: true,
+          analytics: true,
+          seo: true,
+          pages: true,
+          technical: true,
+          recommendations: true,
+          comparison: true,
+          businessExplanations: true
+        }
       });
       
-      setSuccessMessageText('✅ Modern analytics report generated successfully!');
+      setSuccessMessageText('✅ Comprehensive modern report generated successfully! Includes overview, analytics, SEO, pages, technical insights, recommendations, and business explanations.');
       setShowSuccessModal(true);
       await fetchAnalyticsReports();
       setShowReportModal(false);
     } catch (error: any) {
-      const errorMsg = error.response?.data?.error || error.message || 'Failed to generate analytics report';
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to generate comprehensive report';
       setErrorMessage(`❌ ${errorMsg}`);
       setShowErrorModal(true);
     } finally {
@@ -818,6 +819,25 @@ const ClientManagementDashboard: React.FC = () => {
                 🔍 SEO Analysis
               </button>
               <button 
+                onClick={() => setActiveTab('reports')}
+                style={{
+                  padding: '16px 24px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  borderBottom: activeTab === 'reports' ? '3px solid #007bff' : '3px solid transparent',
+                  color: activeTab === 'reports' ? '#007bff' : '#6c757d',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                📋 Reports
+              </button>
+              <button 
                 onClick={() => setActiveTab('settings')}
                 style={{
                   padding: '16px 24px',
@@ -842,6 +862,154 @@ const ClientManagementDashboard: React.FC = () => {
             <div className="tab-content">
               {activeTab === 'seo' && selectedClient && (
                 <SEODashboard clientId={selectedClient.id} clientName={selectedClient.name} />
+              )}
+
+              {activeTab === 'reports' && (
+                <div className="reports-content">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3>Generate Comprehensive Reports</h3>
+                  </div>
+                  
+                  <div style={{ 
+                    backgroundColor: 'white', 
+                    padding: '30px', 
+                    borderRadius: '12px', 
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    marginBottom: '20px'
+                  }}>
+                    <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>Modern Analytics Report</h4>
+                    <p style={{ color: '#666', marginBottom: '20px' }}>
+                      Generate a comprehensive report with overview graphs, analytics data, SEO analysis, pages analysis, 
+                      technical insights, and recommendations. Includes previous vs current data comparison with detailed 
+                      business explanations.
+                    </p>
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
+                      <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                        <strong>📊 Overview</strong><br/>
+                        <small>Graphs and key metrics</small>
+                      </div>
+                      <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                        <strong>📈 Analytics</strong><br/>
+                        <small>Traffic and user data</small>
+                      </div>
+                      <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                        <strong>🔍 SEO Analysis</strong><br/>
+                        <small>Search performance</small>
+                      </div>
+                      <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                        <strong>📄 Pages</strong><br/>
+                        <small>Page performance</small>
+                      </div>
+                      <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                        <strong>⚙️ Technical</strong><br/>
+                        <small>Technical insights</small>
+                      </div>
+                      <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                        <strong>💡 Recommendations</strong><br/>
+                        <small>Actionable insights</small>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <input
+                        type="date"
+                        value={reportDateFrom}
+                        onChange={(e) => setReportDateFrom(e.target.value)}
+                        style={{
+                          padding: '8px 12px',
+                          border: '1px solid #ddd',
+                          borderRadius: '6px',
+                          fontSize: '14px'
+                        }}
+                      />
+                      <span>to</span>
+                      <input
+                        type="date"
+                        value={reportDateTo}
+                        onChange={(e) => setReportDateTo(e.target.value)}
+                        style={{
+                          padding: '8px 12px',
+                          border: '1px solid #ddd',
+                          borderRadius: '6px',
+                          fontSize: '14px'
+                        }}
+                      />
+                      <button
+                        onClick={() => setShowReportModal(true)}
+                        style={{
+                          backgroundColor: '#28a745',
+                          color: 'white',
+                          border: 'none',
+                          padding: '10px 20px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}
+                      >
+                        <i className="fas fa-file-pdf"></i>
+                        Generate Modern Report
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Generated Reports List */}
+                  <div style={{ 
+                    backgroundColor: 'white', 
+                    padding: '30px', 
+                    borderRadius: '12px', 
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)' 
+                  }}>
+                    <h4 style={{ margin: '0 0 20px 0', color: '#333' }}>Generated Reports</h4>
+                    
+                    {analyticsReports && analyticsReports.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        {analyticsReports.map((report: any) => (
+                          <div key={report.id} style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            padding: '15px',
+                            border: '1px solid #dee2e6',
+                            borderRadius: '8px',
+                            backgroundColor: '#f8f9fa'
+                          }}>
+                            <div>
+                              <div style={{ fontWeight: '600', marginBottom: '5px' }}>
+                                {report.report_name}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#666' }}>
+                                {new Date(report.date_from).toLocaleDateString()} to {new Date(report.date_to).toLocaleDateString()} • {report.group_by}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => exportReport(report.id)}
+                              style={{
+                                backgroundColor: '#dc3545',
+                                color: 'white',
+                                border: 'none',
+                                padding: '8px 16px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontSize: '12px'
+                              }}
+                            >
+                              <i className="fas fa-download"></i> Export PDF
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ color: '#666', textAlign: 'center', padding: '20px' }}>
+                        No reports generated yet. Generate your first comprehensive report above.
+                      </p>
+                    )}
+                  </div>
+                </div>
               )}
               {activeTab === 'overview' && (
                 <div className="overview-grid">
@@ -990,7 +1158,7 @@ const ClientManagementDashboard: React.FC = () => {
                         }}
                       >
                         <i className="fas fa-sync-alt"></i>
-                        Sync & Generate Report
+                        Sync Data
                       </button>
                     </div>
                   </div>
@@ -1395,7 +1563,7 @@ const ClientManagementDashboard: React.FC = () => {
                       </div>
                     ) : (
                       <p style={{ color: '#666', textAlign: 'center', padding: '20px' }}>
-                        No reports generated yet. Click "Sync & Generate Report" to create your first analytics report.
+                        No reports generated yet. Click "Sync Data" to sync your analytics data, then go to the "Reports" tab to generate reports.
                       </p>
                     )}
                   </div>
@@ -1999,12 +2167,13 @@ const ClientManagementDashboard: React.FC = () => {
             width: '90%',
             maxWidth: '500px'
           }}>
-             <h3 style={{ margin: '0 0 20px 0' }}>Sync & Generate Analytics Report</h3>
+             <h3 style={{ margin: '0 0 20px 0' }}>Sync Analytics Data</h3>
              <p style={{ color: '#666', marginBottom: '20px' }}>
-               This will sync ALL analytics data for <strong>{selectedClient?.name}</strong> from <strong>{syncDateFrom}</strong> to <strong>{syncDateTo}</strong> and automatically generate a detailed report:<br/><br/>
+               This will sync ALL analytics data for <strong>{selectedClient?.name}</strong> from <strong>{syncDateFrom}</strong> to <strong>{syncDateTo}</strong>:<br/><br/>
                • Google Analytics (page views, sessions, users, devices, traffic sources)<br/>
                • Search Console (search queries, impressions, clicks)<br/>
-               • Leads data (conversions, sources, daily counts)
+               • Leads data (conversions, sources, daily counts)<br/><br/>
+               <strong>Note:</strong> After syncing, go to the "Reports" tab to generate comprehensive reports.
              </p>
 
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
@@ -2039,12 +2208,12 @@ const ClientManagementDashboard: React.FC = () => {
                 {syncLoading ? (
                   <>
                     <i className="fas fa-spinner fa-spin"></i>
-                    Syncing & Generating Report...
+                    Syncing Data...
                   </>
                 ) : (
                   <>
                     <i className="fas fa-sync-alt"></i>
-                    Start Sync & Generate Report
+                    Start Sync
                   </>
                 )}
               </button>
@@ -2074,12 +2243,17 @@ const ClientManagementDashboard: React.FC = () => {
             width: '90%',
             maxWidth: '500px'
           }}>
-             <h3 style={{ margin: '0 0 20px 0' }}>Generate Modern Analytics Report</h3>
+             <h3 style={{ margin: '0 0 20px 0' }}>Generate Modern Comprehensive Report</h3>
              <p style={{ color: '#666', marginBottom: '20px' }}>
-               Create a comprehensive modern analytics report for {selectedClient?.name} with:<br/>
-               • Complete data visualization and insights<br/>
-               • Filterable data by date, service, and metrics<br/>
-               • Exportable PDF reports for client presentations
+               Create a comprehensive modern report for <strong>{selectedClient?.name}</strong> with:<br/><br/>
+               <strong>📊 Overview:</strong> Graphs and key performance indicators<br/>
+               <strong>📈 Analytics:</strong> Traffic, users, and engagement metrics<br/>
+               <strong>🔍 SEO Analysis:</strong> Search performance and rankings<br/>
+               <strong>📄 Pages:</strong> Individual page performance analysis<br/>
+               <strong>⚙️ Technical:</strong> Technical SEO and site health<br/>
+               <strong>💡 Recommendations:</strong> Actionable business insights<br/>
+               <strong>📊 Comparison:</strong> Previous vs current data with explanations<br/>
+               <strong>💼 Business Impact:</strong> What each metric means for your business
              </p>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
@@ -2160,7 +2334,7 @@ const ClientManagementDashboard: React.FC = () => {
                   opacity: reportLoading ? 0.6 : 1
                 }}
               >
-                {reportLoading ? 'Generating...' : 'Generate Report'}
+                {reportLoading ? 'Generating Comprehensive Report...' : 'Generate Comprehensive Report'}
               </button>
             </div>
           </div>

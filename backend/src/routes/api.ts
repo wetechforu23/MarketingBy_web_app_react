@@ -2988,7 +2988,7 @@ router.get('/analytics/data/:clientId', requireAuth, async (req, res) => {
 router.post('/analytics/modern-report/:clientId', requireAuth, async (req, res) => {
   try {
     const { clientId } = req.params;
-    const { reportName, reportType, dateFrom, dateTo, groupBy, serviceType, dataType } = req.body;
+    const { reportName, reportType, dateFrom, dateTo, groupBy, serviceType, dataType, includeSections } = req.body;
     const userId = req.session.userId;
 
     if (!reportName || !dateFrom || !dateTo) {
@@ -3000,7 +3000,17 @@ router.post('/analytics/modern-report/:clientId', requireAuth, async (req, res) 
       dateTo,
       groupBy: groupBy || 'daily',
       serviceType,
-      dataType
+      dataType,
+      includeSections: includeSections || {
+        overview: true,
+        analytics: true,
+        seo: true,
+        pages: true,
+        technical: true,
+        recommendations: true,
+        comparison: true,
+        businessExplanations: true
+      }
     };
 
     const report = await enhancedAnalyticsService.generateModernReport(
@@ -3012,12 +3022,12 @@ router.post('/analytics/modern-report/:clientId', requireAuth, async (req, res) 
 
     res.json({
       success: true,
-      message: 'Modern analytics report generated successfully',
+      message: 'Comprehensive modern analytics report generated successfully',
       data: report
     });
   } catch (error) {
     console.error('Generate modern analytics report error:', error);
-    res.status(500).json({ error: 'Failed to generate modern analytics report' });
+    res.status(500).json({ error: 'Failed to generate comprehensive modern analytics report' });
   }
 });
 
