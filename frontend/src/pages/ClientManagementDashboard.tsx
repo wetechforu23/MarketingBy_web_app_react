@@ -83,7 +83,7 @@ const ClientManagementDashboard: React.FC = () => {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [clientSettings, setClientSettings] = useState<ClientSettings | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'settings' | 'seo' | 'reports'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'settings' | 'seo' | 'reports' | 'local-search'>('overview');
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -105,6 +105,10 @@ const ClientManagementDashboard: React.FC = () => {
   const [syncDateTo, setSyncDateTo] = useState<string>(new Date().toISOString().split('T')[0]);
   const [reportDateFrom, setReportDateFrom] = useState<string>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [reportDateTo, setReportDateTo] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [showLocalSearchModal, setShowLocalSearchModal] = useState(false);
+  const [localSearchLoading, setLocalSearchLoading] = useState(false);
+  const [localSearchQueries, setLocalSearchQueries] = useState<string>('');
+  const [localSearchRadius, setLocalSearchRadius] = useState<number>(10000);
 
   useEffect(() => {
     fetchClients();
@@ -838,6 +842,25 @@ const ClientManagementDashboard: React.FC = () => {
                 📋 Reports
               </button>
               <button 
+                onClick={() => setActiveTab('local-search')}
+                style={{
+                  padding: '16px 24px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  borderBottom: activeTab === 'local-search' ? '3px solid #007bff' : '3px solid transparent',
+                  color: activeTab === 'local-search' ? '#007bff' : '#6c757d',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                🗺️ Local Search
+              </button>
+              <button 
                 onClick={() => setActiveTab('settings')}
                 style={{
                   padding: '16px 24px',
@@ -1011,6 +1034,116 @@ const ClientManagementDashboard: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {activeTab === 'local-search' && (
+                <div className="local-search-content">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3>Local Search Analysis</h3>
+                    <button
+                      onClick={() => setShowLocalSearchModal(true)}
+                      style={{
+                        backgroundColor: '#28a745',
+                        color: 'white',
+                        border: 'none',
+                        padding: '10px 20px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      <i className="fas fa-search"></i>
+                      Generate Local Search Grid
+                    </button>
+                  </div>
+                  
+                  <div style={{ 
+                    backgroundColor: 'white', 
+                    padding: '30px', 
+                    borderRadius: '12px', 
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    marginBottom: '20px'
+                  }}>
+                    <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>Local Search Overview</h4>
+                    <p style={{ color: '#666', marginBottom: '20px' }}>
+                      Analyze your local search presence and competitor landscape using real Google Places data. 
+                      Track your rankings, identify competitors, and discover market opportunities.
+                    </p>
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
+                      <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                        <strong>🔍 Search Rankings</strong><br/>
+                        <small>Track your position in local search results</small>
+                      </div>
+                      <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                        <strong>🏢 Competitor Analysis</strong><br/>
+                        <small>Identify and analyze local competitors</small>
+                      </div>
+                      <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                        <strong>📊 Market Share</strong><br/>
+                        <small>Estimate your local market position</small>
+                      </div>
+                      <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                        <strong>📈 Ranking Trends</strong><br/>
+                        <small>Monitor ranking changes over time</small>
+                      </div>
+                      <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                        <strong>🎯 Market Gaps</strong><br/>
+                        <small>Discover untapped opportunities</small>
+                      </div>
+                      <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                        <strong>💡 Local SEO Score</strong><br/>
+                        <small>Overall local search performance</small>
+                      </div>
+                    </div>
+
+                    <div style={{ 
+                      backgroundColor: '#e3f2fd', 
+                      padding: '15px', 
+                      borderRadius: '8px', 
+                      border: '1px solid #bbdefb'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '18px', marginRight: '8px' }}>ℹ️</span>
+                        <strong style={{ color: '#1976d2' }}>Real Data Analysis</strong>
+                      </div>
+                      <p style={{ margin: '0', color: '#1976d2', fontSize: '14px' }}>
+                        This analysis uses real Google Places API data to provide accurate local search insights. 
+                        No mock data is used - all rankings, competitor information, and market analysis are based on actual search results.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Local Search Results */}
+                  <div style={{ 
+                    backgroundColor: 'white', 
+                    padding: '30px', 
+                    borderRadius: '12px', 
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)' 
+                  }}>
+                    <h4 style={{ margin: '0 0 20px 0', color: '#333' }}>Local Search Results</h4>
+                    
+                    <div style={{ 
+                      backgroundColor: '#f8f9fa', 
+                      padding: '20px', 
+                      borderRadius: '8px', 
+                      textAlign: 'center',
+                      border: '1px solid #dee2e6'
+                    }}>
+                      <div style={{ fontSize: '18px', marginBottom: '10px', color: '#6c757d' }}>
+                        🗺️ No Local Search Data Yet
+                      </div>
+                      <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
+                        Generate your first local search analysis to see rankings, competitors, and market insights.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {activeTab === 'overview' && (
                 <div className="overview-grid">
                   {/* Google Analytics Card */}
@@ -2443,6 +2576,151 @@ const ClientManagementDashboard: React.FC = () => {
                 }}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Local Search Modal */}
+      {showLocalSearchModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 10000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '12px',
+            width: '90%',
+            maxWidth: '600px'
+          }}>
+             <h3 style={{ margin: '0 0 20px 0' }}>Generate Local Search Analysis</h3>
+             <p style={{ color: '#666', marginBottom: '20px' }}>
+               Create a comprehensive local search analysis for <strong>{selectedClient?.name}</strong> using real Google Places data:<br/><br/>
+               <strong>🔍 Search Rankings:</strong> Track your position in local search results<br/>
+               <strong>🏢 Competitor Analysis:</strong> Identify and analyze local competitors<br/>
+               <strong>📊 Market Share:</strong> Estimate your local market position<br/>
+               <strong>📈 Ranking Trends:</strong> Monitor ranking changes over time<br/>
+               <strong>🎯 Market Gaps:</strong> Discover untapped opportunities<br/>
+               <strong>💡 Local SEO Score:</strong> Overall local search performance
+             </p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Search Queries (one per line):</label>
+                <textarea 
+                  value={localSearchQueries}
+                  onChange={(e) => setLocalSearchQueries(e.target.value)}
+                  placeholder="e.g.,&#10;medical clinic near me&#10;family doctor&#10;healthcare services&#10;urgent care"
+                  style={{ 
+                    width: '100%', 
+                    height: '120px',
+                    padding: '10px', 
+                    border: '1px solid #ddd', 
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                <small style={{ color: '#666', marginTop: '5px', display: 'block' }}>
+                  Enter search terms that potential patients might use to find your practice
+                </small>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Search Radius (meters):</label>
+                <select 
+                  value={localSearchRadius}
+                  onChange={(e) => setLocalSearchRadius(Number(e.target.value))}
+                  style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px' }}
+                >
+                  <option value={5000}>5 km (5,000 meters)</option>
+                  <option value={10000}>10 km (10,000 meters)</option>
+                  <option value={15000}>15 km (15,000 meters)</option>
+                  <option value={25000}>25 km (25,000 meters)</option>
+                  <option value={50000}>50 km (50,000 meters)</option>
+                </select>
+                <small style={{ color: '#666', marginTop: '5px', display: 'block' }}>
+                  Larger radius will include more competitors but may be less relevant
+                </small>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button 
+                onClick={() => setShowLocalSearchModal(false)}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!localSearchQueries.trim()) {
+                    setErrorMessage('Please enter at least one search query');
+                    setShowErrorModal(true);
+                    return;
+                  }
+
+                  setLocalSearchLoading(true);
+                  try {
+                    const queries = localSearchQueries.split('\n').filter(q => q.trim());
+                    
+                    const response = await http.post(`/local-search/generate/${selectedClient?.id}`, {
+                      search_queries: queries,
+                      radius: localSearchRadius,
+                      include_competitors: true,
+                      include_rankings: true,
+                      include_analysis: true
+                    });
+
+                    setSuccessMessageText('✅ Local search analysis generated successfully! Real Google Places data analyzed.');
+                    setShowSuccessModal(true);
+                    setShowLocalSearchModal(false);
+                  } catch (error: any) {
+                    const errorMsg = error.response?.data?.error || error.message || 'Failed to generate local search analysis';
+                    setErrorMessage(`❌ ${errorMsg}`);
+                    setShowErrorModal(true);
+                  } finally {
+                    setLocalSearchLoading(false);
+                  }
+                }}
+                disabled={localSearchLoading}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: localSearchLoading ? 'not-allowed' : 'pointer',
+                  opacity: localSearchLoading ? 0.6 : 1
+                }}
+              >
+                {localSearchLoading ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin"></i>
+                    Generating Analysis...
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-search"></i>
+                    Generate Local Search Analysis
+                  </>
+                )}
               </button>
             </div>
           </div>

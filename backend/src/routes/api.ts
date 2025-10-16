@@ -3435,6 +3435,125 @@ router.get('/seo/recommendations/:clientId', requireAuth, async (req, res) => {
   }
 });
 
+// ==================== LOCAL SEARCH ENDPOINTS ====================
+
+// Get local search grid for a client
+router.get('/local-search/grid/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    const { LocalSearchService } = require('../services/localSearchService');
+    const localSearchService = LocalSearchService.getInstance();
+    
+    const grid = await localSearchService.getLocalSearchGrid(parseInt(clientId));
+    
+    if (!grid) {
+      return res.status(404).json({ error: 'No local search data found for this client' });
+    }
+    
+    res.json({
+      success: true,
+      data: grid
+    });
+  } catch (error) {
+    console.error('Get local search grid error:', error);
+    res.status(500).json({ error: 'Failed to get local search grid' });
+  }
+});
+
+// Generate local search grid for a client
+router.post('/local-search/generate/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { 
+      radius = 10000, 
+      search_queries = [], 
+      include_competitors = true, 
+      include_rankings = true, 
+      include_analysis = true 
+    } = req.body;
+    
+    if (!search_queries || search_queries.length === 0) {
+      return res.status(400).json({ error: 'Search queries are required' });
+    }
+    
+    const { LocalSearchService } = require('../services/localSearchService');
+    const localSearchService = LocalSearchService.getInstance();
+    
+    const filters = {
+      radius,
+      search_queries,
+      include_competitors,
+      include_rankings,
+      include_analysis
+    };
+    
+    const grid = await localSearchService.generateLocalSearchGrid(parseInt(clientId), filters);
+    
+    res.json({
+      success: true,
+      message: 'Local search grid generated successfully',
+      data: grid
+    });
+  } catch (error) {
+    console.error('Generate local search grid error:', error);
+    res.status(500).json({ error: 'Failed to generate local search grid' });
+  }
+});
+
+// Get local search competitors for a client
+router.get('/local-search/competitors/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT * FROM local_search_competitors 
+      WHERE client_id = $1 
+      ORDER BY market_share_estimate DESC, competitor_rating DESC
+    `, [clientId]);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Get local search competitors error:', error);
+    res.status(500).json({ error: 'Failed to get local search competitors' });
+  }
+});
+
+// Get local search ranking history for a client
+router.get('/local-search/rankings/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { query, days = 30 } = req.query;
+    
+    let sql = `
+      SELECT * FROM local_search_rankings 
+      WHERE client_id = $1 
+      AND recorded_at >= NOW() - INTERVAL '${days} days'
+    `;
+    const params = [clientId];
+    
+    if (query) {
+      sql += ' AND search_query = $2';
+      params.push(query as string);
+    }
+    
+    sql += ' ORDER BY recorded_at DESC, search_query';
+    
+    const result = await pool.query(sql, params);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Get local search rankings error:', error);
+    res.status(500).json({ error: 'Failed to get local search rankings' });
+  }
+});
+
 // ==================== SEO CHECKLIST ENDPOINTS ====================
 
 // Get comprehensive SEO checklist for a client
