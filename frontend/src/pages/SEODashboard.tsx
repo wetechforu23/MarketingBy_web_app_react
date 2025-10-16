@@ -47,10 +47,72 @@ interface TechnicalSEO {
   };
 }
 
+interface SEOChecklistItem {
+  id: string;
+  name: string;
+  category: 'title' | 'meta' | 'content' | 'technical' | 'performance' | 'schema' | 'links' | 'images';
+  status: 'passed' | 'failed' | 'warning' | 'not_checked';
+  current_value?: string | number;
+  target_value?: string | number;
+  score: number;
+  recommendation: string;
+  priority: 'high' | 'medium' | 'low';
+  page_specific: boolean;
+}
+
+interface PageSEOResult {
+  page_url: string;
+  page_title: string;
+  overall_score: number;
+  total_checks: number;
+  passed_checks: number;
+  failed_checks: number;
+  warning_checks: number;
+  checklist: SEOChecklistItem[];
+  last_audited: string;
+}
+
+interface ClientSEOChecklist {
+  client_id: number;
+  client_name: string;
+  overall_score: number;
+  total_pages: number;
+  pages_audited: number;
+  pages: PageSEOResult[];
+  summary: {
+    total_checks: number;
+    passed_checks: number;
+    failed_checks: number;
+    warning_checks: number;
+    critical_issues: number;
+    improvement_opportunities: number;
+  };
+  last_updated: string;
+}
+
 interface SEODashboardProps {
   clientId: number;
   clientName: string;
 }
+
+// Helper functions for colors
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'passed': return '#28a745';
+    case 'failed': return '#dc3545';
+    case 'warning': return '#ffc107';
+    default: return '#6c757d';
+  }
+};
+
+const getPriorityColor = (priority: string) => {
+  switch (priority) {
+    case 'high': return '#dc3545';
+    case 'medium': return '#ffc107';
+    case 'low': return '#28a745';
+    default: return '#6c757d';
+  }
+};
 
 const SEODashboard: React.FC<SEODashboardProps> = ({ clientId, clientName }) => {
   const [seoData, setSeoData] = useState<{
@@ -61,10 +123,12 @@ const SEODashboard: React.FC<SEODashboardProps> = ({ clientId, clientName }) => 
     keywordAnalysis: any[];
     competitorAnalysis: any;
   } | null>(null);
+  const [seoChecklist, setSeoChecklist] = useState<ClientSEOChecklist | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState('2025-09-16');
   const [dateTo, setDateTo] = useState('2025-10-16');
+  const [activeTab, setActiveTab] = useState<'overview' | 'pages' | 'technical' | 'recommendations' | 'checklist'>('overview');
 
   const fetchSEOData = async () => {
     setLoading(true);
@@ -79,9 +143,19 @@ const SEODashboard: React.FC<SEODashboardProps> = ({ clientId, clientName }) => 
     }
   };
 
+  const fetchSEOChecklist = async () => {
+    try {
+      const response = await http.get(`/seo/checklist/${clientId}`);
+      setSeoChecklist(response.data.data);
+    } catch (err: any) {
+      console.error('Failed to fetch SEO checklist:', err);
+    }
+  };
+
   useEffect(() => {
     if (clientId) {
       fetchSEOData();
+      fetchSEOChecklist();
     }
   }, [clientId, dateFrom, dateTo]);
 
@@ -186,7 +260,49 @@ const SEODashboard: React.FC<SEODashboardProps> = ({ clientId, clientName }) => 
         </div>
       </div>
 
-      {/* SEO Score Overview */}
+      {/* Tab Navigation */}
+      <div style={{ 
+        backgroundColor: 'white', 
+        padding: '0', 
+        borderRadius: '12px', 
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)', 
+        marginBottom: '30px',
+        overflow: 'hidden'
+      }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid #dee2e6' }}>
+          {[
+            { key: 'overview', label: '📊 Overview', icon: '📊' },
+            { key: 'pages', label: '📄 Pages', icon: '📄' },
+            { key: 'technical', label: '⚙️ Technical', icon: '⚙️' },
+            { key: 'recommendations', label: '💡 Recommendations', icon: '💡' },
+            { key: 'checklist', label: '✅ SEO Checklist', icon: '✅' }
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key as any)}
+              style={{
+                flex: 1,
+                padding: '16px 20px',
+                border: 'none',
+                backgroundColor: activeTab === tab.key ? '#007bff' : 'transparent',
+                color: activeTab === tab.key ? 'white' : '#6c757d',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                borderBottom: activeTab === tab.key ? '3px solid #0056b3' : '3px solid transparent'
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'overview' && (
+        <>
+          {/* SEO Score Overview */}
       <div style={{ 
         backgroundColor: 'white', 
         padding: '25px', 
@@ -433,6 +549,233 @@ const SEODashboard: React.FC<SEODashboardProps> = ({ clientId, clientName }) => 
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+        </>
+      )}
+
+      {/* SEO Checklist Tab */}
+      {activeTab === 'checklist' && (
+        <div style={{ 
+          backgroundColor: 'white', 
+          padding: '25px', 
+          borderRadius: '12px', 
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)', 
+          marginBottom: '30px' 
+        }}>
+          <h2 style={{ margin: '0 0 20px 0', color: '#333' }}>SEO Checklist</h2>
+          
+          {seoChecklist ? (
+            <>
+              {/* Overall Summary */}
+              <div style={{ 
+                backgroundColor: '#f8f9fa', 
+                padding: '20px', 
+                borderRadius: '8px', 
+                marginBottom: '30px' 
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: getScoreColor(seoChecklist.overall_score) }}>
+                      {seoChecklist.overall_score}%
+                    </div>
+                    <div style={{ color: '#666', fontSize: '14px' }}>Overall Score</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#28a745' }}>
+                      {seoChecklist.summary.passed_checks}
+                    </div>
+                    <div style={{ color: '#666', fontSize: '14px' }}>Passed</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>
+                      {seoChecklist.summary.failed_checks}
+                    </div>
+                    <div style={{ color: '#666', fontSize: '14px' }}>Failed</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffc107' }}>
+                      {seoChecklist.summary.warning_checks}
+                    </div>
+                    <div style={{ color: '#666', fontSize: '14px' }}>Warnings</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>
+                      {seoChecklist.summary.critical_issues}
+                    </div>
+                    <div style={{ color: '#666', fontSize: '14px' }}>Critical Issues</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pages List */}
+              <div style={{ marginBottom: '30px' }}>
+                <h3 style={{ margin: '0 0 15px 0', color: '#333' }}>Pages Analysis ({seoChecklist.pages.length} pages)</h3>
+                
+                {seoChecklist.pages.map((page, pageIndex) => (
+                  <div key={pageIndex} style={{ 
+                    border: '1px solid #dee2e6', 
+                    borderRadius: '8px', 
+                    marginBottom: '15px',
+                    overflow: 'hidden'
+                  }}>
+                    {/* Page Header */}
+                    <div style={{ 
+                      backgroundColor: '#f8f9fa', 
+                      padding: '15px 20px', 
+                      borderBottom: '1px solid #dee2e6',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: '600', fontSize: '16px', color: '#333' }}>
+                          {page.page_title}
+                        </div>
+                        <div style={{ fontSize: '14px', color: '#666', marginTop: '2px' }}>
+                          {page.page_url}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ 
+                          fontSize: '24px', 
+                          fontWeight: 'bold', 
+                          color: getScoreColor(page.overall_score) 
+                        }}>
+                          {page.overall_score}%
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>
+                          {page.passed_checks}/{page.total_checks} passed
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Checklist Items */}
+                    <div style={{ padding: '20px' }}>
+                      <div style={{ display: 'grid', gap: '12px' }}>
+                        {page.checklist.map((item, itemIndex) => (
+                          <div key={itemIndex} style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            padding: '12px', 
+                            backgroundColor: '#f8f9fa',
+                            borderRadius: '6px',
+                            border: `1px solid ${getStatusColor(item.status)}`
+                          }}>
+                            <div style={{ 
+                              width: '20px', 
+                              height: '20px', 
+                              borderRadius: '50%', 
+                              backgroundColor: getStatusColor(item.status),
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              marginRight: '12px',
+                              flexShrink: 0
+                            }}>
+                              {item.status === 'passed' ? '✓' : item.status === 'failed' ? '✗' : '⚠'}
+                            </div>
+                            
+                            <div style={{ flex: 1 }}>
+                              <div style={{ 
+                                fontWeight: '600', 
+                                fontSize: '14px', 
+                                color: '#333',
+                                marginBottom: '4px'
+                              }}>
+                                {item.name}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
+                                {item.current_value && (
+                                  <span>Current: <strong>{item.current_value}</strong></span>
+                                )}
+                                {item.current_value && item.target_value && <span> • </span>}
+                                {item.target_value && (
+                                  <span>Target: <strong>{item.target_value}</strong></span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#666' }}>
+                                {item.recommendation}
+                              </div>
+                            </div>
+
+                            <div style={{ 
+                              marginLeft: '12px', 
+                              textAlign: 'right',
+                              flexShrink: 0
+                            }}>
+                              <div style={{ 
+                                fontSize: '12px', 
+                                fontWeight: '600', 
+                                color: getScoreColor(item.score),
+                                marginBottom: '2px'
+                              }}>
+                                {item.score}%
+                              </div>
+                              <div style={{ 
+                                fontSize: '10px', 
+                                padding: '2px 6px', 
+                                borderRadius: '10px',
+                                backgroundColor: getPriorityColor(item.priority),
+                                color: 'white'
+                              }}>
+                                {item.priority}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+              <div style={{ fontSize: '18px', marginBottom: '10px' }}>Loading SEO Checklist...</div>
+              <div style={{ fontSize: '14px' }}>Analyzing your website's SEO performance</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Other tabs content would go here */}
+      {activeTab === 'pages' && (
+        <div style={{ 
+          backgroundColor: 'white', 
+          padding: '25px', 
+          borderRadius: '12px', 
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)', 
+          marginBottom: '30px' 
+        }}>
+          <h2 style={{ margin: '0 0 20px 0', color: '#333' }}>Page Analysis</h2>
+          <p style={{ color: '#666' }}>Detailed page-by-page SEO analysis will be displayed here.</p>
+        </div>
+      )}
+
+      {activeTab === 'technical' && (
+        <div style={{ 
+          backgroundColor: 'white', 
+          padding: '25px', 
+          borderRadius: '12px', 
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)', 
+          marginBottom: '30px' 
+        }}>
+          <h2 style={{ margin: '0 0 20px 0', color: '#333' }}>Technical SEO</h2>
+          <p style={{ color: '#666' }}>Technical SEO analysis will be displayed here.</p>
+        </div>
+      )}
+
+      {activeTab === 'recommendations' && (
+        <div style={{ 
+          backgroundColor: 'white', 
+          padding: '25px', 
+          borderRadius: '12px', 
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)', 
+          marginBottom: '30px' 
+        }}>
+          <h2 style={{ margin: '0 0 20px 0', color: '#333' }}>SEO Recommendations</h2>
+          <p style={{ color: '#666' }}>SEO recommendations will be displayed here.</p>
         </div>
       )}
     </div>

@@ -2892,6 +2892,9 @@ const comprehensiveAnalyticsService = new ComprehensiveAnalyticsService();
 const { SEOAnalysisService } = require('../services/seoAnalysisService');
 const seoAnalysisService = new SEOAnalysisService();
 
+const { SEOChecklistService } = require('../services/seoChecklistService');
+const seoChecklistService = new SEOChecklistService();
+
 // Comprehensive sync for all analytics data
 router.post('/analytics/comprehensive-sync/:clientId', requireAuth, async (req, res) => {
   try {
@@ -3419,6 +3422,61 @@ router.get('/seo/recommendations/:clientId', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Get SEO recommendations error:', error);
     res.status(500).json({ error: 'Failed to get SEO recommendations' });
+  }
+});
+
+// ==================== SEO CHECKLIST ENDPOINTS ====================
+
+// Get comprehensive SEO checklist for a client
+router.get('/seo/checklist/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    const seoChecklist = await seoChecklistService.getClientSEOChecklist(parseInt(clientId));
+
+    res.json({
+      success: true,
+      data: seoChecklist
+    });
+  } catch (error) {
+    console.error('Get SEO checklist error:', error);
+    res.status(500).json({ error: 'Failed to get SEO checklist' });
+  }
+});
+
+// Get SEO configuration for a client
+router.get('/seo/configuration/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    const configuration = await seoChecklistService.getSEOConfiguration(parseInt(clientId));
+
+    res.json({
+      success: true,
+      data: configuration
+    });
+  } catch (error) {
+    console.error('Get SEO configuration error:', error);
+    res.status(500).json({ error: 'Failed to get SEO configuration' });
+  }
+});
+
+// Update SEO configuration for a client
+router.put('/seo/configuration/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const configuration = req.body;
+    const userId = req.session.userId;
+
+    await seoChecklistService.updateSEOConfiguration(parseInt(clientId), configuration, userId);
+
+    res.json({
+      success: true,
+      message: 'SEO configuration updated successfully'
+    });
+  } catch (error) {
+    console.error('Update SEO configuration error:', error);
+    res.status(500).json({ error: 'Failed to update SEO configuration' });
   }
 });
 
