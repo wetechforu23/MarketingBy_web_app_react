@@ -3601,8 +3601,9 @@ function generateAnalyticsReportHTML(report: any, reportData: any): string {
         <div class="report-info">
             <strong>Report Name:</strong> ${report.report_name}<br>
             <strong>Client:</strong> ${report.client_name}<br>
-            <strong>Date Range:</strong> ${new Date(report.date_from).toLocaleDateString()} to ${new Date(report.date_to).toLocaleDateString()}<br>
-            <strong>Generated:</strong> ${new Date(report.generated_at).toLocaleDateString()}
+            <strong>📅 Report Period:</strong> ${new Date(report.date_from).toLocaleDateString()} to ${new Date(report.date_to).toLocaleDateString()}<br>
+            <strong>Generated:</strong> ${new Date(report.created_at || report.generated_at).toLocaleDateString()}<br>
+            <strong>📊 Data Sources:</strong> Google Analytics, Search Console, SEO Analysis, Local Search
         </div>
 
         ${overview.summary ? `
@@ -3684,12 +3685,59 @@ function generateAnalyticsReportHTML(report: any, reportData: any): string {
         </div>
         ` : ''}
 
-        ${comparison.periodComparison ? `
         <div class="section">
-            <h2>📊 Period Comparison</h2>
-            <p><strong>Growth Analysis:</strong> ${comparison.periodComparison.growthSummary || 'No comparison data available'}</p>
+            <h2>📈 Current vs Previous Period Comparison</h2>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-value">${summary.totalPageViews || 0}</div>
+                    <div class="metric-label">Current Page Views</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        ${comparison.periodComparison?.pageViewsChange ? `(${comparison.periodComparison.pageViewsChange > 0 ? '+' : ''}${comparison.periodComparison.pageViewsChange}% vs previous)` : 'No previous data available'}
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${summary.totalSessions || 0}</div>
+                    <div class="metric-label">Current Sessions</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        ${comparison.periodComparison?.sessionsChange ? `(${comparison.periodComparison.sessionsChange > 0 ? '+' : ''}${comparison.periodComparison.sessionsChange}% vs previous)` : 'No previous data available'}
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${summary.totalUsers || 0}</div>
+                    <div class="metric-label">Current Users</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        ${comparison.periodComparison?.usersChange ? `(${comparison.periodComparison.usersChange > 0 ? '+' : ''}${comparison.periodComparison.usersChange}% vs previous)` : 'No previous data available'}
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${summary.totalLeads || 0}</div>
+                    <div class="metric-label">Current Leads</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        ${comparison.periodComparison?.leadsChange ? `(${comparison.periodComparison.leadsChange > 0 ? '+' : ''}${comparison.periodComparison.leadsChange}% vs previous)` : 'No previous data available'}
+                    </div>
+                </div>
+            </div>
+            <div class="recommendation">
+                <h4>📊 Trend Analysis</h4>
+                <p>${comparison.businessExplanations?.trendAnalysis || 'Comparing current performance with previous periods helps identify growth patterns and areas for improvement.'}</p>
+            </div>
         </div>
-        ` : ''}
+
+        <div class="section">
+            <h2>🗺️ Leads Geographic Distribution</h2>
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
+                <div style="font-size: 18px; font-weight: bold; color: #007bff; margin-bottom: 10px;">📍 Practice Location</div>
+                <div style="color: #666; margin-bottom: 15px;">${report.client_name || 'Practice Location'}</div>
+                <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #dee2e6;">
+                    <div style="font-weight: 600; color: #28a745; margin-bottom: 5px;">Total Leads: ${summary.totalLeads || 0}</div>
+                    <div style="font-size: 14px; color: #666;">Leads from surrounding areas within 25-mile radius</div>
+                </div>
+            </div>
+            <div class="recommendation">
+                <h4>🗺️ Geographic Insights</h4>
+                <p>Understanding where your leads come from helps optimize local marketing efforts and identify expansion opportunities in underserved areas.</p>
+            </div>
+        </div>
 
         <div class="footer">
             <p>This report was generated by MarketingBy Analytics Platform</p>

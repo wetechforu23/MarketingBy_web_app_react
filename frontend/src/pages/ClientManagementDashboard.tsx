@@ -622,7 +622,8 @@ const ClientManagementDashboard: React.FC = () => {
                 <div class="header">
                   <h1>${report.report_name}</h1>
                   <p><strong>Generated:</strong> ${report.created_at ? new Date(report.created_at).toLocaleString() : 'Unknown'}</p>
-                  <p><strong>Date Range:</strong> ${report.date_from ? new Date(report.date_from).toLocaleDateString() : 'Unknown'} to ${report.date_to ? new Date(report.date_to).toLocaleDateString() : 'Unknown'}</p>
+                  <p><strong>📅 Report Period:</strong> ${report.date_from ? new Date(report.date_from).toLocaleDateString() : 'Unknown'} to ${report.date_to ? new Date(report.date_to).toLocaleDateString() : 'Unknown'}</p>
+                  <p><strong>📊 Data Sources:</strong> Google Analytics, Search Console, SEO Analysis, Local Search</p>
                 </div>
                 
                 <!-- Overview Section -->
@@ -802,6 +803,60 @@ const ClientManagementDashboard: React.FC = () => {
                   <div class="business-explanation">
                     <h5>💡 Technical Impact:</h5>
                     <p>${reportData.technical?.businessExplanations?.siteHealth || 'A healthy website loads quickly and works properly, improving patient experience and search rankings.'}</p>
+                  </div>
+                </div>
+
+                <!-- Current vs Previous Comparison Section -->
+                <div class="section">
+                  <h2 class="section-title">📈 Current vs Previous Period Comparison</h2>
+                  <div class="subsection">
+                    <h4>Performance Trends</h4>
+                    <div class="metrics-grid">
+                      <div class="metric">
+                        <div class="metric-value">${reportData.summary?.totalPageViews || 0}</div>
+                        <div class="metric-label">Current Page Views</div>
+                        <div class="metric-explanation">${reportData.comparison?.periodComparison?.pageViewsChange ? `(${reportData.comparison.periodComparison.pageViewsChange > 0 ? '+' : ''}${reportData.comparison.periodComparison.pageViewsChange}% vs previous)` : 'No previous data available'}</div>
+                      </div>
+                      <div class="metric">
+                        <div class="metric-value">${reportData.summary?.totalSessions || 0}</div>
+                        <div class="metric-label">Current Sessions</div>
+                        <div class="metric-explanation">${reportData.comparison?.periodComparison?.sessionsChange ? `(${reportData.comparison.periodComparison.sessionsChange > 0 ? '+' : ''}${reportData.comparison.periodComparison.sessionsChange}% vs previous)` : 'No previous data available'}</div>
+                      </div>
+                      <div class="metric">
+                        <div class="metric-value">${reportData.summary?.totalUsers || 0}</div>
+                        <div class="metric-label">Current Users</div>
+                        <div class="metric-explanation">${reportData.comparison?.periodComparison?.usersChange ? `(${reportData.comparison.periodComparison.usersChange > 0 ? '+' : ''}${reportData.comparison.periodComparison.usersChange}% vs previous)` : 'No previous data available'}</div>
+                      </div>
+                      <div class="metric">
+                        <div class="metric-value">${reportData.summary?.totalLeads || 0}</div>
+                        <div class="metric-label">Current Leads</div>
+                        <div class="metric-explanation">${reportData.comparison?.periodComparison?.leadsChange ? `(${reportData.comparison.periodComparison.leadsChange > 0 ? '+' : ''}${reportData.comparison.periodComparison.leadsChange}% vs previous)` : 'No previous data available'}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="business-explanation">
+                    <h5>📊 Trend Analysis:</h5>
+                    <p>${reportData.comparison?.businessExplanations?.trendAnalysis || 'Comparing current performance with previous periods helps identify growth patterns and areas for improvement.'}</p>
+                  </div>
+                </div>
+
+                <!-- Leads Map View Section -->
+                <div class="section">
+                  <h2 class="section-title">🗺️ Leads Geographic Distribution</h2>
+                  <div class="subsection">
+                    <h4>Practice Location & Lead Sources</h4>
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
+                      <div style="font-size: 18px; font-weight: bold; color: #007bff; margin-bottom: 10px;">📍 Practice Location</div>
+                      <div style="color: #666; margin-bottom: 15px;">${report.client_name || 'Practice Location'}</div>
+                      <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #dee2e6;">
+                        <div style="font-weight: 600; color: #28a745; margin-bottom: 5px;">Total Leads: ${reportData.summary?.totalLeads || 0}</div>
+                        <div style="font-size: 14px; color: #666;">Leads from surrounding areas within 25-mile radius</div>
+                      </div>
+                    </div>
+                    <div class="business-explanation">
+                      <h5>🗺️ Geographic Insights:</h5>
+                      <p>Understanding where your leads come from helps optimize local marketing efforts and identify expansion opportunities in underserved areas.</p>
+                    </div>
                   </div>
                 </div>
 
