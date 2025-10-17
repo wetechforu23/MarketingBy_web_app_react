@@ -598,19 +598,41 @@ export class EnhancedAnalyticsService {
         }
       },
 
-      // Local Search section
-      localSearch: {
-        data: analyticsData.localSearch || {
-          search_results: {},
-          competitor_analysis: {},
-          local_seo_score: 0
-        },
-        businessExplanations: {
-          localSeoScore: "Your local SEO score indicates how well your practice appears in local search results.",
-          competitorAnalysis: "Understanding your local competitors helps identify opportunities to stand out in your market.",
-          searchResults: "Local search results show how patients find your practice when searching for healthcare services nearby."
-        }
-      }
+           // Local Search section
+           localSearch: {
+             data: analyticsData.localSearch || {
+               search_results: {},
+               competitor_analysis: {},
+               local_seo_score: 0
+             },
+             businessExplanations: {
+               localSeoScore: "Your local SEO score indicates how well your practice appears in local search results.",
+               competitorAnalysis: "Understanding your local competitors helps identify opportunities to stand out in your market.",
+               searchResults: "Local search results show how patients find your practice when searching for healthcare services nearby."
+             }
+           },
+
+           // Geographic Leads section
+           geographicLeads: {
+             data: analyticsData.geographicLeads || {
+               practice_location: null,
+               total_leads: 0,
+               leads_within_25_miles: 0,
+               leads_within_50_miles: 0,
+               leads_within_100_miles: 0,
+               leads_by_distance: [],
+               leads_by_city: [],
+               average_distance: 0,
+               furthest_lead_distance: 0
+             },
+             businessExplanations: {
+               practiceLocation: "Your practice location is the center point for measuring lead distances and geographic distribution.",
+               leadsWithin25Miles: "Leads within 25 miles are your primary service area - these are your most accessible patients.",
+               leadsWithin50Miles: "Leads within 50 miles represent your extended service area - consider these for growth opportunities.",
+               averageDistance: "Average distance shows how far your typical leads travel to reach your practice.",
+               geographicDistribution: "Understanding where your leads come from helps optimize local marketing and identify underserved areas."
+             }
+           }
     };
 
     return reportData;
@@ -732,6 +754,29 @@ export class EnhancedAnalyticsService {
         search_results: {},
         competitor_analysis: {},
         local_seo_score: 0,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+
+    // Get Geographic Leads data
+    try {
+      console.log(`📍 Fetching Geographic Leads data...`);
+      const geographicLeadsService = (await import('./geographicLeadsService')).GeographicLeadsService.getInstance();
+      const geographicLeads = await geographicLeadsService.getGeographicLeadsData(clientId, 100);
+      realTimeData.geographicLeads = geographicLeads;
+      console.log(`✅ Geographic Leads data fetched`);
+    } catch (error) {
+      console.error(`❌ Geographic Leads data fetch failed:`, error);
+      realTimeData.geographicLeads = {
+        practice_location: null,
+        total_leads: 0,
+        leads_within_25_miles: 0,
+        leads_within_50_miles: 0,
+        leads_within_100_miles: 0,
+        leads_by_distance: [],
+        leads_by_city: [],
+        average_distance: 0,
+        furthest_lead_distance: 0,
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }

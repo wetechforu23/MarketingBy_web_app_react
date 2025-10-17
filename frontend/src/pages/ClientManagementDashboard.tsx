@@ -847,15 +847,42 @@ const ClientManagementDashboard: React.FC = () => {
                     <h4>Practice Location & Lead Sources</h4>
                     <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
                       <div style="font-size: 18px; font-weight: bold; color: #007bff; margin-bottom: 10px;">📍 Practice Location</div>
-                      <div style="color: #666; margin-bottom: 15px;">${report.client_name || 'Practice Location'}</div>
+                      <div style="color: #666; margin-bottom: 15px;">
+                        ${reportData.geographicLeads?.data?.practice_location ? 
+                          `${reportData.geographicLeads.data.practice_location.city}, ${reportData.geographicLeads.data.practice_location.state}` : 
+                          (report.client_name || 'Practice Location')
+                        }
+                      </div>
                       <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #dee2e6;">
-                        <div style="font-weight: 600; color: #28a745; margin-bottom: 5px;">Total Leads: ${reportData.summary?.totalLeads || 0}</div>
-                        <div style="font-size: 14px; color: #666;">Leads from surrounding areas within 25-mile radius</div>
+                        <div style="font-weight: 600; color: #28a745; margin-bottom: 5px;">Total Leads: ${reportData.geographicLeads?.data?.total_leads || reportData.summary?.totalLeads || 0}</div>
+                        <div style="font-size: 14px; color: #666;">
+                          ${reportData.geographicLeads?.data?.leads_within_25_miles || 0} within 25 miles • 
+                          ${reportData.geographicLeads?.data?.leads_within_50_miles || 0} within 50 miles • 
+                          ${reportData.geographicLeads?.data?.leads_within_100_miles || 0} within 100 miles
+                        </div>
+                        ${reportData.geographicLeads?.data?.average_distance ? 
+                          `<div style="font-size: 12px; color: #888; margin-top: 5px;">Average Distance: ${reportData.geographicLeads.data.average_distance} miles</div>` : ''
+                        }
                       </div>
                     </div>
+                    
+                    ${reportData.geographicLeads?.data?.leads_by_city && reportData.geographicLeads.data.leads_by_city.length > 0 ? `
+                    <div class="subsection">
+                      <h4>Leads by City</h4>
+                      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 15px 0;">
+                        ${reportData.geographicLeads.data.leads_by_city.slice(0, 6).map(city => `
+                          <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #dee2e6; text-align: center;">
+                            <div style="font-weight: 600; color: #007bff; margin-bottom: 5px;">${city.city}, ${city.state}</div>
+                            <div style="font-size: 18px; font-weight: bold; color: #28a745;">${city.count} leads</div>
+                          </div>
+                        `).join('')}
+                      </div>
+                    </div>
+                    ` : ''}
+                    
                     <div class="business-explanation">
                       <h5>🗺️ Geographic Insights:</h5>
-                      <p>Understanding where your leads come from helps optimize local marketing efforts and identify expansion opportunities in underserved areas.</p>
+                      <p>${reportData.geographicLeads?.businessExplanations?.geographicDistribution || 'Understanding where your leads come from helps optimize local marketing efforts and identify expansion opportunities in underserved areas.'}</p>
                     </div>
                   </div>
                 </div>
