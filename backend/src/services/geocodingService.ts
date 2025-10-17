@@ -1,4 +1,5 @@
 import pool from '../config/database';
+import { CredentialManagementService } from './credentialManagementService';
 
 export interface GeocodingResult {
   latitude: number;
@@ -10,13 +11,10 @@ export interface GeocodingResult {
 
 export class GeocodingService {
   private static instance: GeocodingService;
-  private apiKey: string;
+  private credentialService: CredentialManagementService;
 
   private constructor() {
-    this.apiKey = process.env.GOOGLE_MAPS_API_KEY || '';
-    if (!this.apiKey) {
-      console.warn('⚠️ Google Maps API key not found. Geocoding will not work.');
-    }
+    this.credentialService = CredentialManagementService.getInstance();
   }
 
   public static getInstance(): GeocodingService {
@@ -30,21 +28,24 @@ export class GeocodingService {
    * Geocode a single address using Google Geocoding API (free quota)
    */
   async geocodeAddress(address: string): Promise<GeocodingResult> {
-    if (!this.apiKey) {
-      return {
-        latitude: 0,
-        longitude: 0,
-        formatted_address: address,
-        status: 'failed',
-        error: 'Google Maps API key not configured'
-      };
-    }
-
     try {
+      // Get Google Maps API key from encrypted credentials
+      const apiKey = await this.credentialService.getCredential('google_maps', 'api_key');
+      
+      if (!apiKey) {
+        return {
+          latitude: 0,
+          longitude: 0,
+          formatted_address: address,
+          status: 'failed',
+          error: 'Google Maps API key not configured in encrypted credentials'
+        };
+      }
+
       console.log(`🌍 Geocoding address: ${address}`);
       
       const encodedAddress = encodeURIComponent(address);
-      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedAddress}&key=${this.apiKey}`;
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedAddress}&key=${apiKey}`;
       
       const response = await fetch(url);
       const data = await response.json() as any;

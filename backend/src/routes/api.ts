@@ -4177,4 +4177,24 @@ router.get('/geocoding/status/:clientId', requireAuth, async (req, res) => {
   }
 });
 
+// Get Google Maps API key for frontend
+router.get('/google-maps-api-key', requireAuth, async (req, res) => {
+  try {
+    const credentialService = (await import('../services/credentialManagementService')).CredentialManagementService.getInstance();
+    const apiKey = await credentialService.getCredential('google_maps', 'api_key');
+    
+    if (!apiKey) {
+      return res.status(404).json({ error: 'Google Maps API key not configured' });
+    }
+    
+    res.json({
+      success: true,
+      apiKey: apiKey
+    });
+  } catch (error) {
+    console.error('Get Google Maps API key error:', error);
+    res.status(500).json({ error: 'Failed to get Google Maps API key' });
+  }
+});
+
 export default router;

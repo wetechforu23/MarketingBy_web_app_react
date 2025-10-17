@@ -39,11 +39,10 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
     lng: -96.6331
   });
   const [mapZoom, setMapZoom] = useState(10);
-
-  // Google Maps API key
-  const googleMapsApiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || '';
+  const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>('');
 
   useEffect(() => {
+    loadGoogleMapsApiKey();
     loadLeadsWithCoordinates();
     
     // Set map center to practice location if available
@@ -55,6 +54,21 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
       setMapZoom(12);
     }
   }, [clientId, practiceLocation]);
+
+  const loadGoogleMapsApiKey = async () => {
+    try {
+      const response = await http.get('/google-maps-api-key');
+      if (response.data.success) {
+        setGoogleMapsApiKey(response.data.apiKey);
+      } else {
+        console.error('Failed to load Google Maps API key:', response.data.error);
+        setError('Failed to load Google Maps API key');
+      }
+    } catch (error) {
+      console.error('Error loading Google Maps API key:', error);
+      setError('Error loading Google Maps API key');
+    }
+  };
 
   const loadLeadsWithCoordinates = async () => {
     try {
