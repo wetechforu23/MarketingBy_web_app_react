@@ -723,12 +723,7 @@ export class EnhancedAnalyticsService {
     try {
       console.log(`🗺️ Fetching Local Search data...`);
       const localSearchService = (await import('./localSearchService')).LocalSearchService.getInstance();
-      const localSearch = await localSearchService.getLocalSearchGrid(clientId, {
-        search_queries: ['healthcare', 'medical', 'doctor'],
-        radius: 25,
-        include_competitors: true,
-        include_rankings: true
-      });
+      const localSearch = await localSearchService.getLocalSearchGrid(clientId);
       realTimeData.localSearch = localSearch;
       console.log(`✅ Local Search data fetched`);
     } catch (error) {

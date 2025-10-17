@@ -196,11 +196,7 @@ export class GoogleAnalyticsService {
           newUsers: 0,
           avgSessionDuration: 0,
           topPages: [],
-          deviceData: {},
-          trafficSources: [],
-          geographicData: {},
-          connected: false,
-          error: 'No property ID configured'
+          trafficSources: []
         };
       }
       
