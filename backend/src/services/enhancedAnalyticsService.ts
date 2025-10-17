@@ -585,7 +585,18 @@ export class EnhancedAnalyticsService {
       console.log(`✅ Google Analytics data fetched: ${JSON.stringify(gaData, null, 2)}`);
     } catch (error) {
       console.error(`❌ Google Analytics data fetch failed:`, error);
-      realTimeData.googleAnalytics = null;
+      realTimeData.googleAnalytics = {
+        pageViews: 0,
+        sessions: 0,
+        bounceRate: 0,
+        users: 0,
+        newUsers: 0,
+        avgSessionDuration: 0,
+        topPages: [],
+        trafficSources: [],
+        deviceData: [],
+        geographicData: []
+      };
     }
 
     try {
@@ -596,7 +607,14 @@ export class EnhancedAnalyticsService {
       console.log(`✅ Search Console data fetched: ${JSON.stringify(scData, null, 2)}`);
     } catch (error) {
       console.error(`❌ Search Console data fetch failed:`, error);
-      realTimeData.searchConsole = null;
+      realTimeData.searchConsole = {
+        totalClicks: 0,
+        totalImpressions: 0,
+        averageCtr: 0,
+        averagePosition: 0,
+        topQueries: [],
+        topPages: []
+      };
     }
 
     return realTimeData;
@@ -649,7 +667,7 @@ export class EnhancedAnalyticsService {
   }
 
   // Combine analytics data
-  private combineAnalyticsData(analyticsData: any[], leadsData: any[]): any {
+  private combineAnalyticsData(analyticsData: any, leadsData: any): any {
     const combined: any = {
       summary: {
         totalPageViews: 0,
@@ -669,43 +687,51 @@ export class EnhancedAnalyticsService {
       searchQueries: []
     };
 
-    // Process analytics data
-    analyticsData.forEach(row => {
-      const metadata = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
-      
-      if (metadata.type === 'summary') {
-        combined.summary[row.data_type] = parseFloat(row.value) || 0;
-      } else if (metadata.type === 'daily') {
+    // Process Google Analytics data
+    if (analyticsData && analyticsData.googleAnalytics) {
+      const ga = analyticsData.googleAnalytics;
+      combined.summary.totalPageViews = ga.pageViews || 0;
+      combined.summary.totalSessions = ga.sessions || 0;
+      combined.summary.totalUsers = ga.users || 0;
+      combined.summary.totalNewUsers = ga.newUsers || 0;
+      combined.summary.avgBounceRate = ga.bounceRate || 0;
+      combined.summary.avgSessionDuration = ga.avgSessionDuration || 0;
+      combined.topPages = ga.topPages || [];
+      combined.deviceBreakdown = ga.deviceData || {};
+      combined.trafficSourceBreakdown = ga.trafficSources || {};
+      combined.geographicData = ga.geographicData || {};
+    }
+
+    // Process Search Console data
+    if (analyticsData && analyticsData.searchConsole) {
+      const sc = analyticsData.searchConsole;
+      combined.searchQueries = sc.topQueries || [];
+    }
+
+    // Process leads data
+    if (leadsData && Array.isArray(leadsData)) {
+      leadsData.forEach(row => {
+        const totalLeads = parseInt(row.total_leads) || 0;
+        const convertedLeads = parseInt(row.converted_leads) || 0;
+        
+        combined.summary.totalLeads += totalLeads;
+        combined.summary.convertedLeads += convertedLeads;
+
         if (!combined.dailyData[row.date]) {
           combined.dailyData[row.date] = {};
         }
-        combined.dailyData[row.date][row.data_type] = parseFloat(row.value) || 0;
-      } else if (metadata.type === 'breakdown') {
-        if (!combined[metadata.key]) {
-          combined[metadata.key] = {};
-        }
-        combined[metadata.key] = parseFloat(row.value) || 0;
-      }
-    });
-
-    // Process leads data
-    leadsData.forEach(row => {
-      const totalLeads = parseInt(row.total_leads) || 0;
-      const convertedLeads = parseInt(row.converted_leads) || 0;
-      
-      combined.summary.totalLeads += totalLeads;
-      combined.summary.convertedLeads += convertedLeads;
-
-      if (!combined.dailyData[row.date]) {
-        combined.dailyData[row.date] = {};
-      }
-      combined.dailyData[row.date].totalLeads = totalLeads;
-      combined.dailyData[row.date].convertedLeads = convertedLeads;
-    });
+        combined.dailyData[row.date].totalLeads = totalLeads;
+        combined.dailyData[row.date].convertedLeads = convertedLeads;
+      });
+    } else if (leadsData && typeof leadsData === 'object') {
+      // Handle object format leads data
+      combined.summary.totalLeads = leadsData.total || 0;
+      combined.summary.convertedLeads = leadsData.converted || 0;
+    }
 
     // Calculate conversion rate
-    if (combined.summary.totalLeads > 0) {
-      combined.summary.conversionRate = (combined.summary.convertedLeads / combined.summary.totalLeads) * 100;
+    if (combined.summary.totalSessions > 0) {
+      combined.summary.conversionRate = (combined.summary.totalLeads / combined.summary.totalSessions) * 100;
     }
 
     return combined;
