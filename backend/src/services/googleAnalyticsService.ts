@@ -378,7 +378,6 @@ export class GoogleAnalyticsService {
         avgSessionDuration,
         topPages,
         trafficSources,
-        geographicData,
         countryBreakdown,
         stateBreakdown
       };
