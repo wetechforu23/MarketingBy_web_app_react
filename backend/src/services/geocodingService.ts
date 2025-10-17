@@ -1,4 +1,5 @@
 import pool from '../config/database';
+import * as crypto from 'crypto';
 
 export interface GeocodingResult {
   latitude: number;
@@ -13,6 +14,24 @@ export class GeocodingService {
 
   private constructor() {
     // Constructor is private for singleton pattern
+  }
+
+  private decrypt(encryptedValue: string): string {
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key!!';
+    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+    
+    try {
+      const parts = encryptedValue.split(':');
+      const iv = Buffer.from(parts[0], 'hex');
+      const encrypted = parts[1];
+      const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+      let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return decrypted;
+    } catch (error) {
+      console.error('❌ Decryption error:', error);
+      throw new Error('Failed to decrypt value');
+    }
   }
 
   public static getInstance(): GeocodingService {
@@ -44,8 +63,8 @@ export class GeocodingService {
         };
       }
 
-      // For now, use the encrypted value directly (in production, you'd decrypt it)
-      const apiKey = result.rows[0].encrypted_value;
+      // Decrypt the API key
+      const apiKey = this.decrypt(result.rows[0].encrypted_value);
       
       if (!apiKey) {
         return {
@@ -120,8 +139,30 @@ export class GeocodingService {
       }
 
       const lead = result.rows[0];
-      const fullAddress = `${lead.address || ''}, ${lead.city || ''}, ${lead.state || ''} ${lead.zip_code || ''}`.trim();
       
+      // Construct address from available fields, handling empty address field
+      let fullAddress = '';
+      if (lead.address && lead.address.trim()) {
+        fullAddress = `${lead.address}, ${lead.city || ''}, ${lead.state || ''} ${lead.zip_code || ''}`.trim();
+      } else {
+        // If no address, use city and state
+        fullAddress = `${lead.city || ''}, ${lead.state || ''} ${lead.zip_code || ''}`.trim();
+      }
+      
+      // Clean up any leading/trailing commas and extra spaces
+      fullAddress = fullAddress.replace(/^,\s*/, '').replace(/,\s*$/, '').replace(/\s+/g, ' ').trim();
+      
+      if (!fullAddress) {
+        return {
+          latitude: 0,
+          longitude: 0,
+          formatted_address: '',
+          status: 'failed',
+          error: 'No address information available for geocoding'
+        };
+      }
+      
+      console.log(`🌍 Geocoding lead ${leadId}: "${fullAddress}"`);
       const geocodingResult = await this.geocodeAddress(fullAddress);
       
       // Update the lead with geocoding results

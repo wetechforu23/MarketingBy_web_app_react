@@ -4190,8 +4190,19 @@ router.get('/google-maps-api-key', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Google Maps API key not configured' });
     }
     
-    // For now, use the encrypted value directly (in production, you'd decrypt it)
-    const apiKey = result.rows[0].encrypted_value;
+    // Decrypt the API key
+    const crypto = require('crypto');
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key!!';
+    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+    
+    const parts = result.rows[0].encrypted_value.split(':');
+    const iv = Buffer.from(parts[0], 'hex');
+    const encrypted = parts[1];
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    
+    const apiKey = decrypted;
     
     if (!apiKey) {
       return res.status(404).json({ error: 'Google Maps API key not configured' });
