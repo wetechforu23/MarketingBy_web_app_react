@@ -2,7 +2,6 @@ import pool from '../config/database';
 
 export interface GeographicLead {
   id: number;
-  name: string;
   email: string;
   phone: string;
   company: string;
@@ -122,7 +121,7 @@ export class GeographicLeadsService {
       // Get all leads for this client with geographic data
       const leadsResult = await pool.query(`
         SELECT 
-          id, name, email, phone, company, address, city, state, zip_code,
+          id, email, phone, company, address, city, state, zip_code,
           geo_latitude, geo_longitude, google_place_id, google_rating, created_at
         FROM leads 
         WHERE client_id = $1 
@@ -221,7 +220,7 @@ export class GeographicLeadsService {
 
       const leadsResult = await pool.query(`
         SELECT 
-          id, name, email, phone, company, address, city, state, zip_code,
+          id, email, phone, company, address, city, state, zip_code,
           geo_latitude, geo_longitude, google_place_id, google_rating, created_at
         FROM leads 
         WHERE client_id = $1 
