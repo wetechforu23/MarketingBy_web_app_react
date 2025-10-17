@@ -557,18 +557,18 @@ const ClientManagementDashboard: React.FC = () => {
     try {
       console.log('👁️ Viewing report:', reportId);
       
-      // Get the report data
-      const response = await http.get(`/analytics/reports/${selectedClient?.id}`);
-      const reports = response.data.reports || [];
-      const report = reports.find((r: any) => r.id === reportId);
+      // Get the report data directly by ID using the new endpoint
+      const response = await http.get(`/analytics/report/${reportId}`);
       
-      if (!report) {
-        setErrorMessage('❌ Report not found');
+      if (!response.data.success || !response.data.report) {
+        console.error('❌ Report not found:', response.data);
+        setErrorMessage(`❌ Report ID ${reportId} not found`);
         setShowErrorModal(true);
         return;
       }
       
-      console.log('📊 Report data:', report);
+      const report = response.data.report;
+      console.log('📊 Report found:', report);
       
       // Parse the report data
       const reportData = typeof report.report_data === 'string' 

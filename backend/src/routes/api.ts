@@ -3239,6 +3239,62 @@ router.get('/analytics/reports/:clientId', requireAuth, async (req, res) => {
   }
 });
 
+// Get a specific analytics report by ID with full data
+router.get('/analytics/report/:reportId', requireAuth, async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const userId = req.session.userId;
+
+    console.log(`🔍 Fetching report ${reportId} for user ${userId}`);
+
+    // Check if user has permission to view this report
+    const userResult = await pool.query(`
+      SELECT role, client_id, team_type
+      FROM users
+      WHERE id = $1
+    `, [userId]);
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+
+    const result = await pool.query(`
+      SELECT ar.*, c.client_name
+      FROM analytics_reports ar
+      JOIN clients c ON ar.client_id = c.id
+      WHERE ar.id = $1
+    `, [reportId]);
+
+    if (result.rows.length === 0) {
+      console.log(`❌ Report ${reportId} not found in database`);
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    const report = result.rows[0];
+    console.log(`✅ Report ${reportId} found:`, { 
+      id: report.id, 
+      name: report.report_name, 
+      client_id: report.client_id,
+      client_name: report.client_name 
+    });
+
+    // Super admin can view any report, others can only view their own client's reports
+    if (user.role !== 'super_admin' && user.client_id !== report.client_id) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    res.json({
+      success: true,
+      report: report
+    });
+  } catch (error) {
+    console.error('Get analytics report error:', error);
+    res.status(500).json({ error: 'Failed to get analytics report' });
+  }
+});
+
 // Delete analytics report
 router.delete('/analytics/reports/:reportId', requireAuth, async (req, res) => {
   try {
