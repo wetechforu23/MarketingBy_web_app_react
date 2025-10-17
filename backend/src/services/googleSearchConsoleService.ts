@@ -197,7 +197,9 @@ export class GoogleSearchConsoleService {
           averageCtr: 0,
           averagePosition: 0,
           topQueries: [],
-          topPages: []
+          topPages: [],
+          devices: [],
+          countries: []
         };
       }
       
