@@ -77,6 +77,27 @@ export class SEOChecklistService {
       // Get pages from Google Analytics and Search Console
       const pages = await this.getClientPages(clientId);
 
+      // If no real pages found, return empty checklist with clear message
+      if (pages.length === 0) {
+        return {
+          client_id: clientId,
+          client_name: client.client_name,
+          overall_score: 0,
+          total_pages: 0,
+          pages_audited: 0,
+          pages: [],
+          summary: {
+            total_checks: 0,
+            passed_checks: 0,
+            failed_checks: 0,
+            warning_checks: 0,
+            critical_issues: 0,
+            improvement_opportunities: 0
+          },
+          last_updated: new Date().toISOString()
+        };
+      }
+
       // Audit each page
       const pageResults: PageSEOResult[] = [];
       let totalChecks = 0;
@@ -309,40 +330,17 @@ export class SEOChecklistService {
    * Audit a single page for SEO - NO MOCK DATA
    */
   private async auditPage(clientId: number, page: any, config: any): Promise<PageSEOResult> {
-    const checklist: SEOChecklistItem[] = [];
-
-    // All checks return "not_checked" status with clear messaging about real analysis needed
-    checklist.push(this.createNotCheckedItem('title_tag', 'Title Tag Optimization', 'title', config, 'Real-time page crawling required to analyze title tag length, keyword inclusion, and brand presence.'));
-    checklist.push(this.createNotCheckedItem('h1_tag', 'H1 Tag Optimization', 'content', config, 'Real-time page crawling required to analyze H1 tag structure, count, and keyword optimization.'));
-    checklist.push(this.createNotCheckedItem('meta_description', 'Meta Description Optimization', 'meta', config, 'Real-time page crawling required to analyze meta description length, keyword inclusion, and call-to-action presence.'));
-    checklist.push(this.createNotCheckedItem('url_optimization', 'URL Optimization', 'technical', config, 'URL analysis requires crawling the actual page to check length, keyword inclusion, and structure.'));
-    checklist.push(this.createNotCheckedItem('content_quality', 'Content Quality', 'content', config, 'Content analysis requires crawling the page to check word count, keyword density, and readability.'));
-    checklist.push(this.createNotCheckedItem('subheadings', 'Subheading Structure', 'content', config, 'Subheading analysis requires crawling the page to check H2/H3 structure and hierarchy.'));
-    checklist.push(this.createNotCheckedItem('internal_links', 'Internal Linking', 'links', config, 'Internal link analysis requires crawling the page to count and analyze link relevance.'));
-    checklist.push(this.createNotCheckedItem('images', 'Image Optimization', 'images', config, 'Image analysis requires crawling the page to check alt text, file sizes, and optimization.'));
-    checklist.push(this.createNotCheckedItem('schema_markup', 'Schema Markup', 'schema', config, 'Schema markup analysis requires crawling the page to detect structured data implementation.'));
-    checklist.push(this.createNotCheckedItem('page_speed', 'Page Speed (Core Web Vitals)', 'performance', config, 'Page speed analysis requires real-time performance testing using Google PageSpeed Insights API.'));
-    checklist.push(this.createNotCheckedItem('mobile_friendly', 'Mobile Friendliness', 'technical', config, 'Mobile analysis requires crawling the page to check responsive design and mobile optimization.'));
-    checklist.push(this.createNotCheckedItem('ssl_certificate', 'SSL Certificate', 'technical', config, 'SSL analysis requires checking the actual page URL for HTTPS implementation.'));
-    checklist.push(this.createNotCheckedItem('indexing', 'Search Engine Indexing', 'technical', config, 'Indexing analysis requires checking Google Search Console data for page indexing status.'));
-    checklist.push(this.createNotCheckedItem('technical_seo', 'Technical SEO', 'technical', config, 'Technical SEO analysis requires crawling the page to check canonical URLs, social meta tags, and tracking codes.'));
-
-    // Calculate scores
-    const totalChecks = checklist.length;
-    const passedChecks = checklist.filter(item => item.status === 'passed').length;
-    const failedChecks = checklist.filter(item => item.status === 'failed').length;
-    const warningChecks = checklist.filter(item => item.status === 'warning').length;
-    const overallScore = 0; // No real analysis performed yet
-
+    // Return empty checklist - NO MOCK DATA
+    // Real SEO analysis requires page crawling and actual data collection
     return {
       page_url: page.url,
       page_title: page.title,
-      overall_score: overallScore,
-      total_checks: totalChecks,
-      passed_checks: passedChecks,
-      failed_checks: failedChecks,
-      warning_checks: warningChecks,
-      checklist,
+      overall_score: 0,
+      total_checks: 0,
+      passed_checks: 0,
+      failed_checks: 0,
+      warning_checks: 0,
+      checklist: [],
       last_audited: new Date().toISOString()
     };
   }

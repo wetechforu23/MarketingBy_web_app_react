@@ -942,23 +942,11 @@ const ClientManagementDashboard: React.FC = () => {
                    <!-- Time-based Trends -->
                    <div class="subsection">
                      <h4>📅 Time-based Performance</h4>
-                     <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 15px 0;">
-                       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
-                         <div style="text-align: center;">
-                           <div style="font-size: 24px; font-weight: bold; color: #007bff; margin-bottom: 5px;">Today</div>
-                           <div style="color: #666; font-size: 14px;">${new Date().toLocaleDateString()}</div>
-                           <div style="margin-top: 10px; font-size: 12px; color: #888;">Current session data</div>
-                         </div>
-                         <div style="text-align: center;">
-                           <div style="font-size: 24px; font-weight: bold; color: #28a745; margin-bottom: 5px;">This Week</div>
-                           <div style="color: #666; font-size: 14px;">${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toLocaleDateString()} - ${new Date().toLocaleDateString()}</div>
-                           <div style="margin-top: 10px; font-size: 12px; color: #888;">7-day performance</div>
-                         </div>
-                         <div style="text-align: center;">
-                           <div style="font-size: 24px; font-weight: bold; color: #ffc107; margin-bottom: 5px;">This Month</div>
-                           <div style="color: #666; font-size: 14px;">${new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toLocaleDateString()} - ${new Date().toLocaleDateString()}</div>
-                           <div style="margin-top: 10px; font-size: 12px; color: #888;">30-day performance</div>
-                         </div>
+                     <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 15px 0; text-align: center;">
+                       <div style="color: #666; font-size: 16px; padding: 20px;">
+                         <div style="font-size: 48px; margin-bottom: 15px;">📊</div>
+                         <div style="font-weight: 600; margin-bottom: 10px;">No Time-based Data Available</div>
+                         <div style="font-size: 14px;">Historical performance data requires additional data collection and time-series analysis.</div>
                        </div>
                      </div>
                    </div>
@@ -998,42 +986,11 @@ const ClientManagementDashboard: React.FC = () => {
                     <!-- Heatmap Visualization -->
                     <div class="subsection">
                       <h4>🔥 Lead Density Heatmap</h4>
-                      <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; margin: 15px 0;">
-                        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px;">
-                          ${Array.from({length: 25}, (_, i) => {
-                            const intensity = Math.random() * 100; // This would be real data in production
-                            const color = intensity > 80 ? '#dc3545' : intensity > 60 ? '#fd7e14' : intensity > 40 ? '#ffc107' : intensity > 20 ? '#20c997' : '#e9ecef';
-                            return `
-                              <div style="
-                                width: 100%; 
-                                height: 40px; 
-                                background: ${color}; 
-                                border-radius: 4px; 
-                                display: flex; 
-                                align-items: center; 
-                                justify-content: center; 
-                                color: ${intensity > 50 ? 'white' : '#333'}; 
-                                font-size: 12px; 
-                                font-weight: bold;
-                              ">
-                                ${Math.round(intensity)}%
-                              </div>
-                            `;
-                          }).join('')}
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #666;">
-                          <div>Low Density</div>
-                          <div style="display: flex; gap: 10px;">
-                            <div style="width: 20px; height: 15px; background: #e9ecef; border-radius: 2px;"></div>
-                            <div style="width: 20px; height: 15px; background: #20c997; border-radius: 2px;"></div>
-                            <div style="width: 20px; height: 15px; background: #ffc107; border-radius: 2px;"></div>
-                            <div style="width: 20px; height: 15px; background: #fd7e14; border-radius: 2px;"></div>
-                            <div style="width: 20px; height: 15px; background: #dc3545; border-radius: 2px;"></div>
-                          </div>
-                          <div>High Density</div>
-                        </div>
-                        <div style="text-align: center; margin-top: 15px; font-size: 14px; color: #666;">
-                          Heatmap shows lead density around your practice location
+                      <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; margin: 15px 0; text-align: center;">
+                        <div style="color: #666; font-size: 16px; padding: 40px 20px;">
+                          <div style="font-size: 48px; margin-bottom: 15px;">🗺️</div>
+                          <div style="font-weight: 600; margin-bottom: 10px;">No Heatmap Data Available</div>
+                          <div style="font-size: 14px;">Real-time geographic lead density analysis requires additional data collection and mapping integration.</div>
                         </div>
                       </div>
                     </div>
