@@ -553,6 +553,93 @@ const ClientManagementDashboard: React.FC = () => {
     }
   };
 
+  const viewReport = async (reportId: number) => {
+    try {
+      console.log('👁️ Viewing report:', reportId);
+      
+      // Get the report data
+      const response = await http.get(`/analytics/reports/${selectedClient?.id}`);
+      const reports = response.data.reports || [];
+      const report = reports.find((r: any) => r.id === reportId);
+      
+      if (!report) {
+        setErrorMessage('❌ Report not found');
+        setShowErrorModal(true);
+        return;
+      }
+      
+      console.log('📊 Report data:', report);
+      
+      // Parse the report data
+      const reportData = typeof report.report_data === 'string' 
+        ? JSON.parse(report.report_data) 
+        : report.report_data;
+      
+      console.log('📈 Parsed report data:', reportData);
+      
+      // Show the report data in a modal or new window
+      const reportWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+      if (reportWindow) {
+        reportWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Report: ${report.report_name}</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 20px; }
+              .header { background: #007bff; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+              .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+              .metric { display: inline-block; margin: 10px; padding: 10px; background: #f8f9fa; border-radius: 6px; }
+              .metric-value { font-size: 24px; font-weight: bold; color: #007bff; }
+              .metric-label { font-size: 12px; color: #666; text-transform: uppercase; }
+              pre { background: #f8f9fa; padding: 15px; border-radius: 6px; overflow-x: auto; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>${report.report_name}</h1>
+              <p>Generated: ${new Date(report.created_at).toLocaleString()}</p>
+              <p>Date Range: ${new Date(report.date_from).toLocaleDateString()} to ${new Date(report.date_to).toLocaleDateString()}</p>
+            </div>
+            
+            <div class="section">
+              <h2>📊 Summary</h2>
+              <div class="metric">
+                <div class="metric-value">${reportData.summary?.totalPageViews || 0}</div>
+                <div class="metric-label">Page Views</div>
+              </div>
+              <div class="metric">
+                <div class="metric-value">${reportData.summary?.totalSessions || 0}</div>
+                <div class="metric-label">Sessions</div>
+              </div>
+              <div class="metric">
+                <div class="metric-value">${reportData.summary?.totalUsers || 0}</div>
+                <div class="metric-label">Users</div>
+              </div>
+              <div class="metric">
+                <div class="metric-value">${reportData.summary?.totalLeads || 0}</div>
+                <div class="metric-label">Leads</div>
+              </div>
+            </div>
+            
+            <div class="section">
+              <h2>📈 Full Report Data</h2>
+              <pre>${JSON.stringify(reportData, null, 2)}</pre>
+            </div>
+          </body>
+          </html>
+        `);
+        reportWindow.document.close();
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Error viewing report:', error);
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to view report';
+      setErrorMessage(`❌ ${errorMsg}`);
+      setShowErrorModal(true);
+    }
+  };
+
   const deleteReport = async (reportId: number) => {
     if (!confirm('Are you sure you want to delete this report? This action cannot be undone.')) {
       return;
@@ -978,14 +1065,54 @@ const ClientManagementDashboard: React.FC = () => {
 
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                       <button
-                        onClick={() => setShowReportModal(true)}
+                        onClick={async () => {
+                          if (!selectedClient) {
+                            setError('Please select a client first');
+                            return;
+                          }
+                          
+                          console.log('🚀 Generating modern report for client:', selectedClient.id);
+                          setReportLoading(true);
+                          
+                          try {
+                            // Auto-generate report name and dates
+                            const today = new Date();
+                            const reportName = `${selectedClient.name} - Daily Report - ${today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+                            const dateFrom = today.toISOString().split('T')[0];
+                            const dateTo = today.toISOString().split('T')[0];
+                            
+                            console.log('📊 Report details:', { reportName, dateFrom, dateTo });
+                            
+                            // Generate modern comprehensive report with all sections
+                            const response = await http.post(`/analytics/modern-report/${selectedClient.id}`, {
+                              reportName: `${reportName} - Comprehensive Report`,
+                              reportType: 'comprehensive',
+                              dateFrom,
+                              dateTo,
+                              includeSections: ['overview', 'analytics', 'seo', 'pages', 'technical', 'recommendations', 'comparison']
+                            });
+                            
+                            console.log('✅ Report generated successfully:', response.data);
+                            setSuccessMessage('Modern comprehensive report generated successfully!');
+                            
+                            // Refresh the reports list
+                            await fetchAnalyticsReports();
+                            
+                          } catch (error) {
+                            console.error('❌ Error generating report:', error);
+                            setError('Failed to generate report. Please try again.');
+                          } finally {
+                            setReportLoading(false);
+                          }
+                        }}
+                        disabled={reportLoading}
                         style={{
-                          backgroundColor: '#28a745',
+                          backgroundColor: reportLoading ? '#6c757d' : '#28a745',
                           color: 'white',
                           border: 'none',
                           padding: '10px 20px',
                           borderRadius: '6px',
-                          cursor: 'pointer',
+                          cursor: reportLoading ? 'not-allowed' : 'pointer',
                           fontSize: '14px',
                           fontWeight: '600',
                           display: 'flex',
@@ -994,7 +1121,7 @@ const ClientManagementDashboard: React.FC = () => {
                         }}
                       >
                         <i className="fas fa-file-pdf"></i>
-                        Generate Modern Report
+                        {reportLoading ? 'Generating...' : 'Generate Modern Report'}
                       </button>
                     </div>
                   </div>
@@ -1029,6 +1156,20 @@ const ClientManagementDashboard: React.FC = () => {
                               </div>
                             </div>
                             <div style={{ display: 'flex', gap: '8px' }}>
+                              <button
+                                onClick={() => viewReport(report.id)}
+                                style={{
+                                  backgroundColor: '#007bff',
+                                  color: 'white',
+                                  border: 'none',
+                                  padding: '8px 16px',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                <i className="fas fa-eye"></i> View
+                              </button>
                               <button
                                 onClick={() => exportReport(report.id)}
                                 style={{
@@ -1711,6 +1852,20 @@ const ClientManagementDashboard: React.FC = () => {
                               </div>
                             </div>
                             <div style={{ display: 'flex', gap: '10px' }}>
+                              <button 
+                                onClick={() => viewReport(report.id)}
+                                style={{
+                                  padding: '8px 12px',
+                                  backgroundColor: '#007bff',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                <i className="fas fa-eye"></i> View
+                              </button>
                               <button 
                                 onClick={() => exportReport(report.id)}
                                 style={{
