@@ -185,6 +185,25 @@ export class GoogleAnalyticsService {
 
       console.log(`Getting REAL analytics data for client ${clientId} with property ${propertyId}`);
       
+      // Check if propertyId is provided
+      if (!propertyId) {
+        console.log(`❌ No property ID provided for client ${clientId}`);
+        return {
+          pageViews: 0,
+          sessions: 0,
+          bounceRate: 0,
+          users: 0,
+          newUsers: 0,
+          avgSessionDuration: 0,
+          topPages: [],
+          deviceData: {},
+          trafficSources: {},
+          geographicData: {},
+          connected: false,
+          error: 'No property ID configured'
+        };
+      }
+      
       // For GA4 Measurement IDs (G-XXXXX-X), we need to use a different approach
       // The Google Analytics Data API requires numeric Property IDs, not GA4 Measurement IDs
       if (propertyId.startsWith('G-')) {

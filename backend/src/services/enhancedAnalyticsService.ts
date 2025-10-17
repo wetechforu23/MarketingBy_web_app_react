@@ -564,6 +564,52 @@ export class EnhancedAnalyticsService {
         growthAnalysis: this.generateGrowthAnalysis(analyticsData, leadsData),
         trendAnalysis: this.generateTrendAnalysis(analyticsData, leadsData),
         businessExplanations: this.generateComparisonBusinessExplanations()
+      },
+
+      // Facebook data section (if connected)
+      facebook: {
+        data: analyticsData.facebook || {
+          pageViews: 0,
+          likes: 0,
+          shares: 0,
+          comments: 0,
+          connected: false,
+          error: 'Facebook not connected'
+        },
+        businessExplanations: {
+          pageViews: "Facebook page views show how many people are engaging with your practice's social media content.",
+          likes: "Likes indicate positive engagement and help increase your page's visibility in Facebook's algorithm.",
+          shares: "Shares expand your reach to new potential patients through your existing followers' networks.",
+          comments: "Comments show active engagement and provide opportunities to build relationships with potential patients."
+        }
+      },
+
+      // SEO Checklist section
+      seoChecklist: {
+        data: analyticsData.seoChecklist || {
+          summary: { totalChecks: 0, passedChecks: 0, failedChecks: 0, warningChecks: 0 },
+          categories: []
+        },
+        businessExplanations: {
+          totalChecks: "Total SEO checks performed to ensure your website meets search engine optimization standards.",
+          passedChecks: "Checks that are properly configured and help improve your search rankings.",
+          failedChecks: "Issues that need immediate attention to improve your website's SEO performance.",
+          warningChecks: "Areas that could be improved to further enhance your search visibility."
+        }
+      },
+
+      // Local Search section
+      localSearch: {
+        data: analyticsData.localSearch || {
+          search_results: {},
+          competitor_analysis: {},
+          local_seo_score: 0
+        },
+        businessExplanations: {
+          localSeoScore: "Your local SEO score indicates how well your practice appears in local search results.",
+          competitorAnalysis: "Understanding your local competitors helps identify opportunities to stand out in your market.",
+          searchResults: "Local search results show how patients find your practice when searching for healthcare services nearby."
+        }
       }
     };
 
@@ -577,13 +623,21 @@ export class EnhancedAnalyticsService {
     const realTimeData: any = {
       googleAnalytics: null,
       searchConsole: null,
-      leads: null
+      leads: null,
+      facebook: null,
+      seoChecklist: null,
+      localSearch: null
     };
 
     try {
       // Get Google Analytics data directly
       console.log(`📊 Fetching Google Analytics data...`);
-      const gaData = await this.googleAnalyticsService.getAnalyticsData(clientId);
+      
+      // Get the property ID from client credentials
+      const gaCredentials = await this.googleAnalyticsService.getClientCredentials(clientId);
+      const propertyId = gaCredentials?.property_id;
+      
+      const gaData = await this.googleAnalyticsService.getAnalyticsData(clientId, propertyId);
       realTimeData.googleAnalytics = gaData;
       console.log(`✅ Google Analytics data fetched: ${JSON.stringify(gaData, null, 2)}`);
     } catch (error) {
@@ -605,7 +659,12 @@ export class EnhancedAnalyticsService {
     try {
       // Get Search Console data directly
       console.log(`🔍 Fetching Search Console data...`);
-      const scData = await this.googleSearchConsoleService.getSearchConsoleData(clientId);
+      
+      // Get the site URL from client credentials
+      const scCredentials = await this.googleSearchConsoleService.getClientCredentials(clientId);
+      const siteUrl = scCredentials?.site_url;
+      
+      const scData = await this.googleSearchConsoleService.getSearchConsoleData(clientId, siteUrl);
       realTimeData.searchConsole = scData;
       console.log(`✅ Search Console data fetched: ${JSON.stringify(scData, null, 2)}`);
     } catch (error) {
@@ -617,6 +676,68 @@ export class EnhancedAnalyticsService {
         averagePosition: 0,
         topQueries: [],
         topPages: []
+      };
+    }
+
+    // Get Facebook data (if connected)
+    try {
+      console.log(`📘 Fetching Facebook data...`);
+      // For now, return empty Facebook data - can be expanded later
+      realTimeData.facebook = {
+        pageViews: 0,
+        likes: 0,
+        shares: 0,
+        comments: 0,
+        connected: false,
+        error: 'Facebook integration not yet implemented'
+      };
+    } catch (error) {
+      console.error(`❌ Facebook data fetch failed:`, error);
+      realTimeData.facebook = {
+        pageViews: 0,
+        likes: 0,
+        shares: 0,
+        comments: 0,
+        connected: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+
+    // Get SEO Checklist data
+    try {
+      console.log(`🔍 Fetching SEO Checklist data...`);
+      const seoChecklistService = new (await import('./seoChecklistService')).SEOChecklistService();
+      const seoChecklist = await seoChecklistService.getSEOChecklist(clientId);
+      realTimeData.seoChecklist = seoChecklist;
+      console.log(`✅ SEO Checklist data fetched`);
+    } catch (error) {
+      console.error(`❌ SEO Checklist data fetch failed:`, error);
+      realTimeData.seoChecklist = {
+        summary: { totalChecks: 0, passedChecks: 0, failedChecks: 0, warningChecks: 0 },
+        categories: [],
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+
+    // Get Local Search data
+    try {
+      console.log(`🗺️ Fetching Local Search data...`);
+      const localSearchService = new (await import('./localSearchService')).LocalSearchService();
+      const localSearch = await localSearchService.getLocalSearchGrid(clientId, {
+        search_queries: ['healthcare', 'medical', 'doctor'],
+        radius: 25,
+        include_competitors: true,
+        include_rankings: true
+      });
+      realTimeData.localSearch = localSearch;
+      console.log(`✅ Local Search data fetched`);
+    } catch (error) {
+      console.error(`❌ Local Search data fetch failed:`, error);
+      realTimeData.localSearch = {
+        search_results: {},
+        competitor_analysis: {},
+        local_seo_score: 0,
+        error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
 

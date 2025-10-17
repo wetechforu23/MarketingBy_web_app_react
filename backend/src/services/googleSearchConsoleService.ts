@@ -188,6 +188,21 @@ export class GoogleSearchConsoleService {
 
       console.log(`Getting REAL search console data for client ${clientId} with site ${siteUrl}`);
       
+      // Check if siteUrl is provided
+      if (!siteUrl) {
+        console.log(`❌ No site URL provided for client ${clientId}`);
+        return {
+          totalClicks: 0,
+          totalImpressions: 0,
+          averageCtr: 0,
+          averagePosition: 0,
+          topQueries: [],
+          topPages: [],
+          connected: false,
+          error: 'No site URL configured'
+        };
+      }
+      
       // Get real data from Google Search Console API
       const searchconsole = google.searchconsole('v1');
       
