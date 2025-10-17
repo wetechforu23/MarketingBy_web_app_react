@@ -26,6 +26,8 @@ interface AnalyticsData {
     source: string;
     sessions: number;
   }>;
+  countryBreakdown?: { [key: string]: number };
+  stateBreakdown?: { [key: string]: number };
 }
 
 export class GoogleAnalyticsService {
