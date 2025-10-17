@@ -85,8 +85,11 @@ export class LocalSearchService {
         throw new Error(`Client ${clientId} not found`);
       }
 
+      console.log(`📋 Client found: ${client.name} (${client.email})`);
+
       // Get client's location
       const clientLocation = await this.getClientLocation(client);
+      console.log(`📍 Client location: ${clientLocation}`);
       
       // Perform local searches for each query
       const searchResults: { [query: string]: LocalSearchResult[] } = {};
@@ -141,7 +144,13 @@ export class LocalSearchService {
       return localSearchGrid;
 
     } catch (error) {
-      console.error('Error generating local search grid:', error);
+      console.error('❌ Error generating local search grid:', error);
+      console.error('❌ Error details:', {
+        clientId,
+        filters,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
       throw error;
     }
   }
@@ -156,8 +165,11 @@ export class LocalSearchService {
     client: any
   ): Promise<LocalSearchResult[]> {
     try {
+      console.log(`🔍 Performing local search for: "${query}" near ${location}`);
+      
       // Use Google Places API to search for businesses
       const places = await this.googlePlacesService.textSearch(query);
+      console.log(`📍 Found ${places.length} places for query: "${query}"`);
       
       // Filter results by radius and convert to LocalSearchResult format
       const results: LocalSearchResult[] = [];
@@ -191,9 +203,16 @@ export class LocalSearchService {
         }
       }
 
+      console.log(`✅ Local search completed for "${query}": ${results.length} results`);
       return results;
     } catch (error) {
-      console.error('Error performing local search:', error);
+      console.error('❌ Error performing local search:', error);
+      console.error('❌ Search details:', {
+        query,
+        location,
+        radius,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error'
+      });
       return [];
     }
   }
