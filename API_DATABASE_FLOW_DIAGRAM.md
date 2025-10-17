@@ -45,6 +45,7 @@ graph TB
         SubscriptionService[Subscription Service]
         CredentialService[Credential Management Service]
         SEOTaskService[SEO Audit Tasks Service]
+        GeocodingService[Geocoding Service]
     end
     
     subgraph "Database Layer"
@@ -54,6 +55,7 @@ graph TB
     subgraph "External Services"
         GoogleAds[Google Ads API]
         GoogleMaps[Google Maps API]
+        GoogleGeocoding[Google Geocoding API]
         GoogleSearchConsole[Google Search Console API]
         GoogleAnalytics[Google Analytics API]
         GoogleCalendar[Google Calendar API]
@@ -107,6 +109,7 @@ graph TB
     CredentialService --> GoogleMaps
     CredentialService --> MicrosoftGraph
     CredentialService --> AzureEmail
+    GeocodingService --> GoogleGeocoding
 ```
 
 ## 📊 Database Schema Relationships
@@ -160,6 +163,10 @@ erDiagram
         string source
         string status
         text notes
+        decimal latitude
+        decimal longitude
+        datetime geocoded_at
+        string geocoding_status
         datetime created_at
         datetime updated_at
     }
@@ -1458,6 +1465,14 @@ GET  /api/auth/me
 GET  /api/users/me/permissions
 ```
 
+### Geocoding & Heatmap APIs
+```
+POST /api/geocoding/batch              # Batch geocode all pending leads
+GET  /api/geocoding/status/:clientId   # Check geocoding status
+GET  /api/geocoding/leads/:clientId    # Get leads with coordinates
+POST /api/geocoding/lead/:leadId       # Geocode single lead
+```
+
 ### Super Admin APIs
 ```
 GET    /api/admin/dashboard/overview
@@ -1874,6 +1889,63 @@ NOTES:
 ---
 
 ## Versioned Change Log
+
+**DATE**: 2025-10-17 18:30 PST
+**VERSION**: v1.3.0
+**AUTHOR**: Viral T.
+
+**FEATURE / CHANGE TITLE**:
+Lead Density Heatmap with Google Geocoding API Integration
+
+**TYPE**: feature
+
+**DESCRIPTION**:
+Implemented a comprehensive Lead Density Heatmap system using Google's free quota APIs to visualize lead distribution around practice locations. The system converts lead addresses to precise coordinates and displays interactive heatmaps with real-time geographic analysis.
+
+**IMPACTED SERVICES/TABLES/APIS**:
+- **New Service**: `geocodingService.ts` - Google Geocoding API integration
+- **New Component**: `LeadHeatmap.tsx` - Interactive Google Maps heatmap
+- **Database Changes**: Added `latitude`, `longitude`, `geocoded_at`, `geocoding_status` columns to `leads` table
+- **New API Endpoints**:
+  - `POST /api/geocoding/batch` - Batch geocode all pending leads
+  - `GET /api/geocoding/status/:clientId` - Check geocoding status
+  - `GET /api/geocoding/leads/:clientId` - Get leads with coordinates
+  - `POST /api/geocoding/lead/:leadId` - Geocode single lead
+
+**MIGRATIONS**:
+- `add_lead_coordinates.sql` - Database schema updates for coordinate storage
+- Added indexes for performance optimization
+
+**FEATURE FLAGS**:
+- Google Maps API integration enabled
+- Geocoding service active
+- Heatmap visualization ready
+
+**QUOTA TRACKING**:
+- Google Geocoding API: 40,000 requests/month (free quota)
+- Google Maps JavaScript API: 28,000 map loads/month (free quota)
+- Rate limiting implemented (100ms delay between requests)
+
+**ROLLBACKS**:
+- Can disable geocoding service by setting `GOOGLE_MAPS_API_KEY` to empty
+- Database columns are nullable, no data loss risk
+- Frontend component gracefully handles missing API key
+
+**BUSINESS IMPACT**:
+- **Lead Analysis**: Visual representation of lead density around practice locations
+- **Marketing Optimization**: Identify high-potential geographic areas
+- **Distance Calculations**: Precise lead-to-practice distance analysis
+- **Real-time Updates**: Live geocoding status and progress tracking
+- **Cost Effective**: Uses Google's free quota, no additional costs
+
+**TECHNICAL DETAILS**:
+- **Encryption**: No sensitive data stored, only coordinates
+- **Performance**: Indexed database queries for fast coordinate retrieval
+- **Error Handling**: Graceful fallbacks for failed geocoding attempts
+- **Caching**: Coordinates stored permanently to avoid re-geocoding
+- **Responsive**: Mobile-friendly heatmap visualization
+
+---
 
 **DATE**: 2025-10-16 23:00 PST
 **VERSION**: v1.2.3
