@@ -707,7 +707,7 @@ export class EnhancedAnalyticsService {
     try {
       console.log(`🔍 Fetching SEO Checklist data...`);
       const seoChecklistService = new (await import('./seoChecklistService')).SEOChecklistService();
-      const seoChecklist = await seoChecklistService.getSEOChecklist(clientId);
+      const seoChecklist = await seoChecklistService.getClientSEOChecklist(clientId);
       realTimeData.seoChecklist = seoChecklist;
       console.log(`✅ SEO Checklist data fetched`);
     } catch (error) {
@@ -722,7 +722,7 @@ export class EnhancedAnalyticsService {
     // Get Local Search data
     try {
       console.log(`🗺️ Fetching Local Search data...`);
-      const localSearchService = new (await import('./localSearchService')).LocalSearchService();
+      const localSearchService = (await import('./localSearchService')).LocalSearchService.getInstance();
       const localSearch = await localSearchService.getLocalSearchGrid(clientId, {
         search_queries: ['healthcare', 'medical', 'doctor'],
         radius: 25,

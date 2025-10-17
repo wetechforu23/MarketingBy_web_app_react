@@ -198,7 +198,6 @@ export class GoogleSearchConsoleService {
           averagePosition: 0,
           topQueries: [],
           topPages: [],
-          connected: false,
           error: 'No site URL configured'
         };
       }
