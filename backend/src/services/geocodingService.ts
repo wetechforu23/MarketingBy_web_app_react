@@ -47,7 +47,7 @@ export class GeocodingService {
       const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedAddress}&key=${this.apiKey}`;
       
       const response = await fetch(url);
-      const data = await response.json();
+      const data = await response.json() as any;
 
       if (data.status === 'OK' && data.results.length > 0) {
         const result = data.results[0];
@@ -68,7 +68,7 @@ export class GeocodingService {
           longitude: 0,
           formatted_address: address,
           status: 'failed',
-          error: data.status || 'Unknown error'
+          error: (data as any).status || 'Unknown error'
         };
       }
     } catch (error) {
