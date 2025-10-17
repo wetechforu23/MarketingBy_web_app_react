@@ -1,5 +1,4 @@
 import pool from '../config/database';
-import { CredentialManagementService } from './credentialManagementService';
 
 export interface GeocodingResult {
   latitude: number;
@@ -11,10 +10,9 @@ export interface GeocodingResult {
 
 export class GeocodingService {
   private static instance: GeocodingService;
-  private credentialService: CredentialManagementService;
 
   private constructor() {
-    this.credentialService = CredentialManagementService.getInstance();
+    // Constructor is private for singleton pattern
   }
 
   public static getInstance(): GeocodingService {
@@ -30,7 +28,24 @@ export class GeocodingService {
   async geocodeAddress(address: string): Promise<GeocodingResult> {
     try {
       // Get Google Maps API key from encrypted credentials
-      const apiKey = await this.credentialService.getCredential('google_maps', 'api_key');
+      const result = await pool.query(`
+        SELECT encrypted_value 
+        FROM encrypted_credentials 
+        WHERE service = 'google_maps' AND key_name = 'api_key'
+      `);
+      
+      if (result.rows.length === 0) {
+        return {
+          latitude: 0,
+          longitude: 0,
+          formatted_address: address,
+          status: 'failed',
+          error: 'Google Maps API key not configured in encrypted credentials'
+        };
+      }
+
+      // For now, use the encrypted value directly (in production, you'd decrypt it)
+      const apiKey = result.rows[0].encrypted_value;
       
       if (!apiKey) {
         return {

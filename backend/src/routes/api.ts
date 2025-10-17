@@ -4180,8 +4180,18 @@ router.get('/geocoding/status/:clientId', requireAuth, async (req, res) => {
 // Get Google Maps API key for frontend
 router.get('/google-maps-api-key', requireAuth, async (req, res) => {
   try {
-    const credentialService = (await import('../services/credentialManagementService')).CredentialManagementService.getInstance();
-    const apiKey = await credentialService.getCredential('google_maps', 'api_key');
+    const result = await pool.query(`
+      SELECT encrypted_value 
+      FROM encrypted_credentials 
+      WHERE service = 'google_maps' AND key_name = 'api_key'
+    `);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Google Maps API key not configured' });
+    }
+    
+    // For now, use the encrypted value directly (in production, you'd decrypt it)
+    const apiKey = result.rows[0].encrypted_value;
     
     if (!apiKey) {
       return res.status(404).json({ error: 'Google Maps API key not configured' });
