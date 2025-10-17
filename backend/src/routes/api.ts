@@ -4086,4 +4086,95 @@ router.put('/seo/configuration/:clientId', requireAuth, async (req, res) => {
   }
 });
 
+// ===== GEOCODING & HEATMAP ENDPOINTS =====
+
+// Geocode a single lead
+router.post('/geocoding/lead/:leadId', requireAuth, async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    const geocodingService = (await import('../services/geocodingService')).GeocodingService.getInstance();
+    
+    const result = await geocodingService.geocodeLead(parseInt(leadId));
+    
+    res.json({
+      success: result.status === 'success',
+      data: result
+    });
+  } catch (error) {
+    console.error('Geocode lead error:', error);
+    res.status(500).json({ error: 'Failed to geocode lead' });
+  }
+});
+
+// Geocode all pending leads (batch processing)
+router.post('/geocoding/batch', requireAuth, async (req, res) => {
+  try {
+    const geocodingService = (await import('../services/geocodingService')).GeocodingService.getInstance();
+    
+    const result = await geocodingService.geocodeAllPendingLeads();
+    
+    res.json({
+      success: true,
+      data: result,
+      message: `Batch geocoding completed: ${result.success} success, ${result.failed} failed`
+    });
+  } catch (error) {
+    console.error('Batch geocoding error:', error);
+    res.status(500).json({ error: 'Failed to perform batch geocoding' });
+  }
+});
+
+// Get leads with coordinates for heatmap
+router.get('/geocoding/leads/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const geocodingService = (await import('../services/geocodingService')).GeocodingService.getInstance();
+    
+    const leads = await geocodingService.getLeadsWithCoordinates(parseInt(clientId));
+    
+    res.json({
+      success: true,
+      data: leads,
+      count: leads.length
+    });
+  } catch (error) {
+    console.error('Get leads with coordinates error:', error);
+    res.status(500).json({ error: 'Failed to get leads with coordinates' });
+  }
+});
+
+// Get geocoding status for a client
+router.get('/geocoding/status/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT 
+        COUNT(*) as total_leads,
+        COUNT(CASE WHEN geocoding_status = 'completed' THEN 1 END) as geocoded_leads,
+        COUNT(CASE WHEN geocoding_status = 'pending' THEN 1 END) as pending_leads,
+        COUNT(CASE WHEN geocoding_status = 'failed' THEN 1 END) as failed_leads
+      FROM leads 
+      WHERE client_id = $1
+    `, [clientId]);
+
+    const status = result.rows[0];
+    
+    res.json({
+      success: true,
+      data: {
+        total_leads: parseInt(status.total_leads),
+        geocoded_leads: parseInt(status.geocoded_leads),
+        pending_leads: parseInt(status.pending_leads),
+        failed_leads: parseInt(status.failed_leads),
+        geocoding_percentage: status.total_leads > 0 ? 
+          Math.round((parseInt(status.geocoded_leads) / parseInt(status.total_leads)) * 100) : 0
+      }
+    });
+  } catch (error) {
+    console.error('Get geocoding status error:', error);
+    res.status(500).json({ error: 'Failed to get geocoding status' });
+  }
+});
+
 export default router;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { http } from '../api/http';
 import SEODashboard from './SEODashboard';
+import LeadHeatmap from '../components/LeadHeatmap';
 
 interface Client {
   id: number;
@@ -89,6 +90,7 @@ const ClientManagementDashboard: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [analyticsReportData, setAnalyticsReportData] = useState<any>(null);
   const [reports, setReports] = useState<any[]>([]);
+  const [geocodingStatus, setGeocodingStatus] = useState<any>(null);
   const [pageInsights, setPageInsights] = useState<any[]>([]);
   const [geographicData, setGeographicData] = useState<any[]>([]);
   const [keywordAnalysis, setKeywordAnalysis] = useState<any[]>([]);
@@ -149,6 +151,8 @@ const ClientManagementDashboard: React.FC = () => {
     if (selectedClient) {
       console.log('📊 Fetching data for client:', selectedClient.id, selectedClient.name);
       fetchClientData(selectedClient.id);
+      // Check geocoding status for the selected client
+      checkGeocodingStatus();
     }
   }, [selectedClient]);
 
@@ -405,6 +409,43 @@ const ClientManagementDashboard: React.FC = () => {
           connected: false, status: 'Not Connected' 
         }
       });
+    }
+  };
+
+  // Geocoding functions
+  const geocodeLeads = async () => {
+    if (!selectedClient) return;
+    
+    try {
+      setRefreshing(true);
+      const response = await http.post('/geocoding/batch');
+      
+      if (response.data.success) {
+        setSuccessMessage(`✅ ${response.data.message}`);
+        // Refresh geocoding status
+        checkGeocodingStatus();
+      } else {
+        setError('Failed to geocode leads');
+      }
+    } catch (error: any) {
+      console.error('Geocoding error:', error);
+      setError(error.response?.data?.error || 'Failed to geocode leads');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const checkGeocodingStatus = async () => {
+    if (!selectedClient) return;
+    
+    try {
+      const response = await http.get(`/geocoding/status/${selectedClient.id}`);
+      
+      if (response.data.success) {
+        setGeocodingStatus(response.data.data);
+      }
+    } catch (error: any) {
+      console.error('Error checking geocoding status:', error);
     }
   };
 
@@ -1866,6 +1907,103 @@ const ClientManagementDashboard: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Lead Density Heatmap Section */}
+                {selectedClient && (
+                  <div style={{ 
+                    marginTop: '30px',
+                    backgroundColor: 'white', 
+                    padding: '30px', 
+                    borderRadius: '12px', 
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <h3 style={{ margin: 0, color: '#333' }}>🗺️ Lead Density Heatmap</h3>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button
+                          onClick={() => geocodeLeads()}
+                          style={{
+                            background: '#28a745',
+                            color: 'white',
+                            border: 'none',
+                            padding: '8px 16px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '14px'
+                          }}
+                        >
+                          🌍 Geocode Leads
+                        </button>
+                        <button
+                          onClick={() => checkGeocodingStatus()}
+                          style={{
+                            background: '#007bff',
+                            color: 'white',
+                            border: 'none',
+                            padding: '8px 16px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '14px'
+                          }}
+                        >
+                          📊 Check Status
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {geocodingStatus && (
+                      <div style={{ 
+                        marginBottom: '20px', 
+                        padding: '15px', 
+                        backgroundColor: '#f8f9fa', 
+                        borderRadius: '8px',
+                        border: '1px solid #dee2e6'
+                      }}>
+                        <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Geocoding Status</h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#007bff' }}>
+                              {geocodingStatus.total_leads}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#666' }}>Total Leads</div>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#28a745' }}>
+                              {geocodingStatus.geocoded_leads}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#666' }}>Geocoded</div>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffc107' }}>
+                              {geocodingStatus.pending_leads}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#666' }}>Pending</div>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>
+                              {geocodingStatus.failed_leads}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#666' }}>Failed</div>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6f42c1' }}>
+                              {geocodingStatus.geocoding_percentage}%
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#666' }}>Complete</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <LeadHeatmap 
+                      clientId={selectedClient.id}
+                      practiceLocation={selectedClient.practice_location}
+                      onLeadsLoaded={(leads) => {
+                        console.log('🗺️ Heatmap loaded with leads:', leads);
+                      }}
+                    />
+                  </div>
+                )}
               )}
 
               {activeTab === 'analytics' && (
