@@ -3593,18 +3593,18 @@ function generateAnalyticsReportHTML(report: any, reportData: any): string {
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>📊 Analytics Report</h1>
-            <p class="subtitle">Comprehensive Business Intelligence Report</p>
-        </div>
+               <div class="header">
+                   <h1>📊 Analytics Report</h1>
+                   <p class="subtitle">Comprehensive Business Intelligence Report</p>
+               </div>
 
-        <div class="report-info">
-            <strong>Report Name:</strong> ${report.report_name}<br>
-            <strong>Client:</strong> ${report.client_name}<br>
-            <strong>📅 Report Period:</strong> ${new Date(report.date_from).toLocaleDateString()} to ${new Date(report.date_to).toLocaleDateString()}<br>
-            <strong>Generated:</strong> ${new Date(report.created_at || report.generated_at).toLocaleDateString()}<br>
-            <strong>📊 Data Sources:</strong> Google Analytics, Search Console, SEO Analysis, Local Search
-        </div>
+               <div class="report-info">
+                   <strong>Report Name:</strong> ${report.report_name}<br>
+                   <strong>Client:</strong> ${report.client_name}<br>
+                   <strong>📅 Report Period:</strong> ${report.date_from ? new Date(report.date_from).toLocaleDateString() : new Date().toLocaleDateString()} to ${report.date_to ? new Date(report.date_to).toLocaleDateString() : new Date().toLocaleDateString()}<br>
+                   <strong>Generated:</strong> ${report.created_at ? new Date(report.created_at).toLocaleString() : new Date().toLocaleString()}<br>
+                   <strong>📊 Data Sources:</strong> Google Analytics, Search Console, SEO Analysis, Local Search
+               </div>
 
         ${overview.summary ? `
         <div class="section">

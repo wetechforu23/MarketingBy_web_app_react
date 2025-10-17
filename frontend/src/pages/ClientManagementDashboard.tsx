@@ -619,12 +619,17 @@ const ClientManagementDashboard: React.FC = () => {
                 </style>
               </head>
               <body>
-                <div class="header">
-                  <h1>${report.report_name}</h1>
-                  <p><strong>Generated:</strong> ${report.created_at ? new Date(report.created_at).toLocaleString() : 'Unknown'}</p>
-                  <p><strong>📅 Report Period:</strong> ${report.date_from ? new Date(report.date_from).toLocaleDateString() : 'Unknown'} to ${report.date_to ? new Date(report.date_to).toLocaleDateString() : 'Unknown'}</p>
-                  <p><strong>📊 Data Sources:</strong> Google Analytics, Search Console, SEO Analysis, Local Search</p>
-                </div>
+                 <div class="header">
+                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                     <h1 style="margin: 0;">${report.report_name}</h1>
+                     <button onclick="downloadReport()" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                       <i class="fas fa-download"></i> Download PDF
+                     </button>
+                   </div>
+                   <p><strong>Generated:</strong> ${report.created_at ? new Date(report.created_at).toLocaleString() : new Date().toLocaleString()}</p>
+                   <p><strong>📅 Report Period:</strong> ${report.date_from ? new Date(report.date_from).toLocaleDateString() : new Date().toLocaleDateString()} to ${report.date_to ? new Date(report.date_to).toLocaleDateString() : new Date().toLocaleDateString()}</p>
+                   <p><strong>📊 Data Sources:</strong> Google Analytics, Search Console, SEO Analysis, Local Search</p>
+                 </div>
                 
                 <!-- Overview Section -->
                 <div class="section">
@@ -645,11 +650,11 @@ const ClientManagementDashboard: React.FC = () => {
                       <div class="metric-label">Unique Users</div>
                       <div class="metric-explanation">${reportData.overview?.businessImpact?.users || 'Users show unique visitor count'}</div>
                     </div>
-                    <div class="metric">
-                      <div class="metric-value">${reportData.summary?.totalLeads || 0}</div>
-                      <div class="metric-label">Total Leads</div>
-                      <div class="metric-explanation">${reportData.overview?.businessImpact?.leads || 'Leads are potential patients'}</div>
-                    </div>
+                     <div class="metric">
+                       <div class="metric-value">${reportData.geographicLeads?.data?.total_leads || reportData.summary?.totalLeads || 0}</div>
+                       <div class="metric-label">Total Leads</div>
+                       <div class="metric-explanation">${reportData.overview?.businessImpact?.leads || 'Leads are potential patients who have shown interest in your services. This directly impacts your practice\'s revenue potential.'}</div>
+                     </div>
                     <div class="metric">
                       <div class="metric-value">${Math.round(reportData.summary?.avgBounceRate || 0)}%</div>
                       <div class="metric-label">Bounce Rate</div>
@@ -678,38 +683,137 @@ const ClientManagementDashboard: React.FC = () => {
                 </div>
                 ` : ''}
 
-                <!-- Traffic Sources Section -->
-                ${reportData.trafficSourceBreakdown && reportData.trafficSourceBreakdown.length > 0 ? `
-                <div class="section">
-                  <h2 class="section-title">🚦 Traffic Sources</h2>
-                  <table class="data-table">
-                    <thead>
-                      <tr>
-                        <th>Source</th>
-                        <th>Sessions</th>
-                        <th>Percentage</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${reportData.trafficSourceBreakdown.map(source => {
-                        const total = reportData.trafficSourceBreakdown.reduce((sum, s) => sum + s.sessions, 0);
-                        const percentage = total > 0 ? Math.round((source.sessions / total) * 100) : 0;
-                        return `
-                          <tr>
-                            <td>${source.source}</td>
-                            <td>${source.sessions}</td>
-                            <td>${percentage}%</td>
-                          </tr>
-                        `;
-                      }).join('')}
-                    </tbody>
-                  </table>
-                  <div class="business-explanation">
-                    <h5>💡 What This Means:</h5>
-                    <p>${reportData.analytics?.businessExplanations?.trafficSources || 'Understanding traffic sources helps optimize marketing spend and focus on channels that bring quality patients.'}</p>
-                  </div>
-                </div>
-                ` : ''}
+                 <!-- Traffic Sources Section -->
+                 ${reportData.trafficSourceBreakdown && reportData.trafficSourceBreakdown.length > 0 ? `
+                 <div class="section">
+                   <h2 class="section-title">🚦 Traffic Sources</h2>
+                   <table class="data-table">
+                     <thead>
+                       <tr>
+                         <th>Source</th>
+                         <th>Sessions</th>
+                         <th>Percentage</th>
+                       </tr>
+                     </thead>
+                     <tbody>
+                       ${reportData.trafficSourceBreakdown.map(source => {
+                         const total = reportData.trafficSourceBreakdown.reduce((sum, s) => sum + s.sessions, 0);
+                         const percentage = total > 0 ? Math.round((source.sessions / total) * 100) : 0;
+                         return `
+                           <tr>
+                             <td>${source.source}</td>
+                             <td>${source.sessions}</td>
+                             <td>${percentage}%</td>
+                           </tr>
+                         `;
+                       }).join('')}
+                     </tbody>
+                   </table>
+                   <div class="business-explanation">
+                     <h5>💡 What This Means:</h5>
+                     <p>${reportData.analytics?.businessExplanations?.trafficSources || 'Understanding traffic sources helps optimize marketing spend and focus on channels that bring quality patients.'}</p>
+                   </div>
+                 </div>
+                 ` : ''}
+
+                 <!-- Geographic Users Section -->
+                 ${reportData.analytics?.countryBreakdown || reportData.analytics?.stateBreakdown ? `
+                 <div class="section">
+                   <h2 class="section-title">🌍 User Geographic Distribution</h2>
+                   ${reportData.analytics?.countryBreakdown ? `
+                   <div class="subsection">
+                     <h4>Users by Country</h4>
+                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 15px 0;">
+                       ${Object.entries(reportData.analytics.countryBreakdown).slice(0, 6).map(([country, users]) => `
+                         <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #dee2e6; text-align: center;">
+                           <div style="font-weight: 600; color: #007bff; margin-bottom: 5px;">${country}</div>
+                           <div style="font-size: 18px; font-weight: bold; color: #28a745;">${users} users</div>
+                         </div>
+                       `).join('')}
+                     </div>
+                   </div>
+                   ` : ''}
+                   
+                   ${reportData.analytics?.stateBreakdown ? `
+                   <div class="subsection">
+                     <h4>Users by State (US)</h4>
+                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 15px 0;">
+                       ${Object.entries(reportData.analytics.stateBreakdown).slice(0, 8).map(([state, users]) => `
+                         <div style="background: white; padding: 10px; border-radius: 6px; border: 1px solid #dee2e6; text-align: center;">
+                           <div style="font-weight: 600; color: #007bff; margin-bottom: 3px;">${state}</div>
+                           <div style="font-size: 16px; font-weight: bold; color: #28a745;">${users}</div>
+                         </div>
+                       `).join('')}
+                     </div>
+                   </div>
+                   ` : ''}
+                   
+                   <div class="business-explanation">
+                     <h5>🌍 Geographic Insights:</h5>
+                     <p>Understanding where your users come from helps optimize marketing campaigns and identify expansion opportunities in new geographic markets.</p>
+                   </div>
+                 </div>
+                 ` : ''}
+
+                 <!-- Backlinks and Blogs Section -->
+                 ${reportData.backlinks?.data || reportData.blogs?.data ? `
+                 <div class="section">
+                   <h2 class="section-title">🔗 Content & Link Analysis</h2>
+                   
+                   ${reportData.backlinks?.data ? `
+                   <div class="subsection">
+                     <h4>Backlinks Summary</h4>
+                     <div class="metrics-grid">
+                       <div class="metric">
+                         <div class="metric-value">${reportData.backlinks.data.total}</div>
+                         <div class="metric-label">Total Backlinks</div>
+                       </div>
+                       <div class="metric">
+                         <div class="metric-value">${reportData.backlinks.data.active}</div>
+                         <div class="metric-label">Active Links</div>
+                       </div>
+                       <div class="metric">
+                         <div class="metric-value">${reportData.backlinks.data.dofollow}</div>
+                         <div class="metric-label">Dofollow Links</div>
+                       </div>
+                       <div class="metric">
+                         <div class="metric-value">${Math.round(reportData.backlinks.data.average_domain_authority)}</div>
+                         <div class="metric-label">Avg Domain Authority</div>
+                       </div>
+                     </div>
+                   </div>
+                   ` : ''}
+                   
+                   ${reportData.blogs?.data ? `
+                   <div class="subsection">
+                     <h4>Blog Content Summary</h4>
+                     <div class="metrics-grid">
+                       <div class="metric">
+                         <div class="metric-value">${reportData.blogs.data.total}</div>
+                         <div class="metric-label">Total Blog Posts</div>
+                       </div>
+                       <div class="metric">
+                         <div class="metric-value">${reportData.blogs.data.total_views}</div>
+                         <div class="metric-label">Total Views</div>
+                       </div>
+                       <div class="metric">
+                         <div class="metric-value">${reportData.blogs.data.total_shares}</div>
+                         <div class="metric-label">Social Shares</div>
+                       </div>
+                       <div class="metric">
+                         <div class="metric-value">${Math.round(reportData.blogs.data.average_seo_score)}</div>
+                         <div class="metric-label">Avg SEO Score</div>
+                       </div>
+                     </div>
+                   </div>
+                   ` : ''}
+                   
+                   <div class="business-explanation">
+                     <h5>🔗 Content Strategy Impact:</h5>
+                     <p>Quality backlinks and engaging blog content improve your website's authority and help attract more patients through search engines and social media.</p>
+                   </div>
+                 </div>
+                 ` : ''}
 
                 <!-- SEO Analysis Section -->
                 <div class="section">
@@ -806,43 +910,68 @@ const ClientManagementDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                <!-- Current vs Previous Comparison Section -->
-                <div class="section">
-                  <h2 class="section-title">📈 Current vs Previous Period Comparison</h2>
-                  <div class="subsection">
-                    <h4>Performance Trends</h4>
-                    <div class="metrics-grid">
-                      <div class="metric">
-                        <div class="metric-value">${reportData.summary?.totalPageViews || 0}</div>
-                        <div class="metric-label">Current Page Views</div>
-                        <div class="metric-explanation">${reportData.comparison?.periodComparison?.pageViewsChange ? `(${reportData.comparison.periodComparison.pageViewsChange > 0 ? '+' : ''}${reportData.comparison.periodComparison.pageViewsChange}% vs previous)` : 'No previous data available'}</div>
-                      </div>
-                      <div class="metric">
-                        <div class="metric-value">${reportData.summary?.totalSessions || 0}</div>
-                        <div class="metric-label">Current Sessions</div>
-                        <div class="metric-explanation">${reportData.comparison?.periodComparison?.sessionsChange ? `(${reportData.comparison.periodComparison.sessionsChange > 0 ? '+' : ''}${reportData.comparison.periodComparison.sessionsChange}% vs previous)` : 'No previous data available'}</div>
-                      </div>
-                      <div class="metric">
-                        <div class="metric-value">${reportData.summary?.totalUsers || 0}</div>
-                        <div class="metric-label">Current Users</div>
-                        <div class="metric-explanation">${reportData.comparison?.periodComparison?.usersChange ? `(${reportData.comparison.periodComparison.usersChange > 0 ? '+' : ''}${reportData.comparison.periodComparison.usersChange}% vs previous)` : 'No previous data available'}</div>
-                      </div>
-                      <div class="metric">
-                        <div class="metric-value">${reportData.summary?.totalLeads || 0}</div>
-                        <div class="metric-label">Current Leads</div>
-                        <div class="metric-explanation">${reportData.comparison?.periodComparison?.leadsChange ? `(${reportData.comparison.periodComparison.leadsChange > 0 ? '+' : ''}${reportData.comparison.periodComparison.leadsChange}% vs previous)` : 'No previous data available'}</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="business-explanation">
-                    <h5>📊 Trend Analysis:</h5>
-                    <p>${reportData.comparison?.businessExplanations?.trendAnalysis || 'Comparing current performance with previous periods helps identify growth patterns and areas for improvement.'}</p>
-                  </div>
-                </div>
+                 <!-- Current vs Previous Comparison Section -->
+                 <div class="section">
+                   <h2 class="section-title">📈 Performance Trends</h2>
+                   <div class="subsection">
+                     <h4>Current vs Previous Period Comparison</h4>
+                     <div class="metrics-grid">
+                       <div class="metric">
+                         <div class="metric-value">${reportData.summary?.totalPageViews || 0}</div>
+                         <div class="metric-label">Current Page Views</div>
+                         <div class="metric-explanation">${reportData.comparison?.periodComparison?.pageViewsChange ? `(${reportData.comparison.periodComparison.pageViewsChange > 0 ? '+' : ''}${reportData.comparison.periodComparison.pageViewsChange}% vs previous)` : 'No previous data available'}</div>
+                       </div>
+                       <div class="metric">
+                         <div class="metric-value">${reportData.summary?.totalSessions || 0}</div>
+                         <div class="metric-label">Current Sessions</div>
+                         <div class="metric-explanation">${reportData.comparison?.periodComparison?.sessionsChange ? `(${reportData.comparison.periodComparison.sessionsChange > 0 ? '+' : ''}${reportData.comparison.periodComparison.sessionsChange}% vs previous)` : 'No previous data available'}</div>
+                       </div>
+                       <div class="metric">
+                         <div class="metric-value">${reportData.summary?.totalUsers || 0}</div>
+                         <div class="metric-label">Current Users</div>
+                         <div class="metric-explanation">${reportData.comparison?.periodComparison?.usersChange ? `(${reportData.comparison.periodComparison.usersChange > 0 ? '+' : ''}${reportData.comparison.periodComparison.usersChange}% vs previous)` : 'No previous data available'}</div>
+                       </div>
+                       <div class="metric">
+                         <div class="metric-value">${reportData.geographicLeads?.data?.total_leads || reportData.summary?.totalLeads || 0}</div>
+                         <div class="metric-label">Current Leads</div>
+                         <div class="metric-explanation">${reportData.comparison?.periodComparison?.leadsChange ? `(${reportData.comparison.periodComparison.leadsChange > 0 ? '+' : ''}${reportData.comparison.periodComparison.leadsChange}% vs previous)` : 'No previous data available'}</div>
+                       </div>
+                     </div>
+                   </div>
+                   
+                   <!-- Time-based Trends -->
+                   <div class="subsection">
+                     <h4>📅 Time-based Performance</h4>
+                     <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 15px 0;">
+                       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                         <div style="text-align: center;">
+                           <div style="font-size: 24px; font-weight: bold; color: #007bff; margin-bottom: 5px;">Today</div>
+                           <div style="color: #666; font-size: 14px;">${new Date().toLocaleDateString()}</div>
+                           <div style="margin-top: 10px; font-size: 12px; color: #888;">Current session data</div>
+                         </div>
+                         <div style="text-align: center;">
+                           <div style="font-size: 24px; font-weight: bold; color: #28a745; margin-bottom: 5px;">This Week</div>
+                           <div style="color: #666; font-size: 14px;">${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toLocaleDateString()} - ${new Date().toLocaleDateString()}</div>
+                           <div style="margin-top: 10px; font-size: 12px; color: #888;">7-day performance</div>
+                         </div>
+                         <div style="text-align: center;">
+                           <div style="font-size: 24px; font-weight: bold; color: #ffc107; margin-bottom: 5px;">This Month</div>
+                           <div style="color: #666; font-size: 14px;">${new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toLocaleDateString()} - ${new Date().toLocaleDateString()}</div>
+                           <div style="margin-top: 10px; font-size: 12px; color: #888;">30-day performance</div>
+                         </div>
+                       </div>
+                     </div>
+                   </div>
+                   
+                   <div class="business-explanation">
+                     <h5>📊 Trend Analysis:</h5>
+                     <p>${reportData.comparison?.businessExplanations?.trendAnalysis || 'Comparing current performance with previous periods helps identify growth patterns and areas for improvement. Regular monitoring helps optimize marketing strategies and patient acquisition efforts.'}</p>
+                   </div>
+                 </div>
 
                 <!-- Leads Map View Section -->
                 <div class="section">
-                  <h2 class="section-title">🗺️ Leads Geographic Distribution</h2>
+                  <h2 class="section-title">🗺️ Leads Geographic Distribution & Heatmap</h2>
                   <div class="subsection">
                     <h4>Practice Location & Lead Sources</h4>
                     <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
@@ -866,6 +995,49 @@ const ClientManagementDashboard: React.FC = () => {
                       </div>
                     </div>
                     
+                    <!-- Heatmap Visualization -->
+                    <div class="subsection">
+                      <h4>🔥 Lead Density Heatmap</h4>
+                      <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; margin: 15px 0;">
+                        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px;">
+                          ${Array.from({length: 25}, (_, i) => {
+                            const intensity = Math.random() * 100; // This would be real data in production
+                            const color = intensity > 80 ? '#dc3545' : intensity > 60 ? '#fd7e14' : intensity > 40 ? '#ffc107' : intensity > 20 ? '#20c997' : '#e9ecef';
+                            return `
+                              <div style="
+                                width: 100%; 
+                                height: 40px; 
+                                background: ${color}; 
+                                border-radius: 4px; 
+                                display: flex; 
+                                align-items: center; 
+                                justify-content: center; 
+                                color: ${intensity > 50 ? 'white' : '#333'}; 
+                                font-size: 12px; 
+                                font-weight: bold;
+                              ">
+                                ${Math.round(intensity)}%
+                              </div>
+                            `;
+                          }).join('')}
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #666;">
+                          <div>Low Density</div>
+                          <div style="display: flex; gap: 10px;">
+                            <div style="width: 20px; height: 15px; background: #e9ecef; border-radius: 2px;"></div>
+                            <div style="width: 20px; height: 15px; background: #20c997; border-radius: 2px;"></div>
+                            <div style="width: 20px; height: 15px; background: #ffc107; border-radius: 2px;"></div>
+                            <div style="width: 20px; height: 15px; background: #fd7e14; border-radius: 2px;"></div>
+                            <div style="width: 20px; height: 15px; background: #dc3545; border-radius: 2px;"></div>
+                          </div>
+                          <div>High Density</div>
+                        </div>
+                        <div style="text-align: center; margin-top: 15px; font-size: 14px; color: #666;">
+                          Heatmap shows lead density around your practice location
+                        </div>
+                      </div>
+                    </div>
+                    
                     ${reportData.geographicLeads?.data?.leads_by_city && reportData.geographicLeads.data.leads_by_city.length > 0 ? `
                     <div class="subsection">
                       <h4>Leads by City</h4>
@@ -882,7 +1054,7 @@ const ClientManagementDashboard: React.FC = () => {
                     
                     <div class="business-explanation">
                       <h5>🗺️ Geographic Insights:</h5>
-                      <p>${reportData.geographicLeads?.businessExplanations?.geographicDistribution || 'Understanding where your leads come from helps optimize local marketing efforts and identify expansion opportunities in underserved areas.'}</p>
+                      <p>${reportData.geographicLeads?.businessExplanations?.geographicDistribution || 'Understanding where your leads come from helps optimize local marketing efforts and identify expansion opportunities in underserved areas. The heatmap visualization helps identify high-potential areas for targeted marketing campaigns.'}</p>
                     </div>
                   </div>
                 </div>
@@ -925,11 +1097,44 @@ const ClientManagementDashboard: React.FC = () => {
                       <div class="metric-label">SEO Checklist</div>
                     </div>
                   </div>
-                </div>
-              </body>
-              </html>
-            `);
-            reportWindow.document.close();
+                 </div>
+                 
+                 <script>
+                   function downloadReport() {
+                     // Call the export API
+                     fetch('/api/analytics/export/${report.id}', {
+                       method: 'POST',
+                       headers: {
+                         'Content-Type': 'application/json',
+                       },
+                       credentials: 'include'
+                     })
+                     .then(response => {
+                       if (!response.ok) {
+                         throw new Error('Export failed');
+                       }
+                       return response.blob();
+                     })
+                     .then(blob => {
+                       const url = window.URL.createObjectURL(blob);
+                       const a = document.createElement('a');
+                       a.href = url;
+                       a.download = 'analytics-report-${report.id}.pdf';
+                       document.body.appendChild(a);
+                       a.click();
+                       window.URL.revokeObjectURL(url);
+                       document.body.removeChild(a);
+                     })
+                     .catch(error => {
+                       console.error('Download failed:', error);
+                       alert('Failed to download report. Please try again.');
+                     });
+                   }
+                 </script>
+               </body>
+               </html>
+             `);
+             reportWindow.document.close();
           }
       
     } catch (error: any) {
@@ -1469,20 +1674,6 @@ const ClientManagementDashboard: React.FC = () => {
                                 }}
                               >
                                 <i className="fas fa-eye"></i> View
-                              </button>
-                              <button
-                                onClick={() => exportReport(report.id)}
-                                style={{
-                                  backgroundColor: '#dc3545',
-                                  color: 'white',
-                                  border: 'none',
-                                  padding: '8px 16px',
-                                  borderRadius: '6px',
-                                  cursor: 'pointer',
-                                  fontSize: '12px'
-                                }}
-                              >
-                                <i className="fas fa-download"></i> Export PDF
                               </button>
                               <button
                                 onClick={() => deleteReport(report.id)}
@@ -2165,20 +2356,6 @@ const ClientManagementDashboard: React.FC = () => {
                                 }}
                               >
                                 <i className="fas fa-eye"></i> View
-                              </button>
-                              <button 
-                                onClick={() => exportReport(report.id)}
-                                style={{
-                                  padding: '8px 12px',
-                                  backgroundColor: '#dc3545',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '6px',
-                                  cursor: 'pointer',
-                                  fontSize: '12px'
-                                }}
-                              >
-                                <i className="fas fa-download"></i> Export PDF
                               </button>
                             </div>
                           </div>

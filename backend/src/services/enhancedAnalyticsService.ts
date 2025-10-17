@@ -612,27 +612,66 @@ export class EnhancedAnalyticsService {
              }
            },
 
-           // Geographic Leads section
-           geographicLeads: {
-             data: analyticsData.geographicLeads || {
-               practice_location: null,
-               total_leads: 0,
-               leads_within_25_miles: 0,
-               leads_within_50_miles: 0,
-               leads_within_100_miles: 0,
-               leads_by_distance: [],
-               leads_by_city: [],
-               average_distance: 0,
-               furthest_lead_distance: 0
-             },
-             businessExplanations: {
-               practiceLocation: "Your practice location is the center point for measuring lead distances and geographic distribution.",
-               leadsWithin25Miles: "Leads within 25 miles are your primary service area - these are your most accessible patients.",
-               leadsWithin50Miles: "Leads within 50 miles represent your extended service area - consider these for growth opportunities.",
-               averageDistance: "Average distance shows how far your typical leads travel to reach your practice.",
-               geographicDistribution: "Understanding where your leads come from helps optimize local marketing and identify underserved areas."
-             }
-           }
+       // Geographic Leads section
+       geographicLeads: {
+         data: analyticsData.geographicLeads || {
+           practice_location: null,
+           total_leads: 0,
+           leads_within_25_miles: 0,
+           leads_within_50_miles: 0,
+           leads_within_100_miles: 0,
+           leads_by_distance: [],
+           leads_by_city: [],
+           average_distance: 0,
+           furthest_lead_distance: 0
+         },
+         businessExplanations: {
+           practiceLocation: "Your practice location is the center point for measuring lead distances and geographic distribution.",
+           leadsWithin25Miles: "Leads within 25 miles are your primary service area - these are your most accessible patients.",
+           leadsWithin50Miles: "Leads within 50 miles represent your extended service area - consider these for growth opportunities.",
+           averageDistance: "Average distance shows how far your typical leads travel to reach your practice.",
+           geographicDistribution: "Understanding where your leads come from helps optimize local marketing and identify underserved areas."
+         }
+       },
+
+       // Backlinks section
+       backlinks: {
+         data: analyticsData.backlinks || {
+           total: 0,
+           active: 0,
+           broken: 0,
+           lost: 0,
+           dofollow: 0,
+           nofollow: 0,
+           average_domain_authority: 0
+         },
+         businessExplanations: {
+           totalBacklinks: "Total backlinks indicate your website's authority and trustworthiness in search engines.",
+           activeBacklinks: "Active backlinks are currently working and passing link equity to your site.",
+           domainAuthority: "Higher domain authority backlinks are more valuable for SEO rankings.",
+           dofollowLinks: "Dofollow links pass SEO value and help improve search rankings."
+         }
+       },
+
+       // Blogs section
+       blogs: {
+         data: analyticsData.blogs || {
+           total: 0,
+           published: 0,
+           draft: 0,
+           total_views: 0,
+           total_shares: 0,
+           total_comments: 0,
+           average_seo_score: 0,
+           average_word_count: 0
+         },
+         businessExplanations: {
+           totalBlogs: "Blog content helps establish your practice as a thought leader in healthcare.",
+           totalViews: "Blog views indicate content engagement and potential patient interest.",
+           totalShares: "Social shares expand your reach and bring in new potential patients.",
+           seoScore: "Higher SEO scores mean better search engine visibility for your content."
+         }
+       }
     };
 
     return reportData;
@@ -758,28 +797,62 @@ export class EnhancedAnalyticsService {
       };
     }
 
-    // Get Geographic Leads data
-    try {
-      console.log(`📍 Fetching Geographic Leads data...`);
-      const geographicLeadsService = (await import('./geographicLeadsService')).GeographicLeadsService.getInstance();
-      const geographicLeads = await geographicLeadsService.getGeographicLeadsData(clientId, 100);
-      realTimeData.geographicLeads = geographicLeads;
-      console.log(`✅ Geographic Leads data fetched`);
-    } catch (error) {
-      console.error(`❌ Geographic Leads data fetch failed:`, error);
-      realTimeData.geographicLeads = {
-        practice_location: null,
-        total_leads: 0,
-        leads_within_25_miles: 0,
-        leads_within_50_miles: 0,
-        leads_within_100_miles: 0,
-        leads_by_distance: [],
-        leads_by_city: [],
-        average_distance: 0,
-        furthest_lead_distance: 0,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
+         // Get Geographic Leads data
+         try {
+           console.log(`📍 Fetching Geographic Leads data...`);
+           const geographicLeadsService = (await import('./geographicLeadsService')).GeographicLeadsService.getInstance();
+           const geographicLeads = await geographicLeadsService.getGeographicLeadsData(clientId, 100);
+           realTimeData.geographicLeads = geographicLeads;
+           console.log(`✅ Geographic Leads data fetched`);
+         } catch (error) {
+           console.error(`❌ Geographic Leads data fetch failed:`, error);
+           realTimeData.geographicLeads = {
+             practice_location: null,
+             total_leads: 0,
+             leads_within_25_miles: 0,
+             leads_within_50_miles: 0,
+             leads_within_100_miles: 0,
+             leads_by_distance: [],
+             leads_by_city: [],
+             average_distance: 0,
+             furthest_lead_distance: 0,
+             error: error instanceof Error ? error.message : 'Unknown error'
+           };
+         }
+
+         // Get Backlinks and Blogs data
+         try {
+           console.log(`🔗 Fetching Backlinks and Blogs data...`);
+           const backlinksService = (await import('./backlinksService')).BacklinksService.getInstance();
+           const backlinksSummary = await backlinksService.getBacklinksSummary(clientId);
+           const blogsSummary = await backlinksService.getBlogsSummary(clientId);
+           realTimeData.backlinks = backlinksSummary;
+           realTimeData.blogs = blogsSummary;
+           console.log(`✅ Backlinks and Blogs data fetched`);
+         } catch (error) {
+           console.error(`❌ Backlinks and Blogs data fetch failed:`, error);
+           realTimeData.backlinks = {
+             total: 0,
+             active: 0,
+             broken: 0,
+             lost: 0,
+             dofollow: 0,
+             nofollow: 0,
+             average_domain_authority: 0,
+             error: error instanceof Error ? error.message : 'Unknown error'
+           };
+           realTimeData.blogs = {
+             total: 0,
+             published: 0,
+             draft: 0,
+             total_views: 0,
+             total_shares: 0,
+             total_comments: 0,
+             average_seo_score: 0,
+             average_word_count: 0,
+             error: error instanceof Error ? error.message : 'Unknown error'
+           };
+         }
 
     return realTimeData;
   }

@@ -262,9 +262,11 @@ export class GoogleAnalyticsService {
           { name: 'sessions' }
         ],
         dimensions: [
-          { name: 'sessionDefaultChannelGrouping' }
+          { name: 'sessionDefaultChannelGrouping' },
+          { name: 'sessionSource' },
+          { name: 'sessionMedium' }
         ],
-        limit: '10'
+        limit: '20'
       };
 
       const trafficResponse = await analytics.properties.runReport({
@@ -292,11 +294,80 @@ export class GoogleAnalyticsService {
         pageViews: row.metricValues?.[0]?.value ? parseInt(row.metricValues[0].value) : 0
       }));
 
-      // Process traffic sources
-      const trafficSources = trafficRows.map(row => ({
-        source: row.dimensionValues?.[0]?.value || '',
-        sessions: row.metricValues?.[0]?.value ? parseInt(row.metricValues[0].value) : 0
+      // Process traffic sources with social media tracking
+      const trafficSources = trafficRows.map(row => {
+        const channelGrouping = row.dimensionValues?.[0]?.value || '';
+        const source = row.dimensionValues?.[1]?.value || '';
+        const medium = row.dimensionValues?.[2]?.value || '';
+        const sessions = row.metricValues?.[0]?.value ? parseInt(row.metricValues[0].value) : 0;
+        
+        // Enhanced source tracking for social media
+        let enhancedSource = channelGrouping;
+        if (medium === 'social' || source.includes('facebook') || source.includes('instagram') || 
+            source.includes('twitter') || source.includes('linkedin') || source.includes('tiktok')) {
+          enhancedSource = `Social Media (${source})`;
+        } else if (source.includes('google') && medium === 'cpc') {
+          enhancedSource = 'Google Ads';
+        } else if (source.includes('facebook') && medium === 'cpc') {
+          enhancedSource = 'Facebook Ads';
+        } else if (medium === 'referral') {
+          enhancedSource = `Referral (${source})`;
+        }
+        
+        return {
+          source: enhancedSource,
+          originalSource: source,
+          medium: medium,
+          sessions: sessions
+        };
+      });
+
+      // Get geographic data
+      const geoRequest = {
+        dateRanges: [
+          {
+            startDate: '30daysAgo',
+            endDate: 'today'
+          }
+        ],
+        metrics: [
+          { name: 'totalUsers' }
+        ],
+        dimensions: [
+          { name: 'country' },
+          { name: 'region' }
+        ],
+        limit: '50'
+      };
+
+      const geoResponse = await analytics.properties.runReport({
+        property: `properties/${propertyId}`,
+        requestBody: geoRequest,
+        auth: this.oauth2Client
+      });
+
+      const geoRows = geoResponse.data.rows || [];
+      
+      // Process geographic data
+      const geographicData = geoRows.map(row => ({
+        country: row.dimensionValues?.[0]?.value || 'Unknown',
+        region: row.dimensionValues?.[1]?.value || 'Unknown',
+        users: row.metricValues?.[0]?.value ? parseInt(row.metricValues[0].value) : 0
       }));
+
+      // Get country breakdown
+      const countryBreakdown = geographicData.reduce((acc, item) => {
+        acc[item.country] = (acc[item.country] || 0) + item.users;
+        return acc;
+      }, {} as Record<string, number>);
+
+      // Get state breakdown (for US)
+      const stateBreakdown = geographicData
+        .filter(item => item.country === 'United States')
+        .reduce((acc, item) => {
+          acc[item.region] = (acc[item.region] || 0) + item.users;
+          return acc;
+        }, {} as Record<string, number>);
 
       return {
         pageViews,
@@ -306,7 +377,10 @@ export class GoogleAnalyticsService {
         newUsers,
         avgSessionDuration,
         topPages,
-        trafficSources
+        trafficSources,
+        geographicData,
+        countryBreakdown,
+        stateBreakdown
       };
 
     } catch (error) {
