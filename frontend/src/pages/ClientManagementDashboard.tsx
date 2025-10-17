@@ -577,60 +577,278 @@ const ClientManagementDashboard: React.FC = () => {
       
       console.log('📈 Parsed report data:', reportData);
       
-      // Show the report data in a modal or new window
-      const reportWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
-      if (reportWindow) {
-        reportWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Report: ${report.report_name}</title>
-            <style>
-              body { font-family: Arial, sans-serif; margin: 20px; }
-              .header { background: #007bff; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-              .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
-              .metric { display: inline-block; margin: 10px; padding: 10px; background: #f8f9fa; border-radius: 6px; }
-              .metric-value { font-size: 24px; font-weight: bold; color: #007bff; }
-              .metric-label { font-size: 12px; color: #666; text-transform: uppercase; }
-              pre { background: #f8f9fa; padding: 15px; border-radius: 6px; overflow-x: auto; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h1>${report.report_name}</h1>
-              <p>Generated: ${new Date(report.created_at).toLocaleString()}</p>
-              <p>Date Range: ${new Date(report.date_from).toLocaleDateString()} to ${new Date(report.date_to).toLocaleDateString()}</p>
-            </div>
-            
-            <div class="section">
-              <h2>📊 Summary</h2>
-              <div class="metric">
-                <div class="metric-value">${reportData.summary?.totalPageViews || 0}</div>
-                <div class="metric-label">Page Views</div>
-              </div>
-              <div class="metric">
-                <div class="metric-value">${reportData.summary?.totalSessions || 0}</div>
-                <div class="metric-label">Sessions</div>
-              </div>
-              <div class="metric">
-                <div class="metric-value">${reportData.summary?.totalUsers || 0}</div>
-                <div class="metric-label">Users</div>
-              </div>
-              <div class="metric">
-                <div class="metric-value">${reportData.summary?.totalLeads || 0}</div>
-                <div class="metric-label">Leads</div>
-              </div>
-            </div>
-            
-            <div class="section">
-              <h2>📈 Full Report Data</h2>
-              <pre>${JSON.stringify(reportData, null, 2)}</pre>
-            </div>
-          </body>
-          </html>
-        `);
-        reportWindow.document.close();
-      }
+          // Show the report data in a modal or new window
+          const reportWindow = window.open('', '_blank', 'width=1400,height=900,scrollbars=yes,resizable=yes');
+          if (reportWindow) {
+            reportWindow.document.write(`
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <title>Report: ${report.report_name}</title>
+                <style>
+                  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: #f5f7fa; }
+                  .header { background: linear-gradient(135deg, #007bff, #0056b3); color: white; padding: 30px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+                  .section { margin: 25px 0; padding: 25px; background: white; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                  .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0; }
+                  .metric { text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #007bff; }
+                  .metric-value { font-size: 32px; font-weight: bold; color: #007bff; margin-bottom: 5px; }
+                  .metric-label { font-size: 14px; color: #666; text-transform: uppercase; font-weight: 500; }
+                  .metric-explanation { font-size: 12px; color: #888; margin-top: 8px; font-style: italic; }
+                  .data-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+                  .data-table th, .data-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+                  .data-table th { background: #f8f9fa; font-weight: 600; color: #333; }
+                  .data-table tr:hover { background: #f8f9fa; }
+                  .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+                  .status-connected { background: #d4edda; color: #155724; }
+                  .status-not-connected { background: #f8d7da; color: #721c24; }
+                  .status-not-checked { background: #fff3cd; color: #856404; }
+                  .section-title { color: #333; margin-bottom: 20px; font-size: 20px; font-weight: 600; }
+                  .subsection { margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; }
+                  .subsection h4 { margin: 0 0 10px 0; color: #555; }
+                  .business-explanation { background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #2196f3; }
+                  .business-explanation h5 { margin: 0 0 8px 0; color: #1976d2; }
+                  .business-explanation p { margin: 0; color: #424242; }
+                  .page-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+                  .page-item { padding: 15px; background: white; border: 1px solid #e0e0e0; border-radius: 8px; }
+                  .page-url { font-weight: 600; color: #007bff; margin-bottom: 5px; }
+                  .page-views { font-size: 18px; font-weight: bold; color: #28a745; }
+                  .checklist-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; margin: 5px 0; background: white; border-radius: 6px; border: 1px solid #e0e0e0; }
+                  .checklist-name { font-weight: 500; }
+                  .checklist-status { font-size: 12px; }
+                  .empty-data { text-align: center; color: #666; font-style: italic; padding: 20px; }
+                </style>
+              </head>
+              <body>
+                <div class="header">
+                  <h1>${report.report_name}</h1>
+                  <p><strong>Generated:</strong> ${report.created_at ? new Date(report.created_at).toLocaleString() : 'Unknown'}</p>
+                  <p><strong>Date Range:</strong> ${report.date_from ? new Date(report.date_from).toLocaleDateString() : 'Unknown'} to ${report.date_to ? new Date(report.date_to).toLocaleDateString() : 'Unknown'}</p>
+                </div>
+                
+                <!-- Overview Section -->
+                <div class="section">
+                  <h2 class="section-title">📊 Executive Summary</h2>
+                  <div class="metrics-grid">
+                    <div class="metric">
+                      <div class="metric-value">${reportData.summary?.totalPageViews || 0}</div>
+                      <div class="metric-label">Total Page Views</div>
+                      <div class="metric-explanation">${reportData.overview?.businessImpact?.pageViews || 'Page views indicate content engagement'}</div>
+                    </div>
+                    <div class="metric">
+                      <div class="metric-value">${reportData.summary?.totalSessions || 0}</div>
+                      <div class="metric-label">Total Sessions</div>
+                      <div class="metric-explanation">${reportData.overview?.businessImpact?.sessions || 'Sessions represent individual visits'}</div>
+                    </div>
+                    <div class="metric">
+                      <div class="metric-value">${reportData.summary?.totalUsers || 0}</div>
+                      <div class="metric-label">Unique Users</div>
+                      <div class="metric-explanation">${reportData.overview?.businessImpact?.users || 'Users show unique visitor count'}</div>
+                    </div>
+                    <div class="metric">
+                      <div class="metric-value">${reportData.summary?.totalLeads || 0}</div>
+                      <div class="metric-label">Total Leads</div>
+                      <div class="metric-explanation">${reportData.overview?.businessImpact?.leads || 'Leads are potential patients'}</div>
+                    </div>
+                    <div class="metric">
+                      <div class="metric-value">${Math.round(reportData.summary?.avgBounceRate || 0)}%</div>
+                      <div class="metric-label">Bounce Rate</div>
+                      <div class="metric-explanation">Lower bounce rates indicate better engagement</div>
+                    </div>
+                    <div class="metric">
+                      <div class="metric-value">${Math.round(reportData.summary?.avgSessionDuration || 0)}s</div>
+                      <div class="metric-label">Avg Session Duration</div>
+                      <div class="metric-explanation">Time spent on your website</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Top Pages Section -->
+                ${reportData.topPages && reportData.topPages.length > 0 ? `
+                <div class="section">
+                  <h2 class="section-title">📄 Top Performing Pages</h2>
+                  <div class="page-list">
+                    ${reportData.topPages.slice(0, 10).map(page => `
+                      <div class="page-item">
+                        <div class="page-url">${page.page}</div>
+                        <div class="page-views">${page.pageViews} views</div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+                ` : ''}
+
+                <!-- Traffic Sources Section -->
+                ${reportData.trafficSourceBreakdown && reportData.trafficSourceBreakdown.length > 0 ? `
+                <div class="section">
+                  <h2 class="section-title">🚦 Traffic Sources</h2>
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Source</th>
+                        <th>Sessions</th>
+                        <th>Percentage</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${reportData.trafficSourceBreakdown.map(source => {
+                        const total = reportData.trafficSourceBreakdown.reduce((sum, s) => sum + s.sessions, 0);
+                        const percentage = total > 0 ? Math.round((source.sessions / total) * 100) : 0;
+                        return `
+                          <tr>
+                            <td>${source.source}</td>
+                            <td>${source.sessions}</td>
+                            <td>${percentage}%</td>
+                          </tr>
+                        `;
+                      }).join('')}
+                    </tbody>
+                  </table>
+                  <div class="business-explanation">
+                    <h5>💡 What This Means:</h5>
+                    <p>${reportData.analytics?.businessExplanations?.trafficSources || 'Understanding traffic sources helps optimize marketing spend and focus on channels that bring quality patients.'}</p>
+                  </div>
+                </div>
+                ` : ''}
+
+                <!-- SEO Analysis Section -->
+                <div class="section">
+                  <h2 class="section-title">🔍 SEO Analysis</h2>
+                  <div class="subsection">
+                    <h4>Search Performance</h4>
+                    <div class="metrics-grid">
+                      <div class="metric">
+                        <div class="metric-value">${reportData.seo?.searchPerformance?.organicTraffic || 'N/A'}</div>
+                        <div class="metric-label">Organic Traffic</div>
+                      </div>
+                      <div class="metric">
+                        <div class="metric-value">${reportData.seo?.searchPerformance?.keywordRankings || 'N/A'}</div>
+                        <div class="metric-label">Keyword Rankings</div>
+                      </div>
+                      <div class="metric">
+                        <div class="metric-value">${reportData.seo?.searchPerformance?.searchVisibility || 'N/A'}</div>
+                        <div class="metric-label">Search Visibility</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="business-explanation">
+                    <h5>💡 SEO Business Impact:</h5>
+                    <p>${reportData.seo?.businessExplanations?.organicTraffic || 'Organic traffic from search engines is free and high-quality. Improving SEO increases patient discovery without advertising costs.'}</p>
+                  </div>
+                </div>
+
+                <!-- SEO Checklist Section -->
+                ${reportData.seoChecklist?.data?.pages && reportData.seoChecklist.data.pages.length > 0 ? `
+                <div class="section">
+                  <h2 class="section-title">✅ SEO Checklist Status</h2>
+                  <div class="subsection">
+                    <h4>Overall Summary</h4>
+                    <div class="metrics-grid">
+                      <div class="metric">
+                        <div class="metric-value">${reportData.seoChecklist.data.summary?.total_checks || 0}</div>
+                        <div class="metric-label">Total Checks</div>
+                      </div>
+                      <div class="metric">
+                        <div class="metric-value">${reportData.seoChecklist.data.summary?.passed_checks || 0}</div>
+                        <div class="metric-label">Passed</div>
+                      </div>
+                      <div class="metric">
+                        <div class="metric-value">${reportData.seoChecklist.data.summary?.failed_checks || 0}</div>
+                        <div class="metric-label">Failed</div>
+                      </div>
+                      <div class="metric">
+                        <div class="metric-value">${reportData.seoChecklist.data.summary?.warning_checks || 0}</div>
+                        <div class="metric-label">Warnings</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="subsection">
+                    <h4>Page-by-Page Analysis</h4>
+                    ${reportData.seoChecklist.data.pages.slice(0, 5).map(page => `
+                      <div style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                        <h5 style="margin: 0 0 10px 0; color: #007bff;">${page.page_url}</h5>
+                        <p style="margin: 0 0 10px 0; color: #666;">${page.page_title}</p>
+                        <div style="display: flex; gap: 15px; font-size: 14px;">
+                          <span>Total Checks: <strong>${page.total_checks}</strong></span>
+                          <span>Passed: <strong style="color: #28a745;">${page.passed_checks}</strong></span>
+                          <span>Failed: <strong style="color: #dc3545;">${page.failed_checks}</strong></span>
+                          <span>Warnings: <strong style="color: #ffc107;">${page.warning_checks}</strong></span>
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+                ` : ''}
+
+                <!-- Technical Analysis Section -->
+                <div class="section">
+                  <h2 class="section-title">⚙️ Technical Analysis</h2>
+                  <div class="subsection">
+                    <h4>Site Health</h4>
+                    <div class="metrics-grid">
+                      <div class="metric">
+                        <div class="metric-value">${reportData.technical?.siteHealth?.siteHealth || 'N/A'}</div>
+                        <div class="metric-label">Overall Health</div>
+                      </div>
+                      <div class="metric">
+                        <div class="metric-value">${reportData.technical?.performanceMetrics?.performanceScore || 'N/A'}</div>
+                        <div class="metric-label">Performance Score</div>
+                      </div>
+                      <div class="metric">
+                        <div class="metric-value">${reportData.technical?.siteHealth?.mobileFriendly ? 'Yes' : 'No'}</div>
+                        <div class="metric-label">Mobile Friendly</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="business-explanation">
+                    <h5>💡 Technical Impact:</h5>
+                    <p>${reportData.technical?.businessExplanations?.siteHealth || 'A healthy website loads quickly and works properly, improving patient experience and search rankings.'}</p>
+                  </div>
+                </div>
+
+                <!-- Recommendations Section -->
+                <div class="section">
+                  <h2 class="section-title">🎯 Recommendations</h2>
+                  <div class="business-explanation">
+                    <h5>💡 Strategic Focus:</h5>
+                    <p>${reportData.recommendations?.businessImpact?.priorityRanking || 'Focusing on high-impact actions maximizes ROI and patient acquisition.'}</p>
+                  </div>
+                  <div class="business-explanation">
+                    <h5>⚡ Immediate Actions:</h5>
+                    <p>${reportData.recommendations?.businessImpact?.immediateActions || 'Quick fixes can improve patient experience and search rankings within days.'}</p>
+                  </div>
+                  <div class="business-explanation">
+                    <h5>📈 Long-term Strategy:</h5>
+                    <p>${reportData.recommendations?.businessImpact?.longTermStrategy || 'Strategic improvements build sustainable growth and competitive advantage.'}</p>
+                  </div>
+                </div>
+
+                <!-- Data Sources Section -->
+                <div class="section">
+                  <h2 class="section-title">📊 Data Sources</h2>
+                  <div class="metrics-grid">
+                    <div class="metric">
+                      <div class="metric-value">${reportData.seo?.searchPerformance?.searchConsoleData === 'Connected' ? '✅' : '❌'}</div>
+                      <div class="metric-label">Google Search Console</div>
+                    </div>
+                    <div class="metric">
+                      <div class="metric-value">${reportData.summary?.totalPageViews > 0 ? '✅' : '❌'}</div>
+                      <div class="metric-label">Google Analytics</div>
+                    </div>
+                    <div class="metric">
+                      <div class="metric-value">${reportData.facebook?.data?.connected ? '✅' : '❌'}</div>
+                      <div class="metric-label">Facebook Integration</div>
+                    </div>
+                    <div class="metric">
+                      <div class="metric-value">${reportData.seoChecklist?.data?.pages?.length > 0 ? '✅' : '❌'}</div>
+                      <div class="metric-label">SEO Checklist</div>
+                    </div>
+                  </div>
+                </div>
+              </body>
+              </html>
+            `);
+            reportWindow.document.close();
+          }
       
     } catch (error: any) {
       console.error('❌ Error viewing report:', error);
