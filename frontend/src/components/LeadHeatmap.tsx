@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleMap, HeatmapLayer, LoadScript } from '@react-google-maps/api';
-import http from '../api/http';
+import { http } from '../api/http';
 
 interface Lead {
   id: number;
