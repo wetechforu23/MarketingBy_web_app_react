@@ -1907,8 +1907,11 @@ const ClientManagementDashboard: React.FC = () => {
                     </div>
                   </div>
                 </div>
+              )}
 
-                {/* Lead Density Heatmap Section */}
+              {activeTab === 'overview' && selectedClient && (
+                <div>
+                  {/* Lead Density Heatmap Section */}
                 {selectedClient && (
                   <div style={{ 
                     marginTop: '30px',
@@ -2004,6 +2007,7 @@ const ClientManagementDashboard: React.FC = () => {
                     />
                   </div>
                 )}
+                </div>
               )}
 
               {activeTab === 'analytics' && (
