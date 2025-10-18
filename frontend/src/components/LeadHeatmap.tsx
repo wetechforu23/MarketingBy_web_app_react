@@ -97,9 +97,10 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
     }
   };
 
-  // Prepare heatmap data
+  // Prepare heatmap data - only when Google Maps is loaded
   const heatmapData = leads.map(lead => ({
-    location: new google.maps.LatLng(lead.latitude, lead.longitude),
+    lat: lead.latitude,
+    lng: lead.longitude,
     weight: 1
   }));
 
@@ -241,7 +242,7 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
           }}
         >
           <HeatmapLayer
-            data={heatmapData}
+            data={heatmapData.map(location => new window.google.maps.LatLng(location.lat, location.lng))}
             options={{
               radius: 20,
               opacity: 0.6,
