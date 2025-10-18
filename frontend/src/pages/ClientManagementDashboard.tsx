@@ -443,7 +443,7 @@ const ClientManagementDashboard: React.FC = () => {
           console.log(`✅ Geocoded leads successfully`);
           
           // Step 3: Refresh all data
-          await loadClientData(selectedClient.id);
+          await fetchClientData(selectedClient.id);
           checkGeocodingStatus();
           
           setSuccessMessage(`✅ Synced successfully! Captured ${captureResponse.data.leads_captured} leads and geocoded them.`);
@@ -476,7 +476,7 @@ const ClientManagementDashboard: React.FC = () => {
       if (response.data.success) {
         setSuccessMessage(`✅ ${response.data.message}`);
         // Refresh the client data to show new leads
-        await loadClientData(selectedClient.id);
+        await fetchClientData(selectedClient.id);
         // Refresh geocoding status
         checkGeocodingStatus();
       } else {

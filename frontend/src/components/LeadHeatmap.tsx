@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { GoogleMap, HeatmapLayer, LoadScript } from '@react-google-maps/api';
+import { GoogleMap, Marker, LoadScript } from '@react-google-maps/api';
 import { http } from '../api/http';
 
-// Static libraries array to prevent re-renders
-const GOOGLE_MAPS_LIBRARIES: ("drawing" | "geometry" | "localContext" | "places" | "visualization")[] = ['visualization'];
+// Static libraries array to prevent re-renders - removed visualization since we're using markers instead of heatmap
+const GOOGLE_MAPS_LIBRARIES: ("drawing" | "geometry" | "localContext" | "places")[] = [];
 
 interface Lead {
   id: number;
@@ -290,35 +290,40 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
             ]
           }}
         >
-          {window.google && window.google.maps && (
-            <HeatmapLayer
-              data={heatmapData.map(location => new window.google.maps.LatLng(location.lat, location.lng))}
-              options={{
-                radius: 20,
-                opacity: 0.6,
-                gradient: [
-                  'rgba(0, 255, 255, 0)',
-                  'rgba(0, 255, 255, 1)',
-                  'rgba(0, 191, 255, 1)',
-                  'rgba(0, 127, 255, 1)',
-                  'rgba(0, 63, 255, 1)',
-                  'rgba(0, 0, 255, 1)',
-                  'rgba(0, 0, 223, 1)',
-                  'rgba(0, 0, 191, 1)',
-                  'rgba(0, 0, 159, 1)',
-                  'rgba(0, 0, 127, 1)',
-                  'rgba(63, 0, 91, 1)',
-                  'rgba(127, 0, 63, 1)',
-                  'rgba(191, 0, 31, 1)',
-                  'rgba(255, 0, 0, 1)'
-                ]
+          {/* Show clinic location marker */}
+          {practiceLocation && (
+            <Marker
+              position={{
+                lat: practiceLocation.latitude,
+                lng: practiceLocation.longitude
+              }}
+              title={`${practiceLocation.city} Clinic`}
+              icon={{
+                url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                scaledSize: new window.google.maps.Size(40, 40)
               }}
             />
           )}
+          
+          {/* Show lead markers */}
+          {leads.map((lead, index) => (
+            <Marker
+              key={lead.id}
+              position={{
+                lat: lead.latitude,
+                lng: lead.longitude
+              }}
+              title={`${lead.company} - ${lead.city}, ${lead.state}`}
+              icon={{
+                url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                scaledSize: new window.google.maps.Size(30, 30)
+              }}
+            />
+          ))}
         </GoogleMap>
       </LoadScript>
       
-      {/* Heatmap Info */}
+      {/* Lead Map Info */}
       <div style={{ 
         marginTop: '10px', 
         padding: '10px', 
@@ -327,10 +332,14 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
         fontSize: '12px',
         color: '#666'
       }}>
-        <strong>Heatmap Info:</strong> Showing {leads.length} leads with coordinates. 
+        <strong>Lead Map Info:</strong> Showing {leads.length} leads with coordinates. 
         {practiceLocation && (
-          <span> Practice location: {practiceLocation.city}, {practiceLocation.state}</span>
+          <span> Practice location: {practiceLocation.city}, {practiceLocation.state} (Red marker)</span>
         )}
+        <br />
+        <span style={{ fontSize: '11px', color: '#888' }}>
+          🏥 Red marker = Clinic location | 📍 Blue markers = Lead locations
+        </span>
       </div>
     </div>
   );
