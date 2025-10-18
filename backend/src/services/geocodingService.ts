@@ -41,40 +41,23 @@ export class GeocodingService {
     return GeocodingService.instance;
   }
 
-  /**
-   * Geocode a single address using Google Geocoding API (free quota)
-   */
-  async geocodeAddress(address: string): Promise<GeocodingResult> {
-    try {
-      // Get Google Maps API key from encrypted credentials
-      const result = await pool.query(`
-        SELECT encrypted_value 
-        FROM encrypted_credentials 
-        WHERE service = 'google_maps' AND key_name = 'api_key'
-      `);
-      
-      if (result.rows.length === 0) {
-        return {
-          latitude: 0,
-          longitude: 0,
-          formatted_address: address,
-          status: 'failed',
-          error: 'Google Maps API key not configured in encrypted credentials'
-        };
-      }
-
-      // Decrypt the API key
-      const apiKey = this.decrypt(result.rows[0].encrypted_value);
-      
-      if (!apiKey) {
-        return {
-          latitude: 0,
-          longitude: 0,
-          formatted_address: address,
-          status: 'failed',
-          error: 'Google Maps API key not configured in encrypted credentials'
-        };
-      }
+        /**
+         * Geocode a single address using Google Geocoding API (free quota)
+         */
+        async geocodeAddress(address: string): Promise<GeocodingResult> {
+            try {
+                // Get Google Maps API key from environment variable (simpler approach)
+                const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+                
+                if (!apiKey) {
+                    return {
+                        latitude: 0,
+                        longitude: 0,
+                        formatted_address: address,
+                        status: 'failed',
+                        error: 'Google Maps API key not configured in environment variables'
+                    };
+                }
 
       console.log(`🌍 Geocoding address: ${address}`);
       

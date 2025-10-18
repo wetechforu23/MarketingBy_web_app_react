@@ -4180,29 +4180,7 @@ router.get('/geocoding/status/:clientId', requireAuth, async (req, res) => {
 // Get Google Maps API key for frontend
 router.get('/google-maps-api-key', requireAuth, async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT encrypted_value 
-      FROM encrypted_credentials 
-      WHERE service = 'google_maps' AND key_name = 'api_key'
-    `);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Google Maps API key not configured' });
-    }
-    
-    // Decrypt the API key
-    const crypto = require('crypto');
-    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key!!';
-    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
-    
-    const parts = result.rows[0].encrypted_value.split(':');
-    const iv = Buffer.from(parts[0], 'hex');
-    const encrypted = parts[1];
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    
-    const apiKey = decrypted;
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
     
     if (!apiKey) {
       return res.status(404).json({ error: 'Google Maps API key not configured' });
