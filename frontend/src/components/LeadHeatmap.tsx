@@ -27,12 +27,16 @@ interface LeadHeatmapProps {
   clientId: number;
   practiceLocation?: PracticeLocation;
   onLeadsLoaded?: (leads: Lead[]) => void;
+  radiusMiles?: number;
+  dateFilter?: string;
 }
 
 const LeadHeatmap: React.FC<LeadHeatmapProps> = ({ 
   clientId, 
   practiceLocation,
-  onLeadsLoaded 
+  onLeadsLoaded,
+  radiusMiles = 10,
+  dateFilter
 }) => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +60,7 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
       });
       setMapZoom(12);
     }
-  }, [clientId, practiceLocation]);
+  }, [clientId, practiceLocation, radiusMiles, dateFilter]);
 
   const loadGoogleMapsApiKey = async () => {
     try {
@@ -83,9 +87,31 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
       const allLeads = leadsResponse.data.leads || [];
       
       // Filter only leads that have coordinates (geocoded)
-      const leadsWithCoordinates = allLeads.filter((lead: any) => 
+      let leadsWithCoordinates = allLeads.filter((lead: any) => 
         lead.latitude && lead.longitude && lead.geocoding_status === 'completed'
       );
+      
+      // Apply date filter if provided
+      if (dateFilter) {
+        const filterDate = new Date(dateFilter);
+        leadsWithCoordinates = leadsWithCoordinates.filter((lead: any) => {
+          const leadDate = new Date(lead.created_at);
+          return leadDate >= filterDate;
+        });
+      }
+      
+      // Apply radius filter if practice location is available
+      if (practiceLocation && radiusMiles) {
+        leadsWithCoordinates = leadsWithCoordinates.filter((lead: any) => {
+          const distance = calculateDistance(
+            practiceLocation.latitude,
+            practiceLocation.longitude,
+            lead.latitude,
+            lead.longitude
+          );
+          return distance <= radiusMiles;
+        });
+      }
       
       setLeads(leadsWithCoordinates);
       
@@ -93,13 +119,29 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
         onLeadsLoaded(leadsWithCoordinates);
       }
       
-      console.log(`🗺️ Loaded ${leadsWithCoordinates.length} Google Analytics leads with coordinates for heatmap`);
+      console.log(`🗺️ Loaded ${leadsWithCoordinates.length} Google Analytics leads with coordinates for heatmap (radius: ${radiusMiles} miles)`);
     } catch (error: any) {
       console.error('❌ Error loading Google Analytics leads for heatmap:', error);
       setError(error.response?.data?.error || 'Failed to load Google Analytics leads data');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Calculate distance between two coordinates in miles
+  const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 3959; // Earth's radius in miles
+    const dLat = toRadians(lat2 - lat1);
+    const dLng = toRadians(lng2 - lng1);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
+              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const toRadians = (degrees: number): number => {
+    return degrees * (Math.PI / 180);
   };
 
   // Prepare heatmap data - only when Google Maps is loaded

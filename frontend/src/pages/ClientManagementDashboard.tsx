@@ -91,6 +91,8 @@ const ClientManagementDashboard: React.FC = () => {
   const [analyticsReportData, setAnalyticsReportData] = useState<any>(null);
   const [reports, setReports] = useState<any[]>([]);
   const [geocodingStatus, setGeocodingStatus] = useState<any>(null);
+  const [heatmapRadius, setHeatmapRadius] = useState<number>(10);
+  const [dateFilter, setDateFilter] = useState<string>('');
   const [pageInsights, setPageInsights] = useState<any[]>([]);
   const [geographicData, setGeographicData] = useState<any[]>([]);
   const [keywordAnalysis, setKeywordAnalysis] = useState<any[]>([]);
@@ -418,7 +420,48 @@ const ClientManagementDashboard: React.FC = () => {
     }
   };
 
-  // Google Analytics Lead Capture function
+  // Sync Latest Data function - combines capture and geocoding
+  const syncLatestData = async () => {
+    if (!selectedClient) return;
+    
+    try {
+      setRefreshing(true);
+      console.log(`🔄 Syncing latest data for client ${selectedClient.id}`);
+      
+      // Step 1: Capture leads from Google Analytics
+      const captureResponse = await http.post(`/analytics/capture-leads/${selectedClient.id}`, {
+        radiusMiles: heatmapRadius
+      });
+      
+      if (captureResponse.data.success) {
+        console.log(`✅ Captured ${captureResponse.data.leads_captured} leads`);
+        
+        // Step 2: Geocode the leads
+        const geocodeResponse = await http.post('/geocoding/batch');
+        
+        if (geocodeResponse.data.success) {
+          console.log(`✅ Geocoded leads successfully`);
+          
+          // Step 3: Refresh all data
+          await loadClientData(selectedClient.id);
+          checkGeocodingStatus();
+          
+          setSuccessMessage(`✅ Synced successfully! Captured ${captureResponse.data.leads_captured} leads and geocoded them.`);
+        } else {
+          setError('Failed to geocode leads');
+        }
+      } else {
+        setError(captureResponse.data.message || 'Failed to capture leads from Google Analytics');
+      }
+    } catch (error: any) {
+      console.error('Sync data error:', error);
+      setError(error.response?.data?.message || 'Failed to sync latest data');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Google Analytics Lead Capture function (kept for backward compatibility)
   const captureGoogleAnalyticsLeads = async () => {
     if (!selectedClient) return;
     
@@ -427,13 +470,13 @@ const ClientManagementDashboard: React.FC = () => {
       console.log(`🎯 Capturing leads from Google Analytics for client ${selectedClient.id}`);
       
       const response = await http.post(`/analytics/capture-leads/${selectedClient.id}`, {
-        radiusMiles: 10 // 10 mile radius around clinic
+        radiusMiles: heatmapRadius
       });
       
       if (response.data.success) {
         setSuccessMessage(`✅ ${response.data.message}`);
         // Refresh the client data to show new leads
-        loadClientData(selectedClient.id);
+        await loadClientData(selectedClient.id);
         // Refresh geocoding status
         checkGeocodingStatus();
       } else {
@@ -1976,37 +2019,40 @@ const ClientManagementDashboard: React.FC = () => {
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                       <h3 style={{ margin: 0, color: '#333' }}>🗺️ Lead Density Heatmap</h3>
-                      <div style={{ display: 'flex', gap: '10px' }}>
-                        <button
-                          onClick={() => captureGoogleAnalyticsLeads()}
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        {/* Distance Filter */}
+                        <select
+                          value={heatmapRadius}
+                          onChange={(e) => setHeatmapRadius(parseInt(e.target.value))}
                           style={{
-                            background: '#ff6b35',
-                            color: 'white',
-                            border: 'none',
-                            padding: '8px 16px',
+                            padding: '8px 12px',
                             borderRadius: '6px',
-                            cursor: 'pointer',
+                            border: '1px solid #ddd',
                             fontSize: '14px'
                           }}
                         >
-                          🎯 Capture GA Leads
-                        </button>
-                        <button
-                          onClick={() => geocodeLeads()}
+                          <option value={5}>5 miles</option>
+                          <option value={10}>10 miles</option>
+                          <option value={15}>15 miles</option>
+                          <option value={20}>20 miles</option>
+                        </select>
+                        
+                        {/* Date Filter */}
+                        <input
+                          type="date"
+                          value={dateFilter}
+                          onChange={(e) => setDateFilter(e.target.value)}
                           style={{
-                            background: '#28a745',
-                            color: 'white',
-                            border: 'none',
-                            padding: '8px 16px',
+                            padding: '8px 12px',
                             borderRadius: '6px',
-                            cursor: 'pointer',
+                            border: '1px solid #ddd',
                             fontSize: '14px'
                           }}
-                        >
-                          🌍 Geocode Leads
-                        </button>
+                        />
+                        
+                        {/* Sync Button */}
                         <button
-                          onClick={() => checkGeocodingStatus()}
+                          onClick={() => syncLatestData()}
                           style={{
                             background: '#007bff',
                             color: 'white',
@@ -2017,7 +2063,7 @@ const ClientManagementDashboard: React.FC = () => {
                             fontSize: '14px'
                           }}
                         >
-                          📊 Check Status
+                          🔄 Sync Latest Data
                         </button>
                       </div>
                     </div>
@@ -2069,6 +2115,8 @@ const ClientManagementDashboard: React.FC = () => {
                     <LeadHeatmap 
                       clientId={selectedClient.id}
                       practiceLocation={selectedClient.practice_location}
+                      radiusMiles={heatmapRadius}
+                      dateFilter={dateFilter}
                       onLeadsLoaded={(leads) => {
                         console.log('🗺️ Heatmap loaded with leads:', leads);
                       }}
