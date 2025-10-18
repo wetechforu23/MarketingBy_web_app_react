@@ -49,6 +49,7 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
   });
   const [mapZoom, setMapZoom] = useState(10);
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>('');
+  const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = useState<boolean>(false);
 
   useEffect(() => {
     loadGoogleMapsApiKey();
@@ -274,13 +275,41 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
   }
 
   // Render the heatmap
+  // Don't render map until API key is loaded
+  if (!googleMapsApiKey) {
+    return (
+      <div style={{ 
+        padding: '40px', 
+        textAlign: 'center', 
+        background: '#f8f9fa', 
+        borderRadius: '8px',
+        border: '1px solid #dee2e6'
+      }}>
+        <div style={{ fontSize: '48px', marginBottom: '15px' }}>🗺️</div>
+        <div style={{ fontWeight: '600', marginBottom: '10px', color: '#007bff' }}>
+          Loading Google Maps API
+        </div>
+        <div style={{ fontSize: '14px', color: '#666' }}>
+          Fetching API key and initializing map...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ width: '100%', height: '400px', borderRadius: '8px', overflow: 'hidden' }}>
       <LoadScript
         googleMapsApiKey={googleMapsApiKey}
         libraries={GOOGLE_MAPS_LIBRARIES}
-        onLoad={() => console.log('🗺️ Google Maps API loaded successfully')}
-        onError={(error) => console.error('❌ Google Maps API failed to load:', error)}
+        onLoad={() => {
+          console.log('🗺️ Google Maps API loaded successfully');
+          setIsGoogleMapsLoaded(true);
+        }}
+        onError={(error) => {
+          console.error('❌ Google Maps API failed to load:', error);
+          setError('Failed to load Google Maps API');
+          setIsGoogleMapsLoaded(false);
+        }}
       >
         <GoogleMap
           mapContainerStyle={{ width: '100%', height: '100%' }}
@@ -300,36 +329,36 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
             ]
           }}
         >
-          {/* Show clinic location marker */}
-          {practiceLocation && (
-            <Marker
-              position={{
-                lat: practiceLocation.latitude,
-                lng: practiceLocation.longitude
-              }}
-              title={`${practiceLocation.city} Clinic`}
-              icon={{
-                url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
-                scaledSize: new window.google.maps.Size(40, 40)
-              }}
-            />
-          )}
-          
-          {/* Show lead markers */}
-          {leads.map((lead, index) => (
-            <Marker
-              key={lead.id}
-              position={{
-                lat: lead.latitude,
-                lng: lead.longitude
-              }}
-              title={`${lead.company} - ${lead.city}, ${lead.state}`}
-              icon={{
-                url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
-                scaledSize: new window.google.maps.Size(30, 30)
-              }}
-            />
-          ))}
+         {/* Show clinic location marker */}
+         {practiceLocation && isGoogleMapsLoaded && (
+           <Marker
+             position={{
+               lat: practiceLocation.latitude,
+               lng: practiceLocation.longitude
+             }}
+             title={`${practiceLocation.city} Clinic`}
+             icon={window.google && window.google.maps ? {
+               url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+               scaledSize: new window.google.maps.Size(40, 40)
+             } : undefined}
+           />
+         )}
+         
+         {/* Show lead markers */}
+         {leads.map((lead, index) => (
+           <Marker
+             key={lead.id}
+             position={{
+               lat: lead.latitude,
+               lng: lead.longitude
+             }}
+             title={`${lead.company} - ${lead.city}, ${lead.state}`}
+             icon={window.google && window.google.maps ? {
+               url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+               scaledSize: new window.google.maps.Size(30, 30)
+             } : undefined}
+           />
+         ))}
         </GoogleMap>
       </LoadScript>
       
