@@ -334,7 +334,12 @@ const ClientManagementDashboard: React.FC = () => {
       try {
         console.log(`🔍 Fetching Google Analytics leads data for client ${clientId}`);
         const leadsResponse = await http.get(`/analytics/leads/${clientId}`);
+        console.log('📊 Raw leads response:', leadsResponse);
+        console.log('📊 Response data:', leadsResponse.data);
+        
         const leads = leadsResponse.data.leads || [];
+        console.log('📊 Processed leads array:', leads);
+        console.log('📊 Leads count:', leads.length);
         
         // Calculate lead metrics
         const totalLeads = leads.length;
@@ -355,7 +360,8 @@ const ClientManagementDashboard: React.FC = () => {
         
         console.log('✅ Google Analytics leads data loaded:', analyticsData.leads);
       } catch (leadsError) {
-        console.log('⚠️ Google Analytics leads data not available - showing 0 values:', leadsError);
+        console.error('❌ Google Analytics leads data error:', leadsError);
+        console.log('⚠️ Google Analytics leads data not available - showing 0 values');
         analyticsData.leads = {
           total: 0,
           thisMonth: 0,
@@ -468,9 +474,13 @@ const ClientManagementDashboard: React.FC = () => {
     if (!selectedClient) return;
     
     try {
+      console.log(`🔍 Checking geocoding status for client ${selectedClient.id}`);
       // Get Google Analytics leads geocoding status
       const leadsResponse = await http.get(`/analytics/leads/${selectedClient.id}`);
+      console.log('🗺️ Geocoding leads response:', leadsResponse.data);
+      
       const leads = leadsResponse.data.leads || [];
+      console.log('🗺️ Leads for geocoding:', leads);
       
       // Calculate geocoding status for Google Analytics leads only
       const totalLeads = leads.length;
@@ -478,15 +488,18 @@ const ClientManagementDashboard: React.FC = () => {
       const pendingLeads = leads.filter((lead: any) => lead.geocoding_status === 'pending').length;
       const failedLeads = leads.filter((lead: any) => lead.geocoding_status === 'failed').length;
       
-      setGeocodingStatus({
+      const status = {
         total_leads: totalLeads,
         geocoded_leads: geocodedLeads,
         pending_leads: pendingLeads,
         failed_leads: failedLeads,
         geocoding_percentage: totalLeads > 0 ? Math.round((geocodedLeads / totalLeads) * 100) : 0
-      });
+      };
+      
+      console.log('🗺️ Geocoding status calculated:', status);
+      setGeocodingStatus(status);
     } catch (error: any) {
-      console.error('Error checking geocoding status:', error);
+      console.error('❌ Error checking geocoding status:', error);
     }
   };
 
