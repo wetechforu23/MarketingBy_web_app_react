@@ -330,35 +330,53 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
           }}
         >
          {/* Show clinic location marker */}
-         {practiceLocation && isGoogleMapsLoaded && (
-           <Marker
-             position={{
-               lat: practiceLocation.latitude,
-               lng: practiceLocation.longitude
-             }}
-             title={`${practiceLocation.city} Clinic`}
-             icon={window.google && window.google.maps ? {
-               url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
-               scaledSize: new window.google.maps.Size(40, 40)
-             } : undefined}
-           />
-         )}
+         {practiceLocation && isGoogleMapsLoaded && (() => {
+           // Ensure lat/lng are numbers
+           const lat = typeof practiceLocation.latitude === 'number' ? practiceLocation.latitude : parseFloat(practiceLocation.latitude);
+           const lng = typeof practiceLocation.longitude === 'number' ? practiceLocation.longitude : parseFloat(practiceLocation.longitude);
+           
+           // Skip if invalid
+           if (isNaN(lat) || isNaN(lng)) {
+             console.warn(`⚠️ Invalid clinic coordinates: lat=${practiceLocation.latitude}, lng=${practiceLocation.longitude}`);
+             return null;
+           }
+           
+           return (
+             <Marker
+               position={{ lat, lng }}
+               title={`${practiceLocation.city} Clinic`}
+               icon={window.google && window.google.maps ? {
+                 url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                 scaledSize: new window.google.maps.Size(40, 40)
+               } : undefined}
+             />
+           );
+         })()}
          
          {/* Show lead markers */}
-         {leads.map((lead, index) => (
-           <Marker
-             key={lead.id}
-             position={{
-               lat: lead.latitude,
-               lng: lead.longitude
-             }}
-             title={`${lead.company} - ${lead.city}, ${lead.state}`}
-             icon={window.google && window.google.maps ? {
-               url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
-               scaledSize: new window.google.maps.Size(30, 30)
-             } : undefined}
-           />
-         ))}
+         {leads.map((lead, index) => {
+           // Ensure lat/lng are numbers
+           const lat = typeof lead.latitude === 'number' ? lead.latitude : parseFloat(lead.latitude);
+           const lng = typeof lead.longitude === 'number' ? lead.longitude : parseFloat(lead.longitude);
+           
+           // Skip invalid coordinates
+           if (isNaN(lat) || isNaN(lng)) {
+             console.warn(`⚠️ Invalid coordinates for lead ${lead.id}: lat=${lead.latitude}, lng=${lead.longitude}`);
+             return null;
+           }
+           
+           return (
+             <Marker
+               key={lead.id}
+               position={{ lat, lng }}
+               title={`${lead.company} - ${lead.city}, ${lead.state}`}
+               icon={window.google && window.google.maps ? {
+                 url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                 scaledSize: new window.google.maps.Size(30, 30)
+               } : undefined}
+             />
+           );
+         })}
         </GoogleMap>
       </LoadScript>
       

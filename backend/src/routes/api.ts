@@ -4210,18 +4210,20 @@ router.get('/google-maps-api-key', requireAuth, async (req, res) => {
   }
 });
 
-// Capture leads from Google Analytics visitors near clinic locations
+// Capture NEW leads from Google Analytics (avoids duplicates, only fetches new data since last sync)
 router.post('/analytics/capture-leads/:clientId', requireAuth, async (req, res) => {
   try {
     const { clientId } = req.params;
     const { radiusMiles = 25 } = req.body;
 
-    console.log(`🎯 Capturing leads from Google Analytics for client ${clientId} within ${radiusMiles} miles`);
+    console.log(`🎯 Capturing NEW leads from Google Analytics for client ${clientId} within ${radiusMiles} miles`);
 
-    const GoogleAnalyticsLeadCaptureService = require('../services/googleAnalyticsLeadCaptureService').GoogleAnalyticsLeadCaptureService;
-    const service = GoogleAnalyticsLeadCaptureService.getInstance();
+    const { RealGoogleAnalyticsLeadCaptureService } = require('../services/realGoogleAnalyticsLeadCaptureService');
+    const service = RealGoogleAnalyticsLeadCaptureService.getInstance();
     
-    const result = await service.captureLeadsFromAnalytics(parseInt(clientId), radiusMiles);
+    const result = await service.captureNewLeadsFromAnalytics(parseInt(clientId), radiusMiles);
+
+    console.log(`✅ Lead capture result: ${result.new_leads} new, ${result.duplicate_leads} duplicates skipped`);
 
     res.json(result);
   } catch (error) {
@@ -4229,6 +4231,8 @@ router.post('/analytics/capture-leads/:clientId', requireAuth, async (req, res) 
     res.status(500).json({ 
       success: false,
       leads_captured: 0,
+      new_leads: 0,
+      duplicate_leads: 0,
       leads: [],
       message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
     });

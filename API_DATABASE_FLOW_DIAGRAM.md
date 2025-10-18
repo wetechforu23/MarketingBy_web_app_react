@@ -3682,3 +3682,136 @@ GET    /api/leads/:id/email-activity      // Get email engagement timeline
 - TypeScript interfaces updated for better type safety and development experience
 
 ---
+
+## 📊 VERSION 1.7.0 - Real Google Analytics Lead Capture with Duplicate Prevention
+**DATE**: October 18, 2025
+**CATEGORY**: Lead Management & Google Analytics Integration
+
+**CHANGES**:
+1. **Real Google Analytics Lead Capture Service**: 
+   - Created `realGoogleAnalyticsLeadCaptureService.ts` to fetch REAL visitor data from Google Analytics API
+   - Replaces mock data with actual GA4 API integration using `@google-analytics/data` library
+   - Fetches visitor data including city, country, page views, session duration, and traffic source
+
+2. **Duplicate Prevention System**:
+   - Added `ga_last_sync_at` column to `clients` table to track last sync timestamp
+   - Only fetches NEW data since last sync to avoid duplicates
+   - Checks for existing leads before creating new ones (by email and user_id in notes)
+   - Returns detailed results: `new_leads`, `duplicate_leads`, `leads_captured`
+
+3. **Database Schema Updates**:
+   - `clients.ga_last_sync_at` (TIMESTAMP): Tracks last Google Analytics sync time
+   - Index created: `idx_clients_ga_last_sync` for performance
+   - Prevents fetching same data multiple times from Google Analytics API
+
+4. **API Endpoint Updates**:
+   - Updated `POST /api/analytics/capture-leads/:clientId` to use real service
+   - Now returns: `{ success, leads_captured, new_leads, duplicate_leads, leads, message }`
+   - Logs detailed sync results for monitoring and debugging
+
+5. **Frontend Map Fixes**:
+   - Fixed `InvalidValueError: not a LatLng or LatLngLiteral` error
+   - Added proper number conversion for latitude/longitude values
+   - Added validation to skip markers with invalid coordinates
+   - Enhanced error handling with console warnings for debugging
+
+**MIGRATION STEPS**:
+```sql
+-- Add last sync tracking column
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS ga_last_sync_at TIMESTAMP;
+
+-- Create index for performance
+CREATE INDEX IF NOT EXISTS idx_clients_ga_last_sync 
+ON clients(ga_last_sync_at) 
+WHERE ga_last_sync_at IS NOT NULL;
+```
+
+**API INTEGRATION**:
+- Uses Google Analytics Data API (`@google-analytics/data` library)
+- Authenticates using OAuth tokens from `client_credentials` table
+- Fetches dimensions: `city`, `country`, `sessionDefaultChannelGroup`, `date`
+- Fetches metrics: `sessions`, `screenPageViews`, `averageSessionDuration`
+- Date range: From last sync (or 30 days ago) to current date
+- Limit: 1000 rows per request
+
+**DUPLICATE PREVENTION LOGIC**:
+1. Check `clients.ga_last_sync_at` for last sync timestamp
+2. Fetch only NEW data from Google Analytics since last sync
+3. For each visitor, check if lead already exists:
+   - By email: `ga-{city}-{date}@analytics-lead.local`
+   - By user_id in notes: `GA User: {user_id}`
+4. Skip duplicates, create only new leads
+5. Update `ga_last_sync_at` after successful sync
+
+**GEOGRAPHIC FILTERING**:
+- Filters visitors by proximity to clinic location
+- Uses city-based proximity check (can be enhanced with geocoding)
+- Configurable radius in miles (default: 25 miles)
+- Known nearby cities database for common practice locations
+
+**LEAD DATA STRUCTURE**:
+```javascript
+{
+  client_id: number,
+  company: "{city} Visitor",
+  email: "ga-{city}-{date}@analytics-lead.local",
+  source: "Google Analytics",
+  status: "new",
+  notes: "GA User: {user_id} | Page Views: X | Duration: Xs | Source: {traffic_source}",
+  city: string,
+  country: string,
+  geocoding_status: "pending",
+  created_at: timestamp
+}
+```
+
+**QUOTA/USAGE TRACKING**:
+- Google Analytics Data API: 25,000 requests per day (free tier)
+- Track sync frequency to stay within limits
+- Log API calls and response times
+- Monitor `ga_last_sync_at` to prevent excessive syncing
+
+**ROLLBACK PLAN**:
+- Revert to mock data service if Google Analytics API fails
+- Remove `ga_last_sync_at` column if needed
+- Disable automatic lead capture
+- Keep existing leads data intact
+
+**BUSINESS IMPACT**:
+- **Real Data**: Actual visitor data from Google Analytics instead of mock data
+- **No Duplicates**: Prevents cluttering database with duplicate leads
+- **Efficient Syncing**: Only fetches new data since last sync
+- **Cost Savings**: Stays within free tier limits by avoiding redundant API calls
+- **Better Lead Quality**: Real visitor behavior data (page views, duration, source)
+- **Geographic Targeting**: Filters visitors by proximity to clinic location
+- **Audit Trail**: Tracks when data was last synced for each client
+
+**TECHNICAL IMPROVEMENTS**:
+- OAuth token management from database
+- Proper date range filtering in GA4 API
+- Duplicate detection by email and user_id
+- Last sync timestamp tracking per client
+- Enhanced error handling and logging
+- Performance optimization with indexes
+- Number type validation for coordinates
+- Better Google Maps marker positioning
+
+**ERD/DIAGRAM UPDATES**:
+- `clients` table: Added `ga_last_sync_at` column
+- New index: `idx_clients_ga_last_sync`
+- Service layer: Added `RealGoogleAnalyticsLeadCaptureService`
+- API layer: Updated `POST /api/analytics/capture-leads/:clientId`
+
+**NOTES**:
+- First sync fetches last 30 days of data
+- Subsequent syncs only fetch NEW data since `ga_last_sync_at`
+- Duplicate leads are detected and skipped (not created)
+- Sync results show: new leads created + duplicates skipped
+- Geographic filtering uses city-based proximity (can be enhanced)
+- Lead email format: `ga-{city}-{date}@analytics-lead.local`
+- User ID stored in notes for duplicate detection
+- Coordinates fixed to properly display on Google Maps
+- All data cleaning prevents fetching same data from Google Analytics
+
+---
+
