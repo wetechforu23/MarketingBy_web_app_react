@@ -143,7 +143,7 @@ export class GoogleAnalyticsLeadCaptureService {
     // For now, we'll return mock data based on the client's location
     
     const clientResult = await pool.query(
-      `SELECT practice_city, practice_state FROM clients WHERE id = $1`,
+      `SELECT practice_city, practice_state, practice_latitude, practice_longitude FROM clients WHERE id = $1`,
       [clientId]
     );
 
@@ -153,45 +153,76 @@ export class GoogleAnalyticsLeadCaptureService {
 
     const client = clientResult.rows[0];
     
-    // Mock visitors data - in reality, this would come from GA4 API
-    const mockVisitors: GoogleAnalyticsVisitor[] = [
-      {
-        user_id: 'visitor_001',
+    // Generate realistic visitors around the clinic location
+    const mockVisitors: GoogleAnalyticsVisitor[] = [];
+    
+    // Generate 3-5 visitors within 10 miles of the clinic
+    const numVisitors = Math.floor(Math.random() * 3) + 3; // 3-5 visitors
+    
+    for (let i = 0; i < numVisitors; i++) {
+      // Generate random coordinates within 10 miles of clinic
+      const { lat, lng, city } = this.generateNearbyLocation(
+        client.practice_latitude, 
+        client.practice_longitude, 
+        client.practice_city
+      );
+      
+      mockVisitors.push({
+        user_id: `visitor_${clientId}_${i + 1}`,
         location: {
-          city: client.practice_city,
+          city: city,
           state: client.practice_state,
           country: 'US',
-          latitude: 33.2148, // Aubrey, TX coordinates
-          longitude: -96.6331
+          latitude: lat,
+          longitude: lng
         },
         session_data: {
-          page_views: 5,
-          session_duration: 180,
-          bounce_rate: 0.2,
-          traffic_source: 'organic'
+          page_views: Math.floor(Math.random() * 8) + 2, // 2-9 page views
+          session_duration: Math.floor(Math.random() * 300) + 60, // 60-360 seconds
+          bounce_rate: Math.random() * 0.6 + 0.1, // 10-70% bounce rate
+          traffic_source: ['organic', 'direct', 'social', 'referral'][Math.floor(Math.random() * 4)]
         },
         timestamp: new Date()
-      },
-      {
-        user_id: 'visitor_002',
-        location: {
-          city: 'Denton',
-          state: 'TX',
-          country: 'US',
-          latitude: 33.2148,
-          longitude: -96.6331
-        },
-        session_data: {
-          page_views: 3,
-          session_duration: 120,
-          bounce_rate: 0.3,
-          traffic_source: 'direct'
-        },
-        timestamp: new Date()
-      }
-    ];
+      });
+    }
 
     return mockVisitors;
+  }
+
+  /**
+   * Generate a nearby location within the specified radius
+   */
+  private generateNearbyLocation(clinicLat: number, clinicLng: number, clinicCity: string): { lat: number; lng: number; city: string } {
+    // Generate random distance (0-10 miles) and direction
+    const distanceMiles = Math.random() * 10;
+    const direction = Math.random() * 2 * Math.PI;
+    
+    // Convert to lat/lng offset
+    const latOffset = (distanceMiles / 69) * Math.cos(direction);
+    const lngOffset = (distanceMiles / (69 * Math.cos(clinicLat * Math.PI / 180))) * Math.sin(direction);
+    
+    const lat = clinicLat + latOffset;
+    const lng = clinicLng + lngOffset;
+    
+    // Generate a nearby city name
+    const nearbyCities = this.getNearbyCities(clinicCity);
+    const city = nearbyCities[Math.floor(Math.random() * nearbyCities.length)];
+    
+    return { lat, lng, city };
+  }
+
+  /**
+   * Get nearby cities based on the clinic's city
+   */
+  private getNearbyCities(clinicCity: string): string[] {
+    const cityMap: { [key: string]: string[] } = {
+      'Aubrey': ['Denton', 'Pilot Point', 'Krum', 'Sanger', 'Little Elm', 'The Colony'],
+      'Dallas': ['Plano', 'Frisco', 'McKinney', 'Allen', 'Richardson', 'Garland', 'Mesquite', 'Carrollton'],
+      'Plano': ['Frisco', 'Allen', 'McKinney', 'Richardson', 'Dallas', 'The Colony'],
+      'Frisco': ['Plano', 'McKinney', 'The Colony', 'Little Elm', 'Dallas', 'Allen']
+    };
+    
+    return cityMap[clinicCity] || [clinicCity, 'Nearby City', 'Local Area'];
   }
 
   /**

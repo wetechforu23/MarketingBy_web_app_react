@@ -421,7 +421,7 @@ const ClientManagementDashboard: React.FC = () => {
       console.log(`🎯 Capturing leads from Google Analytics for client ${selectedClient.id}`);
       
       const response = await http.post(`/analytics/capture-leads/${selectedClient.id}`, {
-        radiusMiles: 25 // 25 mile radius around clinic
+        radiusMiles: 10 // 10 mile radius around clinic
       });
       
       if (response.data.success) {
