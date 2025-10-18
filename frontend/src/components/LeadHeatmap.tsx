@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { GoogleMap, HeatmapLayer, LoadScript } from '@react-google-maps/api';
 import { http } from '../api/http';
 
+// Static libraries array to prevent re-renders
+const GOOGLE_MAPS_LIBRARIES: ("drawing" | "geometry" | "localContext" | "places" | "visualization")[] = ['visualization'];
+
 interface Lead {
   id: number;
   company: string;
@@ -221,7 +224,7 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
     <div style={{ width: '100%', height: '400px', borderRadius: '8px', overflow: 'hidden' }}>
       <LoadScript
         googleMapsApiKey={googleMapsApiKey}
-        libraries={['visualization']}
+        libraries={GOOGLE_MAPS_LIBRARIES}
         onLoad={() => console.log('🗺️ Google Maps API loaded successfully')}
         onError={(error) => console.error('❌ Google Maps API failed to load:', error)}
       >
