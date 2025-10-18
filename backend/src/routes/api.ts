@@ -515,8 +515,22 @@ router.post('/leads/scrape', async (req, res) => {
 // Get leads
 router.get('/leads', async (req, res) => {
   try {
-    // Get client filter based on user's role and client_id
-    const { whereClause, params } = getClientFilter(req);
+    // Check if client_id is specified in query parameters
+    const requestedClientId = req.query.client_id;
+    
+    let whereClause = '';
+    let params: any[] = [];
+    
+    if (requestedClientId) {
+      // If client_id is specified, filter by that client (for super admin dashboard views)
+      whereClause = 'l.client_id = $1';
+      params = [requestedClientId];
+    } else {
+      // Otherwise, use the standard client filter based on user's role
+      const filter = getClientFilter(req);
+      whereClause = filter.whereClause;
+      params = filter.params;
+    }
     
     const whereSql = whereClause ? `WHERE ${whereClause}` : '';
     
