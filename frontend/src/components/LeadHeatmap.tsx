@@ -78,23 +78,25 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
       setLoading(true);
       setError(null);
       
-      const response = await http.get(`/geocoding/leads/${clientId}`);
+      // Get Google Analytics leads with coordinates
+      const leadsResponse = await http.get(`/analytics/leads/${clientId}`);
+      const allLeads = leadsResponse.data.leads || [];
       
-      if (response.data.success) {
-        const leadsData = response.data.data;
-        setLeads(leadsData);
-        
-        if (onLeadsLoaded) {
-          onLeadsLoaded(leadsData);
-        }
-        
-        console.log(`🗺️ Loaded ${leadsData.length} leads with coordinates for heatmap`);
-      } else {
-        setError('Failed to load leads data');
+      // Filter only leads that have coordinates (geocoded)
+      const leadsWithCoordinates = allLeads.filter((lead: any) => 
+        lead.latitude && lead.longitude && lead.geocoding_status === 'completed'
+      );
+      
+      setLeads(leadsWithCoordinates);
+      
+      if (onLeadsLoaded) {
+        onLeadsLoaded(leadsWithCoordinates);
       }
+      
+      console.log(`🗺️ Loaded ${leadsWithCoordinates.length} Google Analytics leads with coordinates for heatmap`);
     } catch (error: any) {
-      console.error('❌ Error loading leads for heatmap:', error);
-      setError(error.response?.data?.error || 'Failed to load leads data');
+      console.error('❌ Error loading Google Analytics leads for heatmap:', error);
+      setError(error.response?.data?.error || 'Failed to load Google Analytics leads data');
     } finally {
       setLoading(false);
     }

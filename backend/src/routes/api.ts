@@ -4210,4 +4210,55 @@ router.get('/google-maps-api-key', requireAuth, async (req, res) => {
   }
 });
 
+// Capture leads from Google Analytics visitors near clinic locations
+router.post('/analytics/capture-leads/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { radiusMiles = 25 } = req.body;
+
+    console.log(`🎯 Capturing leads from Google Analytics for client ${clientId} within ${radiusMiles} miles`);
+
+    const GoogleAnalyticsLeadCaptureService = require('../services/googleAnalyticsLeadCaptureService').GoogleAnalyticsLeadCaptureService;
+    const service = GoogleAnalyticsLeadCaptureService.getInstance();
+    
+    const result = await service.captureLeadsFromAnalytics(parseInt(clientId), radiusMiles);
+
+    res.json(result);
+  } catch (error) {
+    console.error('Capture leads from Google Analytics error:', error);
+    res.status(500).json({ 
+      success: false,
+      leads_captured: 0,
+      leads: [],
+      message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+    });
+  }
+});
+
+// Get leads captured from Google Analytics for a client
+router.get('/analytics/leads/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    const GoogleAnalyticsLeadCaptureService = require('../services/googleAnalyticsLeadCaptureService').GoogleAnalyticsLeadCaptureService;
+    const service = GoogleAnalyticsLeadCaptureService.getInstance();
+    
+    const leads = await service.getGoogleAnalyticsLeads(parseInt(clientId));
+
+    res.json({
+      success: true,
+      leads: leads,
+      count: leads.length
+    });
+  } catch (error) {
+    console.error('Get Google Analytics leads error:', error);
+    res.status(500).json({ 
+      success: false,
+      leads: [],
+      count: 0,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;

@@ -330,11 +330,11 @@ const ClientManagementDashboard: React.FC = () => {
         }
       }
 
-      // Fetch real leads data for this client (ALWAYS REAL DATA)
+      // Fetch Google Analytics leads data for this client (ONLY GOOGLE ANALYTICS LEADS)
       try {
-        console.log(`🔍 Fetching real leads data for client ${clientId}`);
-        const leadsResponse = await http.get(`/leads?client_id=${clientId}`);
-        const leads = leadsResponse.data.leads || leadsResponse.data || [];
+        console.log(`🔍 Fetching Google Analytics leads data for client ${clientId}`);
+        const leadsResponse = await http.get(`/analytics/leads/${clientId}`);
+        const leads = leadsResponse.data.leads || [];
         
         // Calculate lead metrics
         const totalLeads = leads.length;
@@ -353,9 +353,9 @@ const ClientManagementDashboard: React.FC = () => {
           status: 'Connected'
         };
         
-        console.log('✅ Real leads data loaded:', analyticsData.leads);
+        console.log('✅ Google Analytics leads data loaded:', analyticsData.leads);
       } catch (leadsError) {
-        console.log('⚠️ Real leads data not available - showing 0 values:', leadsError);
+        console.log('⚠️ Google Analytics leads data not available - showing 0 values:', leadsError);
         analyticsData.leads = {
           total: 0,
           thisMonth: 0,
@@ -412,6 +412,35 @@ const ClientManagementDashboard: React.FC = () => {
     }
   };
 
+  // Google Analytics Lead Capture function
+  const captureGoogleAnalyticsLeads = async () => {
+    if (!selectedClient) return;
+    
+    try {
+      setRefreshing(true);
+      console.log(`🎯 Capturing leads from Google Analytics for client ${selectedClient.id}`);
+      
+      const response = await http.post(`/analytics/capture-leads/${selectedClient.id}`, {
+        radiusMiles: 25 // 25 mile radius around clinic
+      });
+      
+      if (response.data.success) {
+        setSuccessMessage(`✅ ${response.data.message}`);
+        // Refresh the client data to show new leads
+        loadClientData(selectedClient.id);
+        // Refresh geocoding status
+        checkGeocodingStatus();
+      } else {
+        setError(response.data.message || 'Failed to capture leads from Google Analytics');
+      }
+    } catch (error: any) {
+      console.error('Google Analytics lead capture error:', error);
+      setError(error.response?.data?.message || 'Failed to capture leads from Google Analytics');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   // Geocoding functions
   const geocodeLeads = async () => {
     if (!selectedClient) return;
@@ -439,11 +468,23 @@ const ClientManagementDashboard: React.FC = () => {
     if (!selectedClient) return;
     
     try {
-      const response = await http.get(`/geocoding/status/${selectedClient.id}`);
+      // Get Google Analytics leads geocoding status
+      const leadsResponse = await http.get(`/analytics/leads/${selectedClient.id}`);
+      const leads = leadsResponse.data.leads || [];
       
-      if (response.data.success) {
-        setGeocodingStatus(response.data.data);
-      }
+      // Calculate geocoding status for Google Analytics leads only
+      const totalLeads = leads.length;
+      const geocodedLeads = leads.filter((lead: any) => lead.geocoding_status === 'completed').length;
+      const pendingLeads = leads.filter((lead: any) => lead.geocoding_status === 'pending').length;
+      const failedLeads = leads.filter((lead: any) => lead.geocoding_status === 'failed').length;
+      
+      setGeocodingStatus({
+        total_leads: totalLeads,
+        geocoded_leads: geocodedLeads,
+        pending_leads: pendingLeads,
+        failed_leads: failedLeads,
+        geocoding_percentage: totalLeads > 0 ? Math.round((geocodedLeads / totalLeads) * 100) : 0
+      });
     } catch (error: any) {
       console.error('Error checking geocoding status:', error);
     }
@@ -1923,6 +1964,20 @@ const ClientManagementDashboard: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                       <h3 style={{ margin: 0, color: '#333' }}>🗺️ Lead Density Heatmap</h3>
                       <div style={{ display: 'flex', gap: '10px' }}>
+                        <button
+                          onClick={() => captureGoogleAnalyticsLeads()}
+                          style={{
+                            background: '#ff6b35',
+                            color: 'white',
+                            border: 'none',
+                            padding: '8px 16px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '14px'
+                          }}
+                        >
+                          🎯 Capture GA Leads
+                        </button>
                         <button
                           onClick={() => geocodeLeads()}
                           style={{
