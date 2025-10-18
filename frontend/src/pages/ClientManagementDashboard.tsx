@@ -93,6 +93,8 @@ const ClientManagementDashboard: React.FC = () => {
   const [geocodingStatus, setGeocodingStatus] = useState<any>(null);
   const [heatmapRadius, setHeatmapRadius] = useState<number>(10);
   const [dateFilter, setDateFilter] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [pageInsights, setPageInsights] = useState<any[]>([]);
   const [geographicData, setGeographicData] = useState<any[]>([]);
   const [keywordAnalysis, setKeywordAnalysis] = useState<any[]>([]);
@@ -155,6 +157,8 @@ const ClientManagementDashboard: React.FC = () => {
       fetchClientData(selectedClient.id);
       // Check geocoding status for the selected client
       checkGeocodingStatus();
+      // Auto-capture leads when switching clinics
+      autoCaptureLeadsForClient(selectedClient.id);
     }
   }, [selectedClient]);
 
@@ -417,6 +421,32 @@ const ClientManagementDashboard: React.FC = () => {
           connected: false, status: 'Not Connected' 
         }
       });
+    }
+  };
+
+  // Auto-capture leads when switching clinics
+  const autoCaptureLeadsForClient = async (clientId: number) => {
+    try {
+      console.log(`🎯 Auto-capturing leads for client ${clientId}`);
+      
+      // Capture leads from Google Analytics with current radius
+      const captureResponse = await http.post(`/analytics/capture-leads/${clientId}`, {
+        radiusMiles: heatmapRadius
+      });
+      
+      if (captureResponse.data.success && captureResponse.data.leads_captured > 0) {
+        console.log(`✅ Auto-captured ${captureResponse.data.leads_captured} leads for client ${clientId}`);
+        
+        // Geocode the new leads
+        const geocodeResponse = await http.post('/geocoding/batch');
+        
+        if (geocodeResponse.data.success) {
+          console.log(`✅ Auto-geocoded leads for client ${clientId}`);
+        }
+      }
+    } catch (error: any) {
+      console.error(`Auto-capture error for client ${clientId}:`, error);
+      // Don't show error to user for auto-capture, just log it
     }
   };
 
@@ -2037,18 +2067,37 @@ const ClientManagementDashboard: React.FC = () => {
                           <option value={20}>20 miles</option>
                         </select>
                         
-                        {/* Date Filter */}
-                        <input
-                          type="date"
-                          value={dateFilter}
-                          onChange={(e) => setDateFilter(e.target.value)}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: '6px',
-                            border: '1px solid #ddd',
-                            fontSize: '14px'
-                          }}
-                        />
+                        {/* Date Range Filter */}
+                        <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                          <input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            placeholder="Start Date"
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: '6px',
+                              border: '1px solid #ddd',
+                              fontSize: '14px',
+                              width: '140px'
+                            }}
+                          />
+                          <span style={{ fontSize: '12px', color: '#666' }}>to</span>
+                          <input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: '6px',
+                              border: '1px solid #ddd',
+                              fontSize: '14px',
+                              width: '140px',
+                              backgroundColor: '#f8f9fa'
+                            }}
+                            disabled
+                          />
+                        </div>
                         
                         {/* Sync Button */}
                         <button
@@ -2116,7 +2165,8 @@ const ClientManagementDashboard: React.FC = () => {
                       clientId={selectedClient.id}
                       practiceLocation={selectedClient.practice_location}
                       radiusMiles={heatmapRadius}
-                      dateFilter={dateFilter}
+                      startDate={startDate}
+                      endDate={endDate}
                       onLeadsLoaded={(leads) => {
                         console.log('🗺️ Heatmap loaded with leads:', leads);
                       }}

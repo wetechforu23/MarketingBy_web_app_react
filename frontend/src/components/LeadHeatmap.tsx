@@ -28,7 +28,8 @@ interface LeadHeatmapProps {
   practiceLocation?: PracticeLocation;
   onLeadsLoaded?: (leads: Lead[]) => void;
   radiusMiles?: number;
-  dateFilter?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 const LeadHeatmap: React.FC<LeadHeatmapProps> = ({ 
@@ -36,7 +37,8 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
   practiceLocation,
   onLeadsLoaded,
   radiusMiles = 10,
-  dateFilter
+  startDate,
+  endDate
 }) => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,7 +62,7 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
       });
       setMapZoom(12);
     }
-  }, [clientId, practiceLocation, radiusMiles, dateFilter]);
+  }, [clientId, practiceLocation, radiusMiles, startDate, endDate]);
 
   const loadGoogleMapsApiKey = async () => {
     try {
@@ -91,12 +93,20 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
         lead.latitude && lead.longitude && lead.geocoding_status === 'completed'
       );
       
-      // Apply date filter if provided
-      if (dateFilter) {
-        const filterDate = new Date(dateFilter);
+      // Apply date range filter if provided
+      if (startDate && endDate) {
+        const startFilterDate = new Date(startDate);
+        const endFilterDate = new Date(endDate);
         leadsWithCoordinates = leadsWithCoordinates.filter((lead: any) => {
           const leadDate = new Date(lead.created_at);
-          return leadDate >= filterDate;
+          return leadDate >= startFilterDate && leadDate <= endFilterDate;
+        });
+      } else if (startDate) {
+        // If only start date is provided, filter from start date to current date
+        const startFilterDate = new Date(startDate);
+        leadsWithCoordinates = leadsWithCoordinates.filter((lead: any) => {
+          const leadDate = new Date(lead.created_at);
+          return leadDate >= startFilterDate;
         });
       }
       
@@ -119,7 +129,7 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
         onLeadsLoaded(leadsWithCoordinates);
       }
       
-      console.log(`🗺️ Loaded ${leadsWithCoordinates.length} Google Analytics leads with coordinates for heatmap (radius: ${radiusMiles} miles)`);
+      console.log(`🗺️ Loaded ${leadsWithCoordinates.length} Google Analytics leads with coordinates for heatmap (radius: ${radiusMiles} miles, date range: ${startDate || 'all'} to ${endDate || 'current'})`);
     } catch (error: any) {
       console.error('❌ Error loading Google Analytics leads for heatmap:', error);
       setError(error.response?.data?.error || 'Failed to load Google Analytics leads data');
@@ -334,11 +344,14 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
       }}>
         <strong>Lead Map Info:</strong> Showing {leads.length} leads with coordinates. 
         {practiceLocation && (
-          <span> Practice location: {practiceLocation.city}, {practiceLocation.state} (Red marker)</span>
+          <span> Practice location: {practiceLocation.address}, {practiceLocation.city}, {practiceLocation.state} (Red marker)</span>
         )}
         <br />
         <span style={{ fontSize: '11px', color: '#888' }}>
           🏥 Red marker = Clinic location | 📍 Blue markers = Lead locations
+          {startDate && endDate && (
+            <span> | 📅 Date range: {startDate} to {endDate}</span>
+          )}
         </span>
       </div>
     </div>
