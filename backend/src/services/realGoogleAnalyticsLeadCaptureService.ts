@@ -102,6 +102,11 @@ export class RealGoogleAnalyticsLeadCaptureService {
 
       console.log(`📊 Fetched ${newVisitors.length} new visitors from Google Analytics`);
 
+      // Log all visitor cities for debugging
+      const visitorCities = newVisitors.map(v => v.city).join(', ');
+      console.log(`🌍 Visitor cities: ${visitorCities}`);
+      console.log(`🏥 Clinic city: ${client.practice_city}`);
+
       if (newVisitors.length === 0) {
         // Update last sync time even if no new visitors
         await this.updateLastSyncTime(clientId);
@@ -118,12 +123,12 @@ export class RealGoogleAnalyticsLeadCaptureService {
 
       // Filter visitors by proximity to clinic
       const nearbyVisitors = newVisitors.filter(visitor => {
-        // Use geocoding API to get lat/lng for visitor's city
-        // For now, we'll estimate based on city distance
-        return this.isNearbyCity(visitor.city, client.practice_city, radiusMiles);
+        const isNearby = this.isNearbyCity(visitor.city, client.practice_city, radiusMiles);
+        console.log(`📍 Checking ${visitor.city}: ${isNearby ? '✅ NEARBY' : '❌ TOO FAR'}`);
+        return isNearby;
       });
 
-      console.log(`📍 Found ${nearbyVisitors.length} nearby visitors within ${radiusMiles} miles`);
+      console.log(`📍 Found ${nearbyVisitors.length} nearby visitors within ${radiusMiles} miles of ${client.practice_city}`);
 
       // Convert visitors to leads and check for duplicates
       let newLeadsCount = 0;

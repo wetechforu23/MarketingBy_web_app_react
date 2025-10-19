@@ -297,18 +297,31 @@ router.get('/admin/clients', async (req, res) => {
     const offset = (Number(page) - 1) * Number(limit);
 
     const result = await pool.query(
-      `SELECT id, client_name as name, email, contact_name as company, phone, is_active as status, created_at 
+      `SELECT id, client_name as name, email, contact_name as company, phone, is_active as status, created_at,
+              practice_address, practice_city, practice_state, practice_latitude, practice_longitude
        FROM clients 
        ORDER BY created_at DESC 
        LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
 
+    // Format clients with practice_location object
+    const clients = result.rows.map(client => ({
+      ...client,
+      practice_location: client.practice_latitude && client.practice_longitude ? {
+        latitude: parseFloat(client.practice_latitude),
+        longitude: parseFloat(client.practice_longitude),
+        address: client.practice_address || '',
+        city: client.practice_city || '',
+        state: client.practice_state || ''
+      } : null
+    }));
+
     const countResult = await pool.query('SELECT COUNT(*) as count FROM clients');
     const total = parseInt(countResult.rows[0].count);
 
     res.json({
-      clients: result.rows,
+      clients,
       pagination: {
         page: Number(page),
         limit: Number(limit),
