@@ -350,9 +350,10 @@ export class RealGoogleAnalyticsLeadCaptureService {
 
     // Known nearby cities for common practice locations
     const nearbyCities: { [key: string]: string[] } = {
-      'Aubrey': ['Denton', 'Pilot Point', 'Krum', 'Sanger', 'Little Elm', 'The Colony', 'Frisco', 'Prosper'],
+      'Aubrey': ['Denton', 'Pilot Point', 'Krum', 'Sanger', 'Little Elm', 'The Colony', 'Frisco', 'Prosper', 'Dallas', 'McKinney', 'Allen', 'Plano'],
       'Plano': ['Frisco', 'Allen', 'McKinney', 'Richardson', 'Dallas', 'The Colony'],
-      'Frisco': ['Plano', 'McKinney', 'The Colony', 'Little Elm', 'Dallas', 'Allen']
+      'Frisco': ['Plano', 'McKinney', 'The Colony', 'Little Elm', 'Dallas', 'Allen'],
+      'Dallas': ['Plano', 'Frisco', 'McKinney', 'Allen', 'Richardson', 'The Colony', 'Aubrey', 'Denton']
     };
 
     const nearby = nearbyCities[clinicCity] || [];
