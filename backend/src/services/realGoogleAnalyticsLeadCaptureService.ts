@@ -254,6 +254,8 @@ export class RealGoogleAnalyticsLeadCaptureService {
         limit: '1000' // Max 1000 rows
       };
 
+      console.log(`🔄 Making Google Analytics API call for property: properties/${propertyId}`);
+      
       const response = await analytics.properties.runReport({
         property: `properties/${propertyId}`,
         requestBody: request,
@@ -263,7 +265,7 @@ export class RealGoogleAnalyticsLeadCaptureService {
       const visitors: GoogleAnalyticsVisitor[] = [];
       const rows = response.data.rows || [];
 
-      console.log(`📊 Received ${rows.length} rows from Google Analytics`);
+      console.log(`✅ SUCCESS! Received ${rows.length} rows from Google Analytics`);
 
       for (const row of rows) {
         const dimensionValues = row.dimensionValues || [];
@@ -297,6 +299,10 @@ export class RealGoogleAnalyticsLeadCaptureService {
 
     } catch (error) {
       console.error('❌ Error fetching from Google Analytics API:', error);
+      if (error instanceof Error) {
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error stack:', error.stack);
+      }
       console.log('⚠️ Falling back to mock data');
       return this.getMockGoogleAnalyticsVisitors(startDate);
     }
