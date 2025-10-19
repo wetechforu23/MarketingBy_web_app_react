@@ -90,9 +90,13 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
       const allLeads = leadsResponse.data.leads || [];
       
       // Filter only leads that have coordinates (geocoded)
-      let leadsWithCoordinates = allLeads.filter((lead: any) => 
-        lead.latitude && lead.longitude && lead.geocoding_status === 'completed'
-      );
+      let leadsWithCoordinates = allLeads.filter((lead: any) => {
+        const hasCoords = lead.latitude && lead.longitude && lead.geocoding_status === 'completed';
+        if (!hasCoords) {
+          console.log(`🚫 Filtering out lead ${lead.id}: lat=${lead.latitude}, lng=${lead.longitude}, status=${lead.geocoding_status}`);
+        }
+        return hasCoords;
+      });
       
       // Apply date range filter if provided
       if (startDate && endDate) {
@@ -117,14 +121,21 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
           const distance = calculateDistance(
             practiceLocation.latitude,
             practiceLocation.longitude,
-            lead.latitude,
-            lead.longitude
+            parseFloat(lead.latitude),
+            parseFloat(lead.longitude)
           );
           return distance <= radiusMiles;
         });
       }
       
-      setLeads(leadsWithCoordinates);
+      // Convert string coordinates to numbers for all leads
+      const leadsWithNumberCoords = leadsWithCoordinates.map((lead: any) => ({
+        ...lead,
+        latitude: parseFloat(lead.latitude),
+        longitude: parseFloat(lead.longitude)
+      }));
+      
+      setLeads(leadsWithNumberCoords);
       
       if (onLeadsLoaded) {
         onLeadsLoaded(leadsWithCoordinates);
