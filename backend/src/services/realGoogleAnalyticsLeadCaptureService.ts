@@ -42,9 +42,11 @@ export class RealGoogleAnalyticsLeadCaptureService {
 
       // Get client details
       const clientResult = await pool.query(
-        `SELECT id, client_name, practice_latitude, practice_longitude, practice_city, practice_state,
-                google_analytics_property_id, ga_last_sync_at
-         FROM clients WHERE id = $1`,
+        `SELECT c.id, c.client_name, c.practice_latitude, c.practice_longitude, c.practice_city, c.practice_state,
+                c.ga_last_sync_at, cc.credentials->>'property_id' as google_analytics_property_id
+         FROM clients c
+         LEFT JOIN client_credentials cc ON c.id = cc.client_id AND cc.service_type = 'google_analytics'
+         WHERE c.id = $1`,
         [clientId]
       );
 
@@ -194,9 +196,9 @@ export class RealGoogleAnalyticsLeadCaptureService {
 
       // Get OAuth credentials from database
       const credResult = await pool.query(
-        `SELECT config FROM client_credentials 
-         WHERE client_id = $1 AND service_name = 'google_analytics'
-         AND config->>'access_token' IS NOT NULL`,
+        `SELECT credentials FROM client_credentials 
+         WHERE client_id = $1 AND service_type = 'google_analytics'
+         AND credentials->>'access_token' IS NOT NULL`,
         [clientId]
       );
 
@@ -205,7 +207,7 @@ export class RealGoogleAnalyticsLeadCaptureService {
         return this.getMockGoogleAnalyticsVisitors(startDate);
       }
 
-      const credentials = credResult.rows[0].config;
+      const credentials = credResult.rows[0].credentials;
 
       // Initialize OAuth2 client
       const oauth2Client = new google.auth.OAuth2(
