@@ -89,11 +89,22 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
       const leadsResponse = await http.get(`/analytics/leads/${clientId}`);
       const allLeads = leadsResponse.data.leads || [];
       
+      console.log(`📊 Total leads fetched: ${allLeads.length}`);
+      if (allLeads.length > 0) {
+        console.log(`📊 Sample lead data:`, allLeads[0]);
+      }
+      
       // Filter only leads that have coordinates (geocoded)
       let leadsWithCoordinates = allLeads.filter((lead: any) => {
-        const hasCoords = lead.latitude && lead.longitude && lead.geocoding_status === 'completed';
+        const hasLat = lead.latitude !== null && lead.latitude !== undefined && lead.latitude !== '';
+        const hasLng = lead.longitude !== null && lead.longitude !== undefined && lead.longitude !== '';
+        const hasStatus = lead.geocoding_status === 'completed';
+        const hasCoords = hasLat && hasLng && hasStatus;
+        
         if (!hasCoords) {
-          console.log(`🚫 Filtering out lead ${lead.id}: lat=${lead.latitude}, lng=${lead.longitude}, status=${lead.geocoding_status}`);
+          console.log(`🚫 Filtering out lead ${lead.id}: lat=${lead.latitude} (${typeof lead.latitude}), lng=${lead.longitude} (${typeof lead.longitude}), status=${lead.geocoding_status}`);
+        } else {
+          console.log(`✅ Keeping lead ${lead.id}: lat=${lead.latitude}, lng=${lead.longitude}, status=${lead.geocoding_status}`);
         }
         return hasCoords;
       });
