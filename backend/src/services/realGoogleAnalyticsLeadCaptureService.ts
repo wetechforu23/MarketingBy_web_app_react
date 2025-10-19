@@ -236,6 +236,8 @@ export class RealGoogleAnalyticsLeadCaptureService {
       const endDateStr = new Date().toISOString().split('T')[0]; // Today
 
       console.log(`📅 Fetching GA4 visitor data from ${startDateStr} to ${endDateStr}`);
+      console.log(`📅 Raw startDate object:`, startDate);
+      console.log(`📅 Formatted startDateStr: ${startDateStr}`);
 
       // Fetch visitor data with city/country dimensions
       const request = {
