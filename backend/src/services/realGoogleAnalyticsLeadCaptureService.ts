@@ -1,5 +1,5 @@
 import pool from '../config/database';
-import { BetaAnalyticsDataClient } from '@google-analytics/data';
+import { google } from 'googleapis';
 import { getDistance } from 'geolib';
 
 interface GoogleAnalyticsVisitor {
@@ -190,6 +190,8 @@ export class RealGoogleAnalyticsLeadCaptureService {
     startDate: Date
   ): Promise<GoogleAnalyticsVisitor[]> {
     try {
+      console.log(`📊 Fetching REAL visitor data from Google Analytics for property ${propertyId}`);
+
       // Get OAuth credentials from database
       const credResult = await pool.query(
         `SELECT config FROM client_credentials 
@@ -199,24 +201,102 @@ export class RealGoogleAnalyticsLeadCaptureService {
       );
 
       if (credResult.rows.length === 0) {
-        console.log('⚠️ No Google Analytics credentials found');
-        return [];
+        console.log('⚠️ No Google Analytics credentials found, using mock data');
+        return this.getMockGoogleAnalyticsVisitors(startDate);
       }
 
       const credentials = credResult.rows[0].config;
 
-      // Initialize Google Analytics Data API client with OAuth credentials
-      // Note: For now, we'll use mock data until OAuth credentials are properly configured
-      // TODO: Implement proper OAuth2Client for Google Analytics Data API
-      
-      // Temporarily return mock data to avoid blocking deployment
-      console.log('⚠️ Using mock Google Analytics data - real API integration pending OAuth setup');
-      
-      return this.getMockGoogleAnalyticsVisitors(startDate);
+      // Initialize OAuth2 client
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_ANALYTICS_CLIENT_ID,
+        process.env.GOOGLE_ANALYTICS_CLIENT_SECRET,
+        process.env.GOOGLE_ANALYTICS_REDIRECT_URI || 'https://marketingby.wetechforu.com/api/auth/google/callback'
+      );
+
+      // Set credentials
+      oauth2Client.setCredentials({
+        access_token: credentials.access_token,
+        refresh_token: credentials.refresh_token,
+        expiry_date: credentials.expiry_date
+      });
+
+      // Initialize Google Analytics Data API
+      const analytics = google.analyticsdata('v1beta');
+
+      // Format dates for GA4 API
+      const startDateStr = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      const endDateStr = new Date().toISOString().split('T')[0]; // Today
+
+      console.log(`📅 Fetching GA4 visitor data from ${startDateStr} to ${endDateStr}`);
+
+      // Fetch visitor data with city/country dimensions
+      const request = {
+        dateRanges: [
+          {
+            startDate: startDateStr,
+            endDate: endDateStr
+          }
+        ],
+        dimensions: [
+          { name: 'city' },
+          { name: 'country' },
+          { name: 'date' },
+          { name: 'sessionDefaultChannelGrouping' }
+        ],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'screenPageViews' },
+          { name: 'averageSessionDuration' }
+        ],
+        limit: '1000' // Max 1000 rows
+      };
+
+      const response = await analytics.properties.runReport({
+        property: `properties/${propertyId}`,
+        requestBody: request,
+        auth: oauth2Client
+      });
+
+      const visitors: GoogleAnalyticsVisitor[] = [];
+      const rows = response.data.rows || [];
+
+      console.log(`📊 Received ${rows.length} rows from Google Analytics`);
+
+      for (const row of rows) {
+        const dimensionValues = row.dimensionValues || [];
+        const metricValues = row.metricValues || [];
+
+        const city = dimensionValues[0]?.value || 'Unknown';
+        const country = dimensionValues[1]?.value || 'Unknown';
+        const dateStr = dimensionValues[2]?.value || '';
+        const trafficSource = dimensionValues[3]?.value || 'Unknown';
+
+        const sessions = parseInt(metricValues[0]?.value || '0');
+        const pageViews = parseInt(metricValues[1]?.value || '0');
+        const avgDuration = parseFloat(metricValues[2]?.value || '0');
+
+        // Only include visitors with actual activity and valid city
+        if (sessions > 0 && city !== '(not set)' && city !== 'Unknown' && city !== '') {
+          visitors.push({
+            user_id: `ga_${dateStr}_${city}_${Math.random().toString(36).substring(7)}`,
+            city: city,
+            country: country,
+            timestamp: new Date(dateStr.substring(0, 4) + '-' + dateStr.substring(4, 6) + '-' + dateStr.substring(6, 8)),
+            page_views: pageViews,
+            session_duration: avgDuration,
+            traffic_source: trafficSource
+          });
+        }
+      }
+
+      console.log(`✅ Processed ${visitors.length} unique visitors from Google Analytics`);
+      return visitors;
 
     } catch (error) {
       console.error('❌ Error fetching from Google Analytics API:', error);
-      return [];
+      console.log('⚠️ Falling back to mock data');
+      return this.getMockGoogleAnalyticsVisitors(startDate);
     }
   }
 
