@@ -390,8 +390,8 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
          {/* Show lead markers */}
          {leads.map((lead, index) => {
            // Ensure lat/lng are numbers
-           const lat = typeof lead.latitude === 'number' ? lead.latitude : parseFloat(lead.latitude);
-           const lng = typeof lead.longitude === 'number' ? lead.longitude : parseFloat(lead.longitude);
+           let lat = typeof lead.latitude === 'number' ? lead.latitude : parseFloat(lead.latitude);
+           let lng = typeof lead.longitude === 'number' ? lead.longitude : parseFloat(lead.longitude);
            
            // Skip invalid coordinates
            if (isNaN(lat) || isNaN(lng)) {
@@ -399,14 +399,26 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
              return null;
            }
            
+           // Add small random offset for stacked markers (0.0001 degrees ≈ 11 meters)
+           // This makes overlapping markers visible by slightly offsetting them
+           const offset = 0.0003;
+           lat += (Math.random() - 0.5) * offset;
+           lng += (Math.random() - 0.5) * offset;
+           
            return (
              <Marker
                key={lead.id}
                position={{ lat, lng }}
-               title={`${lead.company} - ${lead.city}, ${lead.state}`}
+               title={`Lead #${lead.id} - ${lead.city}, ${lead.state}`}
+               label={window.google && window.google.maps ? {
+                 text: String(index + 1),
+                 color: 'white',
+                 fontSize: '12px',
+                 fontWeight: 'bold'
+               } : undefined}
                icon={window.google && window.google.maps ? {
                  url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
-                 scaledSize: new window.google.maps.Size(30, 30)
+                 scaledSize: new window.google.maps.Size(32, 32)
                } : undefined}
              />
            );

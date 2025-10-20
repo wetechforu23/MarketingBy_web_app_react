@@ -2160,38 +2160,57 @@ const ClientManagementDashboard: React.FC = () => {
                         borderRadius: '8px',
                         border: '1px solid #dee2e6'
                       }}>
-                        <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Geocoding Status</h4>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
+                        <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>📊 Lead Processing Status</h4>
+                        
+                        {/* Geocoding Status Counts */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px', marginBottom: '15px' }}>
                           <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#007bff' }}>
                               {geocodingStatus.total_leads}
                             </div>
-                            <div style={{ fontSize: '12px', color: '#666' }}>Total Leads</div>
+                            <div style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Total Leads</div>
+                            <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>All Google Analytics leads</div>
                           </div>
                           <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#28a745' }}>
                               {geocodingStatus.geocoded_leads}
                             </div>
-                            <div style={{ fontSize: '12px', color: '#666' }}>Geocoded</div>
+                            <div style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Geocoded ✓</div>
+                            <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>Has map coordinates</div>
                           </div>
                           <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffc107' }}>
                               {geocodingStatus.pending_leads}
                             </div>
-                            <div style={{ fontSize: '12px', color: '#666' }}>Pending</div>
+                            <div style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Pending ⏳</div>
+                            <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>Waiting to geocode</div>
                           </div>
                           <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>
                               {geocodingStatus.failed_leads}
                             </div>
-                            <div style={{ fontSize: '12px', color: '#666' }}>Failed</div>
+                            <div style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Failed ✗</div>
+                            <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>No address found</div>
                           </div>
                           <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6f42c1' }}>
                               {geocodingStatus.geocoding_percentage}%
                             </div>
-                            <div style={{ fontSize: '12px', color: '#666' }}>Complete</div>
+                            <div style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Success Rate</div>
+                            <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>Geocoded / Total</div>
                           </div>
+                        </div>
+                        
+                        {/* Filter Flow Explanation */}
+                        <div style={{ 
+                          padding: '10px', 
+                          backgroundColor: '#fff', 
+                          borderRadius: '6px', 
+                          border: '1px solid #e0e0e0',
+                          fontSize: '11px',
+                          color: '#666'
+                        }}>
+                          <strong style={{ color: '#333' }}>🔍 Map Display Filter:</strong> {geocodingStatus.total_leads} Total → {geocodingStatus.geocoded_leads} Geocoded → Filtered by {heatmapRadius} miles radius → Displayed on map
                         </div>
                       </div>
                     )}
