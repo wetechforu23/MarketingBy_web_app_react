@@ -84,7 +84,7 @@ const ClientManagementDashboard: React.FC = () => {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [clientSettings, setClientSettings] = useState<ClientSettings | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'lead-tracking' | 'seo' | 'reports' | 'local-search' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'social-media' | 'lead-tracking' | 'seo' | 'reports' | 'local-search' | 'settings'>('overview');
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -1612,7 +1612,26 @@ const ClientManagementDashboard: React.FC = () => {
                   gap: '8px'
                 }}
               >
-                📈 Analytics
+                📊 Google Analytics
+              </button>
+              <button 
+                onClick={() => setActiveTab('social-media')}
+                style={{
+                  padding: '16px 24px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  borderBottom: activeTab === 'social-media' ? '3px solid #007bff' : '3px solid transparent',
+                  color: activeTab === 'social-media' ? '#007bff' : '#6c757d',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                📱 Social Media
               </button>
               <button 
                 onClick={() => setActiveTab('lead-tracking')}
@@ -2739,6 +2758,168 @@ const ClientManagementDashboard: React.FC = () => {
                         No reports generated yet. Click "Sync Data" to sync your analytics data, then go to the "Reports" tab to generate reports.
                       </p>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'social-media' && selectedClient && (
+                <div className="social-media-content">
+                  <div style={{ 
+                    backgroundColor: 'white', 
+                    padding: '30px', 
+                    borderRadius: '12px', 
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  }}>
+                    <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>📱 Social Media Analytics</h3>
+                    
+                    {/* Facebook Insights Summary */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+                      <div style={{ 
+                        backgroundColor: '#f8f9fa', 
+                        padding: '20px', 
+                        borderRadius: '10px',
+                        border: '2px solid #4267B2'
+                      }}>
+                        <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Page Views</div>
+                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4267B2' }}>
+                          {analyticsData?.facebook?.pageViews?.toLocaleString() || 0}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>📘 Facebook</div>
+                      </div>
+                      
+                      <div style={{ 
+                        backgroundColor: '#f8f9fa', 
+                        padding: '20px', 
+                        borderRadius: '10px',
+                        border: '2px solid #4267B2'
+                      }}>
+                        <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Total Followers</div>
+                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4267B2' }}>
+                          {analyticsData?.facebook?.followers?.toLocaleString() || 0}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>👥 Followers</div>
+                      </div>
+                      
+                      <div style={{ 
+                        backgroundColor: '#f8f9fa', 
+                        padding: '20px', 
+                        borderRadius: '10px',
+                        border: '2px solid #4267B2'
+                      }}>
+                        <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Engagement Rate</div>
+                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4267B2' }}>
+                          {analyticsData?.facebook?.engagement?.toFixed(1) || 0}%
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>💬 Engagement</div>
+                      </div>
+                      
+                      <div style={{ 
+                        backgroundColor: '#f8f9fa', 
+                        padding: '20px', 
+                        borderRadius: '10px',
+                        border: '2px solid #28a745'
+                      }}>
+                        <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Connection Status</div>
+                        <div style={{ fontSize: '24px', fontWeight: 'bold', color: analyticsData?.facebook?.connected ? '#28a745' : '#dc3545', marginTop: '10px' }}>
+                          {analyticsData?.facebook?.connected ? '✅ Connected' : '❌ Not Connected'}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>
+                          {analyticsData?.facebook?.status || 'Not Connected'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Connection Instructions */}
+                    {!analyticsData?.facebook?.connected && (
+                      <div style={{ 
+                        backgroundColor: '#fff3cd', 
+                        border: '1px solid #ffc107', 
+                        borderRadius: '8px', 
+                        padding: '20px',
+                        marginBottom: '20px'
+                      }}>
+                        <h4 style={{ margin: '0 0 10px 0', color: '#856404' }}>⚠️ Facebook Not Connected</h4>
+                        <p style={{ margin: '0 0 10px 0', color: '#856404', lineHeight: '1.6' }}>
+                          To view Facebook analytics, please connect your Facebook page in the Settings tab.
+                        </p>
+                        <button 
+                          onClick={() => setActiveTab('settings')}
+                          style={{
+                            padding: '10px 20px',
+                            backgroundColor: '#007bff',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: '500'
+                          }}
+                        >
+                          Go to Settings
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Detailed Facebook Metrics */}
+                    {analyticsData?.facebook?.connected && (
+                      <div>
+                        <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>📊 Detailed Facebook Insights</h4>
+                        
+                        {/* Additional metrics will be displayed here */}
+                        <div style={{ 
+                          backgroundColor: '#f8f9fa', 
+                          padding: '20px', 
+                          borderRadius: '8px',
+                          textAlign: 'center',
+                          color: '#666'
+                        }}>
+                          <p style={{ margin: 0 }}>
+                            🚧 More detailed Facebook analytics coming soon!
+                          </p>
+                          <p style={{ margin: '10px 0 0 0', fontSize: '14px' }}>
+                            This section will include post performance, audience demographics, engagement trends, and more.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Quick Stats Table */}
+                    <div style={{ marginTop: '30px' }}>
+                      <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>📈 Social Media Overview</h4>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: '#4267B2', color: 'white' }}>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600' }}>Platform</th>
+                            <th style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>Page Views</th>
+                            <th style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>Followers</th>
+                            <th style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>Engagement</th>
+                            <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600' }}>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr style={{ borderBottom: '1px solid #dee2e6' }}>
+                            <td style={{ padding: '12px', fontWeight: '500' }}>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                📘 Facebook
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                              {analyticsData?.facebook?.pageViews?.toLocaleString() || 0}
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                              {analyticsData?.facebook?.followers?.toLocaleString() || 0}
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                              {analyticsData?.facebook?.engagement?.toFixed(1) || 0}%
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'center', fontSize: '12px', fontWeight: '600', color: analyticsData?.facebook?.connected ? '#28a745' : '#dc3545' }}>
+                              {analyticsData?.facebook?.connected ? '✅ Connected' : '❌ Not Connected'}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
                   </div>
                 </div>
               )}
