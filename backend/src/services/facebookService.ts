@@ -409,25 +409,33 @@ class FacebookService {
       postEngagements: 0
     };
 
+    console.log(`📊 Calculating overview metrics from ${insights.length} insights`);
+
     for (const insight of insights) {
-      switch (insight.name) {
+      // Handle both metric_name (from DB) and name (from API) formats
+      const metricName = insight.metric_name || insight.name;
+      const metricValue = insight.metric_value || insight.value;
+      
+      console.log(`  - ${metricName}: ${metricValue}`);
+      
+      switch (metricName) {
         case 'page_views_total':
-          metrics.pageViews = Number(insight.value) || 0;
+          metrics.pageViews = Number(metricValue) || 0;
           break;
         case 'page_fans':
-          metrics.followers = Number(insight.value) || 0;
+          metrics.followers = Number(metricValue) || 0;
           break;
         case 'page_engaged_users':
-          metrics.engagement = Number(insight.value) || 0;
+          metrics.engagement = Number(metricValue) || 0;
           break;
         case 'page_impressions_unique':
-          metrics.reach = Number(insight.value) || 0;
+          metrics.reach = Number(metricValue) || 0;
           break;
         case 'page_impressions':
-          metrics.impressions = Number(insight.value) || 0;
+          metrics.impressions = Number(metricValue) || 0;
           break;
         case 'page_post_engagements':
-          metrics.postEngagements = Number(insight.value) || 0;
+          metrics.postEngagements = Number(metricValue) || 0;
           break;
       }
     }
@@ -437,7 +445,28 @@ class FacebookService {
       metrics.engagement = (metrics.postEngagements / metrics.reach) * 100;
     }
 
+    console.log(`📈 Final metrics:`, metrics);
+
     return metrics;
+  }
+
+  /**
+   * Get last sync time for a client
+   */
+  async getLastSyncTime(clientId: number): Promise<Date | null> {
+    try {
+      const result = await this.pool.query(
+        `SELECT MAX(recorded_at) as last_sync 
+         FROM facebook_insights 
+         WHERE client_id = $1`,
+        [clientId]
+      );
+      
+      return result.rows[0]?.last_sync || null;
+    } catch (error) {
+      console.error('Error getting last sync time:', error);
+      return null;
+    }
   }
 }
 

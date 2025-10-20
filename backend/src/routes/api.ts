@@ -4591,8 +4591,9 @@ router.get('/facebook/test-credentials/:clientId', requireAuth, async (req, res)
 router.post('/facebook/sync/:clientId', requireAuth, async (req, res) => {
   try {
     const { clientId } = req.params;
+    const { force = false } = req.body; // Allow forcing a fresh sync
     
-    console.log(`🔄 Syncing Facebook data for client ${clientId}`);
+    console.log(`🔄 Syncing Facebook data for client ${clientId} (force: ${force})`);
 
     // Import FacebookService
     const FacebookService = (await import('../services/facebookService')).default;
@@ -4610,37 +4611,73 @@ router.post('/facebook/sync/:clientId', requireAuth, async (req, res) => {
     
     console.log(`🔑 Using credentials - Page ID: ${credentials.page_id}, Token length: ${credentials.access_token?.length}`);
 
+    // Check last sync time to avoid unnecessary API calls
+    const lastSync = await facebookService.getLastSyncTime(parseInt(clientId));
+    if (lastSync && !force) {
+      const timeSinceSync = Date.now() - new Date(lastSync).getTime();
+      const minutesSinceSync = Math.floor(timeSinceSync / 1000 / 60);
+      
+      // If synced within last 15 minutes, return cached data
+      if (minutesSinceSync < 15) {
+        console.log(`⚡ Using cached data from ${minutesSinceSync} minutes ago`);
+        
+        const cachedInsights = await facebookService.getStoredInsights(parseInt(clientId));
+        const cachedPosts = await facebookService.getStoredPosts(parseInt(clientId), 50);
+        const cachedFollowerStats = await facebookService.getStoredFollowerStats(parseInt(clientId), 30);
+        
+        return res.json({
+          success: true,
+          message: `Using cached data from ${minutesSinceSync} minutes ago`,
+          cached: true,
+          lastSync: lastSync,
+          data: {
+            insights: cachedInsights.length,
+            posts: cachedPosts.length,
+            followers: cachedFollowerStats.length > 0 ? cachedFollowerStats[0].total_followers : 0
+          }
+        });
+      }
+    }
 
     // Fetch and store insights
-    console.log('📊 Fetching page insights...');
+    console.log('📊 Fetching page insights from Facebook API...');
     const insights = await facebookService.fetchPageInsights(
       credentials.page_id,
       credentials.access_token
     );
+    console.log(`  ✅ Fetched ${insights.length} insights`);
     await facebookService.storeInsights(parseInt(clientId), insights);
+    console.log(`  💾 Stored in database`);
 
     // Fetch and store posts
-    console.log('📝 Fetching posts...');
+    console.log('📝 Fetching posts from Facebook API...');
     const posts = await facebookService.fetchPosts(
       credentials.page_id,
       credentials.access_token,
       50
     );
+    console.log(`  ✅ Fetched ${posts.length} posts`);
     await facebookService.storePosts(parseInt(clientId), posts);
+    console.log(`  💾 Stored in database`);
 
     // Fetch and store follower stats
-    console.log('👥 Fetching follower stats...');
+    console.log('👥 Fetching follower stats from Facebook API...');
     const followerStats = await facebookService.getFollowerStats(
       credentials.page_id,
       credentials.access_token
     );
+    console.log(`  ✅ Fetched follower stats: ${followerStats.totalFollowers} followers`);
     await facebookService.storeFollowerStats(parseInt(clientId), followerStats);
+    console.log(`  💾 Stored in database`);
 
     console.log(`✅ Facebook sync completed for client ${clientId}`);
+    console.log(`📊 Summary: ${insights.length} insights, ${posts.length} posts, ${followerStats.totalFollowers} followers`);
 
     res.json({
       success: true,
       message: 'Facebook data synced successfully',
+      cached: false,
+      lastSync: new Date().toISOString(),
       data: {
         insights: insights.length,
         posts: posts.length,
@@ -4657,28 +4694,34 @@ router.post('/facebook/sync/:clientId', requireAuth, async (req, res) => {
   }
 });
 
-// Get Facebook overview metrics
+// Get Facebook overview metrics (always from database)
 router.get('/facebook/overview/:clientId', requireAuth, async (req, res) => {
   try {
     const { clientId } = req.params;
 
-    console.log(`📊 Fetching Facebook overview for client ${clientId}`);
+    console.log(`📊 Fetching Facebook overview for client ${clientId} (from database)`);
 
     const FacebookService = (await import('../services/facebookService')).default;
     const facebookService = new FacebookService(pool);
 
-    // Get stored insights
+    // Get stored insights from database
     const insights = await facebookService.getStoredInsights(parseInt(clientId));
+    console.log(`  📥 Retrieved ${insights.length} insights from database`);
     
     // Calculate overview metrics
     const metrics = facebookService.calculateOverviewMetrics(insights);
 
-    // Get connection status
+    // Get connection status and last sync time
     const credentials = await facebookService.getClientCredentials(parseInt(clientId));
+    const lastSync = await facebookService.getLastSyncTime(parseInt(clientId));
+    
+    console.log(`  ✅ Metrics calculated:`, metrics);
+    console.log(`  📅 Last sync: ${lastSync || 'Never'}`);
     
     res.json({
       success: true,
       connected: !!credentials,
+      lastSync: lastSync || null,
       data: {
         ...metrics,
         connected: !!credentials,
