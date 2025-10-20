@@ -287,51 +287,69 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
                 );
               })()}
               
-              {/* Lead Markers */}
-              {leads.map((lead, index) => {
-                let lat = typeof lead.latitude === 'number' ? lead.latitude : parseFloat(lead.latitude);
-                let lng = typeof lead.longitude === 'number' ? lead.longitude : parseFloat(lead.longitude);
+              {/* Lead Markers - Group by city and show counts */}
+              {(() => {
+                // Group leads by city for clustering
+                const cityGroups: { [key: string]: Lead[] } = {};
+                leads.forEach((lead) => {
+                  const cityKey = `${lead.city}_${lead.state}`;
+                  if (!cityGroups[cityKey]) {
+                    cityGroups[cityKey] = [];
+                  }
+                  cityGroups[cityKey].push(lead);
+                });
                 
-                if (isNaN(lat) || isNaN(lng)) return null;
-                
-                // Consistent offset based on lead ID to prevent stacking
-                const offset = 0.0002;
-                const seed = lead.id * 1000;
-                lat += ((seed % 100) / 100 - 0.5) * offset;
-                lng += (((seed * 7) % 100) / 100 - 0.5) * offset;
-                
-                const isHovered = hoveredLeadId === lead.id;
-                const isSelected = selectedLeadId === lead.id;
-                
-                // Use different marker colors based on state
-                const markerUrl = isSelected 
-                  ? 'https://maps.google.com/mapfiles/ms/icons/orange-dot.png'
-                  : isHovered 
-                  ? 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
-                  : 'https://maps.google.com/mapfiles/ms/icons/purple-dot.png';
-                
-                const markerSize = isHovered || isSelected ? 35 : 30;
-                
-                return (
-                  <Marker
-                    key={lead.id}
-                    position={{ lat, lng }}
-                    title={`${lead.company || 'Lead'} - ${lead.city}, ${lead.state}`}
-                    icon={{
-                      url: markerUrl,
-                      scaledSize: { width: markerSize, height: markerSize }
-                    }}
-                    onClick={() => {
-                      setSelectedLeadId(lead.id === selectedLeadId ? null : lead.id);
-                      setMapCenter({ lat, lng });
-                      setMapZoom(13);
-                    }}
-                    onMouseOver={() => setHoveredLeadId(lead.id)}
-                    onMouseOut={() => setHoveredLeadId(null)}
-                    zIndex={isHovered || isSelected ? 1000 : 100}
-                  />
-                );
-              })}
+                // Render markers with count badges for cities with multiple leads
+                return Object.entries(cityGroups).map(([cityKey, cityLeads]) => {
+                  if (cityLeads.length === 0) return null;
+                  
+                  // Use the first lead's coordinates as the center point for this city
+                  const centerLead = cityLeads[0];
+                  let lat = typeof centerLead.latitude === 'number' ? centerLead.latitude : parseFloat(centerLead.latitude);
+                  let lng = typeof centerLead.longitude === 'number' ? centerLead.longitude : parseFloat(centerLead.longitude);
+                  
+                  if (isNaN(lat) || isNaN(lng)) return null;
+                  
+                  const isAnyHovered = cityLeads.some(lead => lead.id === hoveredLeadId);
+                  const isAnySelected = cityLeads.some(lead => lead.id === selectedLeadId);
+                  
+                  // Use different marker colors based on state
+                  const markerUrl = isAnySelected 
+                    ? 'https://maps.google.com/mapfiles/ms/icons/orange-dot.png'
+                    : isAnyHovered 
+                    ? 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+                    : 'https://maps.google.com/mapfiles/ms/icons/purple-dot.png';
+                  
+                  const markerSize = isAnyHovered || isAnySelected ? 35 : 30;
+                  
+                  return (
+                    <Marker
+                      key={cityKey}
+                      position={{ lat, lng }}
+                      title={`${cityLeads.length} lead${cityLeads.length > 1 ? 's' : ''} in ${centerLead.city}, ${centerLead.state}`}
+                      icon={{
+                        url: markerUrl,
+                        scaledSize: { width: markerSize, height: markerSize }
+                      }}
+                      label={cityLeads.length > 1 ? {
+                        text: cityLeads.length.toString(),
+                        color: 'white',
+                        fontSize: '12px',
+                        fontWeight: 'bold'
+                      } : undefined}
+                      onClick={() => {
+                        // Select the first lead in this city
+                        setSelectedLeadId(cityLeads[0].id === selectedLeadId ? null : cityLeads[0].id);
+                        setMapCenter({ lat, lng });
+                        setMapZoom(13);
+                      }}
+                      onMouseOver={() => setHoveredLeadId(cityLeads[0].id)}
+                      onMouseOut={() => setHoveredLeadId(null)}
+                      zIndex={isAnyHovered || isAnySelected ? 1000 : 100}
+                    />
+                  );
+                });
+              })()}
             </GoogleMap>
           </LoadScript>
         </div>
@@ -360,7 +378,8 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
               color: '#333',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '8px',
+              marginBottom: '10px'
             }}>
               <span style={{ 
                 display: 'inline-block',
@@ -382,6 +401,64 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
                 </div>
               </div>
             </h3>
+            
+            {/* Location Summary */}
+            {leads.length > 0 && (() => {
+              // Group leads by city
+              const cityGroups = leads.reduce((acc: any, lead: Lead) => {
+                const cityKey = `${lead.city}, ${lead.state}`;
+                if (!acc[cityKey]) {
+                  acc[cityKey] = { count: 0, city: lead.city, state: lead.state };
+                }
+                acc[cityKey].count++;
+                return acc;
+              }, {});
+              
+              const sortedCities = Object.values(cityGroups).sort((a: any, b: any) => b.count - a.count);
+              
+              return (
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '6px', 
+                  flexWrap: 'wrap',
+                  marginTop: '8px'
+                }}>
+                  {sortedCities.map((group: any, idx: number) => (
+                    <div 
+                      key={idx}
+                      style={{
+                        padding: '4px 10px',
+                        background: '#e0e7ff',
+                        border: '1px solid #c7d2fe',
+                        borderRadius: '12px',
+                        fontSize: '11px',
+                        fontWeight: '500',
+                        color: '#4338ca',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <span style={{ 
+                        background: '#4338ca',
+                        color: 'white',
+                        borderRadius: '50%',
+                        width: '18px',
+                        height: '18px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '10px',
+                        fontWeight: 'bold'
+                      }}>
+                        {group.count}
+                      </span>
+                      {group.city}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
           
           {leads.length === 0 ? (
