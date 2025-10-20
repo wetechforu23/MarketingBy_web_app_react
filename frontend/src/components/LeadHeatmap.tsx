@@ -273,24 +273,15 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
                 
                 if (isNaN(lat) || isNaN(lng)) return null;
                 
+                // Simplified clinic marker - using standard red marker
                 return (
                   <Marker
                     position={{ lat, lng }}
-                    title={`🏥 ${practiceLocation.city} Clinic`}
-                    icon={window.google && window.google.maps ? {
-                      path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
-                      fillColor: '#EA4335',
-                      fillOpacity: 1,
-                      strokeColor: '#ffffff',
-                      strokeWeight: 2,
-                      scale: 2,
-                      anchor: new window.google.maps.Point(12, 22)
-                    } : undefined}
-                    label={window.google && window.google.maps ? {
-                      text: '🏥',
-                      fontSize: '16px',
-                      fontWeight: 'bold'
-                    } : undefined}
+                    title={`🏥 ${practiceLocation.city} Clinic - ${practiceLocation.address}`}
+                    icon={{
+                      url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                      scaledSize: { width: 40, height: 40 }
+                    }}
                     zIndex={9999}
                   />
                 );
@@ -312,20 +303,29 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
                 const isHovered = hoveredLeadId === lead.id;
                 const isSelected = selectedLeadId === lead.id;
                 
+                // Use different marker colors based on state
+                const markerUrl = isSelected 
+                  ? 'https://maps.google.com/mapfiles/ms/icons/orange-dot.png'
+                  : isHovered 
+                  ? 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+                  : 'https://maps.google.com/mapfiles/ms/icons/purple-dot.png';
+                
+                const markerSize = isHovered || isSelected ? 35 : 30;
+                
                 return (
                   <Marker
                     key={lead.id}
                     position={{ lat, lng }}
                     title={`${lead.company || 'Lead'} - ${lead.city}, ${lead.state}`}
-                    icon={window.google && window.google.maps ? {
-                      path: window.google.maps.SymbolPath.CIRCLE,
-                      fillColor: isSelected ? '#f59e0b' : isHovered ? '#3b82f6' : '#6366f1',
-                      fillOpacity: isHovered || isSelected ? 1 : 0.8,
-                      strokeColor: '#ffffff',
-                      strokeWeight: isHovered || isSelected ? 3 : 2,
-                      scale: isHovered || isSelected ? 12 : 8
-                    } : undefined}
-                    onClick={() => setSelectedLeadId(lead.id === selectedLeadId ? null : lead.id)}
+                    icon={{
+                      url: markerUrl,
+                      scaledSize: { width: markerSize, height: markerSize }
+                    }}
+                    onClick={() => {
+                      setSelectedLeadId(lead.id === selectedLeadId ? null : lead.id);
+                      setMapCenter({ lat, lng });
+                      setMapZoom(13);
+                    }}
                     onMouseOver={() => setHoveredLeadId(lead.id)}
                     onMouseOut={() => setHoveredLeadId(null)}
                     zIndex={isHovered || isSelected ? 1000 : 100}
