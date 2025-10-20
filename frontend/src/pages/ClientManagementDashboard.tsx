@@ -2918,25 +2918,7 @@ const ClientManagementDashboard: React.FC = () => {
 
                     {/* Detailed Facebook Metrics */}
                     {analyticsData?.facebook?.connected && (
-                      <div>
-                        <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>📊 Detailed Facebook Insights</h4>
-                        
-                        {/* Additional metrics will be displayed here */}
-                        <div style={{ 
-                          backgroundColor: '#f8f9fa', 
-                          padding: '20px', 
-                          borderRadius: '8px',
-                          textAlign: 'center',
-                          color: '#666'
-                        }}>
-                          <p style={{ margin: 0 }}>
-                            🚧 More detailed Facebook analytics coming soon!
-                          </p>
-                          <p style={{ margin: '10px 0 0 0', fontSize: '14px' }}>
-                            This section will include post performance, audience demographics, engagement trends, and more.
-                          </p>
-                        </div>
-                      </div>
+                      <DetailedFacebookInsights clientId={selectedClient.id} />
                     )}
 
                     {/* Quick Stats Table */}
@@ -4069,6 +4051,343 @@ const ClientManagementDashboard: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Detailed Facebook Insights Component
+const DetailedFacebookInsights: React.FC<{ clientId: number }> = ({ clientId }) => {
+  const [posts, setPosts] = useState<any[]>([]);
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [topPosts, setTopPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedDays, setSelectedDays] = useState(28);
+
+  useEffect(() => {
+    fetchDetailedInsights();
+  }, [clientId, selectedDays]);
+
+  const fetchDetailedInsights = async () => {
+    setLoading(true);
+    try {
+      // Fetch posts
+      const postsRes = await fetch(`/api/facebook/posts/${clientId}?limit=50`);
+      const postsData = await postsRes.json();
+      if (postsData.success) {
+        setPosts(postsData.data);
+      }
+
+      // Fetch analytics by post type
+      const analyticsRes = await fetch(`/api/facebook/analytics/posts/${clientId}?days=${selectedDays}`);
+      const analyticsData = await analyticsRes.json();
+      if (analyticsData.success) {
+        setAnalytics(analyticsData.data);
+      }
+
+      // Fetch top performing posts
+      const topPostsRes = await fetch(`/api/facebook/analytics/top-posts/${clientId}?limit=5&days=${selectedDays}`);
+      const topPostsData = await topPostsRes.json();
+      if (topPostsData.success) {
+        setTopPosts(topPostsData.data);
+      }
+    } catch (error) {
+      console.error('Error fetching detailed Facebook insights:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '40px' }}>
+        <i className="fas fa-spinner fa-spin" style={{ fontSize: '32px', color: '#4267B2' }}></i>
+        <p style={{ marginTop: '10px', color: '#666' }}>Loading detailed insights...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: '30px' }}>
+      {/* Date Range Filter */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h4 style={{ margin: 0, color: '#333' }}>📊 Detailed Facebook Insights</h4>
+        <select 
+          value={selectedDays}
+          onChange={(e) => setSelectedDays(parseInt(e.target.value))}
+          style={{
+            padding: '8px 12px',
+            borderRadius: '6px',
+            border: '1px solid #ddd',
+            fontSize: '14px',
+            cursor: 'pointer'
+          }}
+        >
+          <option value={7}>Last 7 days</option>
+          <option value={28}>Last 28 days</option>
+          <option value={90}>Last 90 days</option>
+        </select>
+      </div>
+
+      {/* Content Type Breakdown */}
+      {analytics && analytics.length > 0 && (
+        <div style={{ marginBottom: '30px' }}>
+          <h5 style={{ margin: '0 0 15px 0', color: '#555' }}>📝 Content Performance by Type</h5>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
+            {analytics.map((item: any) => (
+              <div key={item.post_type} style={{
+                backgroundColor: '#f8f9fa',
+                padding: '20px',
+                borderRadius: '10px',
+                border: '2px solid #4267B2'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#333', textTransform: 'capitalize' }}>
+                    {item.post_type === 'photo' ? '📸' : item.post_type === 'video' ? '🎥' : item.post_type === 'link' ? '🔗' : '📄'} {item.post_type}
+                  </span>
+                  <span style={{ fontSize: '14px', color: '#666' }}>{item.post_count} posts</span>
+                </div>
+                <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.8' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Views:</span>
+                    <strong>{parseInt(item.total_impressions || 0).toLocaleString()}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Engaged Users:</span>
+                    <strong>{parseInt(item.total_engaged_users || 0).toLocaleString()}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Avg Views/Post:</span>
+                    <strong>{Math.round(item.avg_impressions_per_post || 0).toLocaleString()}</strong>
+                  </div>
+                  {item.total_video_views > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Video Views:</span>
+                      <strong>{parseInt(item.total_video_views).toLocaleString()}</strong>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Top Performing Posts */}
+      {topPosts && topPosts.length > 0 && (
+        <div style={{ marginBottom: '30px' }}>
+          <h5 style={{ margin: '0 0 15px 0', color: '#555' }}>🏆 Top Performing Posts</h5>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            {topPosts.map((post: any, index: number) => (
+              <div key={post.post_id} style={{
+                backgroundColor: '#fff',
+                padding: '20px',
+                borderRadius: '10px',
+                border: '1px solid #e0e0e0',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+              }}>
+                <div style={{ display: 'flex', gap: '15px' }}>
+                  {/* Post Image */}
+                  {post.full_picture && (
+                    <img 
+                      src={post.full_picture} 
+                      alt="Post" 
+                      style={{ 
+                        width: '100px', 
+                        height: '100px', 
+                        objectFit: 'cover', 
+                        borderRadius: '8px' 
+                      }} 
+                    />
+                  )}
+                  
+                  {/* Post Details */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <div>
+                        <span style={{ 
+                          backgroundColor: '#4267B2', 
+                          color: 'white', 
+                          padding: '4px 8px', 
+                          borderRadius: '4px', 
+                          fontSize: '12px',
+                          marginRight: '8px'
+                        }}>
+                          #{index + 1}
+                        </span>
+                        <span style={{ fontSize: '12px', color: '#666', textTransform: 'capitalize' }}>
+                          {post.post_type === 'photo' ? '📸' : post.post_type === 'video' ? '🎥' : post.post_type === 'link' ? '🔗' : '📄'} {post.post_type}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '12px', color: '#999' }}>
+                        {new Date(post.created_time).toLocaleDateString()}
+                      </span>
+                    </div>
+                    
+                    <p style={{ 
+                      margin: '0 0 10px 0', 
+                      color: '#333', 
+                      fontSize: '14px',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical'
+                    }}>
+                      {post.message || 'No message'}
+                    </p>
+                    
+                    {/* Metrics */}
+                    <div style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', 
+                      gap: '10px',
+                      fontSize: '12px'
+                    }}>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ color: '#666' }}>Views</span>
+                        <strong style={{ color: '#4267B2', fontSize: '16px' }}>
+                          {parseInt(post.post_impressions || 0).toLocaleString()}
+                        </strong>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ color: '#666' }}>Engaged</span>
+                        <strong style={{ color: '#28a745', fontSize: '16px' }}>
+                          {parseInt(post.post_engaged_users || 0).toLocaleString()}
+                        </strong>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ color: '#666' }}>Clicks</span>
+                        <strong style={{ color: '#ffc107', fontSize: '16px' }}>
+                          {parseInt(post.post_clicks || 0).toLocaleString()}
+                        </strong>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ color: '#666' }}>Engagement Rate</span>
+                        <strong style={{ color: '#dc3545', fontSize: '16px' }}>
+                          {post.engagement_rate ? `${parseFloat(post.engagement_rate).toFixed(1)}%` : '0%'}
+                        </strong>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ color: '#666' }}>Reactions</span>
+                        <strong style={{ color: '#6c757d', fontSize: '16px' }}>
+                          {parseInt(post.total_reactions || 0).toLocaleString()}
+                        </strong>
+                      </div>
+                      {post.post_video_views > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ color: '#666' }}>Video Views</span>
+                          <strong style={{ color: '#17a2b8', fontSize: '16px' }}>
+                            {parseInt(post.post_video_views).toLocaleString()}
+                          </strong>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* View Post Link */}
+                    {post.permalink_url && (
+                      <a 
+                        href={post.permalink_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'inline-block',
+                          marginTop: '10px',
+                          color: '#4267B2',
+                          fontSize: '12px',
+                          textDecoration: 'none'
+                        }}
+                      >
+                        View on Facebook →
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recent Posts Grid */}
+      {posts && posts.length > 0 && (
+        <div>
+          <h5 style={{ margin: '0 0 15px 0', color: '#555' }}>📋 Recent Posts ({posts.length})</h5>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
+            gap: '15px' 
+          }}>
+            {posts.slice(0, 12).map((post: any) => (
+              <div key={post.post_id} style={{
+                backgroundColor: '#fff',
+                borderRadius: '10px',
+                overflow: 'hidden',
+                border: '1px solid #e0e0e0',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                transition: 'transform 0.2s',
+                cursor: 'pointer'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
+              onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+              onClick={() => window.open(post.permalink_url, '_blank')}
+              >
+                {post.full_picture && (
+                  <img 
+                    src={post.full_picture} 
+                    alt="Post" 
+                    style={{ width: '100%', height: '150px', objectFit: 'cover' }} 
+                  />
+                )}
+                <div style={{ padding: '12px' }}>
+                  <div style={{ fontSize: '11px', color: '#999', marginBottom: '5px' }}>
+                    {new Date(post.created_time).toLocaleDateString()}
+                  </div>
+                  <p style={{ 
+                    fontSize: '13px', 
+                    color: '#333', 
+                    margin: '0 0 8px 0',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical'
+                  }}>
+                    {post.message || 'No caption'}
+                  </p>
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    fontSize: '11px', 
+                    color: '#666' 
+                  }}>
+                    <span>❤️ {post.total_reactions || 0}</span>
+                    <span>💬 {post.comments || 0}</span>
+                    <span>🔁 {post.shares || 0}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* No Data Message */}
+      {(!posts || posts.length === 0) && (
+        <div style={{ 
+          backgroundColor: '#f8f9fa', 
+          padding: '40px', 
+          borderRadius: '8px',
+          textAlign: 'center',
+          color: '#666'
+        }}>
+          <p style={{ margin: 0, fontSize: '16px' }}>
+            No posts data available yet.
+          </p>
+          <p style={{ margin: '10px 0 0 0', fontSize: '14px', color: '#999' }}>
+            Click "Sync Facebook Data" to fetch the latest posts and insights.
+          </p>
         </div>
       )}
     </div>
