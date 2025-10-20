@@ -4310,4 +4310,200 @@ router.get('/analytics/leads/:clientId/date-range', requireAuth, async (req, res
   }
 });
 
+// ==================== FACEBOOK INTEGRATION ENDPOINTS ====================
+
+// Save Facebook Page credentials
+router.post('/facebook/connect/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { pageId, accessToken } = req.body;
+
+    if (!pageId || !accessToken) {
+      return res.status(400).json({ error: 'Page ID and Access Token are required' });
+    }
+
+    console.log(`🔗 Connecting Facebook page for client ${clientId}`);
+
+    // Check if credentials already exist
+    const existing = await pool.query(
+      'SELECT id FROM client_credentials WHERE client_id = $1 AND service_type = $2',
+      [clientId, 'facebook']
+    );
+
+    if (existing.rows.length > 0) {
+      // Update existing credentials
+      await pool.query(
+        `UPDATE client_credentials 
+         SET credentials = $1, last_connected_at = NOW() 
+         WHERE client_id = $2 AND service_type = $3`,
+        [JSON.stringify({ page_id: pageId, access_token: accessToken }), clientId, 'facebook']
+      );
+    } else {
+      // Insert new credentials
+      await pool.query(
+        `INSERT INTO client_credentials (client_id, service_type, credentials, last_connected_at) 
+         VALUES ($1, $2, $3, NOW())`,
+        [clientId, 'facebook', JSON.stringify({ page_id: pageId, access_token: accessToken })]
+      );
+    }
+
+    console.log(`✅ Facebook credentials saved for client ${clientId}`);
+
+    res.json({
+      success: true,
+      message: 'Facebook page connected successfully'
+    });
+  } catch (error) {
+    console.error('Connect Facebook error:', error);
+    res.status(500).json({ error: 'Failed to connect Facebook page' });
+  }
+});
+
+// Get Facebook Page insights
+router.get('/facebook/insights/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    console.log(`📊 Fetching Facebook insights for client ${clientId}`);
+
+    // Get Facebook credentials
+    const credentialsResult = await pool.query(
+      'SELECT credentials FROM client_credentials WHERE client_id = $1 AND service_type = $2',
+      [clientId, 'facebook']
+    );
+
+    if (credentialsResult.rows.length === 0) {
+      return res.json({
+        success: false,
+        connected: false,
+        data: {
+          page_likes: 0,
+          page_views: 0,
+          post_engagements: 0,
+          reach: 0,
+          impressions: 0
+        }
+      });
+    }
+
+    const credentials = credentialsResult.rows[0].credentials;
+    const pageId = credentials.page_id;
+    const accessToken = credentials.access_token;
+
+    // Fetch Facebook Page insights using Graph API
+    const https = require('https');
+    const url = `https://graph.facebook.com/v18.0/${pageId}?fields=name,fan_count,followers_count&access_token=${accessToken}`;
+
+    const pageData: any = await new Promise((resolve, reject) => {
+      https.get(url, (response: any) => {
+        let data = '';
+        response.on('data', (chunk: any) => data += chunk);
+        response.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }).on('error', reject);
+    });
+
+    // Fetch page insights (last 7 days)
+    const insightsUrl = `https://graph.facebook.com/v18.0/${pageId}/insights?metric=page_views_total,page_impressions,page_engaged_users,page_post_engagements&period=day&since=7_days_ago&access_token=${accessToken}`;
+    
+    const insightsData: any = await new Promise((resolve, reject) => {
+      https.get(insightsUrl, (response: any) => {
+        let data = '';
+        response.on('data', (chunk: any) => data += chunk);
+        response.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }).on('error', reject);
+    });
+
+    // Process insights data
+    let pageViews = 0;
+    let impressions = 0;
+    let engagedUsers = 0;
+    let postEngagements = 0;
+
+    if (insightsData.data) {
+      insightsData.data.forEach((metric: any) => {
+        const latestValue = metric.values[metric.values.length - 1]?.value || 0;
+        switch (metric.name) {
+          case 'page_views_total':
+            pageViews = latestValue;
+            break;
+          case 'page_impressions':
+            impressions = latestValue;
+            break;
+          case 'page_engaged_users':
+            engagedUsers = latestValue;
+            break;
+          case 'page_post_engagements':
+            postEngagements = latestValue;
+            break;
+        }
+      });
+    }
+
+    const facebookInsights = {
+      page_likes: pageData.fan_count || 0,
+      followers: pageData.followers_count || 0,
+      page_views: pageViews,
+      impressions: impressions,
+      engaged_users: engagedUsers,
+      post_engagements: postEngagements,
+      engagement_rate: engagedUsers > 0 && impressions > 0 ? ((engagedUsers / impressions) * 100).toFixed(2) : 0
+    };
+
+    console.log(`✅ Facebook insights fetched:`, facebookInsights);
+
+    res.json({
+      success: true,
+      connected: true,
+      data: facebookInsights
+    });
+  } catch (error) {
+    console.error('Get Facebook insights error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch Facebook insights',
+      data: {
+        page_likes: 0,
+        page_views: 0,
+        post_engagements: 0,
+        reach: 0,
+        impressions: 0
+      }
+    });
+  }
+});
+
+// Disconnect Facebook
+router.post('/facebook/disconnect/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    await pool.query(
+      'DELETE FROM client_credentials WHERE client_id = $1 AND service_type = $2',
+      [clientId, 'facebook']
+    );
+
+    console.log(`🔓 Facebook disconnected for client ${clientId}`);
+
+    res.json({
+      success: true,
+      message: 'Facebook page disconnected successfully'
+    });
+  } catch (error) {
+    console.error('Disconnect Facebook error:', error);
+    res.status(500).json({ error: 'Failed to disconnect Facebook page' });
+  }
+});
+
 export default router;

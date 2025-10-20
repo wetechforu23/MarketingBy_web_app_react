@@ -403,13 +403,36 @@ const ClientManagementDashboard: React.FC = () => {
         };
       }
 
-      // Check Facebook connection status (NO MOCK DATA)
+      // Fetch real Facebook data
       const facebookConnected = settingsResponse.data?.facebook?.connected;
       if (facebookConnected) {
-        analyticsData.facebook.connected = true;
-        analyticsData.facebook.status = 'Connected';
-        // TODO: Add real Facebook API integration here
-        console.log('⚠️ Facebook connected but no real API integration yet - showing 0 values');
+        try {
+          console.log('📘 Fetching real Facebook insights...');
+          const facebookResponse = await http.get(`/facebook/insights/${clientId}`);
+          if (facebookResponse.data.success && facebookResponse.data.connected) {
+            const fbData = facebookResponse.data.data;
+            analyticsData.facebook = {
+              pageViews: fbData.page_views || 0,
+              followers: fbData.followers || 0,
+              engagement: parseFloat(fbData.engagement_rate) || 0,
+              page_likes: fbData.page_likes || 0,
+              impressions: fbData.impressions || 0,
+              post_engagements: fbData.post_engagements || 0,
+              connected: true,
+              status: 'Connected'
+            };
+            console.log('✅ Real Facebook data loaded:', analyticsData.facebook);
+          } else {
+            analyticsData.facebook.connected = false;
+            analyticsData.facebook.status = 'Not Connected';
+            console.log('⚠️ Facebook connected but failed to fetch data');
+          }
+        } catch (error) {
+          console.error('Error fetching Facebook data:', error);
+          analyticsData.facebook.connected = false;
+          analyticsData.facebook.status = 'Error';
+          console.log('⚠️ Facebook API error - showing 0 values');
+        }
       } else {
         analyticsData.facebook.connected = false;
         analyticsData.facebook.status = 'Not Connected';
@@ -2848,23 +2871,69 @@ const ClientManagementDashboard: React.FC = () => {
                     <div className="integration-form">
                       <input 
                         type="text" 
-                        placeholder="Page ID" 
+                        id="facebook-page-id"
+                        placeholder="Page ID (e.g., 744651835408507)" 
                         defaultValue={clientSettings?.facebook?.pageId || ''}
                       />
                       <input 
                         type="text" 
-                        placeholder="Access Token" 
+                        id="facebook-access-token"
+                        placeholder="Page Access Token" 
                         defaultValue={clientSettings?.facebook?.accessToken || ''}
                       />
-                      <button 
-                        onClick={() => handleConnectService('facebook', {
-                          pageId: '123456789',
-                          accessToken: 'your-access-token'
-                        })}
-                        className="connect-btn"
-                      >
-                        Connect Facebook
-                      </button>
+                      {!clientSettings?.facebook?.connected ? (
+                        <button 
+                          onClick={async () => {
+                            const pageIdInput = document.getElementById('facebook-page-id') as HTMLInputElement;
+                            const tokenInput = document.getElementById('facebook-access-token') as HTMLInputElement;
+                            const pageId = pageIdInput.value;
+                            const accessToken = tokenInput.value;
+                            
+                            if (!pageId || !accessToken) {
+                              alert('Please enter both Page ID and Access Token');
+                              return;
+                            }
+                            
+                            try {
+                              const response = await http.post(`/facebook/connect/${selectedClient?.id}`, {
+                                pageId,
+                                accessToken
+                              });
+                              
+                              if (response.data.success) {
+                                alert('Facebook page connected successfully!');
+                                // Refresh client settings
+                                fetchClientData(selectedClient!.id);
+                              }
+                            } catch (error) {
+                              console.error('Connect Facebook error:', error);
+                              alert('Failed to connect Facebook page. Please check your credentials.');
+                            }
+                          }}
+                          className="connect-btn"
+                        >
+                          Connect Facebook
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={async () => {
+                            if (!confirm('Are you sure you want to disconnect Facebook?')) return;
+                            
+                            try {
+                              await http.post(`/facebook/disconnect/${selectedClient?.id}`);
+                              alert('Facebook disconnected successfully!');
+                              fetchClientData(selectedClient!.id);
+                            } catch (error) {
+                              console.error('Disconnect Facebook error:', error);
+                              alert('Failed to disconnect Facebook');
+                            }
+                          }}
+                          className="disconnect-btn"
+                          style={{ backgroundColor: '#dc3545' }}
+                        >
+                          Disconnect
+                        </button>
+                      )}
                     </div>
                   </div>
 
