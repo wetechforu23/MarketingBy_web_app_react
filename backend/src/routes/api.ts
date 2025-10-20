@@ -4587,105 +4587,34 @@ router.get('/facebook/test-credentials/:clientId', requireAuth, async (req, res)
   }
 });
 
-// Sync Facebook data (insights, posts, follower stats)
+// Sync Facebook data - Simple pattern like Google Analytics
 router.post('/facebook/sync/:clientId', requireAuth, async (req, res) => {
   try {
     const { clientId } = req.params;
-    const { force = false } = req.body; // Allow forcing a fresh sync
     
-    console.log(`🔄 Syncing Facebook data for client ${clientId} (force: ${force})`);
+    console.log(`🔄 Syncing Facebook data for client ${clientId}`);
 
-    // Import FacebookService
     const FacebookService = (await import('../services/facebookService')).default;
     const facebookService = new FacebookService(pool);
 
-    // Get credentials
-    const credentials = await facebookService.getClientCredentials(parseInt(clientId));
-    
-    if (!credentials) {
-      return res.status(404).json({
-        success: false,
-        error: 'Facebook credentials not found. Please connect Facebook first.'
-      });
-    }
-    
-    console.log(`🔑 Using credentials - Page ID: ${credentials.page_id}, Token length: ${credentials.access_token?.length}`);
-
-    // Check last sync time to avoid unnecessary API calls
-    const lastSync = await facebookService.getLastSyncTime(parseInt(clientId));
-    if (lastSync && !force) {
-      const timeSinceSync = Date.now() - new Date(lastSync).getTime();
-      const minutesSinceSync = Math.floor(timeSinceSync / 1000 / 60);
-      
-      // If synced within last 15 minutes, return cached data
-      if (minutesSinceSync < 15) {
-        console.log(`⚡ Using cached data from ${minutesSinceSync} minutes ago`);
-        
-        const cachedInsights = await facebookService.getStoredInsights(parseInt(clientId));
-        const cachedPosts = await facebookService.getStoredPosts(parseInt(clientId), 50);
-        const cachedFollowerStats = await facebookService.getStoredFollowerStats(parseInt(clientId), 30);
-        
-        return res.json({
-          success: true,
-          message: `Using cached data from ${minutesSinceSync} minutes ago`,
-          cached: true,
-          lastSync: lastSync,
-          data: {
-            insights: cachedInsights.length,
-            posts: cachedPosts.length,
-            followers: cachedFollowerStats.length > 0 ? cachedFollowerStats[0].total_followers : 0
-          }
-        });
-      }
-    }
-
-    // Fetch and store insights
-    console.log('📊 Fetching page insights from Facebook API...');
-    const insights = await facebookService.fetchPageInsights(
-      credentials.page_id,
-      credentials.access_token
-    );
-    console.log(`  ✅ Fetched ${insights.length} insights`);
-    await facebookService.storeInsights(parseInt(clientId), insights);
-    console.log(`  💾 Stored in database`);
-
-    // Fetch and store posts
-    console.log('📝 Fetching posts from Facebook API...');
-    const posts = await facebookService.fetchPosts(
-      credentials.page_id,
-      credentials.access_token,
-      50
-    );
-    console.log(`  ✅ Fetched ${posts.length} posts`);
-    await facebookService.storePosts(parseInt(clientId), posts);
-    console.log(`  💾 Stored in database`);
-
-    // Fetch and store follower stats
-    console.log('👥 Fetching follower stats from Facebook API...');
-    const followerStats = await facebookService.getFollowerStats(
-      credentials.page_id,
-      credentials.access_token
-    );
-    console.log(`  ✅ Fetched follower stats: ${followerStats.totalFollowers} followers`);
-    await facebookService.storeFollowerStats(parseInt(clientId), followerStats);
-    console.log(`  💾 Stored in database`);
+    // Fetch and store data (single method call like GA)
+    const data = await facebookService.fetchAndStoreData(parseInt(clientId));
 
     console.log(`✅ Facebook sync completed for client ${clientId}`);
-    console.log(`📊 Summary: ${insights.length} insights, ${posts.length} posts, ${followerStats.totalFollowers} followers`);
 
     res.json({
       success: true,
       message: 'Facebook data synced successfully',
-      cached: false,
-      lastSync: new Date().toISOString(),
       data: {
-        insights: insights.length,
-        posts: posts.length,
-        followers: followerStats.totalFollowers
+        pageViews: data.pageViews,
+        followers: data.followers,
+        engagement: data.engagement,
+        reach: data.reach,
+        posts: data.posts.length
       }
     });
   } catch (error: any) {
-    console.error('Sync Facebook error:', error);
+    console.error('❌ Sync Facebook error:', error);
     res.status(500).json({ 
       success: false,
       error: 'Failed to sync Facebook data',
@@ -4694,7 +4623,7 @@ router.post('/facebook/sync/:clientId', requireAuth, async (req, res) => {
   }
 });
 
-// Get Facebook overview metrics (always from database)
+// Get Facebook overview metrics - Simple pattern like Google Analytics
 router.get('/facebook/overview/:clientId', requireAuth, async (req, res) => {
   try {
     const { clientId } = req.params;
@@ -4704,32 +4633,27 @@ router.get('/facebook/overview/:clientId', requireAuth, async (req, res) => {
     const FacebookService = (await import('../services/facebookService')).default;
     const facebookService = new FacebookService(pool);
 
-    // Get stored insights from database
-    const insights = await facebookService.getStoredInsights(parseInt(clientId));
-    console.log(`  📥 Retrieved ${insights.length} insights from database`);
-    
-    // Calculate overview metrics
-    const metrics = facebookService.calculateOverviewMetrics(insights);
-
-    // Get connection status and last sync time
+    // Get stored data from database (like GA)
+    const data = await facebookService.getStoredData(parseInt(clientId));
     const credentials = await facebookService.getClientCredentials(parseInt(clientId));
-    const lastSync = await facebookService.getLastSyncTime(parseInt(clientId));
     
-    console.log(`  ✅ Metrics calculated:`, metrics);
-    console.log(`  📅 Last sync: ${lastSync || 'Never'}`);
+    console.log(`  ✅ Data retrieved: ${data.followers} followers, ${data.pageViews} views, ${data.posts.length} posts`);
     
     res.json({
       success: true,
       connected: !!credentials,
-      lastSync: lastSync || null,
       data: {
-        ...metrics,
+        pageViews: data.pageViews,
+        followers: data.followers,
+        engagement: data.engagement,
+        reach: data.reach,
+        impressions: data.impressions,
         connected: !!credentials,
         status: credentials ? 'Connected' : 'Not Connected'
       }
     });
   } catch (error) {
-    console.error('Get Facebook overview error:', error);
+    console.error('❌ Get Facebook overview error:', error);
     res.status(500).json({ 
       success: false,
       error: 'Failed to fetch Facebook overview' 
@@ -4741,22 +4665,22 @@ router.get('/facebook/overview/:clientId', requireAuth, async (req, res) => {
 router.get('/facebook/posts/:clientId', requireAuth, async (req, res) => {
   try {
     const { clientId } = req.params;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const limit = parseInt(req.query.limit as string) || 50;
 
     console.log(`📝 Fetching Facebook posts for client ${clientId}`);
 
     const FacebookService = (await import('../services/facebookService')).default;
     const facebookService = new FacebookService(pool);
 
-    const posts = await facebookService.getStoredPosts(parseInt(clientId), limit);
+    const data = await facebookService.getStoredData(parseInt(clientId));
 
     res.json({
       success: true,
-      data: posts,
-      count: posts.length
+      data: data.posts.slice(0, limit),
+      count: data.posts.length
     });
   } catch (error) {
-    console.error('Get Facebook posts error:', error);
+    console.error('❌ Get Facebook posts error:', error);
     res.status(500).json({ 
       success: false,
       error: 'Failed to fetch Facebook posts' 
@@ -4775,14 +4699,18 @@ router.get('/facebook/followers/:clientId', requireAuth, async (req, res) => {
     const FacebookService = (await import('../services/facebookService')).default;
     const facebookService = new FacebookService(pool);
 
-    const stats = await facebookService.getStoredFollowerStats(parseInt(clientId), days);
+    const data = await facebookService.getStoredData(parseInt(clientId));
 
     res.json({
       success: true,
-      data: stats
+      data: {
+        followers: data.followers,
+        reach: data.reach,
+        engagement: data.engagement
+      }
     });
   } catch (error) {
-    console.error('Get Facebook follower stats error:', error);
+    console.error('❌ Get Facebook follower stats error:', error);
     res.status(500).json({ 
       success: false,
       error: 'Failed to fetch follower statistics' 
