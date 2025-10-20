@@ -84,7 +84,7 @@ const ClientManagementDashboard: React.FC = () => {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [clientSettings, setClientSettings] = useState<ClientSettings | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'settings' | 'seo' | 'reports' | 'local-search'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'lead-tracking' | 'seo' | 'reports' | 'local-search' | 'settings'>('overview');
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -1592,6 +1592,25 @@ const ClientManagementDashboard: React.FC = () => {
                 📈 Analytics
               </button>
               <button 
+                onClick={() => setActiveTab('lead-tracking')}
+                style={{
+                  padding: '16px 24px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  borderBottom: activeTab === 'lead-tracking' ? '3px solid #007bff' : '3px solid transparent',
+                  color: activeTab === 'lead-tracking' ? '#007bff' : '#6c757d',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                🗺️ Lead Tracking
+              </button>
+              <button 
                 onClick={() => setActiveTab('seo')}
                 style={{
                   padding: '16px 24px',
@@ -1646,7 +1665,7 @@ const ClientManagementDashboard: React.FC = () => {
                   gap: '8px'
                 }}
               >
-                🗺️ Local Search
+                📍 Local Search
               </button>
               <button 
                 onClick={() => setActiveTab('settings')}
@@ -1671,6 +1690,168 @@ const ClientManagementDashboard: React.FC = () => {
 
             {/* Tab Content */}
             <div className="tab-content">
+              {activeTab === 'lead-tracking' && selectedClient && (
+                <div>
+                  {/* Lead Density Heatmap Section */}
+                  <div style={{ 
+                    backgroundColor: 'white', 
+                    padding: '30px', 
+                    borderRadius: '12px', 
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <h3 style={{ margin: 0, color: '#333' }}>🗺️ Lead Density Heatmap</h3>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        {/* Distance Filter */}
+                        <select
+                          value={heatmapRadius}
+                          onChange={(e) => setHeatmapRadius(parseInt(e.target.value))}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: '6px',
+                            border: '1px solid #ddd',
+                            fontSize: '14px'
+                          }}
+                        >
+                          <option value={5}>5 miles</option>
+                          <option value={10}>10 miles</option>
+                          <option value={15}>15 miles</option>
+                          <option value={20}>20 miles</option>
+                          <option value={30}>30 miles</option>
+                          <option value={40}>40 miles</option>
+                          <option value={50}>50 miles</option>
+                        </select>
+                        
+                        {/* Date Range Filter */}
+                        <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                          <label style={{ fontSize: '12px', color: '#666', marginRight: '5px' }}>From:</label>
+                          <input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            placeholder="Start Date"
+                            title={startDate ? `Showing leads from ${startDate}` : 'Auto-set to earliest lead date'}
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: '6px',
+                              border: '1px solid #ddd',
+                              fontSize: '14px',
+                              width: '140px'
+                            }}
+                          />
+                          <span style={{ fontSize: '12px', color: '#666' }}>to</span>
+                          <input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            title="End date (always current date)"
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: '6px',
+                              border: '1px solid #ddd',
+                              fontSize: '14px',
+                              width: '140px',
+                              backgroundColor: '#f8f9fa'
+                            }}
+                            disabled
+                          />
+                        </div>
+                        
+                        {/* Sync Button */}
+                        <button
+                          onClick={() => syncLatestData()}
+                          style={{
+                            background: '#007bff',
+                            color: 'white',
+                            border: 'none',
+                            padding: '8px 16px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '14px'
+                          }}
+                        >
+                          🔄 Sync Latest Data
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {geocodingStatus && (
+                      <div style={{ 
+                        marginBottom: '20px', 
+                        padding: '15px', 
+                        backgroundColor: '#f8f9fa', 
+                        borderRadius: '8px',
+                        border: '1px solid #dee2e6'
+                      }}>
+                        <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>📊 Lead Processing Status</h4>
+                        
+                        {/* Geocoding Status Counts */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px', marginBottom: '15px' }}>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#007bff' }}>
+                              {geocodingStatus.total_leads}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Total Leads</div>
+                            <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>All Google Analytics leads</div>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#28a745' }}>
+                              {geocodingStatus.geocoded_leads}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Geocoded ✓</div>
+                            <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>Has map coordinates</div>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffc107' }}>
+                              {geocodingStatus.pending_leads}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Pending ⏳</div>
+                            <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>Waiting to geocode</div>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>
+                              {geocodingStatus.failed_leads}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Failed ✗</div>
+                            <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>No address found</div>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6f42c1' }}>
+                              {geocodingStatus.geocoding_percentage}%
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Success Rate</div>
+                            <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>Geocoded / Total</div>
+                          </div>
+                        </div>
+                        
+                        {/* Filter Flow Explanation */}
+                        <div style={{ 
+                          padding: '10px', 
+                          backgroundColor: '#fff', 
+                          borderRadius: '6px', 
+                          border: '1px solid #e0e0e0',
+                          fontSize: '11px',
+                          color: '#666'
+                        }}>
+                          <strong style={{ color: '#333' }}>🔍 Map Display Filter:</strong> {geocodingStatus.total_leads} Total → {geocodingStatus.geocoded_leads} Geocoded → Filtered by {heatmapRadius} miles radius → Displayed on map
+                        </div>
+                      </div>
+                    )}
+
+                    <LeadHeatmap 
+                      clientId={selectedClient.id}
+                      practiceLocation={selectedClient.practice_location}
+                      radiusMiles={heatmapRadius}
+                      startDate={startDate}
+                      endDate={endDate}
+                      onLeadsLoaded={(leads) => {
+                        console.log('🗺️ Heatmap loaded with leads:', leads);
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
               {activeTab === 'seo' && selectedClient && (
                 <SEODashboard clientId={selectedClient.id} clientName={selectedClient.name} />
               )}
@@ -2067,166 +2248,16 @@ const ClientManagementDashboard: React.FC = () => {
 
               {activeTab === 'overview' && selectedClient && (
                 <div>
-                  {/* Lead Density Heatmap Section */}
-                {selectedClient && (
+                  {/* Overview content - Lead Heatmap moved to separate tab */}
                   <div style={{ 
-                    marginTop: '30px',
-                    backgroundColor: 'white', 
-                    padding: '30px', 
-                    borderRadius: '12px', 
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                    padding: '20px', 
+                    backgroundColor: '#f8f9fa', 
+                    borderRadius: '8px',
+                    textAlign: 'center',
+                    color: '#666'
                   }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                      <h3 style={{ margin: 0, color: '#333' }}>🗺️ Lead Density Heatmap</h3>
-                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                        {/* Distance Filter */}
-                        <select
-                          value={heatmapRadius}
-                          onChange={(e) => setHeatmapRadius(parseInt(e.target.value))}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: '6px',
-                            border: '1px solid #ddd',
-                            fontSize: '14px'
-                          }}
-                        >
-                          <option value={5}>5 miles</option>
-                          <option value={10}>10 miles</option>
-                          <option value={15}>15 miles</option>
-                          <option value={20}>20 miles</option>
-                          <option value={30}>30 miles</option>
-                          <option value={40}>40 miles</option>
-                          <option value={50}>50 miles</option>
-                        </select>
-                        
-                        {/* Date Range Filter */}
-                        <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                          <label style={{ fontSize: '12px', color: '#666', marginRight: '5px' }}>From:</label>
-                          <input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            placeholder="Start Date"
-                            title={startDate ? `Showing leads from ${startDate}` : 'Auto-set to earliest lead date'}
-                            style={{
-                              padding: '8px 12px',
-                              borderRadius: '6px',
-                              border: '1px solid #ddd',
-                              fontSize: '14px',
-                              width: '140px'
-                            }}
-                          />
-                          <span style={{ fontSize: '12px', color: '#666' }}>to</span>
-                          <input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            title="End date (always current date)"
-                            style={{
-                              padding: '8px 12px',
-                              borderRadius: '6px',
-                              border: '1px solid #ddd',
-                              fontSize: '14px',
-                              width: '140px',
-                              backgroundColor: '#f8f9fa'
-                            }}
-                            disabled
-                          />
-                        </div>
-                        
-                        {/* Sync Button */}
-                        <button
-                          onClick={() => syncLatestData()}
-                          style={{
-                            background: '#007bff',
-                            color: 'white',
-                            border: 'none',
-                            padding: '8px 16px',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            fontSize: '14px'
-                          }}
-                        >
-                          🔄 Sync Latest Data
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {geocodingStatus && (
-                      <div style={{ 
-                        marginBottom: '20px', 
-                        padding: '15px', 
-                        backgroundColor: '#f8f9fa', 
-                        borderRadius: '8px',
-                        border: '1px solid #dee2e6'
-                      }}>
-                        <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>📊 Lead Processing Status</h4>
-                        
-                        {/* Geocoding Status Counts */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px', marginBottom: '15px' }}>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#007bff' }}>
-                              {geocodingStatus.total_leads}
-                            </div>
-                            <div style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Total Leads</div>
-                            <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>All Google Analytics leads</div>
-                          </div>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#28a745' }}>
-                              {geocodingStatus.geocoded_leads}
-                            </div>
-                            <div style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Geocoded ✓</div>
-                            <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>Has map coordinates</div>
-                          </div>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffc107' }}>
-                              {geocodingStatus.pending_leads}
-                            </div>
-                            <div style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Pending ⏳</div>
-                            <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>Waiting to geocode</div>
-                          </div>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>
-                              {geocodingStatus.failed_leads}
-                            </div>
-                            <div style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Failed ✗</div>
-                            <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>No address found</div>
-                          </div>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6f42c1' }}>
-                              {geocodingStatus.geocoding_percentage}%
-                            </div>
-                            <div style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Success Rate</div>
-                            <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>Geocoded / Total</div>
-                          </div>
-                        </div>
-                        
-                        {/* Filter Flow Explanation */}
-                        <div style={{ 
-                          padding: '10px', 
-                          backgroundColor: '#fff', 
-                          borderRadius: '6px', 
-                          border: '1px solid #e0e0e0',
-                          fontSize: '11px',
-                          color: '#666'
-                        }}>
-                          <strong style={{ color: '#333' }}>🔍 Map Display Filter:</strong> {geocodingStatus.total_leads} Total → {geocodingStatus.geocoded_leads} Geocoded → Filtered by {heatmapRadius} miles radius → Displayed on map
-                        </div>
-                      </div>
-                    )}
-
-                    <LeadHeatmap 
-                      clientId={selectedClient.id}
-                      practiceLocation={selectedClient.practice_location}
-                      radiusMiles={heatmapRadius}
-                      startDate={startDate}
-                      endDate={endDate}
-                      onLeadsLoaded={(leads) => {
-                        console.log('🗺️ Heatmap loaded with leads:', leads);
-                      }}
-                    />
+                    <p>📊 View detailed analytics and lead tracking in their respective tabs above.</p>
                   </div>
-                )}
                 </div>
               )}
 
