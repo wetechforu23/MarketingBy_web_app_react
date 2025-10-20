@@ -4506,4 +4506,161 @@ router.post('/facebook/disconnect/:clientId', requireAuth, async (req, res) => {
   }
 });
 
+// Sync Facebook data (insights, posts, follower stats)
+router.post('/facebook/sync/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    console.log(`🔄 Syncing Facebook data for client ${clientId}`);
+
+    // Import FacebookService
+    const FacebookService = (await import('../services/facebookService')).default;
+    const facebookService = new FacebookService(pool);
+
+    // Get credentials
+    const credentials = await facebookService.getClientCredentials(parseInt(clientId));
+    
+    if (!credentials) {
+      return res.status(404).json({
+        success: false,
+        error: 'Facebook credentials not found. Please connect Facebook first.'
+      });
+    }
+
+    // Fetch and store insights
+    console.log('📊 Fetching page insights...');
+    const insights = await facebookService.fetchPageInsights(
+      credentials.page_id,
+      credentials.access_token
+    );
+    await facebookService.storeInsights(parseInt(clientId), insights);
+
+    // Fetch and store posts
+    console.log('📝 Fetching posts...');
+    const posts = await facebookService.fetchPosts(
+      credentials.page_id,
+      credentials.access_token,
+      50
+    );
+    await facebookService.storePosts(parseInt(clientId), posts);
+
+    // Fetch and store follower stats
+    console.log('👥 Fetching follower stats...');
+    const followerStats = await facebookService.getFollowerStats(
+      credentials.page_id,
+      credentials.access_token
+    );
+    await facebookService.storeFollowerStats(parseInt(clientId), followerStats);
+
+    console.log(`✅ Facebook sync completed for client ${clientId}`);
+
+    res.json({
+      success: true,
+      message: 'Facebook data synced successfully',
+      data: {
+        insights: insights.length,
+        posts: posts.length,
+        followers: followerStats.totalFollowers
+      }
+    });
+  } catch (error: any) {
+    console.error('Sync Facebook error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to sync Facebook data',
+      details: error.message 
+    });
+  }
+});
+
+// Get Facebook overview metrics
+router.get('/facebook/overview/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    console.log(`📊 Fetching Facebook overview for client ${clientId}`);
+
+    const FacebookService = (await import('../services/facebookService')).default;
+    const facebookService = new FacebookService(pool);
+
+    // Get stored insights
+    const insights = await facebookService.getStoredInsights(parseInt(clientId));
+    
+    // Calculate overview metrics
+    const metrics = facebookService.calculateOverviewMetrics(insights);
+
+    // Get connection status
+    const credentials = await facebookService.getClientCredentials(parseInt(clientId));
+    
+    res.json({
+      success: true,
+      connected: !!credentials,
+      data: {
+        ...metrics,
+        connected: !!credentials,
+        status: credentials ? 'Connected' : 'Not Connected'
+      }
+    });
+  } catch (error) {
+    console.error('Get Facebook overview error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch Facebook overview' 
+    });
+  }
+});
+
+// Get Facebook posts
+router.get('/facebook/posts/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    console.log(`📝 Fetching Facebook posts for client ${clientId}`);
+
+    const FacebookService = (await import('../services/facebookService')).default;
+    const facebookService = new FacebookService(pool);
+
+    const posts = await facebookService.getStoredPosts(parseInt(clientId), limit);
+
+    res.json({
+      success: true,
+      data: posts,
+      count: posts.length
+    });
+  } catch (error) {
+    console.error('Get Facebook posts error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch Facebook posts' 
+    });
+  }
+});
+
+// Get Facebook follower statistics
+router.get('/facebook/followers/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const days = parseInt(req.query.days as string) || 30;
+
+    console.log(`👥 Fetching Facebook follower stats for client ${clientId}`);
+
+    const FacebookService = (await import('../services/facebookService')).default;
+    const facebookService = new FacebookService(pool);
+
+    const stats = await facebookService.getStoredFollowerStats(parseInt(clientId), days);
+
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error('Get Facebook follower stats error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch follower statistics' 
+    });
+  }
+});
+
 export default router;

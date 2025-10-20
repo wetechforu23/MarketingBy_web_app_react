@@ -408,16 +408,16 @@ const ClientManagementDashboard: React.FC = () => {
       if (facebookConnected) {
         try {
           console.log('📘 Fetching real Facebook insights...');
-          const facebookResponse = await http.get(`/facebook/insights/${clientId}`);
+          const facebookResponse = await http.get(`/facebook/overview/${clientId}`);
           if (facebookResponse.data.success && facebookResponse.data.connected) {
             const fbData = facebookResponse.data.data;
             analyticsData.facebook = {
-              pageViews: fbData.page_views || 0,
+              pageViews: fbData.pageViews || 0,
               followers: fbData.followers || 0,
-              engagement: parseFloat(fbData.engagement_rate) || 0,
-              page_likes: fbData.page_likes || 0,
+              engagement: fbData.engagement || 0,
+              reach: fbData.reach || 0,
               impressions: fbData.impressions || 0,
-              post_engagements: fbData.post_engagements || 0,
+              postEngagements: fbData.postEngagements || 0,
               connected: true,
               status: 'Connected'
             };
@@ -500,6 +500,38 @@ const ClientManagementDashboard: React.FC = () => {
   };
 
   // Sync Latest Data function - combines capture and geocoding
+  // Sync Facebook data
+  const syncFacebookData = async () => {
+    if (!selectedClient) return;
+    
+    try {
+      setRefreshing(true);
+      console.log(`🔄 Syncing Facebook data for client ${selectedClient.id}`);
+      
+      const response = await http.post(`/facebook/sync/${selectedClient.id}`);
+      
+      if (response.data.success) {
+        console.log(`✅ Facebook sync completed:`, response.data.data);
+        
+        // Refresh client data to show updated metrics
+        await fetchClientData(selectedClient.id);
+        
+        setSuccessMessage(`✅ Facebook sync successful! Synced ${response.data.data.insights} insights, ${response.data.data.posts} posts`);
+      } else {
+        setError('Failed to sync Facebook data');
+      }
+    } catch (error: any) {
+      console.error('Error syncing Facebook:', error);
+      setError(error.response?.data?.error || 'Failed to sync Facebook data');
+    } finally {
+      setRefreshing(false);
+      setTimeout(() => {
+        setSuccessMessage(null);
+        setError(null);
+      }, 5000);
+    }
+  };
+
   const syncLatestData = async () => {
     if (!selectedClient) return;
     
@@ -2770,7 +2802,31 @@ const ClientManagementDashboard: React.FC = () => {
                     borderRadius: '12px', 
                     boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                   }}>
-                    <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>📱 Social Media Analytics</h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <h3 style={{ margin: 0, color: '#333' }}>📱 Social Media Analytics</h3>
+                      {analyticsData?.facebook?.connected && (
+                        <button
+                          onClick={syncFacebookData}
+                          disabled={refreshing}
+                          style={{
+                            padding: '10px 20px',
+                            backgroundColor: refreshing ? '#6c757d' : '#4267B2',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: refreshing ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontSize: '14px',
+                            fontWeight: '500'
+                          }}
+                        >
+                          <i className="fas fa-sync-alt"></i>
+                          {refreshing ? 'Syncing...' : 'Sync Facebook Data'}
+                        </button>
+                      )}
+                    </div>
                     
                     {/* Facebook Insights Summary */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
