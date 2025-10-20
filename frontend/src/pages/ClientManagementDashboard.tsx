@@ -502,6 +502,9 @@ const ClientManagementDashboard: React.FC = () => {
           await fetchClientData(selectedClient.id);
           checkGeocodingStatus();
           
+          // Step 4: Refresh the date range to include newly captured leads
+          await fetchLeadDateRange(selectedClient.id);
+          
           setSuccessMessage(`✅ Synced successfully! Captured ${captureResponse.data.leads_captured} leads and geocoded them.`);
         } else {
           setError('Failed to geocode leads');
