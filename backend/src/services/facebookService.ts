@@ -101,10 +101,16 @@ class FacebookService {
             insights.push(response.data.data[0]);
           }
         } catch (error: any) {
-          console.log(`⚠️ Skipped metric ${metric}: ${error.message}`);
+          const fbError = error.response?.data?.error;
+          if (fbError) {
+            console.log(`⚠️ Skipped metric ${metric}: ${fbError.message} (${fbError.code})`);
+          } else {
+            console.log(`⚠️ Skipped metric ${metric}: ${error.message}`);
+          }
         }
       }
 
+      console.log(`📊 Successfully fetched ${insights.length} insights metrics`);
       return insights;
     } catch (error) {
       console.error('Error fetching Facebook insights:', error);
@@ -164,8 +170,20 @@ class FacebookService {
       });
 
       return response.data.data || [];
-    } catch (error) {
-      console.error('Error fetching Facebook posts:', error);
+    } catch (error: any) {
+      console.error('❌ Error fetching Facebook posts:', {
+        pageId,
+        error: error.response?.data || error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText
+      });
+      
+      // Provide more helpful error message
+      const fbError = error.response?.data?.error;
+      if (fbError) {
+        throw new Error(`Facebook API Error: ${fbError.message} (Code: ${fbError.code}, Type: ${fbError.type})`);
+      }
+      
       throw new Error('Failed to fetch Facebook posts');
     }
   }
@@ -246,6 +264,8 @@ class FacebookService {
       const totalFanRemoves = fanRemoves.reduce((sum: number, val: any) => sum + (Number(val.value) || 0), 0);
       const netFollowers = totalFanAdds - totalFanRemoves;
 
+      console.log(`👥 Follower stats: ${totalFollowers} total, +${totalFanAdds} adds, -${totalFanRemoves} removes`);
+
       return {
         totalFollowers,
         totalFanAdds,
@@ -254,8 +274,18 @@ class FacebookService {
         fanAddsData: fanAdds,
         fanRemovesData: fanRemoves
       };
-    } catch (error) {
-      console.error('Error getting follower stats:', error);
+    } catch (error: any) {
+      console.error('❌ Error getting follower stats:', {
+        pageId,
+        error: error.response?.data || error.message,
+        status: error.response?.status
+      });
+      
+      const fbError = error.response?.data?.error;
+      if (fbError) {
+        throw new Error(`Facebook API Error: ${fbError.message} (Code: ${fbError.code})`);
+      }
+      
       throw new Error('Failed to get follower stats');
     }
   }
