@@ -4506,6 +4506,87 @@ router.post('/facebook/disconnect/:clientId', requireAuth, async (req, res) => {
   }
 });
 
+// Test Facebook credentials (diagnostic endpoint)
+router.get('/facebook/test-credentials/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    console.log(`🔬 Testing Facebook credentials for client ${clientId}`);
+
+    // Get credentials from database
+    const credResult = await pool.query(
+      'SELECT credentials, last_connected_at FROM client_credentials WHERE client_id = $1 AND service_type = $2',
+      [clientId, 'facebook']
+    );
+
+    if (credResult.rows.length === 0) {
+      return res.json({
+        success: false,
+        error: 'No Facebook credentials found in database',
+        hasCredentials: false
+      });
+    }
+
+    const credentials = credResult.rows[0].credentials;
+    const lastConnected = credResult.rows[0].last_connected_at;
+
+    console.log('📋 Credentials found:', {
+      hasPageId: !!credentials.page_id,
+      hasAccessToken: !!credentials.access_token,
+      pageId: credentials.page_id,
+      tokenLength: credentials.access_token?.length || 0,
+      tokenPrefix: credentials.access_token?.substring(0, 15) || 'none',
+      lastConnected
+    });
+
+    // Test the token with Facebook API
+    const https = require('https');
+    const testUrl = `https://graph.facebook.com/v18.0/${credentials.page_id}?fields=name,id&access_token=${credentials.access_token}`;
+    
+    const testResult: any = await new Promise((resolve) => {
+      https.get(testUrl, (response: any) => {
+        let data = '';
+        response.on('data', (chunk: any) => data += chunk);
+        response.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            resolve({ error: { message: 'Invalid JSON response', data } });
+          }
+        });
+      }).on('error', (error: any) => resolve({ error: { message: error.message } }));
+    });
+
+    if (testResult.error) {
+      console.error('❌ Facebook API test failed:', testResult.error);
+      return res.json({
+        success: false,
+        hasCredentials: true,
+        tokenValid: false,
+        error: testResult.error,
+        pageId: credentials.page_id,
+        lastConnected
+      });
+    }
+
+    console.log('✅ Facebook API test passed:', testResult);
+    res.json({
+      success: true,
+      hasCredentials: true,
+      tokenValid: true,
+      pageName: testResult.name,
+      pageId: testResult.id,
+      lastConnected
+    });
+  } catch (error: any) {
+    console.error('Test Facebook credentials error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
+  }
+});
+
 // Sync Facebook data (insights, posts, follower stats)
 router.post('/facebook/sync/:clientId', requireAuth, async (req, res) => {
   try {
@@ -4526,6 +4607,9 @@ router.post('/facebook/sync/:clientId', requireAuth, async (req, res) => {
         error: 'Facebook credentials not found. Please connect Facebook first.'
       });
     }
+    
+    console.log(`🔑 Using credentials - Page ID: ${credentials.page_id}, Token length: ${credentials.access_token?.length}`);
+
 
     // Fetch and store insights
     console.log('📊 Fetching page insights...');
