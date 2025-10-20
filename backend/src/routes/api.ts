@@ -4790,4 +4790,133 @@ router.get('/facebook/followers/:clientId', requireAuth, async (req, res) => {
   }
 });
 
+// Get detailed post analytics (content type breakdown)
+router.get('/facebook/analytics/posts/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const days = parseInt(req.query.days as string) || 28;
+
+    console.log(`📊 Fetching detailed post analytics for client ${clientId}`);
+
+    const result = await pool.query(
+      `SELECT 
+        post_type,
+        COUNT(*) as post_count,
+        SUM(post_impressions) as total_impressions,
+        SUM(post_impressions_unique) as total_unique_impressions,
+        SUM(post_engaged_users) as total_engaged_users,
+        SUM(post_clicks) as total_clicks,
+        SUM(post_video_views) as total_video_views,
+        SUM(likes) as total_likes,
+        SUM(comments) as total_comments,
+        SUM(shares) as total_shares,
+        AVG(post_impressions) as avg_impressions_per_post,
+        AVG(post_engaged_users) as avg_engagement_per_post
+      FROM facebook_posts
+      WHERE client_id = $1
+        AND created_time >= NOW() - INTERVAL '${days} days'
+      GROUP BY post_type
+      ORDER BY total_impressions DESC`,
+      [clientId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Get Facebook post analytics error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch post analytics' 
+    });
+  }
+});
+
+// Get top performing posts
+router.get('/facebook/analytics/top-posts/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const days = parseInt(req.query.days as string) || 28;
+
+    console.log(`🏆 Fetching top ${limit} performing posts for client ${clientId}`);
+
+    const result = await pool.query(
+      `SELECT 
+        post_id,
+        message,
+        post_type,
+        created_time,
+        permalink_url,
+        full_picture,
+        post_impressions,
+        post_impressions_unique,
+        post_engaged_users,
+        post_clicks,
+        post_video_views,
+        likes,
+        comments,
+        shares,
+        total_reactions,
+        (post_engaged_users::float / NULLIF(post_impressions_unique, 0) * 100) as engagement_rate
+      FROM facebook_posts
+      WHERE client_id = $1
+        AND created_time >= NOW() - INTERVAL '${days} days'
+      ORDER BY post_impressions DESC
+      LIMIT $2`,
+      [clientId, limit]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Get top posts error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch top posts' 
+    });
+  }
+});
+
+// Get post performance over time
+router.get('/facebook/analytics/timeline/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const days = parseInt(req.query.days as string) || 28;
+
+    console.log(`📈 Fetching post timeline for client ${clientId}`);
+
+    const result = await pool.query(
+      `SELECT 
+        DATE(created_time) as date,
+        COUNT(*) as posts_count,
+        SUM(post_impressions) as total_impressions,
+        SUM(post_engaged_users) as total_engaged_users,
+        SUM(likes) as total_likes,
+        SUM(comments) as total_comments,
+        SUM(shares) as total_shares
+      FROM facebook_posts
+      WHERE client_id = $1
+        AND created_time >= NOW() - INTERVAL '${days} days'
+      GROUP BY DATE(created_time)
+      ORDER BY date DESC`,
+      [clientId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Get post timeline error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch post timeline' 
+    });
+  }
+});
+
 export default router;

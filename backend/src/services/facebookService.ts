@@ -32,24 +32,57 @@ class FacebookService {
   private pool: Pool;
   private baseUrl = 'https://graph.facebook.com/v18.0';
 
-  // Metrics to fetch with their periods
+  // Comprehensive metrics to fetch (matching Facebook Insights page)
   private metricPeriods: Record<string, string> = {
+    // Views & Reach
     page_impressions: 'days_28',
     page_impressions_unique: 'days_28',
-    page_impressions_organic: 'day',
-    page_impressions_paid: 'day',
-    page_engaged_users: 'day',
-    page_post_engagements: 'day',
-    page_consumptions: 'day',
+    page_impressions_organic: 'days_28',
+    page_impressions_paid: 'days_28',
+    page_impressions_viral: 'days_28',
+    
+    // Engagement
+    page_engaged_users: 'days_28',
+    page_post_engagements: 'days_28',
+    page_consumptions: 'days_28',
+    page_consumptions_unique: 'days_28',
+    page_negative_feedback: 'days_28',
+    page_positive_feedback_by_type: 'days_28',
+    
+    // Followers/Fans
     page_fans: 'lifetime',
     page_fan_adds: 'days_28',
     page_fan_removes: 'days_28',
+    page_fan_adds_unique: 'days_28',
+    page_fans_online_per_day: 'days_28',
+    
+    // Page Views
     page_views_total: 'days_28',
+    page_views_logged_in_unique: 'days_28',
+    page_views_external_referrals: 'days_28',
+    
+    // Posts
     page_posts_impressions: 'days_28',
     page_posts_impressions_unique: 'days_28',
+    page_posts_impressions_paid: 'days_28',
+    page_posts_impressions_organic: 'days_28',
+    page_posts_impressions_viral: 'days_28',
+    
+    // Video
     page_video_views: 'days_28',
     page_video_views_organic: 'days_28',
-    page_video_views_paid: 'days_28'
+    page_video_views_paid: 'days_28',
+    page_video_views_unique: 'days_28',
+    page_video_complete_views_30s: 'days_28',
+    
+    // Actions
+    page_actions_post_reactions_total: 'days_28',
+    page_actions_post_reactions_like_total: 'days_28',
+    page_actions_post_reactions_love_total: 'days_28',
+    page_actions_post_reactions_wow_total: 'days_28',
+    page_actions_post_reactions_haha_total: 'days_28',
+    page_actions_post_reactions_sorry_total: 'days_28',
+    page_actions_post_reactions_anger_total: 'days_28'
   };
 
   constructor(pool: Pool) {
@@ -157,14 +190,16 @@ class FacebookService {
   }
 
   /**
-   * Fetch all posts from Facebook page
+   * Fetch all posts from Facebook page with detailed insights
    */
   async fetchPosts(pageId: string, accessToken: string, limit: number = 50): Promise<FacebookPost[]> {
     try {
+      console.log(`📝 Fetching posts with detailed insights for page ${pageId}...`);
+      
       const response = await axios.get(`${this.baseUrl}/${pageId}/posts`, {
         params: {
           access_token: accessToken,
-          fields: 'id,message,created_time,permalink_url,likes.summary(true),comments.summary(true),shares,reactions.summary(true)',
+          fields: 'id,message,created_time,permalink_url,type,story,full_picture,attachments,likes.summary(true),comments.summary(true),shares,reactions.summary(true),insights.metric(post_impressions,post_impressions_unique,post_engaged_users,post_clicks,post_video_views)',
           limit: limit
         }
       });
@@ -189,37 +224,63 @@ class FacebookService {
   }
 
   /**
-   * Store Facebook posts in database
+   * Store Facebook posts in database with detailed insights
    */
-  async storePosts(clientId: number, posts: FacebookPost[]): Promise<void> {
+  async storePosts(clientId: number, posts: any[]): Promise<void> {
     try {
       for (const post of posts) {
+        // Extract insights data
+        const insights = post.insights?.data || [];
+        const impressions = insights.find((i: any) => i.name === 'post_impressions')?.values?.[0]?.value || 0;
+        const impressionsUnique = insights.find((i: any) => i.name === 'post_impressions_unique')?.values?.[0]?.value || 0;
+        const engagedUsers = insights.find((i: any) => i.name === 'post_engaged_users')?.values?.[0]?.value || 0;
+        const clicks = insights.find((i: any) => i.name === 'post_clicks')?.values?.[0]?.value || 0;
+        const videoViews = insights.find((i: any) => i.name === 'post_video_views')?.values?.[0]?.value || 0;
+
         await this.pool.query(
           `INSERT INTO facebook_posts 
-           (client_id, post_id, message, created_time, permalink_url, likes, comments, shares, total_reactions, synced_at) 
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+           (client_id, post_id, message, created_time, permalink_url, post_type, post_story, full_picture,
+            likes, comments, shares, total_reactions, 
+            post_impressions, post_impressions_unique, post_engaged_users, post_clicks, post_video_views,
+            post_data, synced_at) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW())
            ON CONFLICT (post_id) 
            DO UPDATE SET 
              likes = EXCLUDED.likes,
              comments = EXCLUDED.comments,
              shares = EXCLUDED.shares,
              total_reactions = EXCLUDED.total_reactions,
+             post_impressions = EXCLUDED.post_impressions,
+             post_impressions_unique = EXCLUDED.post_impressions_unique,
+             post_engaged_users = EXCLUDED.post_engaged_users,
+             post_clicks = EXCLUDED.post_clicks,
+             post_video_views = EXCLUDED.post_video_views,
+             post_data = EXCLUDED.post_data,
              synced_at = NOW()`,
           [
             clientId,
             post.id,
-            post.message || '',
+            post.message || post.story || '',
             post.created_time,
             post.permalink_url,
+            post.type || 'status',
+            post.story || null,
+            post.full_picture || null,
             post.likes?.summary?.total_count || 0,
             post.comments?.summary?.total_count || 0,
             post.shares?.count || 0,
-            post.reactions?.summary?.total_count || 0
+            post.reactions?.summary?.total_count || 0,
+            impressions,
+            impressionsUnique,
+            engagedUsers,
+            clicks,
+            videoViews,
+            JSON.stringify(post)
           ]
         );
       }
 
-      console.log(`✅ Stored ${posts.length} Facebook posts for client ${clientId}`);
+      console.log(`✅ Stored ${posts.length} Facebook posts with detailed insights for client ${clientId}`);
     } catch (error) {
       console.error('Error storing Facebook posts:', error);
       throw error;
