@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { GoogleMap, Marker, LoadScript } from '@react-google-maps/api';
 import { http } from '../api/http';
 
-// Static libraries array to prevent re-renders - removed visualization since we're using markers instead of heatmap
+// Static libraries array to prevent re-renders
 const GOOGLE_MAPS_LIBRARIES: ("drawing" | "geometry" | "localContext" | "places")[] = [];
 
 interface Lead {
@@ -46,95 +46,61 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({
-    lat: 33.2148, // Default to Aubrey, TX
+    lat: 33.2148,
     lng: -96.6331
   });
   const [mapZoom, setMapZoom] = useState(10);
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>('');
   const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = useState<boolean>(false);
+  const [hoveredLeadId, setHoveredLeadId] = useState<number | null>(null);
+  const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
 
-  useEffect(() => {
-    loadGoogleMapsApiKey();
-    loadLeadsWithCoordinates();
-    
-    // Set map center to practice location if available
-    if (practiceLocation) {
-      setMapCenter({
-        lat: practiceLocation.latitude,
-        lng: practiceLocation.longitude
-      });
-      setMapZoom(12);
-    }
-  }, [clientId, practiceLocation, radiusMiles, startDate, endDate]);
-
-  const loadGoogleMapsApiKey = async () => {
-    try {
-      const response = await http.get('/google-maps-api-key');
-      if (response.data.success) {
-        setGoogleMapsApiKey(response.data.apiKey);
-      } else {
-        console.error('Failed to load Google Maps API key:', response.data.error);
-        setError('Failed to load Google Maps API key');
-      }
-    } catch (error) {
-      console.error('Error loading Google Maps API key:', error);
-      setError('Error loading Google Maps API key');
-    }
+  // Haversine distance calculation
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 3959; // Earth's radius in miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
   };
 
-  const loadLeadsWithCoordinates = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Get Google Analytics leads with coordinates
-      const leadsResponse = await http.get(`/analytics/leads/${clientId}`);
-      const allLeads = leadsResponse.data.leads || [];
-      
-      console.log(`📊 Total leads fetched: ${allLeads.length}`);
-      if (allLeads.length > 0) {
-        console.log(`📊 Sample lead data:`, allLeads[0]);
-      }
-      
-      // Filter only leads that have coordinates (geocoded)
-      let leadsWithCoordinates = allLeads.filter((lead: any) => {
-        const hasLat = lead.latitude !== null && lead.latitude !== undefined && lead.latitude !== '';
-        const hasLng = lead.longitude !== null && lead.longitude !== undefined && lead.longitude !== '';
-        const hasStatus = lead.geocoding_status === 'completed';
-        const hasCoords = hasLat && hasLng && hasStatus;
-        
-        if (!hasCoords) {
-          console.log(`🚫 Filtering out lead ${lead.id}: lat=${lead.latitude} (${typeof lead.latitude}), lng=${lead.longitude} (${typeof lead.longitude}), status=${lead.geocoding_status}`);
-        } else {
-          console.log(`✅ Keeping lead ${lead.id}: lat=${lead.latitude}, lng=${lead.longitude}, status=${lead.geocoding_status}`);
+  // Fetch Google Maps API key
+  useEffect(() => {
+    const fetchApiKey = async () => {
+      try {
+        const response = await http.get('/google-maps-api-key');
+        if (response.data && response.data.apiKey) {
+          setGoogleMapsApiKey(response.data.apiKey);
         }
+      } catch (error) {
+        console.error('Failed to fetch Google Maps API key:', error);
+        setError('Failed to load Google Maps API key');
+      }
+    };
+    fetchApiKey();
+  }, []);
+
+  // Load leads with coordinates
+  const loadLeadsWithCoordinates = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await http.get(`/analytics/leads/${clientId}`);
+      const allLeads = response.data.leads || [];
+
+      // Filter leads with coordinates
+      let leadsWithCoordinates = allLeads.filter((lead: any) => {
+        const hasCoords = lead.latitude && lead.longitude && lead.geocoding_status === 'completed';
         return hasCoords;
       });
-      
-      // Apply date range filter if provided
-      if (startDate && endDate) {
-        const startFilterDate = new Date(startDate);
-        const endFilterDate = new Date(endDate);
-        leadsWithCoordinates = leadsWithCoordinates.filter((lead: any) => {
-          const leadDate = new Date(lead.created_at);
-          return leadDate >= startFilterDate && leadDate <= endFilterDate;
-        });
-      } else if (startDate) {
-        // If only start date is provided, filter from start date to current date
-        const startFilterDate = new Date(startDate);
-        leadsWithCoordinates = leadsWithCoordinates.filter((lead: any) => {
-          const leadDate = new Date(lead.created_at);
-          return leadDate >= startFilterDate;
-        });
-      }
-      
-      // Apply radius filter if practice location is available
-      console.log(`🗺️ Practice location:`, practiceLocation);
-      console.log(`🗺️ Radius filter: ${radiusMiles} miles`);
-      
+
+      // Apply radius filter
       if (practiceLocation && radiusMiles && practiceLocation.latitude && practiceLocation.longitude) {
-        console.log(`🗺️ Applying radius filter: ${radiusMiles} miles from (${practiceLocation.latitude}, ${practiceLocation.longitude})`);
-        const beforeFilter = leadsWithCoordinates.length;
         leadsWithCoordinates = leadsWithCoordinates.filter((lead: any) => {
           const distance = calculateDistance(
             practiceLocation.latitude,
@@ -142,81 +108,51 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
             parseFloat(lead.latitude),
             parseFloat(lead.longitude)
           );
-          console.log(`🗺️ Lead ${lead.id} distance: ${distance.toFixed(2)} miles (${distance <= radiusMiles ? '✅ KEEP' : '❌ FILTER OUT'})`);
           return distance <= radiusMiles;
         });
-        console.log(`🗺️ Radius filter result: ${beforeFilter} leads → ${leadsWithCoordinates.length} leads`);
-      } else {
-        console.log(`⚠️ Skipping radius filter - practiceLocation is null or incomplete`);
       }
-      
-      // Convert string coordinates to numbers for all leads
-      const leadsWithNumberCoords = leadsWithCoordinates.map((lead: any) => ({
-        ...lead,
-        latitude: parseFloat(lead.latitude),
-        longitude: parseFloat(lead.longitude)
-      }));
-      
-      setLeads(leadsWithNumberCoords);
+
+      // Apply date filter
+      if (startDate && endDate) {
+        leadsWithCoordinates = leadsWithCoordinates.filter((lead: any) => {
+          if (!lead.created_at) return true;
+          const leadDate = new Date(lead.created_at).toISOString().split('T')[0];
+          return leadDate >= startDate && leadDate <= endDate;
+        });
+      }
+
+      setLeads(leadsWithCoordinates);
       
       if (onLeadsLoaded) {
         onLeadsLoaded(leadsWithCoordinates);
       }
-      
-      console.log(`🗺️ Loaded ${leadsWithCoordinates.length} Google Analytics leads with coordinates for heatmap (radius: ${radiusMiles} miles, date range: ${startDate || 'all'} to ${endDate || 'current'})`);
-    } catch (error: any) {
-      console.error('❌ Error loading Google Analytics leads for heatmap:', error);
-      setError(error.response?.data?.error || 'Failed to load Google Analytics leads data');
+
+      // Update map center to practice location or first lead
+      if (practiceLocation && practiceLocation.latitude && practiceLocation.longitude) {
+        setMapCenter({
+          lat: parseFloat(practiceLocation.latitude as any),
+          lng: parseFloat(practiceLocation.longitude as any)
+        });
+      } else if (leadsWithCoordinates.length > 0) {
+        const firstLead = leadsWithCoordinates[0];
+        setMapCenter({
+          lat: parseFloat(firstLead.latitude),
+          lng: parseFloat(firstLead.longitude)
+        });
+      }
+
+    } catch (err) {
+      console.error('Error loading leads:', err);
+      setError('Failed to load leads');
     } finally {
       setLoading(false);
     }
   };
 
-  // Calculate distance between two coordinates in miles
-  const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
-    const R = 3959; // Earth's radius in miles
-    const dLat = toRadians(lat2 - lat1);
-    const dLng = toRadians(lng2 - lng1);
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
-              Math.sin(dLng / 2) * Math.sin(dLng / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
+  useEffect(() => {
+    loadLeadsWithCoordinates();
+  }, [clientId, radiusMiles, startDate, endDate]);
 
-  const toRadians = (degrees: number): number => {
-    return degrees * (Math.PI / 180);
-  };
-
-  // Prepare heatmap data - only when Google Maps is loaded
-  const heatmapData = leads.map(lead => ({
-    lat: lead.latitude,
-    lng: lead.longitude,
-    weight: 1
-  }));
-
-  // If no Google Maps API key, show error
-  if (!googleMapsApiKey) {
-    return (
-      <div style={{ 
-        padding: '40px', 
-        textAlign: 'center', 
-        background: '#f8f9fa', 
-        borderRadius: '8px',
-        border: '1px solid #dee2e6'
-      }}>
-        <div style={{ fontSize: '48px', marginBottom: '15px' }}>🗺️</div>
-        <div style={{ fontWeight: '600', marginBottom: '10px', color: '#dc3545' }}>
-          Google Maps API Key Required
-        </div>
-        <div style={{ fontSize: '14px', color: '#666' }}>
-          Please configure REACT_APP_GOOGLE_MAPS_API_KEY to display the heatmap
-        </div>
-      </div>
-    );
-  }
-
-  // If loading
   if (loading) {
     return (
       <div style={{ 
@@ -226,89 +162,37 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
         borderRadius: '8px',
         border: '1px solid #dee2e6'
       }}>
-        <div style={{ fontSize: '48px', marginBottom: '15px' }}>⏳</div>
-        <div style={{ fontWeight: '600', marginBottom: '10px' }}>
-          Loading Lead Heatmap...
+        <div style={{ fontSize: '48px', marginBottom: '15px' }}>🗺️</div>
+        <div style={{ fontWeight: '600', marginBottom: '10px', color: '#007bff' }}>
+          Loading Lead Map
         </div>
         <div style={{ fontSize: '14px', color: '#666' }}>
-          Fetching lead coordinates and preparing map
+          Fetching geocoded leads...
         </div>
       </div>
     );
   }
 
-  // If error
   if (error) {
     return (
       <div style={{ 
         padding: '40px', 
         textAlign: 'center', 
-        background: '#f8f9fa', 
+        background: '#fff3cd', 
         borderRadius: '8px',
-        border: '1px solid #dee2e6'
+        border: '1px solid #ffc107'
       }}>
-        <div style={{ fontSize: '48px', marginBottom: '15px' }}>❌</div>
-        <div style={{ fontWeight: '600', marginBottom: '10px', color: '#dc3545' }}>
-          Error Loading Heatmap
+        <div style={{ fontSize: '48px', marginBottom: '15px' }}>⚠️</div>
+        <div style={{ fontWeight: '600', marginBottom: '10px', color: '#856404' }}>
+          Error Loading Map
         </div>
-        <div style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
+        <div style={{ fontSize: '14px', color: '#856404' }}>
           {error}
         </div>
-        <button 
-          onClick={loadLeadsWithCoordinates}
-          style={{
-            background: '#007bff',
-            color: 'white',
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          Retry
-        </button>
       </div>
     );
   }
 
-  // If no leads with coordinates
-  if (leads.length === 0) {
-    return (
-      <div style={{ 
-        padding: '40px', 
-        textAlign: 'center', 
-        background: '#f8f9fa', 
-        borderRadius: '8px',
-        border: '1px solid #dee2e6'
-      }}>
-        <div style={{ fontSize: '48px', marginBottom: '15px' }}>📍</div>
-        <div style={{ fontWeight: '600', marginBottom: '10px' }}>
-          No Lead Coordinates Available
-        </div>
-        <div style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
-          Leads need to be geocoded to display on the heatmap. 
-          <br />
-          Use the geocoding tools to convert addresses to coordinates.
-        </div>
-        <button 
-          onClick={loadLeadsWithCoordinates}
-          style={{
-            background: '#28a745',
-            color: 'white',
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          Check Again
-        </button>
-      </div>
-    );
-  }
-
-  // Render the heatmap
-  // Don't render map until API key is loaded
   if (!googleMapsApiKey) {
     return (
       <div style={{ 
@@ -330,306 +214,342 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
   }
 
   return (
-    <div style={{ width: '100%', height: '400px', borderRadius: '8px', overflow: 'hidden' }}>
-      <LoadScript
-        googleMapsApiKey={googleMapsApiKey}
-        libraries={GOOGLE_MAPS_LIBRARIES}
-        onLoad={() => {
-          console.log('🗺️ Google Maps API loaded successfully');
-          setIsGoogleMapsLoaded(true);
-        }}
-        onError={(error) => {
-          console.error('❌ Google Maps API failed to load:', error);
-          setError('Failed to load Google Maps API');
-          setIsGoogleMapsLoaded(false);
-        }}
-      >
-        <GoogleMap
-          mapContainerStyle={{ width: '100%', height: '100%' }}
-          center={mapCenter}
-          zoom={mapZoom}
-          options={{
-            mapTypeControl: true,
-            streetViewControl: false,
-            fullscreenControl: true,
-            zoomControl: true,
-            // Smooth transitions when filtering
-            gestureHandling: 'cooperative',
-            clickableIcons: false,
-            styles: [
-              {
-                featureType: 'poi',
-                elementType: 'labels',
-                stylers: [{ visibility: 'off' }]
-              }
-            ]
-          }}
-        >
-         {/* Show clinic location marker */}
-         {practiceLocation && isGoogleMapsLoaded && (() => {
-           // Ensure lat/lng are numbers
-           const lat = typeof practiceLocation.latitude === 'number' ? practiceLocation.latitude : parseFloat(practiceLocation.latitude);
-           const lng = typeof practiceLocation.longitude === 'number' ? practiceLocation.longitude : parseFloat(practiceLocation.longitude);
-           
-           // Skip if invalid
-           if (isNaN(lat) || isNaN(lng)) {
-             console.warn(`⚠️ Invalid clinic coordinates: lat=${practiceLocation.latitude}, lng=${practiceLocation.longitude}`);
-             return null;
-           }
-           
-           console.log(`🏥 Rendering RED clinic marker at: (${lat}, ${lng}) - ${practiceLocation.city}, ${practiceLocation.state}`);
-           
-           return (
-             <Marker
-               position={{ lat, lng }}
-               title={`🏥 ${practiceLocation.city} Clinic - ${practiceLocation.address}`}
-               icon={window.google && window.google.maps ? {
-                 path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-                 fillColor: '#EA4335',
-                 fillOpacity: 1,
-                 strokeColor: '#ffffff',
-                 strokeWeight: 3,
-                 scale: 8,
-                 rotation: 180
-               } : undefined}
-               label={window.google && window.google.maps ? {
-                 text: '🏥',
-                 fontSize: '18px'
-               } : undefined}
-               zIndex={9999}
-             />
-           );
-         })()}
-         
-         {/* Show lead markers */}
-         {leads.map((lead, index) => {
-           // Ensure lat/lng are numbers
-           let lat = typeof lead.latitude === 'number' ? lead.latitude : parseFloat(lead.latitude);
-           let lng = typeof lead.longitude === 'number' ? lead.longitude : parseFloat(lead.longitude);
-           
-           // Skip invalid coordinates
-           if (isNaN(lat) || isNaN(lng)) {
-             console.warn(`⚠️ Invalid coordinates for lead ${lead.id}: lat=${lead.latitude}, lng=${lead.longitude}`);
-             return null;
-           }
-           
-           // Add CONSISTENT small offset for stacked markers using lead.id as seed
-           // This keeps the same position on re-render instead of random jumping
-           const offset = 0.0003;
-           const seed = lead.id * 1000; // Use lead ID as seed for consistent offset
-           const latOffset = ((seed % 100) / 100 - 0.5) * offset;
-           const lngOffset = (((seed * 7) % 100) / 100 - 0.5) * offset;
-           lat += latOffset;
-           lng += lngOffset;
-           
-           return (
-             <Marker
-               key={lead.id}
-               position={{ lat, lng }}
-               title={`Lead #${index + 1}: ${lead.company || 'Unknown'} - ${lead.city}, ${lead.state}`}
-               label={window.google && window.google.maps ? {
-                 text: String(index + 1),
-                 color: 'white',
-                 fontSize: '11px',
-                 fontWeight: 'bold'
-               } : undefined}
-               icon={window.google && window.google.maps ? {
-                 path: window.google.maps.SymbolPath.CIRCLE,
-                 fillColor: '#4285F4',
-                 fillOpacity: 0.9,
-                 strokeColor: '#ffffff',
-                 strokeWeight: 2,
-                 scale: 10
-               } : undefined}
-             />
-           );
-         })}
-        </GoogleMap>
-      </LoadScript>
-      
-      {/* Lead Map Legend */}
+    <div style={{ width: '100%' }}>
+      {/* Side-by-Side Layout: Map + Lead Cards */}
       <div style={{ 
-        marginTop: '10px', 
-        padding: '12px', 
-        background: '#ffffff', 
-        borderRadius: '6px',
-        border: '1px solid #dee2e6',
-        fontSize: '12px',
-        color: '#333'
+        display: 'grid', 
+        gridTemplateColumns: '1fr 400px', 
+        gap: '15px',
+        '@media (max-width: 1024px)': {
+          gridTemplateColumns: '1fr'
+        }
       }}>
-        <div style={{ fontWeight: '600', marginBottom: '8px', color: '#333' }}>Map Legend</div>
-        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <div style={{ 
-              width: '16px', 
-              height: '16px', 
-              background: '#EA4335', 
-              borderRadius: '50% 50% 50% 0', 
-              transform: 'rotate(-45deg)',
-              border: '2px solid white'
-            }}></div>
-            <span style={{ fontSize: '11px', color: '#666' }}>🏥 Clinic Location</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <div style={{ 
-              width: '16px', 
-              height: '16px', 
-              background: '#4285F4', 
-              borderRadius: '50%',
-              border: '2px solid white',
+        
+        {/* Map Section */}
+        <div style={{ 
+          borderRadius: '8px', 
+          overflow: 'hidden',
+          border: '1px solid #dee2e6',
+          background: '#fff',
+          minHeight: '600px'
+        }}>
+          <LoadScript
+            googleMapsApiKey={googleMapsApiKey}
+            libraries={GOOGLE_MAPS_LIBRARIES}
+            onLoad={() => {
+              console.log('🗺️ Google Maps API loaded successfully');
+              setIsGoogleMapsLoaded(true);
+            }}
+            onError={(error) => {
+              console.error('❌ Google Maps API failed to load:', error);
+              setError('Failed to load Google Maps API');
+              setIsGoogleMapsLoaded(false);
+            }}
+          >
+            <GoogleMap
+              mapContainerStyle={{ width: '100%', height: '600px' }}
+              center={mapCenter}
+              zoom={mapZoom}
+              options={{
+                mapTypeControl: true,
+                streetViewControl: false,
+                fullscreenControl: true,
+                zoomControl: true,
+                gestureHandling: 'cooperative',
+                clickableIcons: false,
+                styles: [
+                  {
+                    featureType: 'poi',
+                    elementType: 'labels',
+                    stylers: [{ visibility: 'off' }]
+                  }
+                ]
+              }}
+            >
+              {/* Clinic Location Marker */}
+              {practiceLocation && isGoogleMapsLoaded && (() => {
+                const lat = parseFloat(practiceLocation.latitude as any);
+                const lng = parseFloat(practiceLocation.longitude as any);
+                
+                if (isNaN(lat) || isNaN(lng)) return null;
+                
+                return (
+                  <Marker
+                    position={{ lat, lng }}
+                    title={`🏥 ${practiceLocation.city} Clinic`}
+                    icon={window.google && window.google.maps ? {
+                      path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
+                      fillColor: '#EA4335',
+                      fillOpacity: 1,
+                      strokeColor: '#ffffff',
+                      strokeWeight: 2,
+                      scale: 2,
+                      anchor: new window.google.maps.Point(12, 22)
+                    } : undefined}
+                    label={window.google && window.google.maps ? {
+                      text: '🏥',
+                      fontSize: '16px',
+                      fontWeight: 'bold'
+                    } : undefined}
+                    zIndex={9999}
+                  />
+                );
+              })()}
+              
+              {/* Lead Markers */}
+              {leads.map((lead, index) => {
+                let lat = typeof lead.latitude === 'number' ? lead.latitude : parseFloat(lead.latitude);
+                let lng = typeof lead.longitude === 'number' ? lead.longitude : parseFloat(lead.longitude);
+                
+                if (isNaN(lat) || isNaN(lng)) return null;
+                
+                // Consistent offset based on lead ID to prevent stacking
+                const offset = 0.0002;
+                const seed = lead.id * 1000;
+                lat += ((seed % 100) / 100 - 0.5) * offset;
+                lng += (((seed * 7) % 100) / 100 - 0.5) * offset;
+                
+                const isHovered = hoveredLeadId === lead.id;
+                const isSelected = selectedLeadId === lead.id;
+                
+                return (
+                  <Marker
+                    key={lead.id}
+                    position={{ lat, lng }}
+                    title={`${lead.company || 'Lead'} - ${lead.city}, ${lead.state}`}
+                    icon={window.google && window.google.maps ? {
+                      path: window.google.maps.SymbolPath.CIRCLE,
+                      fillColor: isSelected ? '#f59e0b' : isHovered ? '#3b82f6' : '#6366f1',
+                      fillOpacity: isHovered || isSelected ? 1 : 0.8,
+                      strokeColor: '#ffffff',
+                      strokeWeight: isHovered || isSelected ? 3 : 2,
+                      scale: isHovered || isSelected ? 12 : 8
+                    } : undefined}
+                    onClick={() => setSelectedLeadId(lead.id === selectedLeadId ? null : lead.id)}
+                    onMouseOver={() => setHoveredLeadId(lead.id)}
+                    onMouseOut={() => setHoveredLeadId(null)}
+                    zIndex={isHovered || isSelected ? 1000 : 100}
+                  />
+                );
+              })}
+            </GoogleMap>
+          </LoadScript>
+        </div>
+        
+        {/* Lead Cards Section */}
+        <div style={{ 
+          maxHeight: '600px', 
+          overflowY: 'auto',
+          background: '#f8f9fa',
+          borderRadius: '8px',
+          border: '1px solid #dee2e6',
+          padding: '15px'
+        }}>
+          <div style={{ 
+            position: 'sticky',
+            top: '-15px',
+            background: '#f8f9fa',
+            padding: '10px 0',
+            marginBottom: '10px',
+            borderBottom: '2px solid #dee2e6',
+            zIndex: 10
+          }}>
+            <h3 style={{ 
+              margin: 0, 
+              fontSize: '16px', 
+              color: '#333',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '8px',
-              color: 'white',
-              fontWeight: 'bold'
-            }}>1</div>
-            <span style={{ fontSize: '11px', color: '#666' }}>📍 Leads (numbered)</span>
+              gap: '8px'
+            }}>
+              <span style={{ 
+                display: 'inline-block',
+                width: '32px',
+                height: '32px',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: '50%',
+                color: 'white',
+                textAlign: 'center',
+                lineHeight: '32px',
+                fontSize: '18px'
+              }}>
+                📍
+              </span>
+              <div>
+                <div style={{ fontWeight: '600' }}>Nearby Leads</div>
+                <div style={{ fontSize: '11px', color: '#666', fontWeight: 'normal' }}>
+                  {leads.length} within {radiusMiles} miles
+                </div>
+              </div>
+            </h3>
           </div>
-          <div style={{ fontSize: '11px', color: '#888' }}>
-            Showing <strong>{leads.length} leads</strong> within <strong>{radiusMiles} miles</strong>
-          </div>
-          {startDate && endDate && (
-            <div style={{ fontSize: '11px', color: '#888' }}>
-              📅 {startDate} to {endDate}
+          
+          {leads.length === 0 ? (
+            <div style={{ 
+              padding: '40px 20px', 
+              textAlign: 'center', 
+              color: '#999'
+            }}>
+              <div style={{ fontSize: '48px', marginBottom: '10px' }}>📭</div>
+              <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '5px' }}>
+                No leads found
+              </div>
+              <div style={{ fontSize: '12px' }}>
+                Try adjusting the radius or date range
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {leads.map((lead, index) => {
+                const isHovered = hoveredLeadId === lead.id;
+                const isSelected = selectedLeadId === lead.id;
+                
+                return (
+                  <div
+                    key={lead.id}
+                    style={{
+                      background: isSelected ? '#fef3c7' : isHovered ? '#dbeafe' : '#ffffff',
+                      border: isSelected ? '2px solid #f59e0b' : isHovered ? '2px solid #3b82f6' : '1px solid #dee2e6',
+                      borderRadius: '8px',
+                      padding: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      boxShadow: isHovered || isSelected ? '0 4px 12px rgba(0,0,0,0.1)' : 'none'
+                    }}
+                    onMouseEnter={() => setHoveredLeadId(lead.id)}
+                    onMouseLeave={() => setHoveredLeadId(null)}
+                    onClick={() => {
+                      setSelectedLeadId(lead.id === selectedLeadId ? null : lead.id);
+                      // Center map on selected lead
+                      const lat = typeof lead.latitude === 'number' ? lead.latitude : parseFloat(lead.latitude);
+                      const lng = typeof lead.longitude === 'number' ? lead.longitude : parseFloat(lead.longitude);
+                      if (!isNaN(lat) && !isNaN(lng)) {
+                        setMapCenter({ lat, lng });
+                        setMapZoom(13);
+                      }
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        background: isSelected ? '#f59e0b' : isHovered ? '#3b82f6' : '#6366f1',
+                        color: 'white',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        flexShrink: 0
+                      }}>
+                        {index + 1}
+                      </div>
+                      
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ 
+                          fontWeight: '600', 
+                          fontSize: '14px', 
+                          color: '#333',
+                          marginBottom: '4px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {lead.company || 'Unknown Company'}
+                        </div>
+                        
+                        <div style={{ 
+                          fontSize: '12px', 
+                          color: '#666',
+                          marginBottom: '6px'
+                        }}>
+                          📍 {lead.city}, {lead.state}
+                        </div>
+                        
+                        <div style={{ 
+                          display: 'flex', 
+                          gap: '8px', 
+                          flexWrap: 'wrap',
+                          alignItems: 'center'
+                        }}>
+                          {lead.distance_miles !== undefined && (
+                            <span style={{
+                              padding: '3px 8px',
+                              background: '#e0f2fe',
+                              color: '#0369a1',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: '500'
+                            }}>
+                              📏 {lead.distance_miles.toFixed(1)} mi
+                            </span>
+                          )}
+                          
+                          <span style={{
+                            padding: '3px 8px',
+                            background: '#f3e8ff',
+                            color: '#6b21a8',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: '500'
+                          }}>
+                            📊 GA
+                          </span>
+                          
+                          {lead.created_at && (
+                            <span style={{
+                              fontSize: '10px',
+                              color: '#999'
+                            }}>
+                              {new Date(lead.created_at).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
-        {practiceLocation && (
-          <div style={{ fontSize: '10px', color: '#999', marginTop: '6px' }}>
-            Practice: {practiceLocation.address}, {practiceLocation.city}, {practiceLocation.state}
-          </div>
-        )}
       </div>
-
-      {/* Lead Details Table */}
+      
+      {/* Map Legend */}
       <div style={{ 
         marginTop: '15px', 
+        padding: '12px 15px', 
         background: '#ffffff', 
-        borderRadius: '8px',
+        borderRadius: '6px',
         border: '1px solid #dee2e6',
-        overflow: 'hidden'
+        fontSize: '12px'
       }}>
-        <div style={{ 
-          padding: '15px', 
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white',
-          fontWeight: '600',
-          fontSize: '14px'
-        }}>
-          📊 Lead Details ({leads.length} leads)
+        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '16px', height: '16px', background: '#EA4335', borderRadius: '50% 50% 50% 0', transform: 'rotate(-45deg)', border: '2px solid white' }}></div>
+            <span style={{ fontSize: '11px', color: '#666' }}>🏥 Clinic</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '16px', height: '16px', background: '#6366f1', borderRadius: '50%', border: '2px solid white' }}></div>
+            <span style={{ fontSize: '11px', color: '#666' }}>📍 Lead</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '16px', height: '16px', background: '#3b82f6', borderRadius: '50%', border: '2px solid white' }}></div>
+            <span style={{ fontSize: '11px', color: '#666' }}>Hover</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '16px', height: '16px', background: '#f59e0b', borderRadius: '50%', border: '2px solid white' }}></div>
+            <span style={{ fontSize: '11px', color: '#666' }}>Selected</span>
+          </div>
+          <div style={{ fontSize: '11px', color: '#888', marginLeft: 'auto' }}>
+            <strong>{leads.length} leads</strong> · {radiusMiles} mi radius
+            {startDate && endDate && ` · ${startDate} to ${endDate}`}
+          </div>
         </div>
-        
-        {leads.length === 0 ? (
-          <div style={{ 
-            padding: '40px', 
-            textAlign: 'center', 
-            color: '#999',
-            fontSize: '14px'
-          }}>
-            <div style={{ fontSize: '48px', marginBottom: '10px' }}>📭</div>
-            <div>No leads found matching the current filters</div>
-            <div style={{ fontSize: '12px', marginTop: '5px' }}>
-              Try adjusting the radius or date range
-            </div>
-          </div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ 
-              width: '100%', 
-              borderCollapse: 'collapse',
-              fontSize: '13px'
-            }}>
-              <thead>
-                <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                  <th style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '600', color: '#333' }}>#</th>
-                  <th style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Company</th>
-                  <th style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Location</th>
-                  <th style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Coordinates</th>
-                  <th style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Distance</th>
-                  <th style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Source</th>
-                  <th style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Date Captured</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leads.map((lead, index) => (
-                  <tr 
-                    key={lead.id} 
-                    style={{ 
-                      borderBottom: '1px solid #f0f0f0',
-                      transition: 'background 0.2s',
-                      cursor: 'pointer'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8f9fa'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
-                  >
-                    <td style={{ padding: '12px 15px' }}>
-                      <span style={{ 
-                        display: 'inline-block',
-                        width: '24px',
-                        height: '24px',
-                        background: '#4285F4',
-                        borderRadius: '50%',
-                        color: 'white',
-                        textAlign: 'center',
-                        lineHeight: '24px',
-                        fontSize: '11px',
-                        fontWeight: 'bold'
-                      }}>
-                        {index + 1}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 15px', fontWeight: '500', color: '#333' }}>
-                      {lead.company || 'Unknown'}
-                    </td>
-                    <td style={{ padding: '12px 15px', color: '#666' }}>
-                      {lead.city}, {lead.state}
-                    </td>
-                    <td style={{ padding: '12px 15px', color: '#666', fontSize: '11px', fontFamily: 'monospace' }}>
-                      {typeof lead.latitude === 'number' ? lead.latitude.toFixed(4) : parseFloat(lead.latitude).toFixed(4)}, 
-                      {typeof lead.longitude === 'number' ? lead.longitude.toFixed(4) : parseFloat(lead.longitude).toFixed(4)}
-                    </td>
-                    <td style={{ padding: '12px 15px' }}>
-                      {lead.distance_miles !== undefined ? (
-                        <span style={{ 
-                          padding: '4px 8px', 
-                          background: '#e3f2fd', 
-                          color: '#1976d2', 
-                          borderRadius: '4px',
-                          fontSize: '11px',
-                          fontWeight: '600'
-                        }}>
-                          {lead.distance_miles.toFixed(1)} mi
-                        </span>
-                      ) : (
-                        <span style={{ color: '#999', fontSize: '11px' }}>N/A</span>
-                      )}
-                    </td>
-                    <td style={{ padding: '12px 15px' }}>
-                      <span style={{ 
-                        padding: '4px 8px', 
-                        background: '#f3e5f5', 
-                        color: '#7b1fa2', 
-                        borderRadius: '4px',
-                        fontSize: '11px',
-                        fontWeight: '500'
-                      }}>
-                        Google Analytics
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 15px', color: '#666', fontSize: '12px' }}>
-                      {new Date((lead as any).created_at || Date.now()).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
     </div>
   );
