@@ -351,6 +351,9 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
             streetViewControl: false,
             fullscreenControl: true,
             zoomControl: true,
+            // Smooth transitions when filtering
+            gestureHandling: 'cooperative',
+            clickableIcons: false,
             styles: [
               {
                 featureType: 'poi',
@@ -379,8 +382,17 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
                position={{ lat, lng }}
                title={`🏥 ${practiceLocation.city} Clinic - ${practiceLocation.address}`}
                icon={window.google && window.google.maps ? {
-                 url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
-                 scaledSize: new window.google.maps.Size(50, 50)
+                 path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+                 fillColor: '#EA4335',
+                 fillOpacity: 1,
+                 strokeColor: '#ffffff',
+                 strokeWeight: 3,
+                 scale: 8,
+                 rotation: 180
+               } : undefined}
+               label={window.google && window.google.maps ? {
+                 text: '🏥',
+                 fontSize: '18px'
                } : undefined}
                zIndex={9999}
              />
@@ -399,26 +411,33 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
              return null;
            }
            
-           // Add small random offset for stacked markers (0.0001 degrees ≈ 11 meters)
-           // This makes overlapping markers visible by slightly offsetting them
+           // Add CONSISTENT small offset for stacked markers using lead.id as seed
+           // This keeps the same position on re-render instead of random jumping
            const offset = 0.0003;
-           lat += (Math.random() - 0.5) * offset;
-           lng += (Math.random() - 0.5) * offset;
+           const seed = lead.id * 1000; // Use lead ID as seed for consistent offset
+           const latOffset = ((seed % 100) / 100 - 0.5) * offset;
+           const lngOffset = (((seed * 7) % 100) / 100 - 0.5) * offset;
+           lat += latOffset;
+           lng += lngOffset;
            
            return (
              <Marker
                key={lead.id}
                position={{ lat, lng }}
-               title={`Lead #${lead.id} - ${lead.city}, ${lead.state}`}
+               title={`Lead #${index + 1}: ${lead.company || 'Unknown'} - ${lead.city}, ${lead.state}`}
                label={window.google && window.google.maps ? {
                  text: String(index + 1),
                  color: 'white',
-                 fontSize: '12px',
+                 fontSize: '11px',
                  fontWeight: 'bold'
                } : undefined}
                icon={window.google && window.google.maps ? {
-                 url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
-                 scaledSize: new window.google.maps.Size(32, 32)
+                 path: window.google.maps.SymbolPath.CIRCLE,
+                 fillColor: '#4285F4',
+                 fillOpacity: 0.9,
+                 strokeColor: '#ffffff',
+                 strokeWeight: 2,
+                 scale: 10
                } : undefined}
              />
            );
@@ -426,26 +445,59 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
         </GoogleMap>
       </LoadScript>
       
-      {/* Lead Map Info */}
+      {/* Lead Map Legend */}
       <div style={{ 
         marginTop: '10px', 
-        padding: '10px', 
-        background: '#f8f9fa', 
-        borderRadius: '4px',
+        padding: '12px', 
+        background: '#ffffff', 
+        borderRadius: '6px',
+        border: '1px solid #dee2e6',
         fontSize: '12px',
-        color: '#666'
+        color: '#333'
       }}>
-        <strong>Lead Map Info:</strong> Showing {leads.length} leads with coordinates. 
-        {practiceLocation && (
-          <span> Practice location: {practiceLocation.address}, {practiceLocation.city}, {practiceLocation.state} (Red marker)</span>
-        )}
-        <br />
-        <span style={{ fontSize: '11px', color: '#888' }}>
-          🏥 Red marker = Clinic location | 📍 Blue markers = Lead locations
+        <div style={{ fontWeight: '600', marginBottom: '8px', color: '#333' }}>Map Legend</div>
+        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ 
+              width: '16px', 
+              height: '16px', 
+              background: '#EA4335', 
+              borderRadius: '50% 50% 50% 0', 
+              transform: 'rotate(-45deg)',
+              border: '2px solid white'
+            }}></div>
+            <span style={{ fontSize: '11px', color: '#666' }}>🏥 Clinic Location</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ 
+              width: '16px', 
+              height: '16px', 
+              background: '#4285F4', 
+              borderRadius: '50%',
+              border: '2px solid white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '8px',
+              color: 'white',
+              fontWeight: 'bold'
+            }}>1</div>
+            <span style={{ fontSize: '11px', color: '#666' }}>📍 Leads (numbered)</span>
+          </div>
+          <div style={{ fontSize: '11px', color: '#888' }}>
+            Showing <strong>{leads.length} leads</strong> within <strong>{radiusMiles} miles</strong>
+          </div>
           {startDate && endDate && (
-            <span> | 📅 Date range: {startDate} to {endDate}</span>
+            <div style={{ fontSize: '11px', color: '#888' }}>
+              📅 {startDate} to {endDate}
+            </div>
           )}
-        </span>
+        </div>
+        {practiceLocation && (
+          <div style={{ fontSize: '10px', color: '#999', marginTop: '6px' }}>
+            Practice: {practiceLocation.address}, {practiceLocation.city}, {practiceLocation.state}
+          </div>
+        )}
       </div>
     </div>
   );
