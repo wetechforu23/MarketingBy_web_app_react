@@ -91,7 +91,7 @@ const ClientManagementDashboard: React.FC = () => {
   const [analyticsReportData, setAnalyticsReportData] = useState<any>(null);
   const [reports, setReports] = useState<any[]>([]);
   const [geocodingStatus, setGeocodingStatus] = useState<any>(null);
-  const [heatmapRadius, setHeatmapRadius] = useState<number>(10);
+  const [heatmapRadius, setHeatmapRadius] = useState<number>(50);
   const [dateFilter, setDateFilter] = useState<string>('');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -2094,6 +2094,9 @@ const ClientManagementDashboard: React.FC = () => {
                           <option value={10}>10 miles</option>
                           <option value={15}>15 miles</option>
                           <option value={20}>20 miles</option>
+                          <option value={30}>30 miles</option>
+                          <option value={40}>40 miles</option>
+                          <option value={50}>50 miles</option>
                         </select>
                         
                         {/* Date Range Filter */}

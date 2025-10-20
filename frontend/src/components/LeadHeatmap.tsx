@@ -372,14 +372,17 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
              return null;
            }
            
+           console.log(`🏥 Rendering RED clinic marker at: (${lat}, ${lng}) - ${practiceLocation.city}, ${practiceLocation.state}`);
+           
            return (
              <Marker
                position={{ lat, lng }}
-               title={`${practiceLocation.city} Clinic`}
+               title={`🏥 ${practiceLocation.city} Clinic - ${practiceLocation.address}`}
                icon={window.google && window.google.maps ? {
                  url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
-                 scaledSize: new window.google.maps.Size(40, 40)
+                 scaledSize: new window.google.maps.Size(50, 50)
                } : undefined}
+               zIndex={9999}
              />
            );
          })()}
