@@ -127,7 +127,12 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
       }
       
       // Apply radius filter if practice location is available
-      if (practiceLocation && radiusMiles) {
+      console.log(`🗺️ Practice location:`, practiceLocation);
+      console.log(`🗺️ Radius filter: ${radiusMiles} miles`);
+      
+      if (practiceLocation && radiusMiles && practiceLocation.latitude && practiceLocation.longitude) {
+        console.log(`🗺️ Applying radius filter: ${radiusMiles} miles from (${practiceLocation.latitude}, ${practiceLocation.longitude})`);
+        const beforeFilter = leadsWithCoordinates.length;
         leadsWithCoordinates = leadsWithCoordinates.filter((lead: any) => {
           const distance = calculateDistance(
             practiceLocation.latitude,
@@ -135,8 +140,12 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
             parseFloat(lead.latitude),
             parseFloat(lead.longitude)
           );
+          console.log(`🗺️ Lead ${lead.id} distance: ${distance.toFixed(2)} miles (${distance <= radiusMiles ? '✅ KEEP' : '❌ FILTER OUT'})`);
           return distance <= radiusMiles;
         });
+        console.log(`🗺️ Radius filter result: ${beforeFilter} leads → ${leadsWithCoordinates.length} leads`);
+      } else {
+        console.log(`⚠️ Skipping radius filter - practiceLocation is null or incomplete`);
       }
       
       // Convert string coordinates to numbers for all leads
