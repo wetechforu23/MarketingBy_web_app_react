@@ -119,14 +119,17 @@ export class GeographicLeadsService {
       console.log(`📍 Practice location: ${practiceLocation.city}, ${practiceLocation.state} (${practiceLocation.latitude}, ${practiceLocation.longitude})`);
 
       // Get all leads for this client with geographic data
+      // Note: Using latitude/longitude for GA leads, geo_latitude/geo_longitude for scraped leads
       const leadsResult = await pool.query(`
         SELECT 
           id, email, phone, company, address, city, state, zip_code,
-          geo_latitude, geo_longitude, google_place_id, google_rating, created_at
+          COALESCE(latitude, geo_latitude) as geo_latitude, 
+          COALESCE(longitude, geo_longitude) as geo_longitude, 
+          google_place_id, google_rating, created_at, source
         FROM leads 
         WHERE client_id = $1 
-        AND geo_latitude IS NOT NULL 
-        AND geo_longitude IS NOT NULL
+        AND (latitude IS NOT NULL OR geo_latitude IS NOT NULL)
+        AND (longitude IS NOT NULL OR geo_longitude IS NOT NULL)
         ORDER BY created_at DESC
       `, [clientId]);
 
