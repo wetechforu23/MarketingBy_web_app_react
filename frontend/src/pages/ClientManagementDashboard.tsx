@@ -150,6 +150,30 @@ const ClientManagementDashboard: React.FC = () => {
     }
   }, [clients]);
 
+  // Fetch date range for GA leads
+  const fetchLeadDateRange = async (clientId: number) => {
+    try {
+      const response = await http.get(`/analytics/leads/${clientId}/date-range`);
+      if (response.data.success && response.data.earliest_date) {
+        const earliestDate = new Date(response.data.earliest_date).toISOString().split('T')[0];
+        setStartDate(earliestDate);
+        console.log(`📅 Set startDate to earliest lead date: ${earliestDate}`);
+      } else {
+        // No leads yet, default to 30 days ago
+        const defaultStart = new Date();
+        defaultStart.setDate(defaultStart.getDate() - 30);
+        setStartDate(defaultStart.toISOString().split('T')[0]);
+        console.log(`📅 No leads found, set startDate to 30 days ago`);
+      }
+    } catch (error) {
+      console.error('Error fetching lead date range:', error);
+      // Fallback to 30 days ago
+      const defaultStart = new Date();
+      defaultStart.setDate(defaultStart.getDate() - 30);
+      setStartDate(defaultStart.toISOString().split('T')[0]);
+    }
+  };
+
   useEffect(() => {
     console.log('🔄 Client changed, selectedClient:', selectedClient);
     if (selectedClient) {
@@ -159,6 +183,8 @@ const ClientManagementDashboard: React.FC = () => {
       checkGeocodingStatus();
       // Auto-capture leads when switching clinics
       autoCaptureLeadsForClient(selectedClient.id);
+      // Fetch lead date range to set the min date filter
+      fetchLeadDateRange(selectedClient.id);
     }
   }, [selectedClient]);
 
@@ -2069,11 +2095,13 @@ const ClientManagementDashboard: React.FC = () => {
                         
                         {/* Date Range Filter */}
                         <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                          <label style={{ fontSize: '12px', color: '#666', marginRight: '5px' }}>From:</label>
                           <input
                             type="date"
                             value={startDate}
                             onChange={(e) => setStartDate(e.target.value)}
                             placeholder="Start Date"
+                            title={startDate ? `Showing leads from ${startDate}` : 'Auto-set to earliest lead date'}
                             style={{
                               padding: '8px 12px',
                               borderRadius: '6px',
@@ -2087,6 +2115,7 @@ const ClientManagementDashboard: React.FC = () => {
                             type="date"
                             value={endDate}
                             onChange={(e) => setEndDate(e.target.value)}
+                            title="End date (always current date)"
                             style={{
                               padding: '8px 12px',
                               borderRadius: '6px',

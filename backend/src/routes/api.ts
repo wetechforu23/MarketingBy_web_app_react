@@ -4278,4 +4278,36 @@ router.get('/analytics/leads/:clientId', requireAuth, async (req, res) => {
   }
 });
 
+// Get date range for GA leads (earliest and latest)
+router.get('/analytics/leads/:clientId/date-range', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    const result = await pool.query(
+      `SELECT 
+        MIN(created_at) as earliest_date,
+        MAX(created_at) as latest_date,
+        COUNT(*) as total_leads
+       FROM leads 
+       WHERE client_id = $1 AND source = 'Google Analytics'`,
+      [clientId]
+    );
+
+    const { earliest_date, latest_date, total_leads } = result.rows[0];
+
+    res.json({
+      success: true,
+      earliest_date: earliest_date || null,
+      latest_date: latest_date || null,
+      total_leads: parseInt(total_leads) || 0
+    });
+  } catch (error) {
+    console.error('Get GA leads date range error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;
