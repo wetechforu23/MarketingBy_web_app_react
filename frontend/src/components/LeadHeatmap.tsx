@@ -13,6 +13,8 @@ interface Lead {
   city: string;
   state: string;
   distance_miles?: number;
+  created_at?: string;
+  source?: string;
 }
 
 interface PracticeLocation {
@@ -496,6 +498,136 @@ const LeadHeatmap: React.FC<LeadHeatmapProps> = ({
         {practiceLocation && (
           <div style={{ fontSize: '10px', color: '#999', marginTop: '6px' }}>
             Practice: {practiceLocation.address}, {practiceLocation.city}, {practiceLocation.state}
+          </div>
+        )}
+      </div>
+
+      {/* Lead Details Table */}
+      <div style={{ 
+        marginTop: '15px', 
+        background: '#ffffff', 
+        borderRadius: '8px',
+        border: '1px solid #dee2e6',
+        overflow: 'hidden'
+      }}>
+        <div style={{ 
+          padding: '15px', 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          fontWeight: '600',
+          fontSize: '14px'
+        }}>
+          📊 Lead Details ({leads.length} leads)
+        </div>
+        
+        {leads.length === 0 ? (
+          <div style={{ 
+            padding: '40px', 
+            textAlign: 'center', 
+            color: '#999',
+            fontSize: '14px'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '10px' }}>📭</div>
+            <div>No leads found matching the current filters</div>
+            <div style={{ fontSize: '12px', marginTop: '5px' }}>
+              Try adjusting the radius or date range
+            </div>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ 
+              width: '100%', 
+              borderCollapse: 'collapse',
+              fontSize: '13px'
+            }}>
+              <thead>
+                <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                  <th style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '600', color: '#333' }}>#</th>
+                  <th style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Company</th>
+                  <th style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Location</th>
+                  <th style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Coordinates</th>
+                  <th style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Distance</th>
+                  <th style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Source</th>
+                  <th style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Date Captured</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leads.map((lead, index) => (
+                  <tr 
+                    key={lead.id} 
+                    style={{ 
+                      borderBottom: '1px solid #f0f0f0',
+                      transition: 'background 0.2s',
+                      cursor: 'pointer'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8f9fa'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                  >
+                    <td style={{ padding: '12px 15px' }}>
+                      <span style={{ 
+                        display: 'inline-block',
+                        width: '24px',
+                        height: '24px',
+                        background: '#4285F4',
+                        borderRadius: '50%',
+                        color: 'white',
+                        textAlign: 'center',
+                        lineHeight: '24px',
+                        fontSize: '11px',
+                        fontWeight: 'bold'
+                      }}>
+                        {index + 1}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 15px', fontWeight: '500', color: '#333' }}>
+                      {lead.company || 'Unknown'}
+                    </td>
+                    <td style={{ padding: '12px 15px', color: '#666' }}>
+                      {lead.city}, {lead.state}
+                    </td>
+                    <td style={{ padding: '12px 15px', color: '#666', fontSize: '11px', fontFamily: 'monospace' }}>
+                      {typeof lead.latitude === 'number' ? lead.latitude.toFixed(4) : parseFloat(lead.latitude).toFixed(4)}, 
+                      {typeof lead.longitude === 'number' ? lead.longitude.toFixed(4) : parseFloat(lead.longitude).toFixed(4)}
+                    </td>
+                    <td style={{ padding: '12px 15px' }}>
+                      {lead.distance_miles !== undefined ? (
+                        <span style={{ 
+                          padding: '4px 8px', 
+                          background: '#e3f2fd', 
+                          color: '#1976d2', 
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: '600'
+                        }}>
+                          {lead.distance_miles.toFixed(1)} mi
+                        </span>
+                      ) : (
+                        <span style={{ color: '#999', fontSize: '11px' }}>N/A</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '12px 15px' }}>
+                      <span style={{ 
+                        padding: '4px 8px', 
+                        background: '#f3e5f5', 
+                        color: '#7b1fa2', 
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontWeight: '500'
+                      }}>
+                        Google Analytics
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 15px', color: '#666', fontSize: '12px' }}>
+                      {new Date((lead as any).created_at || Date.now()).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
