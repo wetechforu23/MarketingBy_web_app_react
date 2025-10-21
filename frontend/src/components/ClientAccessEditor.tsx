@@ -35,7 +35,7 @@ export default function ClientAccessEditor({ permissions, onChange, userRole, te
 
   const fetchClients = async () => {
     try {
-      const response = await http.get('/admin/clients');
+      const response = await http.get('/users/clients/list');
       setClients(response.data || []);
     } catch (error) {
       console.error('Error fetching clients:', error);
