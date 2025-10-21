@@ -89,9 +89,17 @@ const ContentEditor: React.FC = () => {
           try {
             const fbResponse = await http.get(`/facebook/test-credentials/${client.id}`);
             integrations.facebook = fbResponse.data.hasCredentials || false;
-            console.log(`✅ Facebook check for client ${client.id}:`, fbResponse.data);
-          } catch (error) {
-            console.log(`❌ Facebook check failed for client ${client.id}:`, error);
+            console.log(`✅ Facebook check for client ${client.id} (${client.client_name}):`, {
+              hasCredentials: fbResponse.data.hasCredentials,
+              success: fbResponse.data.success,
+              fullResponse: fbResponse.data
+            });
+          } catch (error: any) {
+            console.log(`❌ Facebook check failed for client ${client.id} (${client.client_name}):`, {
+              message: error.message,
+              response: error.response?.data,
+              status: error.response?.status
+            });
             integrations.facebook = false;
           }
 
