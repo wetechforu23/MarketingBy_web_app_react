@@ -52,7 +52,7 @@ const ContentLibrary: React.FC = () => {
 
   const fetchClients = async () => {
     try {
-      const response = await http.get('/api/clients');
+      const response = await http.get('/clients');
       setClients(response.data.clients || []);
     } catch (error) {
       console.error('Error fetching clients:', error);
@@ -67,10 +67,11 @@ const ContentLibrary: React.FC = () => {
       if (platformFilter !== 'all') params.platform = platformFilter;
       if (searchQuery) params.search = searchQuery;
 
-      const response = await http.get('/api/content', { params });
+      const response = await http.get('/content', { params });
       setContents(response.data.content || []);
     } catch (error) {
       console.error('Error fetching contents:', error);
+      setContents([]);
     } finally {
       setLoading(false);
     }
@@ -78,10 +79,11 @@ const ContentLibrary: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await http.get('/api/content/stats/overview');
+      const response = await http.get('/content/stats/overview');
       setStats(response.data.stats);
     } catch (error) {
       console.error('Error fetching stats:', error);
+      setStats(null);
     }
   };
 
@@ -89,7 +91,7 @@ const ContentLibrary: React.FC = () => {
     if (!confirm('Are you sure you want to delete this content?')) return;
 
     try {
-      await http.delete(`/api/content/${id}`);
+      await http.delete(`/content/${id}`);
       fetchContents();
       fetchStats();
     } catch (error: any) {
@@ -99,7 +101,7 @@ const ContentLibrary: React.FC = () => {
 
   const handleDuplicate = async (id: number) => {
     try {
-      await http.post(`/api/content/${id}/duplicate`);
+      await http.post(`/content/${id}/duplicate`);
       fetchContents();
       fetchStats();
     } catch (error: any) {
@@ -147,33 +149,93 @@ const ContentLibrary: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div style={{ 
+      minHeight: '100vh', 
+      backgroundColor: '#f5f7fa', 
+      padding: '30px'
+    }}>
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
+      <div style={{ marginBottom: '30px' }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          marginBottom: '25px',
+          flexWrap: 'wrap',
+          gap: '15px'
+        }}>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Content Library</h1>
-            <p className="text-gray-600 mt-1">Create, manage, and schedule social media content</p>
+            <h1 style={{ 
+              fontSize: '32px', 
+              fontWeight: 'bold', 
+              color: '#1a202c',
+              marginBottom: '8px'
+            }}>
+              📚 Content Library
+            </h1>
+            <p style={{ 
+              color: '#718096', 
+              fontSize: '16px' 
+            }}>
+              Create, manage, and schedule social media content across multiple platforms
+            </p>
           </div>
           <button
             onClick={() => navigate('/app/content-library/create')}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-semibold flex items-center gap-2"
+            style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              padding: '12px 24px',
+              borderRadius: '10px',
+              border: 'none',
+              fontWeight: '600',
+              fontSize: '15px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4)';
+            }}
           >
-            <span>+</span>
+            <span style={{ fontSize: '20px' }}>+</span>
             Create New Content
           </button>
         </div>
 
         {/* Client Selector */}
         {clients.length > 1 && (
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ 
+              display: 'block', 
+              fontSize: '14px', 
+              fontWeight: '600', 
+              color: '#4a5568',
+              marginBottom: '8px'
+            }}>
               Select Client
             </label>
             <select
               value={selectedClient || ''}
               onChange={(e) => setSelectedClient(Number(e.target.value))}
-              className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              style={{
+                width: '100%',
+                maxWidth: '400px',
+                padding: '10px 16px',
+                border: '2px solid #e2e8f0',
+                borderRadius: '8px',
+                fontSize: '15px',
+                backgroundColor: 'white',
+                cursor: 'pointer'
+              }}
             >
               {clients.map((client) => (
                 <option key={client.id} value={client.id}>
@@ -187,78 +249,174 @@ const ContentLibrary: React.FC = () => {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <p className="text-gray-600 text-sm">Draft</p>
-            <p className="text-2xl font-bold text-gray-900">{stats.draft_count}</p>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+          gap: '20px', 
+          marginBottom: '30px'
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            padding: '20px',
+            borderRadius: '12px',
+            boxShadow: '0 4px 15px rgba(102, 126, 234, 0.2)',
+            color: 'white'
+          }}>
+            <p style={{ fontSize: '13px', opacity: 0.9, marginBottom: '8px' }}>📝 Draft</p>
+            <p style={{ fontSize: '32px', fontWeight: 'bold' }}>{stats.draft_count || 0}</p>
           </div>
-          <div className="bg-yellow-50 p-4 rounded-lg shadow">
-            <p className="text-yellow-700 text-sm">Pending Approval</p>
-            <p className="text-2xl font-bold text-yellow-800">
-              {parseInt(stats.pending_wtfu_count) + parseInt(stats.pending_client_count)}
+          <div style={{
+            background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+            padding: '20px',
+            borderRadius: '12px',
+            boxShadow: '0 4px 15px rgba(240, 147, 251, 0.2)',
+            color: 'white'
+          }}>
+            <p style={{ fontSize: '13px', opacity: 0.9, marginBottom: '8px' }}>⏳ Pending Approval</p>
+            <p style={{ fontSize: '32px', fontWeight: 'bold' }}>
+              {parseInt(stats.pending_wtfu_count || 0) + parseInt(stats.pending_client_count || 0)}
             </p>
           </div>
-          <div className="bg-green-50 p-4 rounded-lg shadow">
-            <p className="text-green-700 text-sm">Approved</p>
-            <p className="text-2xl font-bold text-green-800">{stats.approved_count}</p>
+          <div style={{
+            background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+            padding: '20px',
+            borderRadius: '12px',
+            boxShadow: '0 4px 15px rgba(79, 172, 254, 0.2)',
+            color: 'white'
+          }}>
+            <p style={{ fontSize: '13px', opacity: 0.9, marginBottom: '8px' }}>✅ Approved</p>
+            <p style={{ fontSize: '32px', fontWeight: 'bold' }}>{stats.approved_count || 0}</p>
           </div>
-          <div className="bg-purple-50 p-4 rounded-lg shadow">
-            <p className="text-purple-700 text-sm">Posted</p>
-            <p className="text-2xl font-bold text-purple-800">{stats.posted_count}</p>
+          <div style={{
+            background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+            padding: '20px',
+            borderRadius: '12px',
+            boxShadow: '0 4px 15px rgba(67, 233, 123, 0.2)',
+            color: 'white'
+          }}>
+            <p style={{ fontSize: '13px', opacity: 0.9, marginBottom: '8px' }}>🚀 Posted</p>
+            <p style={{ fontSize: '32px', fontWeight: 'bold' }}>{stats.posted_count || 0}</p>
           </div>
-          <div className="bg-blue-50 p-4 rounded-lg shadow">
-            <p className="text-blue-700 text-sm">Total</p>
-            <p className="text-2xl font-bold text-blue-800">{stats.total_count}</p>
+          <div style={{
+            background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+            padding: '20px',
+            borderRadius: '12px',
+            boxShadow: '0 4px 15px rgba(250, 112, 154, 0.2)',
+            color: 'white'
+          }}>
+            <p style={{ fontSize: '13px', opacity: 0.9, marginBottom: '8px' }}>📊 Total</p>
+            <p style={{ fontSize: '32px', fontWeight: 'bold' }}>{stats.total_count || 0}</p>
           </div>
         </div>
       )}
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-lg shadow mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div style={{
+        background: 'white',
+        padding: '25px',
+        borderRadius: '12px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+        marginBottom: '30px'
+      }}>
+        <h3 style={{ 
+          fontSize: '18px', 
+          fontWeight: '600', 
+          color: '#2d3748', 
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          🔍 Filter & Search
+        </h3>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+          gap: '20px'
+        }}>
           {/* Search */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Search
+            <label style={{ 
+              display: 'block', 
+              fontSize: '14px', 
+              fontWeight: '600', 
+              color: '#4a5568',
+              marginBottom: '8px'
+            }}>
+              🔎 Search
             </label>
             <input
               type="text"
               placeholder="Search by title or text..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              style={{
+                width: '100%',
+                padding: '10px 16px',
+                border: '2px solid #e2e8f0',
+                borderRadius: '8px',
+                fontSize: '15px'
+              }}
             />
           </div>
 
           {/* Status Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Status
+            <label style={{ 
+              display: 'block', 
+              fontSize: '14px', 
+              fontWeight: '600', 
+              color: '#4a5568',
+              marginBottom: '8px'
+            }}>
+              📋 Status
             </label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              style={{
+                width: '100%',
+                padding: '10px 16px',
+                border: '2px solid #e2e8f0',
+                borderRadius: '8px',
+                fontSize: '15px',
+                backgroundColor: 'white',
+                cursor: 'pointer'
+              }}
             >
               <option value="all">All Status</option>
-              <option value="draft">Draft</option>
-              <option value="pending_wtfu_approval">Pending WeTechForU</option>
-              <option value="pending_client_approval">Pending Client</option>
-              <option value="approved">Approved</option>
-              <option value="posted">Posted</option>
-              <option value="rejected">Rejected</option>
+              <option value="draft">📝 Draft</option>
+              <option value="pending_wtfu_approval">⏳ Pending WeTechForU</option>
+              <option value="pending_client_approval">⏳ Pending Client</option>
+              <option value="approved">✅ Approved</option>
+              <option value="posted">🚀 Posted</option>
+              <option value="rejected">❌ Rejected</option>
             </select>
           </div>
 
           {/* Platform Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Platform
+            <label style={{ 
+              display: 'block', 
+              fontSize: '14px', 
+              fontWeight: '600', 
+              color: '#4a5568',
+              marginBottom: '8px'
+            }}>
+              📱 Platform
             </label>
             <select
               value={platformFilter}
               onChange={(e) => setPlatformFilter(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              style={{
+                width: '100%',
+                padding: '10px 16px',
+                border: '2px solid #e2e8f0',
+                borderRadius: '8px',
+                fontSize: '15px',
+                backgroundColor: 'white',
+                cursor: 'pointer'
+              }}
             >
               <option value="all">All Platforms</option>
               <option value="facebook">📘 Facebook</option>
@@ -273,18 +431,57 @@ const ContentLibrary: React.FC = () => {
 
       {/* Content Grid */}
       {loading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="text-gray-600 mt-4">Loading content...</p>
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '60px 20px',
+          background: 'white',
+          borderRadius: '12px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.08)'
+        }}>
+          <div style={{
+            width: '60px',
+            height: '60px',
+            border: '4px solid #e2e8f0',
+            borderTop: '4px solid #667eea',
+            borderRadius: '50%',
+            margin: '0 auto 20px',
+            animation: 'spin 1s linear infinite'
+          }}></div>
+          <p style={{ color: '#718096', fontSize: '16px', fontWeight: '500' }}>Loading content...</p>
+          <style>
+            {`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}
+          </style>
         </div>
       ) : contents.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <p className="text-gray-600 text-lg mb-4">No content found</p>
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+          padding: '60px 30px',
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '64px', marginBottom: '20px' }}>📭</div>
+          <h3 style={{ fontSize: '22px', fontWeight: '600', color: '#2d3748', marginBottom: '10px' }}>
+            No content found
+          </h3>
+          <p style={{ color: '#718096', marginBottom: '25px', fontSize: '15px' }}>
+            Start creating amazing social media content for your clients!
+          </p>
           <button
             onClick={() => navigate('/app/content-library/create')}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-semibold"
+            style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              padding: '12px 32px',
+              borderRadius: '10px',
+              border: 'none',
+              fontSize: '15px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
+            }}
           >
-            Create Your First Content
+            <span style={{ fontSize: '18px' }}>+</span> Create Your First Content
           </button>
         </div>
       ) : (
