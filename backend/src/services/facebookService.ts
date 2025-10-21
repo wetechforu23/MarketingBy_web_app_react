@@ -118,7 +118,7 @@ class FacebookService {
       const response = await axios.get(`${this.baseUrl}/${pageId}/posts`, {
         params: {
           access_token: accessToken,
-          fields: 'id,message,created_time,permalink_url,type,full_picture,attachments{media,type,url},likes.summary(true),comments.summary(true),shares,reactions.summary(true)',
+          fields: 'id,message,created_time,permalink_url,type,full_picture,likes.summary(true),comments.summary(true),shares,reactions.summary(true)',
           limit: limit
         }
       });
@@ -216,12 +216,8 @@ class FacebookService {
         const estimatedImpressions = totalEngagement > 0 ? totalEngagement * 100 : avgImpressionsPerPost;
         const estimatedEngaged = totalEngagement * 2;
 
-        // Extract image
-        let fullPicture = post.full_picture || null;
-        if (!fullPicture && post.attachments?.data?.[0]) {
-          const attachment = post.attachments.data[0];
-          fullPicture = attachment.media?.image?.src || attachment.url || null;
-        }
+        // Use full_picture from post
+        const fullPicture = post.full_picture || null;
 
         await this.pool.query(
           `INSERT INTO facebook_posts 
