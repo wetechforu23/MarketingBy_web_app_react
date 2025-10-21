@@ -821,7 +821,10 @@ router.get('/users/me/permissions', async (req, res) => {
 router.get('/users', async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, username, role, created_at FROM users ORDER BY created_at DESC'
+      `SELECT id, email, username, role, team_type, client_id, is_active, 
+              last_login, must_change_password, permissions, created_at, updated_at 
+       FROM users 
+       ORDER BY created_at DESC`
     );
     res.json(result.rows);
   } catch (error) {
