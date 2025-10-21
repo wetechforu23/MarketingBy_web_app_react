@@ -430,7 +430,7 @@ router.get('/clients', async (req, res) => {
     const result = await pool.query(
       'SELECT id, client_name as name, email, phone, contact_name as company, is_active as status, created_at FROM clients ORDER BY created_at DESC'
     );
-    res.json(result.rows);
+    res.json({ clients: result.rows });
   } catch (error) {
     console.error('Get clients error:', error);
     res.status(500).json({ error: 'Internal server error' });
