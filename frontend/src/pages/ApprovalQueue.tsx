@@ -37,7 +37,7 @@ const ApprovalQueue: React.FC = () => {
   const fetchApprovals = async () => {
     setLoading(true);
     try {
-      const response = await http.get('/api/approvals/pending');
+      const response = await http.get('/approvals/pending');
       setApprovals(response.data.approvals || []);
     } catch (error) {
       console.error('Error fetching approvals:', error);
@@ -48,7 +48,7 @@ const ApprovalQueue: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await http.get('/api/approvals/stats');
+      const response = await http.get('/approvals/stats');
       setStats(response.data.stats);
     } catch (error) {
       console.error('Error fetching stats:', error);

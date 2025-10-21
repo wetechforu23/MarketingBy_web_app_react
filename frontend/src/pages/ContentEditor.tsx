@@ -73,10 +73,13 @@ const ContentEditor: React.FC = () => {
       console.log('📊 Fetching clients with integrations...');
       const response = await http.get('/clients');
       const clientsData = response.data.clients || [];
+      console.log(`📋 Found ${clientsData.length} clients:`, clientsData);
       
       // Fetch Facebook integrations for each client
       const clientsWithIntegrations = await Promise.all(
         clientsData.map(async (client: any) => {
+          console.log(`🔍 Checking integrations for client ${client.id} (${client.client_name})...`);
+          
           const integrations = {
             facebook: false,
             linkedin: false,
@@ -92,7 +95,8 @@ const ContentEditor: React.FC = () => {
             console.log(`✅ Facebook check for client ${client.id} (${client.client_name}):`, {
               hasCredentials: fbResponse.data.hasCredentials,
               success: fbResponse.data.success,
-              fullResponse: fbResponse.data
+              tokenValid: fbResponse.data.tokenValid,
+              pageName: fbResponse.data.pageName
             });
           } catch (error: any) {
             console.log(`❌ Facebook check failed for client ${client.id} (${client.client_name}):`, {
@@ -103,6 +107,8 @@ const ContentEditor: React.FC = () => {
             integrations.facebook = false;
           }
 
+          console.log(`📊 Final integrations for client ${client.id}:`, integrations);
+
           return {
             ...client,
             integrations,
@@ -110,12 +116,20 @@ const ContentEditor: React.FC = () => {
         })
       );
 
+      console.log('📦 All clients with integration checks:', clientsWithIntegrations);
+
       // Only show clients with at least one integration
       const clientsWithIntegrationsAvailable = clientsWithIntegrations.filter(
         (client) => Object.values(client.integrations).some((v) => v)
       );
 
-      console.log('✅ Clients with integrations:', clientsWithIntegrationsAvailable);
+      console.log('✅ Clients with at least one integration:', clientsWithIntegrationsAvailable);
+      
+      if (clientsWithIntegrationsAvailable.length === 0) {
+        console.warn('⚠️ WARNING: No clients have any social media integrations configured!');
+        console.log('💡 TIP: Make sure Facebook credentials are saved in client_credentials table');
+      }
+      
       setClients(clientsWithIntegrationsAvailable);
     } catch (error) {
       console.error('❌ Error fetching clients:', error);
