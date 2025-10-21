@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { http } from '../api/http';
 import PermissionsEditor from '../components/PermissionsEditor';
+import ClientAccessEditor from '../components/ClientAccessEditor';
 import '../theme/brand.css';
 
 // ============================================================================
@@ -926,6 +927,14 @@ export default function Users() {
               <PermissionsEditor 
                 permissions={permissions}
                 onChange={setPermissions}
+              />
+
+              {/* Client Access Control */}
+              <ClientAccessEditor 
+                permissions={permissions}
+                onChange={setPermissions}
+                userRole={formData.role}
+                teamType={formData.team_type}
               />
 
               {/* Additional Options */}

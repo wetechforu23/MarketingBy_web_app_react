@@ -84,6 +84,12 @@ function getAllPermissions(): object {
       webhooks: true,
       billing: true,
     },
+    // Client Access Control
+    // This will be populated with actual client IDs dynamically
+    // Format: { clientId: true } for each allowed client
+    client_access: {
+      _note: 'Client IDs will be added here dynamically (e.g., "1": true, "67": true)',
+    },
   };
 }
 

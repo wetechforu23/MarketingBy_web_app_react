@@ -296,14 +296,50 @@ router.get('/admin/clients', async (req, res) => {
     const { page = 1, limit = 10 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
-    const result = await pool.query(
-      `SELECT id, client_name as name, email, contact_name as company, phone, is_active as status, created_at,
-              practice_address, practice_city, practice_state, practice_latitude, practice_longitude
-       FROM clients 
-       ORDER BY created_at DESC 
-       LIMIT $1 OFFSET $2`,
-      [limit, offset]
+    // Get user's client access permissions
+    const userId = (req.session as any).userId;
+    const userResult = await pool.query(
+      'SELECT permissions, role, team_type FROM users WHERE id = $1',
+      [userId]
     );
+    
+    const user = userResult.rows[0];
+    const isSuperAdmin = user.role === 'super_admin' || user.team_type === 'wetechforu';
+    const clientAccess = user.permissions?.client_access || {};
+    const allowedClientIds = Object.keys(clientAccess).filter(id => clientAccess[id] === true).map(Number);
+
+    // Build query with client access filter
+    let query = `SELECT id, client_name as name, email, contact_name as company, phone, is_active as status, created_at,
+              practice_address, practice_city, practice_state, practice_latitude, practice_longitude
+       FROM clients`;
+    
+    let countQuery = 'SELECT COUNT(*) as count FROM clients';
+    let params: any[] = [];
+    let paramIndex = 1;
+
+    // Apply client access filter for non-super-admin users
+    if (!isSuperAdmin && allowedClientIds.length > 0) {
+      const placeholders = allowedClientIds.map(() => `$${paramIndex++}`).join(',');
+      query += ` WHERE id IN (${placeholders})`;
+      countQuery += ` WHERE id IN (${placeholders})`;
+      params = [...allowedClientIds];
+    } else if (!isSuperAdmin && allowedClientIds.length === 0) {
+      // User has no client access - return empty result
+      return res.json({
+        clients: [],
+        pagination: {
+          total: 0,
+          page: Number(page),
+          limit: Number(limit),
+          totalPages: 0
+        }
+      });
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
+    params.push(limit, offset);
+
+    const result = await pool.query(query, params);
 
     // Format clients with practice_location object
     const clients = result.rows.map(client => ({
@@ -317,7 +353,7 @@ router.get('/admin/clients', async (req, res) => {
       } : null
     }));
 
-    const countResult = await pool.query('SELECT COUNT(*) as count FROM clients');
+    const countResult = await pool.query(countQuery, isSuperAdmin ? [] : allowedClientIds);
     const total = parseInt(countResult.rows[0].count);
 
     res.json({
