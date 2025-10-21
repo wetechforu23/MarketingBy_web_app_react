@@ -3815,3 +3815,415 @@ WHERE ga_last_sync_at IS NOT NULL;
 
 ---
 
+## 📘 Version 1.19.0 - Facebook Page Analytics Integration (October 21, 2025)
+
+**FEATURE**: Complete Facebook Page Analytics integration with real-time data fetching, post insights, and engagement metrics.
+
+**IMPLEMENTED BY**: Development Team  
+**DATE**: October 21, 2025  
+**STATUS**: ✅ Deployed to Production (v273)
+
+**CHANGES**:
+
+1. **Facebook Service Architecture** (`backend/src/services/facebookService.ts`):
+   - **Simple Pattern**: Follows Google Analytics integration pattern (fetch → store → retrieve)
+   - **fetchAndStoreData()**: Single method to fetch page info, posts, and insights from Facebook Graph API
+   - **getStoredData()**: Retrieves all Facebook data from database (no direct API calls)
+   - **fetchPageInfo()**: Gets basic page information (name, followers, website, etc.)
+   - **fetchPosts()**: Retrieves posts with reactions, comments, shares, thumbnails
+   - **fetchInsights()**: Gets page-level metrics (views, reach, impressions, engagement)
+   - **storeData()**: Saves all data to database with proper indexing
+
+2. **Facebook API Integration**:
+   - **Base URL**: `https://graph.facebook.com/v18.0`
+   - **Authentication**: Page Access Token (non-expiring) stored in `client_credentials`
+   - **Post Fields**: `id,message,created_time,permalink_url,type,full_picture,likes.summary(true),comments.summary(true),shares,reactions.summary(true)`
+   - **Page Insights Metrics**:
+     - `page_impressions` (total views)
+     - `page_impressions_unique` (unique reach)
+     - `page_post_engagements` (total engagement)
+     - `page_views_total` (page views)
+     - `page_posts_impressions` (post impressions)
+     - `page_video_views` (video views)
+     - `page_fan_adds` / `page_fan_removes` (follower changes)
+   - **Period**: 28 days (days_28)
+   - **Post Limit**: 50 posts per sync
+
+3. **Estimated Post-Level Insights**:
+   - **Why Estimated?**: Direct post-level insights require special Facebook App permissions (`read_insights`, `pages_read_engagement`)
+   - **Calculation Method**:
+     - `post_impressions` = `total_engagement × 100` (or avg impressions per post)
+     - `post_engaged_users` = `total_engagement × 2`
+     - `post_clicks` = estimated based on post type and engagement
+     - `video_views` = estimated for video posts
+   - **Total Engagement**: `reactions + comments + shares`
+   - **Accuracy**: Estimates based on typical engagement-to-view ratios
+
+4. **Database Schema Updates**:
+   
+   **`facebook_insights` table**:
+   ```sql
+   CREATE TABLE IF NOT EXISTS facebook_insights (
+     id SERIAL PRIMARY KEY,
+     client_id INTEGER NOT NULL REFERENCES clients(id),
+     metric_name VARCHAR(100) NOT NULL,
+     metric_value BIGINT NOT NULL,
+     recorded_at DATE NOT NULL DEFAULT CURRENT_DATE,
+     created_at TIMESTAMP DEFAULT NOW(),
+     UNIQUE(client_id, metric_name, recorded_at)
+   );
+   CREATE INDEX idx_facebook_insights_client_date ON facebook_insights(client_id, recorded_at);
+   ```
+
+   **`facebook_posts` table**:
+   ```sql
+   CREATE TABLE IF NOT EXISTS facebook_posts (
+     id SERIAL PRIMARY KEY,
+     client_id INTEGER NOT NULL REFERENCES clients(id),
+     post_id VARCHAR(255) UNIQUE NOT NULL,
+     message TEXT,
+     created_time TIMESTAMP NOT NULL,
+     permalink_url TEXT,
+     post_type VARCHAR(50),
+     full_picture TEXT,
+     likes INTEGER DEFAULT 0,
+     comments INTEGER DEFAULT 0,
+     shares INTEGER DEFAULT 0,
+     total_reactions INTEGER DEFAULT 0,
+     post_impressions INTEGER DEFAULT 0,
+     post_engaged_users INTEGER DEFAULT 0,
+     post_clicks INTEGER DEFAULT 0,
+     video_views INTEGER DEFAULT 0,
+     post_data JSONB,
+     synced_at TIMESTAMP DEFAULT NOW(),
+     created_at TIMESTAMP DEFAULT NOW()
+   );
+   CREATE INDEX idx_facebook_posts_client ON facebook_posts(client_id);
+   CREATE INDEX idx_facebook_posts_created_time ON facebook_posts(created_time DESC);
+   ```
+
+   **`facebook_follower_stats` table**:
+   ```sql
+   CREATE TABLE IF NOT EXISTS facebook_follower_stats (
+     id SERIAL PRIMARY KEY,
+     client_id INTEGER NOT NULL REFERENCES clients(id),
+     date DATE NOT NULL,
+     followers INTEGER NOT NULL,
+     fan_adds INTEGER DEFAULT 0,
+     fan_removes INTEGER DEFAULT 0,
+     net_change INTEGER DEFAULT 0,
+     created_at TIMESTAMP DEFAULT NOW(),
+     UNIQUE(client_id, date)
+   );
+   CREATE INDEX idx_facebook_follower_stats_client_date ON facebook_follower_stats(client_id, date);
+   ```
+
+5. **API Endpoints** (`backend/src/routes/api.ts`):
+   - `POST /api/facebook/sync/:clientId` - Fetch and store Facebook data
+   - `GET /api/facebook/overview/:clientId` - Get overview metrics (from DB)
+   - `GET /api/facebook/posts/:clientId` - Get posts list (from DB)
+   - `GET /api/facebook/followers/:clientId` - Get follower stats (from DB)
+   - `GET /api/facebook/analytics/posts/:clientId?days=28` - Detailed post analytics
+   - `GET /api/facebook/analytics/top-posts/:clientId?limit=5&days=28` - Top performing posts
+   - `GET /api/facebook/analytics/timeline/:clientId?days=7` - Engagement timeline
+   - `POST /api/facebook/connect/:clientId` - Save Facebook credentials
+   - `DELETE /api/facebook/disconnect/:clientId` - Remove Facebook credentials
+
+6. **Frontend Integration** (`frontend/src/pages/ClientManagementDashboard.tsx`):
+   - **New Tab**: "Social Media" (renamed "Analytics" to "Google Analytics")
+   - **Sync Button**: Manually trigger Facebook data sync
+   - **Overview Cards**:
+     - Page Views (last 28 days)
+     - Total Followers
+     - Engagement Rate
+     - Connection Status
+   - **Detailed Insights Component**:
+     - Content Type Breakdown (Photo, Video, Link, Status)
+     - Average Views Per Post
+     - Top 5 Performing Posts
+     - Recent Posts Grid with thumbnails and metrics
+   - **Refresh Mechanism**: `refreshKey` state triggers re-fetch after sync
+
+7. **Credential Storage** (see "🔐 Where Credentials Are Stored" section below):
+   - **Table**: `client_credentials`
+   - **Service Type**: `'facebook'`
+   - **Credentials JSON**:
+     ```json
+     {
+       "page_id": "123456789",
+       "access_token": "EAABw..."
+     }
+     ```
+   - **Encryption**: AES-256 encryption at rest
+   - **Access**: Only via `CredentialManagementService` with decryption
+
+8. **Data Flow**:
+   ```
+   User clicks "Sync Facebook Data"
+     ↓
+   Frontend: POST /api/facebook/sync/:clientId
+     ↓
+   Backend: facebookService.fetchAndStoreData(clientId)
+     ↓
+   1. getClientCredentials(clientId) → fetch from client_credentials
+     ↓
+   2. fetchPageInfo(pageId, token) → Facebook Graph API
+     ↓
+   3. fetchPosts(pageId, token, 50) → Facebook Graph API
+     ↓
+   4. fetchInsights(pageId, token) → Facebook Graph API
+     ↓
+   5. storeData(clientId, pageInfo, posts, insights) → PostgreSQL
+     ↓
+   Backend: Returns { success, data: { pageViews, followers, posts.length } }
+     ↓
+   Frontend: setRefreshKey(prev => prev + 1) → triggers DetailedFacebookInsights re-fetch
+     ↓
+   DetailedFacebookInsights: GET /api/facebook/analytics/posts/:clientId
+     ↓
+   Backend: facebookService.getStoredData(clientId) → fetch from PostgreSQL
+     ↓
+   Frontend: Displays posts with updated metrics
+   ```
+
+9. **Sync Caching**:
+   - **Cache Duration**: 15 minutes per client
+   - **Implementation**: In-memory cache with timestamp
+   - **Force Sync**: `?force=true` parameter bypasses cache
+   - **Purpose**: Prevent excessive Facebook API calls (rate limiting)
+
+10. **Error Handling**:
+    - **Invalid Token**: Returns empty data, logs error details
+    - **API Rate Limit**: Catches 429 errors, returns cached data
+    - **Network Errors**: Graceful fallback, detailed logging
+    - **Missing Credentials**: Returns `null`, frontend shows "Not Connected"
+    - **Enhanced Logging**: Detailed console logs for debugging (post count, sample post, error details)
+
+**MIGRATION STEPS**:
+```sql
+-- Create facebook_insights table
+CREATE TABLE IF NOT EXISTS facebook_insights (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  metric_name VARCHAR(100) NOT NULL,
+  metric_value BIGINT NOT NULL,
+  recorded_at DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(client_id, metric_name, recorded_at)
+);
+CREATE INDEX idx_facebook_insights_client_date ON facebook_insights(client_id, recorded_at);
+
+-- Create facebook_posts table
+CREATE TABLE IF NOT EXISTS facebook_posts (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  post_id VARCHAR(255) UNIQUE NOT NULL,
+  message TEXT,
+  created_time TIMESTAMP NOT NULL,
+  permalink_url TEXT,
+  post_type VARCHAR(50),
+  full_picture TEXT,
+  likes INTEGER DEFAULT 0,
+  comments INTEGER DEFAULT 0,
+  shares INTEGER DEFAULT 0,
+  total_reactions INTEGER DEFAULT 0,
+  post_impressions INTEGER DEFAULT 0,
+  post_engaged_users INTEGER DEFAULT 0,
+  post_clicks INTEGER DEFAULT 0,
+  video_views INTEGER DEFAULT 0,
+  post_data JSONB,
+  synced_at TIMESTAMP DEFAULT NOW(),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX idx_facebook_posts_client ON facebook_posts(client_id);
+CREATE INDEX idx_facebook_posts_created_time ON facebook_posts(created_time DESC);
+
+-- Create facebook_follower_stats table
+CREATE TABLE IF NOT EXISTS facebook_follower_stats (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  date DATE NOT NULL,
+  followers INTEGER NOT NULL,
+  fan_adds INTEGER DEFAULT 0,
+  fan_removes INTEGER DEFAULT 0,
+  net_change INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(client_id, date)
+);
+CREATE INDEX idx_facebook_follower_stats_client_date ON facebook_follower_stats(client_id, date);
+```
+
+**API QUOTA/USAGE TRACKING**:
+- **Facebook Graph API**: 200 calls per hour per user (standard rate limit)
+- **Sync Frequency**: Manual sync only (no automatic background sync)
+- **Cache Duration**: 15 minutes to prevent excessive API calls
+- **Monitoring**: Log all API calls with timestamps
+- **Free Tier**: Yes (included with Facebook Page)
+
+**ROLLBACK PLAN**:
+- Remove Facebook integration from frontend (hide "Social Media" tab)
+- Drop Facebook tables: `facebook_insights`, `facebook_posts`, `facebook_follower_stats`
+- Remove Facebook API endpoints from `api.ts`
+- Delete `facebookService.ts`
+- Remove Facebook credentials from `client_credentials` table
+
+**BUSINESS IMPACT**:
+- **Real Social Media Data**: Actual Facebook page performance metrics
+- **Post Performance Tracking**: Engagement, reach, and views per post
+- **Content Strategy Insights**: Identify top-performing content types
+- **Follower Growth Tracking**: Monitor audience growth over time
+- **Client Reporting**: Comprehensive social media analytics for clients
+- **Multi-Platform Analytics**: Combines Google Analytics + Facebook insights
+
+**TECHNICAL IMPROVEMENTS**:
+- Simple, consistent service pattern (like Google Analytics)
+- Database-first approach (API → DB → UI)
+- Proper error handling and logging
+- Efficient caching to prevent rate limits
+- Post-level metric estimation (works without special permissions)
+- Thumbnail display for visual post identification
+- Refresh mechanism using `refreshKey` state pattern
+
+**ERD/DIAGRAM UPDATES**:
+- New tables: `facebook_insights`, `facebook_posts`, `facebook_follower_stats`
+- New indexes for performance
+- Service layer: `FacebookService`
+- API layer: Facebook endpoints in `api.ts`
+- Frontend: New "Social Media" tab in Client Management Dashboard
+
+**NOTES**:
+- Post-level insights are **estimated** (Facebook API requires special app permissions for exact data)
+- Estimation formula: `views = engagement × 100`, `engaged_users = engagement × 2`
+- Sync is **manual** (triggered by user clicking "Sync Facebook Data" button)
+- 15-minute cache prevents excessive API calls
+- Page Access Token is **non-expiring** (better than User Access Token)
+- Thumbnails extracted from `full_picture` field
+- All data stored in PostgreSQL for fast retrieval
+- Frontend automatically refreshes after sync using `refreshKey` mechanism
+
+---
+
+## 🔐 Where Credentials Are Stored
+
+All API credentials and sensitive configuration data are stored securely in the `client_credentials` table in PostgreSQL with AES-256 encryption.
+
+**Table Structure**:
+```sql
+CREATE TABLE client_credentials (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  service_type VARCHAR(50) NOT NULL,  -- 'google_analytics', 'search_console', 'facebook', etc.
+  service_name VARCHAR(100),
+  credentials JSONB NOT NULL,          -- Encrypted JSON with service-specific fields
+  config JSONB,                        -- Additional configuration (property_id, etc.)
+  last_connected_at TIMESTAMP,
+  expires_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(client_id, service_type, service_name)
+);
+```
+
+**Credential Storage by Service**:
+
+1. **Google Analytics**:
+   - **Service Type**: `'google_analytics'`
+   - **Credentials JSON**:
+     ```json
+     {
+       "access_token": "ya29.a0...",
+       "refresh_token": "1//05...",
+       "expires_at": "2081-07-29T08:28:49.724Z",
+       "property_id": "507323099"
+     }
+     ```
+   - **Access Method**: `credentialService.getDecryptedCredentials(clientId, 'google_analytics')`
+
+2. **Google Search Console**:
+   - **Service Type**: `'search_console'`
+   - **Credentials JSON**:
+     ```json
+     {
+       "access_token": "ya29.a0...",
+       "refresh_token": "1//05...",
+       "expires_at": "2081-08-01T04:51:35.550Z",
+       "site_url": "https://promedhca.com"
+     }
+     ```
+   - **Access Method**: `credentialService.getDecryptedCredentials(clientId, 'search_console')`
+
+3. **Facebook**:
+   - **Service Type**: `'facebook'`
+   - **Credentials JSON**:
+     ```json
+     {
+       "page_id": "123456789",
+       "access_token": "EAABwzLixnjYBO..."
+     }
+     ```
+   - **Token Type**: Page Access Token (non-expiring)
+   - **Access Method**: `facebookService.getClientCredentials(clientId)`
+
+4. **Google Maps/Geocoding**:
+   - **Service Type**: `'google_maps'`
+   - **Credentials JSON**:
+     ```json
+     {
+       "api_key": "AIzaSy..."
+     }
+     ```
+   - **Access Method**: Environment variable `GOOGLE_MAPS_API_KEY` or database
+
+5. **Moz API**:
+   - **Service Type**: `'moz'`
+   - **Credentials JSON**:
+     ```json
+     {
+       "access_id": "mozscape-...",
+       "secret_key": "..."
+     }
+     ```
+
+**Encryption Details**:
+- **Algorithm**: AES-256-CBC
+- **Encryption Key**: Stored in environment variable `ENCRYPTION_KEY`
+- **Key Rotation**: Supported (requires re-encryption of all credentials)
+- **Decryption**: On-demand when service needs credentials
+- **Storage**: Only encrypted values stored in database
+
+**Access Control**:
+- **Super Admin**: Can view/edit all client credentials
+- **Client Admin**: Can view/edit only their own client's credentials
+- **Regular Users**: No access to credentials
+- **API Access**: Only backend services can decrypt credentials
+
+**Credential Management Endpoints**:
+- `POST /api/credentials/:clientId/:serviceType` - Save/update credentials
+- `GET /api/credentials/:clientId/:serviceType` - Get credentials (returns connection status only to frontend)
+- `DELETE /api/credentials/:clientId/:serviceType` - Remove credentials
+- `POST /api/facebook/connect/:clientId` - Save Facebook credentials
+- `DELETE /api/facebook/disconnect/:clientId` - Remove Facebook credentials
+
+**Security Best Practices**:
+- Never log decrypted credentials
+- Never send decrypted credentials to frontend
+- Always use HTTPS for credential transmission
+- Rotate encryption keys periodically
+- Monitor credential access via audit logs
+- Use environment variables for master encryption key
+- Credentials expire automatically (OAuth tokens have `expires_at`)
+
+**Migration from .env to Database**:
+1. Credentials previously in `.env` file have been migrated to database
+2. `.env` now only contains: `DATABASE_URL`, `ENCRYPTION_KEY`, `SESSION_SECRET`
+3. All API keys, tokens, and secrets are in `client_credentials` table
+4. Services now fetch credentials from database, not environment variables
+
+**Files Involved**:
+- `backend/src/services/credentialManagementService.ts` - Encryption/decryption logic
+- `backend/src/routes/api.ts` - Credential management endpoints
+- `backend/database/encrypted_credentials.sql` - Table schema
+- Frontend: `Settings.tsx` - UI for managing credentials per client
+
+---
+

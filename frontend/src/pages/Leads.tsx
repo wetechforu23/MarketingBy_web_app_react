@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { http } from '../api/http';
+import NotificationModal from '../components/NotificationModal';
 
 interface Lead {
   id: number;
@@ -112,6 +113,28 @@ const Leads: React.FC = () => {
   const [selectedLeads, setSelectedLeads] = useState<number[]>([]);
   const [selectAll, setSelectAll] = useState(false);
 
+  // Notification Modal State
+  const [notificationModal, setNotificationModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'info' as 'success' | 'error' | 'warning' | 'info' | 'confirm',
+    onConfirm: undefined as (() => void) | undefined
+  });
+
+  const showNotification = (
+    title: string,
+    message: string,
+    type: 'success' | 'error' | 'warning' | 'info' | 'confirm',
+    onConfirm?: () => void
+  ) => {
+    setNotificationModal({ isOpen: true, title, message, type, onConfirm });
+  };
+
+  const closeNotification = () => {
+    setNotificationModal(prev => ({ ...prev, isOpen: false }));
+  };
+
   // Fetch leads data
   const fetchData = async () => {
     try {
@@ -167,22 +190,35 @@ const Leads: React.FC = () => {
       if (assignedTo === null) {
         // Unassign
         await http.post('/lead-assignment/unassign', { lead_id: leadId });
-        alert('✅ Lead unassigned successfully');
+        showNotification(
+          'Success',
+          'Lead unassigned successfully',
+          'success'
+        );
       } else {
         // Assign
         await http.post('/lead-assignment/assign', {
           lead_id: leadId,
           assigned_to: assignedTo,
-          reason: 'manual_assignment'
+          notes: 'Manual assignment from Lead Management'
         });
-        alert('✅ Lead assigned successfully');
+        showNotification(
+          'Success',
+          'Lead assigned successfully',
+          'success'
+        );
       }
       
       // Refresh leads
       await fetchData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to assign lead:', err);
-      alert('❌ Failed to assign lead. Please try again.');
+      const errorMessage = err.response?.data?.error || err.message || 'Failed to assign lead. Please try again.';
+      showNotification(
+        'Assignment Failed',
+        errorMessage,
+        'error'
+      );
     }
   };
 
@@ -826,17 +862,31 @@ const Leads: React.FC = () => {
   };
 
   const handleConvertToClient = async (leadId: number) => {
-    if (window.confirm('Are you sure you want to convert this lead to a client?')) {
-      try {
-        const response = await http.post('/leads/convert-to-client', { leadId });
-        alert('Lead converted to client successfully');
-        fetchData();
-        fetchLeadStats();
-      } catch (error) {
-        console.error('Error converting lead to client:', error);
-        alert('Failed to convert lead to client. Please try again.');
+    showNotification(
+      'Convert to Client',
+      'Are you sure you want to convert this lead to a client? This will create a new client record and remove the lead from this list.',
+      'confirm',
+      async () => {
+        try {
+          const response = await http.post('/leads/convert-to-client', { leadId });
+          showNotification(
+            'Success!',
+            'Lead has been successfully converted to a client. You can now find them in the Client Management section.',
+            'success'
+          );
+          await fetchData();
+          await fetchLeadStats();
+        } catch (error: any) {
+          console.error('Error converting lead to client:', error);
+          const errorMessage = error.response?.data?.error || error.message || 'Failed to convert lead to client. Please try again.';
+          showNotification(
+            'Conversion Failed',
+            errorMessage,
+            'error'
+          );
+        }
       }
-    }
+    );
   };
 
 
@@ -3181,6 +3231,16 @@ const Leads: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Notification Modal */}
+      <NotificationModal
+        isOpen={notificationModal.isOpen}
+        onClose={closeNotification}
+        title={notificationModal.title}
+        message={notificationModal.message}
+        type={notificationModal.type}
+        onConfirm={notificationModal.onConfirm}
+      />
     </div>
   );
 };
