@@ -4661,7 +4661,7 @@ router.get('/facebook/overview/:clientId', requireAuth, async (req, res) => {
   }
 });
 
-// Get Facebook posts
+// Get Facebook posts (recent posts with all metrics including views, clicks, reach)
 router.get('/facebook/posts/:clientId', requireAuth, async (req, res) => {
   try {
     const { clientId } = req.params;
@@ -4672,12 +4672,12 @@ router.get('/facebook/posts/:clientId', requireAuth, async (req, res) => {
     const FacebookService = (await import('../services/facebookService')).default;
     const facebookService = new FacebookService(pool);
 
-    const data = await facebookService.getStoredData(parseInt(clientId));
+    const recentPosts = await facebookService.getRecentPosts(parseInt(clientId), limit);
 
     res.json({
       success: true,
-      data: data.posts.slice(0, limit),
-      count: data.posts.length
+      data: recentPosts,
+      count: recentPosts.length
     });
   } catch (error) {
     console.error('❌ Get Facebook posts error:', error);
@@ -4761,44 +4761,21 @@ router.get('/facebook/analytics/posts/:clientId', requireAuth, async (req, res) 
   }
 });
 
-// Get top performing posts
+// Get top performing posts (using service method with engagement scoring)
 router.get('/facebook/analytics/top-posts/:clientId', requireAuth, async (req, res) => {
   try {
     const { clientId } = req.params;
     const limit = parseInt(req.query.limit as string) || 10;
-    const days = parseInt(req.query.days as string) || 28;
 
     console.log(`🏆 Fetching top ${limit} performing posts for client ${clientId}`);
 
-    const result = await pool.query(
-      `SELECT 
-        post_id,
-        message,
-        post_type,
-        created_time,
-        permalink_url,
-        full_picture,
-        post_impressions,
-        post_impressions_unique,
-        post_engaged_users,
-        post_clicks,
-        post_video_views,
-        likes,
-        comments,
-        shares,
-        total_reactions,
-        (post_engaged_users::float / NULLIF(post_impressions_unique, 0) * 100) as engagement_rate
-      FROM facebook_posts
-      WHERE client_id = $1
-        AND created_time >= NOW() - INTERVAL '${days} days'
-      ORDER BY post_impressions DESC
-      LIMIT $2`,
-      [clientId, limit]
-    );
+    const facebookService = new FacebookService(pool);
+    const topPosts = await facebookService.getTopPerformingPosts(parseInt(clientId), limit);
 
     res.json({
       success: true,
-      data: result.rows
+      data: topPosts,
+      count: topPosts.length
     });
   } catch (error) {
     console.error('Get top posts error:', error);
