@@ -35,6 +35,9 @@ const ContentLibrary: React.FC = () => {
 
   useEffect(() => {
     fetchClients();
+    // Also fetch content immediately for super_admin
+    fetchContents();
+    fetchStats();
   }, []);
 
   useEffect(() => {
@@ -44,33 +47,36 @@ const ContentLibrary: React.FC = () => {
   }, [clients]);
 
   useEffect(() => {
-    if (selectedClient) {
-      fetchContents();
-      fetchStats();
-    }
+    fetchContents();
+    fetchStats();
   }, [selectedClient, statusFilter, platformFilter, searchQuery]);
 
   const fetchClients = async () => {
     try {
+      console.log('📊 Fetching clients...');
       const response = await http.get('/clients');
+      console.log('✅ Clients fetched:', response.data);
       setClients(response.data.clients || []);
     } catch (error) {
-      console.error('Error fetching clients:', error);
+      console.error('❌ Error fetching clients:', error);
+      setClients([]);
     }
   };
 
   const fetchContents = async () => {
     setLoading(true);
     try {
+      console.log('📚 Fetching contents...');
       const params: any = {};
       if (statusFilter !== 'all') params.status = statusFilter;
       if (platformFilter !== 'all') params.platform = platformFilter;
       if (searchQuery) params.search = searchQuery;
 
       const response = await http.get('/content', { params });
+      console.log('✅ Contents fetched:', response.data);
       setContents(response.data.content || []);
     } catch (error) {
-      console.error('Error fetching contents:', error);
+      console.error('❌ Error fetching contents:', error);
       setContents([]);
     } finally {
       setLoading(false);
@@ -79,10 +85,12 @@ const ContentLibrary: React.FC = () => {
 
   const fetchStats = async () => {
     try {
+      console.log('📈 Fetching stats...');
       const response = await http.get('/content/stats/overview');
+      console.log('✅ Stats fetched:', response.data);
       setStats(response.data.stats);
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      console.error('❌ Error fetching stats:', error);
       setStats(null);
     }
   };
