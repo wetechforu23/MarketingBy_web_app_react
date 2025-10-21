@@ -87,9 +87,11 @@ const ContentEditor: React.FC = () => {
 
           // Check Facebook integration
           try {
-            const fbResponse = await http.get(`/facebook/client/${client.id}/credentials`);
+            const fbResponse = await http.get(`/facebook/test-credentials/${client.id}`);
             integrations.facebook = fbResponse.data.hasCredentials || false;
+            console.log(`✅ Facebook check for client ${client.id}:`, fbResponse.data);
           } catch (error) {
+            console.log(`❌ Facebook check failed for client ${client.id}:`, error);
             integrations.facebook = false;
           }
 
