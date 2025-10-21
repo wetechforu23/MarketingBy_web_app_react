@@ -97,18 +97,33 @@ app.use('/api/tasks', tasksRoutes);
 app.use('/api/lead-assignment', leadAssignmentRoutes);
 app.use('/api/users', usersRoutes);
 
-// Serve React app (static files from public directory)
-const frontendPath = path.join(__dirname, 'public');
-app.use(express.static(frontendPath));
+// Serve React app (static files from public directory) - Only in production
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, 'public');
+  app.use(express.static(frontendPath));
 
-// Serve index.html for all non-API routes (SPA support)
-app.get('*', (req, res) => {
-  // Don't serve index.html for API routes
-  if (req.path.startsWith('/api')) {
-    return res.status(404).json({ error: 'API endpoint not found' });
-  }
-  res.sendFile(path.join(frontendPath, 'index.html'));
-});
+  // Serve index.html for all non-API routes (SPA support)
+  app.get('*', (req, res) => {
+    // Don't serve index.html for API routes
+    if (req.path.startsWith('/api')) {
+      return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+} else {
+  // Development mode - API only
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      return res.status(200).json({ 
+        message: 'MarketingBy API Server',
+        mode: 'development',
+        frontend: 'http://localhost:5173',
+        docs: 'Use /api/* endpoints'
+      });
+    }
+    res.status(404).json({ error: 'API endpoint not found' });
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`🚀 MarketingBy Backend running on port ${PORT}`);

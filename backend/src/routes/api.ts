@@ -4769,6 +4769,7 @@ router.get('/facebook/analytics/top-posts/:clientId', requireAuth, async (req, r
 
     console.log(`🏆 Fetching top ${limit} performing posts for client ${clientId}`);
 
+    const FacebookService = (await import('../services/facebookService')).default;
     const facebookService = new FacebookService(pool);
     const topPosts = await facebookService.getTopPerformingPosts(parseInt(clientId), limit);
 
