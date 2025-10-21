@@ -141,7 +141,8 @@ router.delete('/:id', async (req: Request, res: Response) => {
     const result = await contentService.deleteContent(contentId, req);
 
     if (!result.success) {
-      return res.status(400).json({ error: (result as any).error });
+      const errorMessage = 'error' in result ? result.error : 'message' in result ? result.message : 'Failed to delete content';
+      return res.status(400).json({ error: errorMessage });
     }
 
     res.json(result);
