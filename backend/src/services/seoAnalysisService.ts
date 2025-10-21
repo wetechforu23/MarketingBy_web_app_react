@@ -31,8 +31,8 @@ interface PageSEOData {
   internalLinks: number;
   externalLinks: number;
   wordCount: number;
-  loadTime: number;
-  mobileFriendly: boolean;
+    loadTime: number;
+    mobileFriendly: boolean;
   seoScore: number;
 }
 

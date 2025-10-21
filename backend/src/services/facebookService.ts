@@ -115,6 +115,8 @@ class FacebookService {
    */
   private async fetchPosts(pageId: string, accessToken: string, limit: number = 50): Promise<any[]> {
     try {
+      console.log(`  🔍 Fetching posts for page ${pageId}...`);
+      
       const response = await axios.get(`${this.baseUrl}/${pageId}/posts`, {
         params: {
           access_token: accessToken,
@@ -124,10 +126,19 @@ class FacebookService {
       });
 
       const posts = response.data.data || [];
-      console.log(`  ✅ Fetched ${posts.length} posts`);
+      console.log(`  ✅ Fetched ${posts.length} posts from Facebook API`);
+      
+      // Log first post as sample
+      if (posts.length > 0) {
+        console.log(`  📄 Sample post: ID=${posts[0].id}, Likes=${posts[0].likes?.summary?.total_count || 0}`);
+      }
+      
       return posts;
     } catch (error: any) {
-      console.error('  ❌ Error fetching posts:', error.response?.data || error.message);
+      console.error('  ❌ Error fetching posts:');
+      console.error('     Error message:', error.message);
+      console.error('     Response status:', error.response?.status);
+      console.error('     Response data:', JSON.stringify(error.response?.data, null, 2));
       return [];
     }
   }
