@@ -150,6 +150,9 @@ const ClientManagementDashboard: React.FC = () => {
     }
   }, [clients]);
 
+  // Add refresh key to force re-fetch of detailed Facebook insights after sync
+  const [refreshKey, setRefreshKey] = useState(0);
+
   // Fetch date range for GA leads
   const fetchLeadDateRange = async (clientId: number) => {
     try {
@@ -516,7 +519,10 @@ const ClientManagementDashboard: React.FC = () => {
         // Refresh client data to show updated metrics
         await fetchClientData(selectedClient.id);
         
-        setSuccessMessage(`✅ Facebook sync successful! Synced ${response.data.data.insights} insights, ${response.data.data.posts} posts`);
+        // Force refresh detailed insights component
+        setRefreshKey(prev => prev + 1);
+        
+        setSuccessMessage(`✅ Facebook sync successful! Synced ${response.data.data.pageViews} page views, ${response.data.data.posts} posts`);
       } else {
         setError('Failed to sync Facebook data');
       }
@@ -2918,7 +2924,7 @@ const ClientManagementDashboard: React.FC = () => {
 
                     {/* Detailed Facebook Metrics */}
                     {analyticsData?.facebook?.connected && (
-                      <DetailedFacebookInsights clientId={selectedClient.id} />
+                      <DetailedFacebookInsights clientId={selectedClient.id} refreshKey={refreshKey} />
                     )}
 
                     {/* Quick Stats Table */}
@@ -4058,7 +4064,7 @@ const ClientManagementDashboard: React.FC = () => {
 };
 
 // Detailed Facebook Insights Component
-const DetailedFacebookInsights: React.FC<{ clientId: number }> = ({ clientId }) => {
+const DetailedFacebookInsights: React.FC<{ clientId: number; refreshKey: number }> = ({ clientId, refreshKey }) => {
   const [posts, setPosts] = useState<any[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
   const [topPosts, setTopPosts] = useState<any[]>([]);
@@ -4067,7 +4073,7 @@ const DetailedFacebookInsights: React.FC<{ clientId: number }> = ({ clientId }) 
 
   useEffect(() => {
     fetchDetailedInsights();
-  }, [clientId, selectedDays]);
+  }, [clientId, selectedDays, refreshKey]);
 
   const fetchDetailedInsights = async () => {
     setLoading(true);
