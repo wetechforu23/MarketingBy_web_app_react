@@ -334,6 +334,336 @@ class FacebookService {
       };
     }
   }
+
+  // ============================================================================
+  // POSTING METHODS (NEW - for Social Media Content Management)
+  // ============================================================================
+
+  /**
+   * Create a text post on Facebook
+   */
+  async createTextPost(
+    clientId: number,
+    message: string
+  ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
+    try {
+      const credentials = await this.getClientCredentials(clientId);
+      
+      if (!credentials) {
+        return { success: false, error: 'Facebook credentials not found' };
+      }
+
+      console.log(`📘 Creating Facebook text post for page ${credentials.page_id}...`);
+
+      const response = await axios.post(
+        `${this.baseUrl}/${credentials.page_id}/feed`,
+        {
+          message: message,
+          access_token: credentials.access_token
+        }
+      );
+
+      const postId = response.data.id;
+      console.log(`✅ Facebook text post created: ${postId}`);
+
+      return {
+        success: true,
+        postId: postId,
+        postUrl: `https://www.facebook.com/${postId.replace('_', '/posts/')}`
+      };
+    } catch (error: any) {
+      console.error('❌ Error creating Facebook text post:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.error?.message || error.message
+      };
+    }
+  }
+
+  /**
+   * Create an image post on Facebook
+   */
+  async createImagePost(
+    clientId: number,
+    message: string,
+    imageUrl: string
+  ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
+    try {
+      const credentials = await this.getClientCredentials(clientId);
+      
+      if (!credentials) {
+        return { success: false, error: 'Facebook credentials not found' };
+      }
+
+      console.log(`📘 Creating Facebook image post for page ${credentials.page_id}...`);
+
+      const response = await axios.post(
+        `${this.baseUrl}/${credentials.page_id}/photos`,
+        {
+          message: message,
+          url: imageUrl,
+          access_token: credentials.access_token
+        }
+      );
+
+      const postId = response.data.post_id || response.data.id;
+      console.log(`✅ Facebook image post created: ${postId}`);
+
+      return {
+        success: true,
+        postId: postId,
+        postUrl: `https://www.facebook.com/${postId.replace('_', '/posts/')}`
+      };
+    } catch (error: any) {
+      console.error('❌ Error creating Facebook image post:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.error?.message || error.message
+      };
+    }
+  }
+
+  /**
+   * Create a multi-image post (carousel) on Facebook
+   */
+  async createMultiImagePost(
+    clientId: number,
+    message: string,
+    imageUrls: string[]
+  ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
+    try {
+      const credentials = await this.getClientCredentials(clientId);
+      
+      if (!credentials) {
+        return { success: false, error: 'Facebook credentials not found' };
+      }
+
+      console.log(`📘 Creating Facebook multi-image post for page ${credentials.page_id}...`);
+
+      // Upload each image and get media IDs
+      const attached_media = [];
+      for (const imageUrl of imageUrls) {
+        const photoResponse = await axios.post(
+          `${this.baseUrl}/${credentials.page_id}/photos`,
+          {
+            url: imageUrl,
+            published: false, // Don't publish individual photos
+            access_token: credentials.access_token
+          }
+        );
+        attached_media.push({ media_fbid: photoResponse.data.id });
+      }
+
+      // Create the multi-photo post
+      const response = await axios.post(
+        `${this.baseUrl}/${credentials.page_id}/feed`,
+        {
+          message: message,
+          attached_media: attached_media,
+          access_token: credentials.access_token
+        }
+      );
+
+      const postId = response.data.id;
+      console.log(`✅ Facebook multi-image post created: ${postId}`);
+
+      return {
+        success: true,
+        postId: postId,
+        postUrl: `https://www.facebook.com/${postId.replace('_', '/posts/')}`
+      };
+    } catch (error: any) {
+      console.error('❌ Error creating Facebook multi-image post:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.error?.message || error.message
+      };
+    }
+  }
+
+  /**
+   * Create a video post on Facebook
+   */
+  async createVideoPost(
+    clientId: number,
+    message: string,
+    videoUrl: string,
+    title?: string,
+    description?: string
+  ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
+    try {
+      const credentials = await this.getClientCredentials(clientId);
+      
+      if (!credentials) {
+        return { success: false, error: 'Facebook credentials not found' };
+      }
+
+      console.log(`📘 Creating Facebook video post for page ${credentials.page_id}...`);
+
+      const videoData: any = {
+        file_url: videoUrl,
+        description: message,
+        access_token: credentials.access_token
+      };
+
+      if (title) {
+        videoData.title = title;
+      }
+
+      if (description) {
+        videoData.description = description;
+      }
+
+      const response = await axios.post(
+        `${this.baseUrl}/${credentials.page_id}/videos`,
+        videoData
+      );
+
+      const postId = response.data.id;
+      console.log(`✅ Facebook video post created: ${postId}`);
+
+      return {
+        success: true,
+        postId: postId,
+        postUrl: `https://www.facebook.com/watch/?v=${postId}`
+      };
+    } catch (error: any) {
+      console.error('❌ Error creating Facebook video post:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.error?.message || error.message
+      };
+    }
+  }
+
+  /**
+   * Universal create post method - determines type based on content
+   */
+  async createPost(
+    clientId: number,
+    message: string,
+    mediaUrls?: string[]
+  ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
+    // No media - text only
+    if (!mediaUrls || mediaUrls.length === 0) {
+      return this.createTextPost(clientId, message);
+    }
+
+    // Determine media types
+    const images = mediaUrls.filter(url => this.isImageUrl(url));
+    const videos = mediaUrls.filter(url => this.isVideoUrl(url));
+
+    // Video post (only one video allowed)
+    if (videos.length > 0) {
+      if (videos.length > 1) {
+        return { success: false, error: 'Facebook only supports one video per post' };
+      }
+      return this.createVideoPost(clientId, message, videos[0]);
+    }
+
+    // Single image post
+    if (images.length === 1) {
+      return this.createImagePost(clientId, message, images[0]);
+    }
+
+    // Multiple images (carousel)
+    if (images.length > 1) {
+      return this.createMultiImagePost(clientId, message, images);
+    }
+
+    return { success: false, error: 'No valid media found' };
+  }
+
+  /**
+   * Get post details from Facebook
+   */
+  async getPostDetails(
+    clientId: number,
+    postId: string
+  ): Promise<{success: boolean; post?: any; error?: string}> {
+    try {
+      const credentials = await this.getClientCredentials(clientId);
+      
+      if (!credentials) {
+        return { success: false, error: 'Facebook credentials not found' };
+      }
+
+      const response = await axios.get(
+        `${this.baseUrl}/${postId}`,
+        {
+          params: {
+            access_token: credentials.access_token,
+            fields: 'id,message,created_time,permalink_url,type,full_picture,likes.summary(true),comments.summary(true),shares,reactions.summary(true),insights'
+          }
+        }
+      );
+
+      return {
+        success: true,
+        post: response.data
+      };
+    } catch (error: any) {
+      console.error('❌ Error fetching Facebook post details:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.error?.message || error.message
+      };
+    }
+  }
+
+  /**
+   * Delete a post from Facebook
+   */
+  async deletePost(
+    clientId: number,
+    postId: string
+  ): Promise<{success: boolean; error?: string}> {
+    try {
+      const credentials = await this.getClientCredentials(clientId);
+      
+      if (!credentials) {
+        return { success: false, error: 'Facebook credentials not found' };
+      }
+
+      console.log(`📘 Deleting Facebook post ${postId}...`);
+
+      await axios.delete(
+        `${this.baseUrl}/${postId}`,
+        {
+          params: {
+            access_token: credentials.access_token
+          }
+        }
+      );
+
+      console.log(`✅ Facebook post deleted: ${postId}`);
+      return { success: true };
+    } catch (error: any) {
+      console.error('❌ Error deleting Facebook post:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.error?.message || error.message
+      };
+    }
+  }
+
+  /**
+   * Helper: Check if URL is an image
+   */
+  private isImageUrl(url: string): boolean {
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const ext = url.split('.').pop()?.toLowerCase().split('?')[0];
+    return ext ? imageExtensions.includes(ext) : false;
+  }
+
+  /**
+   * Helper: Check if URL is a video
+   */
+  private isVideoUrl(url: string): boolean {
+    const videoExtensions = ['mp4', 'mov', 'avi', 'webm'];
+    const ext = url.split('.').pop()?.toLowerCase().split('?')[0];
+    return ext ? videoExtensions.includes(ext) : false;
+  }
 }
 
 export default FacebookService;

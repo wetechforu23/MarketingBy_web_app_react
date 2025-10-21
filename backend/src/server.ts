@@ -19,6 +19,10 @@ import complianceRoutes from './routes/compliance';
 import tasksRoutes from './routes/tasks';
 import leadAssignmentRoutes from './routes/leadAssignment';
 import usersRoutes from './routes/users';
+// Social Media Content Management routes
+import contentRoutes from './routes/content';
+import approvalsRoutes from './routes/approvals';
+import postsRoutes from './routes/posts';
 
 dotenv.config();
 
@@ -96,6 +100,10 @@ app.use('/api/compliance', complianceRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/lead-assignment', leadAssignmentRoutes);
 app.use('/api/users', usersRoutes);
+// Social Media Content Management routes
+app.use('/api/content', contentRoutes);
+app.use('/api/approvals', approvalsRoutes);
+app.use('/api/posts', postsRoutes);
 
 // Serve React app (static files from public directory)
 const frontendPath = path.join(__dirname, 'public');
