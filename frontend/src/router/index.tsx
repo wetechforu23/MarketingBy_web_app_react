@@ -27,6 +27,10 @@ import CalendarPage from "../pages/CalendarPage";
 import Credentials from "../pages/Credentials";
 import Settings from "../pages/Settings";
 import ClientManagementDashboard from "../pages/ClientManagementDashboard";
+// Social Media Content Management
+import ContentLibrary from "../pages/ContentLibrary";
+import ContentEditor from "../pages/ContentEditor";
+import ApprovalQueue from "../pages/ApprovalQueue";
 
 export const router = createBrowserRouter([
   { path: "/", element: <HomePage /> }, // Public home page
@@ -57,6 +61,11 @@ export const router = createBrowserRouter([
       { path: "credentials", element: <Credentials /> }, // Credentials management page
       { path: "settings", element: <Settings /> }, // System settings page
       { path: "settings/clients", element: <Clients /> }, // Clients management in settings
+      // Social Media Content Management routes
+      { path: "content-library", element: <ContentLibrary /> },
+      { path: "content-library/create", element: <ContentEditor /> },
+      { path: "content-library/:id/edit", element: <ContentEditor /> },
+      { path: "approvals", element: <ApprovalQueue /> },
       {
         path: "customer",
         element: <CustomerPortalPage />,

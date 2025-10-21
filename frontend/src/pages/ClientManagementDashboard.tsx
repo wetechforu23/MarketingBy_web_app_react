@@ -2833,6 +2833,119 @@ const ClientManagementDashboard: React.FC = () => {
                         </button>
                       )}
                     </div>
+
+                    {/* NEW: Content Management Quick Actions */}
+                    <div style={{ 
+                      backgroundColor: '#f0f8ff', 
+                      border: '2px solid #007bff', 
+                      borderRadius: '12px', 
+                      padding: '20px',
+                      marginBottom: '25px'
+                    }}>
+                      <h4 style={{ margin: '0 0 15px 0', color: '#007bff', fontWeight: '600' }}>
+                        🚀 Content Management
+                      </h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
+                        <a
+                          href="/app/content-library"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            padding: '15px',
+                            backgroundColor: 'white',
+                            border: '2px solid #007bff',
+                            borderRadius: '8px',
+                            textDecoration: 'none',
+                            color: '#007bff',
+                            fontWeight: '500',
+                            transition: 'all 0.2s',
+                            cursor: 'pointer'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#007bff';
+                            e.currentTarget.style.color = 'white';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'white';
+                            e.currentTarget.style.color = '#007bff';
+                          }}
+                        >
+                          <span style={{ fontSize: '24px' }}>📚</span>
+                          <div>
+                            <div style={{ fontWeight: '600' }}>Content Library</div>
+                            <div style={{ fontSize: '12px', opacity: 0.8 }}>View all content</div>
+                          </div>
+                        </a>
+                        
+                        <a
+                          href="/app/content-library/create"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            padding: '15px',
+                            backgroundColor: 'white',
+                            border: '2px solid #28a745',
+                            borderRadius: '8px',
+                            textDecoration: 'none',
+                            color: '#28a745',
+                            fontWeight: '500',
+                            transition: 'all 0.2s',
+                            cursor: 'pointer'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#28a745';
+                            e.currentTarget.style.color = 'white';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'white';
+                            e.currentTarget.style.color = '#28a745';
+                          }}
+                        >
+                          <span style={{ fontSize: '24px' }}>✏️</span>
+                          <div>
+                            <div style={{ fontWeight: '600' }}>Create Content</div>
+                            <div style={{ fontSize: '12px', opacity: 0.8 }}>New social media post</div>
+                          </div>
+                        </a>
+                        
+                        <a
+                          href="/app/approvals"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            padding: '15px',
+                            backgroundColor: 'white',
+                            border: '2px solid #ffc107',
+                            borderRadius: '8px',
+                            textDecoration: 'none',
+                            color: '#ffc107',
+                            fontWeight: '500',
+                            transition: 'all 0.2s',
+                            cursor: 'pointer'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#ffc107';
+                            e.currentTarget.style.color = 'white';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'white';
+                            e.currentTarget.style.color = '#ffc107';
+                          }}
+                        >
+                          <span style={{ fontSize: '24px' }}>✓</span>
+                          <div>
+                            <div style={{ fontWeight: '600' }}>Approval Queue</div>
+                            <div style={{ fontSize: '12px', opacity: 0.8 }}>Review pending content</div>
+                          </div>
+                        </a>
+                      </div>
+                      <p style={{ margin: '15px 0 0 0', fontSize: '13px', color: '#666', fontStyle: 'italic' }}>
+                        💡 Create, manage, and schedule social media content across multiple platforms with approval workflow
+                      </p>
+                    </div>
                     
                     {/* Facebook Insights Summary */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
