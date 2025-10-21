@@ -55,6 +55,12 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    // Update last_login timestamp
+    await pool.query(
+      'UPDATE users SET last_login = NOW() WHERE id = $1',
+      [user.id]
+    );
+
     // Set session with remember me functionality
     req.session.userId = user.id;
     req.session.username = user.username;
@@ -105,8 +111,9 @@ router.get('/me', async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT id, email, username, role, client_id, first_name, last_name, phone, 
-              created_at, last_login, timezone, language, notifications_enabled, profile_picture_url 
+      `SELECT id, email, username, role, team_type, client_id, first_name, last_name, phone, 
+              created_at, last_login, timezone, language, notifications_enabled, profile_picture_url,
+              is_active, permissions
        FROM users WHERE id = $1`,
       [req.session.userId]
     );
