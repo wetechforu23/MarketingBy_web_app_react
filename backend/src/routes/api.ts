@@ -564,21 +564,40 @@ router.post('/leads/scrape', async (req, res) => {
 // Get leads
 router.get('/leads', async (req, res) => {
   try {
+    // Get user's client access permissions
+    const userId = (req.session as any).userId;
+    const userResult = await pool.query(
+      'SELECT permissions, role, team_type FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    const user = userResult.rows[0];
+    const isSuperAdmin = user.role === 'super_admin' || user.team_type === 'wetechforu';
+    const clientAccess = user.permissions?.client_access || {};
+    const allowedClientIds = Object.keys(clientAccess).filter(id => clientAccess[id] === true).map(Number);
+
     // Check if client_id is specified in query parameters
     const requestedClientId = req.query.client_id;
     
     let whereClause = '';
     let params: any[] = [];
+    let paramIndex = 1;
     
     if (requestedClientId) {
       // If client_id is specified, filter by that client (for super admin dashboard views)
-      whereClause = 'l.client_id = $1';
+      whereClause = `l.client_id = $${paramIndex++}`;
       params = [requestedClientId];
     } else {
-      // Otherwise, use the standard client filter based on user's role
-      const filter = getClientFilter(req);
-      whereClause = filter.whereClause;
-      params = filter.params;
+      // Apply client access filter for non-super-admin users
+      if (!isSuperAdmin && allowedClientIds.length > 0) {
+        const placeholders = allowedClientIds.map(() => `$${paramIndex++}`).join(',');
+        whereClause = `l.client_id IN (${placeholders})`;
+        params = [...allowedClientIds];
+      } else if (!isSuperAdmin && allowedClientIds.length === 0) {
+        // User has no client access - return empty result
+        return res.json([]);
+      }
+      // Super admins see all leads (no WHERE clause needed)
     }
     
     const whereSql = whereClause ? `WHERE ${whereClause}` : '';
@@ -609,10 +628,12 @@ router.get('/leads', async (req, res) => {
         l.assigned_by,
         l.assignment_notes,
         u1.username as assigned_to_name,
-        u2.username as assigned_by_name
+        u2.username as assigned_by_name,
+        c.client_name
       FROM leads l
       LEFT JOIN users u1 ON l.assigned_to = u1.id
       LEFT JOIN users u2 ON l.assigned_by = u2.id
+      LEFT JOIN clients c ON l.client_id = c.id
       ${whereSql}
       ORDER BY l.created_at DESC`,
       params
