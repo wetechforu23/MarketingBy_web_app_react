@@ -573,8 +573,6 @@ router.get('/leads', async (req, res) => {
     
     const user = userResult.rows[0];
     const isSuperAdmin = user.role === 'super_admin' || user.team_type === 'wetechforu';
-    const clientAccess = user.permissions?.client_access || {};
-    const allowedClientIds = Object.keys(clientAccess).filter(id => clientAccess[id] === true).map(Number);
 
     // Check if client_id is specified in query parameters
     const requestedClientId = req.query.client_id;
@@ -584,20 +582,15 @@ router.get('/leads', async (req, res) => {
     let paramIndex = 1;
     
     if (requestedClientId) {
-      // If client_id is specified, filter by that client (for super admin dashboard views)
+      // If client_id is specified, filter by that client (for Client Management dashboard views)
+      // These are leads that belong TO the client (e.g., ProMed's patients from Google Analytics)
       whereClause = `l.client_id = $${paramIndex++}`;
       params = [requestedClientId];
     } else {
-      // Apply client access filter for non-super-admin users
-      if (!isSuperAdmin && allowedClientIds.length > 0) {
-        const placeholders = allowedClientIds.map(() => `$${paramIndex++}`).join(',');
-        whereClause = `l.client_id IN (${placeholders})`;
-        params = [...allowedClientIds];
-      } else if (!isSuperAdmin && allowedClientIds.length === 0) {
-        // User has no client access - return empty result
-        return res.json([]);
-      }
-      // Super admins see all leads (no WHERE clause needed)
+      // Lead Management page: Show only WeTechForU's business leads (potential clients)
+      // These are leads WITHOUT a client_id (i.e., companies interested in hiring WeTechForU)
+      whereClause = `l.client_id IS NULL`;
+      // No additional filtering needed - all WeTechForU team members can see business leads
     }
     
     const whereSql = whereClause ? `WHERE ${whereClause}` : '';
