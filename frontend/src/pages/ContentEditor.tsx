@@ -45,6 +45,7 @@ const ContentEditor: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [validationResults, setValidationResults] = useState<{ [key: string]: ValidationResult }>({});
   const [showValidation, setShowValidation] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const platforms = [
     { id: 'facebook', name: 'Facebook', icon: '📘', color: '#1877f2', maxLength: 63206, recommended: 500 },
@@ -1092,6 +1093,25 @@ const ContentEditor: React.FC = () => {
               </button>
 
               <button
+                onClick={() => setShowPreview(true)}
+                disabled={!formData.title || !formData.contentText}
+                style={{
+                  width: '100%',
+                  background: '#3182ce',
+                  color: 'white',
+                  padding: '14px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  cursor: !formData.title || !formData.contentText ? 'not-allowed' : 'pointer',
+                  opacity: !formData.title || !formData.contentText ? 0.5 : 1
+                }}
+              >
+                👁️ Preview
+              </button>
+
+              <button
                 onClick={handleSaveDraft}
                 disabled={loading || !formData.clientId}
                 style={{
@@ -1149,6 +1169,231 @@ const ContentEditor: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Preview Modal */}
+      {showPreview && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}
+          onClick={() => setShowPreview(false)}
+        >
+          <div style={{
+            background: 'white',
+            borderRadius: '16px',
+            maxWidth: '800px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+          }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{
+              padding: '25px',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h2 style={{
+                fontSize: '24px',
+                fontWeight: '600',
+                color: '#2d3748'
+              }}>
+                👁️ Content Preview
+              </h2>
+              <button
+                onClick={() => setShowPreview(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '28px',
+                  cursor: 'pointer',
+                  color: '#a0aec0',
+                  padding: '0',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: '25px' }}>
+              {/* Client Info */}
+              <div style={{
+                background: '#f7fafc',
+                padding: '15px',
+                borderRadius: '10px',
+                marginBottom: '20px'
+              }}>
+                <p style={{ fontSize: '13px', color: '#718096', marginBottom: '5px' }}>
+                  <strong>Client:</strong> {selectedClient?.client_name || 'Not selected'}
+                </p>
+                <p style={{ fontSize: '13px', color: '#718096' }}>
+                  <strong>Platforms:</strong> {formData.targetPlatforms.map(p => platforms.find(pl => pl.id === p)?.icon).join(' ') || 'None selected'}
+                </p>
+              </div>
+
+              {/* Title */}
+              <h3 style={{
+                fontSize: '20px',
+                fontWeight: '600',
+                color: '#2d3748',
+                marginBottom: '15px'
+              }}>
+                {formData.title}
+              </h3>
+
+              {/* Media Preview */}
+              {formData.mediaUrls && formData.mediaUrls.length > 0 && (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: formData.mediaUrls.length === 1 ? '1fr' : 'repeat(2, 1fr)',
+                  gap: '15px',
+                  marginBottom: '20px'
+                }}>
+                  {formData.mediaUrls.map((url, index) => (
+                    <img
+                      key={index}
+                      src={url}
+                      alt={`Media ${index + 1}`}
+                      style={{
+                        width: '100%',
+                        height: '250px',
+                        objectFit: 'cover',
+                        borderRadius: '10px'
+                      }}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23ddd" width="400" height="300"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle"%3EInvalid URL%3C/text%3E%3C/svg%3E';
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Content Text */}
+              <div style={{
+                background: '#f7fafc',
+                padding: '20px',
+                borderRadius: '10px',
+                marginBottom: '20px',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                lineHeight: '1.6',
+                fontSize: '15px',
+                color: '#2d3748'
+              }}>
+                {formData.contentText}
+              </div>
+
+              {/* Hashtags */}
+              {formData.hashtags && formData.hashtags.length > 0 && (
+                <div style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '8px',
+                  marginBottom: '20px'
+                }}>
+                  {formData.hashtags.map((tag, index) => (
+                    <span
+                      key={index}
+                      style={{
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        color: 'white',
+                        padding: '6px 12px',
+                        borderRadius: '15px',
+                        fontSize: '13px',
+                        fontWeight: '500'
+                      }}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Platform-specific previews */}
+              <div style={{
+                borderTop: '1px solid #e2e8f0',
+                paddingTop: '20px'
+              }}>
+                <h4 style={{
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  color: '#2d3748',
+                  marginBottom: '15px'
+                }}>
+                  Platform Character Counts:
+                </h4>
+                {formData.targetPlatforms.map((platformId) => {
+                  const platform = platforms.find(p => p.id === platformId);
+                  const charCount = getCharacterCount(platformId);
+                  return (
+                    <div
+                      key={platformId}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '10px 15px',
+                        background: '#f7fafc',
+                        borderRadius: '8px',
+                        marginBottom: '8px'
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '20px' }}>{platform?.icon}</span>
+                        <span style={{ fontWeight: '500', color: '#2d3748' }}>{platform?.name}</span>
+                      </span>
+                      <span style={{
+                        fontWeight: '600',
+                        color: charCount.current > charCount.max ? '#e53e3e' : '#48bb78'
+                      }}>
+                        {charCount.current} / {charCount.max}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Close Button */}
+              <button
+                onClick={() => setShowPreview(false)}
+                style={{
+                  width: '100%',
+                  background: '#667eea',
+                  color: 'white',
+                  padding: '14px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  marginTop: '20px'
+                }}
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

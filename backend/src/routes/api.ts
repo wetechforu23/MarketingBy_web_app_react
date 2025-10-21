@@ -428,7 +428,7 @@ router.get('/admin/analytics/system', async (req, res) => {
 router.get('/clients', async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, client_name as name, email, phone, contact_name as company, is_active as status, created_at FROM clients ORDER BY created_at DESC'
+      'SELECT id, client_name, email, phone, contact_name as company, is_active as status, created_at FROM clients ORDER BY created_at DESC'
     );
     res.json({ clients: result.rows });
   } catch (error) {
