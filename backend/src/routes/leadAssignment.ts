@@ -15,12 +15,28 @@ const router = express.Router();
 router.post('/assign', async (req: Request, res: Response) => {
   try {
     const { lead_id, assigned_to, notes, reason } = req.body;
-    const assigned_by = (req as any).user?.id;
-    const userRole = (req as any).user?.role;
+    const session = req.session as any;
+    const assigned_by = session.userId;
 
     if (!lead_id || !assigned_to) {
       return res.status(400).json({ error: 'lead_id and assigned_to are required' });
     }
+
+    if (!assigned_by) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    // Get current user's role
+    const userResult = await pool.query(
+      'SELECT role FROM users WHERE id = $1',
+      [assigned_by]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    const userRole = userResult.rows[0].role;
 
     // Only super_admin and admin can assign leads
     if (userRole !== 'super_admin' && userRole !== 'admin') {
@@ -111,12 +127,28 @@ router.post('/assign', async (req: Request, res: Response) => {
 router.post('/unassign', async (req: Request, res: Response) => {
   try {
     const { lead_id, reason } = req.body;
-    const unassigned_by = (req as any).user?.id;
-    const userRole = (req as any).user?.role;
+    const session = req.session as any;
+    const unassigned_by = session.userId;
 
     if (!lead_id) {
       return res.status(400).json({ error: 'lead_id is required' });
     }
+
+    if (!unassigned_by) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    // Get current user's role
+    const userResult = await pool.query(
+      'SELECT role FROM users WHERE id = $1',
+      [unassigned_by]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    const userRole = userResult.rows[0].role;
 
     // Only super_admin and admin can unassign leads
     if (userRole !== 'super_admin' && userRole !== 'admin') {
@@ -206,7 +238,13 @@ router.get('/history/:leadId', async (req: Request, res: Response) => {
  */
 router.get('/my-leads', async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
+    const session = req.session as any;
+    const userId = session.userId;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
     const { status, priority } = req.query;
 
     let query = `
@@ -243,8 +281,25 @@ router.get('/my-leads', async (req: Request, res: Response) => {
  */
 router.get('/team-workload', async (req: Request, res: Response) => {
   try {
-    const userRole = (req as any).user?.role;
-    const clientId = (req as any).user?.client_id;
+    const session = req.session as any;
+    const userId = session.userId;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    // Get current user's role and client_id
+    const userResult = await pool.query(
+      'SELECT role, client_id FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    const userRole = userResult.rows[0].role;
+    const clientId = userResult.rows[0].client_id;
 
     // Only super_admin and admin can view team workload
     if (userRole !== 'super_admin' && userRole !== 'admin') {
@@ -295,8 +350,8 @@ router.get('/team-workload', async (req: Request, res: Response) => {
 router.post('/bulk-assign', async (req: Request, res: Response) => {
   try {
     const { lead_ids, assigned_to, notes, reason } = req.body;
-    const assigned_by = (req as any).user?.id;
-    const userRole = (req as any).user?.role;
+    const session = req.session as any;
+    const assigned_by = session.userId;
 
     if (!lead_ids || !Array.isArray(lead_ids) || lead_ids.length === 0) {
       return res.status(400).json({ error: 'lead_ids array is required' });
@@ -305,6 +360,22 @@ router.post('/bulk-assign', async (req: Request, res: Response) => {
     if (!assigned_to) {
       return res.status(400).json({ error: 'assigned_to is required' });
     }
+
+    if (!assigned_by) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    // Get current user's role
+    const userResult = await pool.query(
+      'SELECT role FROM users WHERE id = $1',
+      [assigned_by]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    const userRole = userResult.rows[0].role;
 
     // Only super_admin and admin can assign leads
     if (userRole !== 'super_admin' && userRole !== 'admin') {
