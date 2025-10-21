@@ -12,16 +12,84 @@ const router = Router();
 /**
  * Get default permissions for a role
  */
+/**
+ * Get comprehensive permissions structure
+ * This defines ALL possible permissions in the system
+ */
+function getAllPermissions(): object {
+  return {
+    // Page Access
+    pages: {
+      dashboard: true,
+      leads: true,
+      clients: true,
+      users: true,
+      reports: true,
+      seo: true,
+      analytics: true,
+      email: true,
+      settings: true,
+      clientManagement: true,
+      localSearch: true,
+    },
+    // Feature Access
+    leads: { view: true, add: true, edit: true, delete: true, assign: true, convert: true, export: true },
+    users: { view: true, add: true, edit: true, delete: true, toggleActive: true, resetPassword: true },
+    reports: { view: true, generate: true, export: true, delete: true, schedule: true },
+    clients: { view: true, add: true, edit: true, delete: true, toggleActive: true, convertToLead: true },
+    seo: { 
+      basic: true, 
+      comprehensive: true, 
+      analysis: true, 
+      recommendations: true, 
+      checklist: true, 
+      configureStandards: true 
+    },
+    analytics: {
+      googleAnalytics: true,
+      searchConsole: true,
+      facebook: true,
+      leadTracking: true,
+      heatmap: true,
+      sync: true,
+      configure: true,
+    },
+    email: { send: true, templates: true, bulkSend: true, scheduling: true },
+    settings: {
+      viewAll: true,
+      editOwn: true,
+      editAll: true,
+      credentials: true,
+      integrations: true,
+      systemConfig: true,
+    },
+    // Database Table Access
+    database: {
+      leads: { read: true, write: true, delete: true },
+      clients: { read: true, write: true, delete: true },
+      users: { read: true, write: true, delete: true },
+      campaigns: { read: true, write: true, delete: true },
+      reports: { read: true, write: true, delete: true },
+      analytics_data: { read: true, write: true, delete: true },
+      facebook_insights: { read: true, write: true, delete: true },
+      seo_audit_tasks: { read: true, write: true, delete: true },
+      client_credentials: { read: true, write: true, delete: true },
+    },
+    // System Capabilities
+    system: {
+      viewLogs: true,
+      manageBackups: true,
+      systemSettings: true,
+      apiAccess: true,
+      webhooks: true,
+      billing: true,
+    },
+  };
+}
+
 function getDefaultPermissions(role: string): object {
   const permissions: { [key: string]: any } = {
-    super_admin: {
-      leads: { view: true, add: true, edit: true, delete: true, assign: true },
-      users: { view: true, add: true, edit: true, delete: true },
-      reports: { view: true, generate: true, export: true },
-      clients: { view: true, add: true, edit: true, delete: true },
-      seo: { basic: true, comprehensive: true },
-      email: { send: true, templates: true },
-    },
+    super_admin: getAllPermissions(),
     wtfu_developer: {
       leads: { view: true, add: true, edit: true, delete: false, assign: true },
       users: { view: true, add: false, edit: false, delete: false },
@@ -675,6 +743,25 @@ router.get('/permissions/defaults/:role', requireAdmin, async (req: Request, res
   } catch (error) {
     console.error('Get default permissions error:', error);
     res.status(500).json({ message: 'Failed to fetch default permissions', error: (error as Error).message });
+  }
+});
+
+/**
+ * GET /api/users/permissions/all
+ * Get all available permissions in the system
+ * Requires: admin
+ */
+router.get('/permissions/all', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const allPermissions = getAllPermissions();
+
+    res.json({
+      success: true,
+      permissions: allPermissions,
+    });
+  } catch (error) {
+    console.error('Get all permissions error:', error);
+    res.status(500).json({ message: 'Failed to fetch permissions', error: (error as Error).message });
   }
 });
 

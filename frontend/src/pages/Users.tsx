@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { http } from '../api/http';
+import PermissionsEditor from '../components/PermissionsEditor';
 import '../theme/brand.css';
 
 // ============================================================================
@@ -921,7 +922,58 @@ export default function Users() {
                 )}
               </div>
 
-              {/* Due to character limits, I'll create a simpler version. The full modal with all permissions will be in the actual file */}
+              {/* Comprehensive Permissions Editor */}
+              <PermissionsEditor 
+                permissions={permissions}
+                onChange={setPermissions}
+              />
+
+              {/* Additional Options */}
+              <div style={{ marginTop: '24px', marginBottom: '1.5rem' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: '600', color: '#2c3e50', marginBottom: '1rem', borderBottom: '2px solid #4682B4', paddingBottom: '0.5rem' }}>
+                  Additional Options
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={formData.is_active}
+                      onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                      style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#0d6efd' }}
+                    />
+                    <span style={{ fontWeight: '500' }}>
+                      <i className="fas fa-check-circle me-2" style={{ color: '#28a745' }}></i>
+                      Account Active
+                    </span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={formData.must_change_password}
+                      onChange={(e) => setFormData({ ...formData, must_change_password: e.target.checked })}
+                      style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#0d6efd' }}
+                    />
+                    <span style={{ fontWeight: '500' }}>
+                      <i className="fas fa-key me-2" style={{ color: '#ffc107' }}></i>
+                      Must Change Password on First Login
+                    </span>
+                  </label>
+                  {!isEditing && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={formData.send_welcome_email}
+                        onChange={(e) => setFormData({ ...formData, send_welcome_email: e.target.checked })}
+                        style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#0d6efd' }}
+                      />
+                      <span style={{ fontWeight: '500' }}>
+                        <i className="fas fa-envelope me-2" style={{ color: '#0d6efd' }}></i>
+                        Send Welcome Email with Credentials
+                      </span>
+                    </label>
+                  )}
+                </div>
+              </div>
               
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px', paddingTop: '24px', borderTop: '1px solid #dee2e6' }}>
                 <button
