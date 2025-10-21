@@ -171,6 +171,45 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
                  </li>
                )}
 
+        {/* Social Media Content Management - NEW SECTION */}
+        {hasPageAccess('clients') && (
+          <li className="nav-item">
+            <a className="nav-link sub-btn" title={isCollapsed ? 'Social Media' : ''}>
+              <i className="fas fa-share-alt"></i>
+              {!isCollapsed && 'Social Media'}
+              <i className="fas fa-angle-right dropdown"></i>
+            </a>
+            <ul className="sub-menu">
+              <li>
+                <Link 
+                  className={`nav-link ${isActive('/app/content-library') ? 'active' : ''}`} 
+                  to="/app/content-library"
+                  onClick={onNavigate}
+                >
+                  <i className="fas fa-book"></i> Content Library
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  className={`nav-link ${isActive('/app/content-library/create') ? 'active' : ''}`} 
+                  to="/app/content-library/create"
+                  onClick={onNavigate}
+                >
+                  <i className="fas fa-plus-circle"></i> Create Content
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  className={`nav-link ${isActive('/app/approvals') ? 'active' : ''}`} 
+                  to="/app/approvals"
+                  onClick={onNavigate}
+                >
+                  <i className="fas fa-check-circle"></i> Approval Queue
+                </Link>
+              </li>
+            </ul>
+          </li>
+        )}
 
         {/* Leads - Own Section */}
         {hasPageAccess('leads') && (
