@@ -1181,6 +1181,98 @@ router.get('/client-dashboard/api-access', async (req, res) => {
     }
   });
 
+  // Convert existing "converted" leads to clients (one-time migration)
+  router.post('/admin/convert-existing-leads', async (req, res) => {
+    try {
+      console.log('🔄 Starting conversion of existing leads...');
+      
+      // Find all leads with status = 'converted' but no client_id
+      const leadsResult = await pool.query(
+        `SELECT id, company, email, phone, website_url, address, city, state, zip_code,
+                contact_first_name, contact_last_name
+         FROM leads 
+         WHERE status = 'converted' AND converted_to_client_id IS NULL`
+      );
+
+      const leads = leadsResult.rows;
+      console.log(`📋 Found ${leads.length} converted leads without client records`);
+
+      if (leads.length === 0) {
+        return res.json({ 
+          success: true, 
+          message: 'No leads to convert',
+          converted: 0
+        });
+      }
+
+      const results = [];
+
+      for (const lead of leads) {
+        console.log(`\n🔄 Processing Lead ${lead.id}: ${lead.company}`);
+
+        // Create client from lead
+        const clientResult = await pool.query(
+          `INSERT INTO clients (
+            client_name, email, phone, contact_name,
+            practice_address, practice_city, practice_state, practice_zip,
+            is_active, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW())
+          RETURNING id, client_name`,
+          [
+            lead.company || 'New Client',
+            lead.email,
+            lead.phone,
+            `${lead.contact_first_name || ''} ${lead.contact_last_name || ''}`.trim() || null,
+            lead.address,
+            lead.city,
+            lead.state,
+            lead.zip_code
+          ]
+        );
+
+        const client = clientResult.rows[0];
+        console.log(`   ✅ Created Client ID: ${client.id} (${client.client_name})`);
+
+        // Update lead with client_id
+        await pool.query(
+          'UPDATE leads SET converted_to_client_id = $1 WHERE id = $2',
+          [client.id, lead.id]
+        );
+
+        // Log activity
+        await pool.query(
+          `INSERT INTO lead_activity (lead_id, activity_type, activity_data, created_at)
+           VALUES ($1, $2, $3, NOW())`,
+          [lead.id, 'converted_to_client', JSON.stringify({ 
+            client_id: client.id,
+            client_name: client.client_name,
+            converted_by: 'admin',
+            automated: true
+          })]
+        );
+
+        results.push({
+          lead_id: lead.id,
+          lead_company: lead.company,
+          client_id: client.id,
+          client_name: client.client_name
+        });
+      }
+
+      console.log(`\n✅ Conversion complete! Converted ${results.length} leads`);
+
+      res.json({
+        success: true,
+        message: `Successfully converted ${results.length} leads to clients`,
+        converted: results.length,
+        results
+      });
+    } catch (error) {
+      console.error('Convert leads error:', error);
+      res.status(500).json({ error: 'Failed to convert leads' });
+    }
+  });
+
   // Delete lead
   router.delete('/leads/:id', async (req, res) => {
     try {
