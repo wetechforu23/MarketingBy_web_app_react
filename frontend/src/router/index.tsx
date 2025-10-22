@@ -31,12 +31,15 @@ import ClientManagementDashboard from "../pages/ClientManagementDashboard";
 import ContentLibrary from "../pages/ContentLibrary";
 import ContentEditor from "../pages/ContentEditor";
 import ApprovalQueue from "../pages/ApprovalQueue";
+// Email Preferences & Unsubscribe
+import Unsubscribe from "../pages/Unsubscribe";
 
 export const router = createBrowserRouter([
   { path: "/", element: <HomePage /> }, // Public home page
   { path: "/login", element: <LoginPage /> }, // Login page
   { path: "/terms-of-service", element: <TermsOfService /> }, // Terms of Service
   { path: "/privacy-policy", element: <PrivacyPolicy /> }, // Privacy Policy
+  { path: "/unsubscribe", element: <Unsubscribe /> }, // Email unsubscribe (public)
   {
     path: "/app",
     element: <AppLayout />,

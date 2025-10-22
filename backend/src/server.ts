@@ -23,6 +23,8 @@ import usersRoutes from './routes/users';
 import contentRoutes from './routes/content';
 import approvalsRoutes from './routes/approvals';
 import postsRoutes from './routes/posts';
+// Email Preferences & Unsubscribe routes
+import emailPreferencesRoutes from './routes/emailPreferences';
 
 dotenv.config();
 
@@ -104,6 +106,8 @@ app.use('/api/users', usersRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/approvals', approvalsRoutes);
 app.use('/api/posts', postsRoutes);
+// Email Preferences & Unsubscribe (public routes - no auth required)
+app.use('/api/email-preferences', emailPreferencesRoutes);
 
 // Serve React app (static files from public directory) - Only in production
 if (process.env.NODE_ENV === 'production') {
