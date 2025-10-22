@@ -1214,7 +1214,7 @@ router.get('/client-dashboard/api-access', async (req, res) => {
         const clientResult = await pool.query(
           `INSERT INTO clients (
             client_name, email, phone, contact_name,
-            practice_address, practice_city, practice_state, practice_zip,
+            practice_address, practice_city, practice_state, practice_zip_code,
             is_active, created_at
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW())
           RETURNING id, client_name`,
@@ -1331,7 +1331,7 @@ router.get('/client-dashboard/api-access', async (req, res) => {
           const clientResult = await pool.query(
             `INSERT INTO clients (
               client_name, email, phone, contact_name,
-              practice_address, practice_city, practice_state, practice_zip,
+              practice_address, practice_city, practice_state, practice_zip_code,
               is_active, created_at
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW())
             RETURNING id`,
