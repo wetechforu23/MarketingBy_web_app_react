@@ -260,12 +260,13 @@ const Unsubscribe: React.FC = () => {
 
         {/* Preference Options */}
         {activeTab === 'email' ? (
-          <div style={{ marginBottom: '30px' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2d3748', marginBottom: '20px' }}>
-              Continue hearing about:
-            </h3>
+          <>
+            <div style={{ marginBottom: '30px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2d3748', marginBottom: '20px' }}>
+                Continue hearing about:
+              </h3>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <label style={{
               display: 'flex',
               alignItems: 'flex-start',
@@ -395,62 +396,63 @@ const Unsubscribe: React.FC = () => {
               </div>
             </label>
           </div>
-        </div>
+            </div>
 
-          {/* Alternative Actions */}
-          <div style={{ marginBottom: '30px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2d3748', marginBottom: '16px' }}>
-            Alternatively, take a break from our emails for 90 days:
-          </h3>
+            {/* Alternative Actions */}
+            <div style={{ marginBottom: '30px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2d3748', marginBottom: '16px' }}>
+                Alternatively, take a break from our emails for 90 days:
+              </h3>
 
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <label style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              padding: '14px',
-              border: '2px solid #e2e8f0',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              backgroundColor: action === 'pause' ? '#f0f4ff' : 'white',
-              borderColor: action === 'pause' ? '#667eea' : '#e2e8f0'
-            }}>
-              <input
-                type="radio"
-                name="action"
-                checked={action === 'pause'}
-                onChange={() => setAction('pause')}
-                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-              />
-              <span style={{ fontWeight: '500', color: '#2d3748' }}>Pause for 90 days</span>
-            </label>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <label style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '14px',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  backgroundColor: action === 'pause' ? '#f0f4ff' : 'white',
+                  borderColor: action === 'pause' ? '#667eea' : '#e2e8f0'
+                }}>
+                  <input
+                    type="radio"
+                    name="action"
+                    checked={action === 'pause'}
+                    onChange={() => setAction('pause')}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontWeight: '500', color: '#2d3748' }}>Pause for 90 days</span>
+                </label>
 
-            <label style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              padding: '14px',
-              border: '2px solid #e2e8f0',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              backgroundColor: action === 'unsubscribe' ? '#fff5f5' : 'white',
-              borderColor: action === 'unsubscribe' ? '#fc8181' : '#e2e8f0'
-            }}>
-              <input
-                type="radio"
-                name="action"
-                checked={action === 'unsubscribe'}
-                onChange={() => setAction('unsubscribe')}
-                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-              />
-              <span style={{ fontWeight: '500', color: '#2d3748' }}>
-                Unsubscribe from all future marketing emails
-              </span>
-            </label>
-          </div>
-          </div>
+                <label style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '14px',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  backgroundColor: action === 'unsubscribe' ? '#fff5f5' : 'white',
+                  borderColor: action === 'unsubscribe' ? '#fc8181' : '#e2e8f0'
+                }}>
+                  <input
+                    type="radio"
+                    name="action"
+                    checked={action === 'unsubscribe'}
+                    onChange={() => setAction('unsubscribe')}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontWeight: '500', color: '#2d3748' }}>
+                    Unsubscribe from all future marketing emails
+                  </span>
+                </label>
+              </div>
+            </div>
+          </>
         ) : (
           /* SMS Preferences */
           <>
