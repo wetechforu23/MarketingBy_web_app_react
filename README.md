@@ -2,6 +2,39 @@
 
 A comprehensive healthcare marketing platform built with React frontend and Node.js backend, featuring lead generation, SEO analysis, compliance checking, and automated email marketing.
 
+## 📚 Quick Links
+
+- 📖 **[Directory Structure](DIRECTORY_STRUCTURE.md)** - Organized project structure
+- 🔄 **[Git Workflow Guide](GIT_WORKFLOW_GUIDE.md)** - Development workflow (dev → main → deploy)
+- 🗄️ **[Local Dev with Prod DB](LOCAL_DEV_WITH_PROD_DB.md)** - Test locally with Heroku database
+- 📊 **[API & Database Flow](API_DATABASE_FLOW_DIAGRAM.md)** - Master architecture reference
+- 📁 **[Documentation](docs/)** - All feature docs, guides, and references
+
+## 🚀 Quick Start
+
+### Option 1: Local Development with Local Database
+```bash
+# Terminal 1 - Backend
+cd backend
+npm start
+
+# Terminal 2 - Frontend
+cd frontend
+npm run dev
+
+# Visit: http://localhost:5173
+```
+
+### Option 2: Local Development with Production Database (Heroku)
+```bash
+# Quick start script
+./start-local-prod-db.sh
+
+# Or manually:
+export DATABASE_URL=$(heroku config:get DATABASE_URL --app marketingby-wetechforu)
+cd backend && npm start
+```
+
 ## 🚀 Features
 
 ### Core Functionality
