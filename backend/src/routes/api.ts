@@ -1328,28 +1328,42 @@ router.get('/client-dashboard/api-access', async (req, res) => {
           clientId = existingCheck.rows[0].converted_to_client_id;
         } else {
           // Create new client from lead data
-          const clientResult = await pool.query(
-            `INSERT INTO clients (
-              client_name, email, phone, contact_name,
-              practice_address, practice_city, practice_state, practice_zip_code,
-              is_active, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW())
-            RETURNING id`,
-            [
-              lead.company || 'New Client',
-              lead.email,
-              lead.phone,
-              `${lead.contact_first_name || ''} ${lead.contact_last_name || ''}`.trim() || null,
-              lead.address,
-              lead.city,
-              lead.state,
-              lead.zip_code
-            ]
-          );
-          
-          clientId = clientResult.rows[0].id;
-          
-          console.log(`✅ Auto-created client ${clientId} from lead ${id}`);
+          try {
+            const clientResult = await pool.query(
+              `INSERT INTO clients (
+                client_name, email, phone, contact_name,
+                practice_address, practice_city, practice_state, practice_zip_code,
+                is_active, created_at
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW())
+              RETURNING id`,
+              [
+                lead.company || 'New Client',
+                lead.email,
+                lead.phone,
+                `${lead.contact_first_name || ''} ${lead.contact_last_name || ''}`.trim() || null,
+                lead.address,
+                lead.city,
+                lead.state,
+                lead.zip_code
+              ]
+            );
+            
+            clientId = clientResult.rows[0].id;
+            
+            console.log(`✅ Auto-created client ${clientId} from lead ${id}`);
+          } catch (clientError: any) {
+            console.error(`❌ Error creating client from lead ${id}:`, clientError);
+            console.error('Lead data:', { 
+              company: lead.company, 
+              email: lead.email, 
+              phone: lead.phone,
+              address: lead.address,
+              city: lead.city,
+              state: lead.state,
+              zip_code: lead.zip_code
+            });
+            throw new Error(`Failed to create client: ${clientError.message}`);
+          }
         }
       }
       
@@ -1391,9 +1405,19 @@ router.get('/client-dashboard/api-access', async (req, res) => {
         client_created: clientId ? true : false,
         client_id: clientId
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Update lead error:', error);
-      res.status(500).json({ error: 'Failed to update lead' });
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        detail: error.detail,
+        constraint: error.constraint
+      });
+      res.status(500).json({ 
+        error: 'Failed to update lead',
+        message: error.message,
+        detail: error.detail || 'Internal server error'
+      });
     }
   });
 
