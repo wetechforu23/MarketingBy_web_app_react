@@ -6,9 +6,11 @@ const Unsubscribe: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState<'email' | 'sms'>('email');
 
   const [preferences, setPreferences] = useState({
     educational_content: false,
@@ -17,19 +19,35 @@ const Unsubscribe: React.FC = () => {
     monthly_digest: false,
   });
 
+  const [smsPreferences, setSmsPreferences] = useState({
+    promotional: false,
+    appointment_reminders: false,
+    urgent_updates: false,
+  });
+
   const [action, setAction] = useState<'preferences' | 'pause' | 'unsubscribe'>('unsubscribe');
+  const [smsAction, setSmsAction] = useState<'preferences' | 'unsubscribe'>('unsubscribe');
 
   useEffect(() => {
     const emailParam = searchParams.get('email');
+    const phoneParam = searchParams.get('phone');
     const tokenParam = searchParams.get('token');
     if (emailParam) {
       setEmail(decodeURIComponent(emailParam));
     }
+    if (phoneParam) {
+      setPhone(decodeURIComponent(phoneParam));
+      setActiveTab('sms');
+    }
   }, [searchParams]);
 
   const handleSubmit = async () => {
-    if (!email) {
+    if (activeTab === 'email' && !email) {
       setError('Email address is required');
+      return;
+    }
+    if (activeTab === 'sms' && !phone) {
+      setError('Phone number is required');
       return;
     }
 
@@ -39,29 +57,49 @@ const Unsubscribe: React.FC = () => {
     try {
       const token = searchParams.get('token');
       
-      if (action === 'preferences') {
-        // Update email preferences
-        await http.post('/email-preferences/preferences', {
-          email,
-          token,
-          preferences
-        });
-        setSuccess(true);
-      } else if (action === 'pause') {
-        // Pause for 90 days
-        await http.post('/email-preferences/pause', {
-          email,
-          token,
-          days: 90
-        });
-        setSuccess(true);
+      if (activeTab === 'email') {
+        if (action === 'preferences') {
+          // Update email preferences
+          await http.post('/email-preferences/preferences', {
+            email,
+            token,
+            preferences
+          });
+          setSuccess(true);
+        } else if (action === 'pause') {
+          // Pause for 90 days
+          await http.post('/email-preferences/pause', {
+            email,
+            token,
+            days: 90
+          });
+          setSuccess(true);
+        } else {
+          // Complete unsubscribe
+          await http.post('/email-preferences/unsubscribe', {
+            email,
+            token
+          });
+          setSuccess(true);
+        }
       } else {
-        // Complete unsubscribe
-        await http.post('/email-preferences/unsubscribe', {
-          email,
-          token
-        });
-        setSuccess(true);
+        // SMS preferences
+        if (smsAction === 'preferences') {
+          // Update SMS preferences
+          await http.post('/sms-preferences/preferences', {
+            phone,
+            token,
+            preferences: smsPreferences
+          });
+          setSuccess(true);
+        } else {
+          // Complete SMS unsubscribe
+          await http.post('/sms-preferences/unsubscribe', {
+            phone,
+            token
+          });
+          setSuccess(true);
+        }
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to process request');
@@ -93,9 +131,11 @@ const Unsubscribe: React.FC = () => {
             All Set!
           </h1>
           <p style={{ fontSize: '18px', color: '#718096', marginBottom: '30px' }}>
-            {action === 'preferences' && 'Your email preferences have been updated successfully.'}
-            {action === 'pause' && 'We\'ve paused your emails for 90 days. See you soon!'}
-            {action === 'unsubscribe' && 'You\'ve been unsubscribed from all future marketing emails.'}
+            {activeTab === 'email' && action === 'preferences' && 'Your email preferences have been updated successfully.'}
+            {activeTab === 'email' && action === 'pause' && 'We\'ve paused your emails for 90 days. See you soon!'}
+            {activeTab === 'email' && action === 'unsubscribe' && 'You\'ve been unsubscribed from all future marketing emails.'}
+            {activeTab === 'sms' && smsAction === 'preferences' && 'Your text message preferences have been updated successfully.'}
+            {activeTab === 'sms' && smsAction === 'unsubscribe' && 'You\'ve been unsubscribed from all future text messages.'}
           </p>
           <p style={{ fontSize: '14px', color: '#a0aec0' }}>
             You can close this window now.
@@ -123,7 +163,7 @@ const Unsubscribe: React.FC = () => {
         boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
       }}>
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
           <h1 style={{ fontSize: '36px', color: '#2d3748', marginBottom: '12px' }}>
             Let's communicate better!
           </h1>
@@ -132,34 +172,100 @@ const Unsubscribe: React.FC = () => {
           </p>
         </div>
 
-        {/* Email Input */}
-        <div style={{ marginBottom: '30px' }}>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="your@email.com"
+        {/* Tabs */}
+        <div style={{ 
+          display: 'flex', 
+          gap: '12px', 
+          marginBottom: '30px',
+          borderBottom: '2px solid #e2e8f0'
+        }}>
+          <button
+            onClick={() => setActiveTab('email')}
             style={{
-              width: '100%',
+              flex: 1,
               padding: '14px',
               fontSize: '16px',
-              border: '2px solid #e2e8f0',
-              borderRadius: '8px',
-              outline: 'none',
-              transition: 'border-color 0.2s'
+              fontWeight: '600',
+              color: activeTab === 'email' ? '#667eea' : '#718096',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: activeTab === 'email' ? '3px solid #667eea' : 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              marginBottom: '-2px'
             }}
-            onFocus={(e) => e.target.style.borderColor = '#667eea'}
-            onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
-          />
+          >
+            📧 Email Preferences
+          </button>
+          <button
+            onClick={() => setActiveTab('sms')}
+            style={{
+              flex: 1,
+              padding: '14px',
+              fontSize: '16px',
+              fontWeight: '600',
+              color: activeTab === 'sms' ? '#667eea' : '#718096',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: activeTab === 'sms' ? '3px solid #667eea' : 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              marginBottom: '-2px'
+            }}
+          >
+            📱 Text Messages
+          </button>
+        </div>
+
+        {/* Contact Input */}
+        <div style={{ marginBottom: '30px' }}>
+          {activeTab === 'email' ? (
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="your@email.com"
+              style={{
+                width: '100%',
+                padding: '14px',
+                fontSize: '16px',
+                border: '2px solid #e2e8f0',
+                borderRadius: '8px',
+                outline: 'none',
+                transition: 'border-color 0.2s'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#667eea'}
+              onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+            />
+          ) : (
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+1 (555) 123-4567"
+              style={{
+                width: '100%',
+                padding: '14px',
+                fontSize: '16px',
+                border: '2px solid #e2e8f0',
+                borderRadius: '8px',
+                outline: 'none',
+                transition: 'border-color 0.2s'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#667eea'}
+              onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+            />
+          )}
         </div>
 
         {/* Preference Options */}
-        <div style={{ marginBottom: '30px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2d3748', marginBottom: '20px' }}>
-            Continue hearing about:
-          </h3>
+        {activeTab === 'email' ? (
+          <div style={{ marginBottom: '30px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2d3748', marginBottom: '20px' }}>
+              Continue hearing about:
+            </h3>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <label style={{
               display: 'flex',
               alignItems: 'flex-start',
@@ -345,6 +451,144 @@ const Unsubscribe: React.FC = () => {
             </label>
           </div>
         </div>
+        ) : (
+          /* SMS Preferences */
+          <>
+            <div style={{ marginBottom: '30px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2d3748', marginBottom: '20px' }}>
+                Continue receiving text messages about:
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                  padding: '16px',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  backgroundColor: smsPreferences.promotional ? '#f0f4ff' : 'white'
+                }}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = '#667eea'}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = smsPreferences.promotional ? '#667eea' : '#e2e8f0'}
+                >
+                  <input
+                    type="checkbox"
+                    checked={smsPreferences.promotional}
+                    onChange={(e) => {
+                      setSmsPreferences({ ...smsPreferences, promotional: e.target.checked });
+                      setSmsAction('preferences');
+                    }}
+                    style={{ marginTop: '2px', width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: '600', color: '#2d3748', marginBottom: '4px' }}>
+                      Promotional offers and discounts
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#718096' }}>
+                      Get notified about special deals and limited-time offers.
+                    </div>
+                  </div>
+                </label>
+
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                  padding: '16px',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  backgroundColor: smsPreferences.appointment_reminders ? '#f0f4ff' : 'white'
+                }}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = '#667eea'}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = smsPreferences.appointment_reminders ? '#667eea' : '#e2e8f0'}
+                >
+                  <input
+                    type="checkbox"
+                    checked={smsPreferences.appointment_reminders}
+                    onChange={(e) => {
+                      setSmsPreferences({ ...smsPreferences, appointment_reminders: e.target.checked });
+                      setSmsAction('preferences');
+                    }}
+                    style={{ marginTop: '2px', width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: '600', color: '#2d3748', marginBottom: '4px' }}>
+                      Appointment and service reminders
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#718096' }}>
+                      Receive important reminders about your appointments.
+                    </div>
+                  </div>
+                </label>
+
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                  padding: '16px',
+                  border: '2px solid #667eea',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  backgroundColor: smsPreferences.urgent_updates ? '#f0f4ff' : 'white'
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={smsPreferences.urgent_updates}
+                    onChange={(e) => {
+                      setSmsPreferences({ ...smsPreferences, urgent_updates: e.target.checked });
+                      setSmsAction('preferences');
+                    }}
+                    style={{ marginTop: '2px', width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: '600', color: '#2d3748', marginBottom: '4px' }}>
+                      Urgent updates only
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#718096' }}>
+                      Only receive critical time-sensitive information.
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* SMS Unsubscribe Option */}
+            <div style={{ marginBottom: '30px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2d3748', marginBottom: '16px' }}>
+                Or stop all text messages:
+              </h3>
+
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '14px',
+                border: '2px solid #e2e8f0',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                backgroundColor: smsAction === 'unsubscribe' ? '#fff5f5' : 'white',
+                borderColor: smsAction === 'unsubscribe' ? '#fc8181' : '#e2e8f0'
+              }}>
+                <input
+                  type="radio"
+                  name="smsAction"
+                  checked={smsAction === 'unsubscribe'}
+                  onChange={() => setSmsAction('unsubscribe')}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                <span style={{ fontWeight: '500', color: '#2d3748' }}>
+                  Unsubscribe from all text messages
+                </span>
+              </label>
+            </div>
+          </>
+        )}
 
         {/* Error Message */}
         {error && (
@@ -363,28 +607,33 @@ const Unsubscribe: React.FC = () => {
         {/* Submit Button */}
         <button
           onClick={handleSubmit}
-          disabled={loading || !email}
+          disabled={loading || (activeTab === 'email' && !email) || (activeTab === 'sms' && !phone)}
           style={{
             width: '100%',
             padding: '16px',
             fontSize: '16px',
             fontWeight: '600',
             color: 'white',
-            background: action === 'unsubscribe' 
+            background: (activeTab === 'email' && action === 'unsubscribe') || (activeTab === 'sms' && smsAction === 'unsubscribe')
               ? 'linear-gradient(135deg, #fc8181 0%, #f56565 100%)' 
               : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             border: 'none',
             borderRadius: '8px',
-            cursor: loading || !email ? 'not-allowed' : 'pointer',
-            opacity: loading || !email ? 0.6 : 1,
+            cursor: loading || (activeTab === 'email' && !email) || (activeTab === 'sms' && !phone) ? 'not-allowed' : 'pointer',
+            opacity: loading || (activeTab === 'email' && !email) || (activeTab === 'sms' && !phone) ? 0.6 : 1,
             transition: 'all 0.3s ease',
             boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
           }}
         >
           {loading ? 'Processing...' : 
-           action === 'preferences' ? 'Update My Preferences' :
-           action === 'pause' ? 'Pause for 90 Days' :
-           'Unsubscribe'}
+           activeTab === 'email' ? (
+             action === 'preferences' ? 'Update My Email Preferences' :
+             action === 'pause' ? 'Pause Emails for 90 Days' :
+             'Unsubscribe from Emails'
+           ) : (
+             smsAction === 'preferences' ? 'Update My Text Preferences' :
+             'Unsubscribe from Text Messages'
+           )}
         </button>
 
         {/* Footer */}
