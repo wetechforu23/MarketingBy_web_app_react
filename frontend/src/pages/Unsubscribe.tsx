@@ -397,8 +397,8 @@ const Unsubscribe: React.FC = () => {
           </div>
         </div>
 
-        {/* Alternative Actions */}
-        <div style={{ marginBottom: '30px' }}>
+          {/* Alternative Actions */}
+          <div style={{ marginBottom: '30px' }}>
           <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2d3748', marginBottom: '16px' }}>
             Alternatively, take a break from our emails for 90 days:
           </h3>
@@ -450,7 +450,7 @@ const Unsubscribe: React.FC = () => {
               </span>
             </label>
           </div>
-        </div>
+          </div>
         ) : (
           /* SMS Preferences */
           <>
