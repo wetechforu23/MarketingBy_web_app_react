@@ -1223,18 +1223,58 @@ router.get('/client-dashboard/api-access', async (req, res) => {
       const { id } = req.params;
       const lead = req.body;
       
+      // If status is being changed to "converted", create a client record
+      let clientId = null;
+      if (lead.status === 'converted') {
+        // Check if client already exists for this lead
+        const existingCheck = await pool.query(
+          'SELECT converted_to_client_id FROM leads WHERE id = $1',
+          [id]
+        );
+        
+        if (existingCheck.rows[0]?.converted_to_client_id) {
+          clientId = existingCheck.rows[0].converted_to_client_id;
+        } else {
+          // Create new client from lead data
+          const clientResult = await pool.query(
+            `INSERT INTO clients (
+              client_name, email, phone, contact_name,
+              practice_address, practice_city, practice_state, practice_zip,
+              is_active, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW())
+            RETURNING id`,
+            [
+              lead.company || 'New Client',
+              lead.email,
+              lead.phone,
+              `${lead.contact_first_name || ''} ${lead.contact_last_name || ''}`.trim() || null,
+              lead.address,
+              lead.city,
+              lead.state,
+              lead.zip_code
+            ]
+          );
+          
+          clientId = clientResult.rows[0].id;
+          
+          console.log(`✅ Auto-created client ${clientId} from lead ${id}`);
+        }
+      }
+      
       const result = await pool.query(
         `UPDATE leads SET
           company = $1, email = $2, phone = $3, website_url = $4,
           address = $5, city = $6, state = $7, zip_code = $8,
           contact_first_name = $9, contact_last_name = $10,
-          status = $11, source = $12, notes = $13, updated_at = NOW()
+          status = $11, source = $12, notes = $13, 
+          converted_to_client_id = $15,
+          updated_at = NOW()
         WHERE id = $14 RETURNING *`,
         [
           lead.company, lead.email, lead.phone, lead.website_url,
           lead.address, lead.city, lead.state, lead.zip_code,
           lead.contact_first_name, lead.contact_last_name,
-          lead.status, lead.source, lead.notes, id
+          lead.status, lead.source, lead.notes, id, clientId
         ]
       );
       
@@ -1246,10 +1286,19 @@ router.get('/client-dashboard/api-access', async (req, res) => {
       await pool.query(
         `INSERT INTO lead_activity (lead_id, activity_type, activity_data, created_at)
          VALUES ($1, $2, $3, NOW())`,
-        [id, 'status_changed', JSON.stringify({ old_status: req.body.old_status, new_status: lead.status })]
+        [id, 'status_changed', JSON.stringify({ 
+          old_status: req.body.old_status, 
+          new_status: lead.status,
+          client_created: clientId ? true : false,
+          client_id: clientId
+        })]
       );
       
-      res.json(result.rows[0]);
+      res.json({
+        ...result.rows[0],
+        client_created: clientId ? true : false,
+        client_id: clientId
+      });
     } catch (error) {
       console.error('Update lead error:', error);
       res.status(500).json({ error: 'Failed to update lead' });
