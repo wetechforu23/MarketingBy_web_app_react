@@ -109,46 +109,46 @@ const Unsubscribe: React.FC = () => {
   };
 
   if (success) {
-    return (
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: '#f8f9fa',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px'
+    }}>
       <div style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px'
+        background: 'white',
+        borderRadius: '16px',
+        padding: '60px 40px',
+        maxWidth: '600px',
+        textAlign: 'center',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)'
       }}>
-        <div style={{
-          background: 'white',
-          borderRadius: '16px',
-          padding: '60px 40px',
-          maxWidth: '600px',
-          textAlign: 'center',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-        }}>
-          <div style={{ fontSize: '64px', marginBottom: '20px' }}>✅</div>
-          <h1 style={{ fontSize: '32px', color: '#2d3748', marginBottom: '16px' }}>
-            All Set!
-          </h1>
-          <p style={{ fontSize: '18px', color: '#718096', marginBottom: '30px' }}>
-            {activeTab === 'email' && action === 'preferences' && 'Your email preferences have been updated successfully.'}
-            {activeTab === 'email' && action === 'pause' && 'We\'ve paused your emails for 90 days. See you soon!'}
-            {activeTab === 'email' && action === 'unsubscribe' && 'You\'ve been unsubscribed from all future marketing emails.'}
-            {activeTab === 'sms' && smsAction === 'preferences' && 'Your text message preferences have been updated successfully.'}
-            {activeTab === 'sms' && smsAction === 'unsubscribe' && 'You\'ve been unsubscribed from all future text messages.'}
-          </p>
-          <p style={{ fontSize: '14px', color: '#a0aec0' }}>
-            You can close this window now.
-          </p>
-        </div>
+        <div style={{ fontSize: '64px', marginBottom: '20px' }}>✅</div>
+        <h1 style={{ fontSize: '32px', color: '#2c3e50', marginBottom: '16px', fontWeight: '700' }}>
+          All Set!
+        </h1>
+        <p style={{ fontSize: '18px', color: '#6c757d', marginBottom: '30px', lineHeight: '1.6' }}>
+          {activeTab === 'email' && action === 'preferences' && 'Your email preferences have been updated successfully.'}
+          {activeTab === 'email' && action === 'pause' && 'We\'ve paused your emails for 90 days. See you soon!'}
+          {activeTab === 'email' && action === 'unsubscribe' && 'You\'ve been unsubscribed from all future marketing emails.'}
+          {activeTab === 'sms' && smsAction === 'preferences' && 'Your text message preferences have been updated successfully.'}
+          {activeTab === 'sms' && smsAction === 'unsubscribe' && 'You\'ve been unsubscribed from all future text messages.'}
+        </p>
+        <p style={{ fontSize: '14px', color: '#6c757d' }}>
+          You can close this window now.
+        </p>
       </div>
-    );
+    </div>
+  );
   }
 
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: '#f8f9fa',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -160,14 +160,14 @@ const Unsubscribe: React.FC = () => {
         padding: '40px',
         maxWidth: '700px',
         width: '100%',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)'
       }}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <h1 style={{ fontSize: '36px', color: '#2d3748', marginBottom: '12px' }}>
+          <h1 style={{ fontSize: '36px', color: '#2c3e50', marginBottom: '12px', fontWeight: '700' }}>
             Let's communicate better!
           </h1>
-          <p style={{ fontSize: '16px', color: '#718096' }}>
+          <p style={{ fontSize: '16px', color: '#6c757d', lineHeight: '1.6' }}>
             Tell us what YOU want to keep hearing about.
           </p>
         </div>
@@ -177,7 +177,7 @@ const Unsubscribe: React.FC = () => {
           display: 'flex', 
           gap: '12px', 
           marginBottom: '30px',
-          borderBottom: '2px solid #e2e8f0'
+          borderBottom: '2px solid #e9ecef'
         }}>
           <button
             onClick={() => setActiveTab('email')}
@@ -186,10 +186,10 @@ const Unsubscribe: React.FC = () => {
               padding: '14px',
               fontSize: '16px',
               fontWeight: '600',
-              color: activeTab === 'email' ? '#667eea' : '#718096',
+              color: activeTab === 'email' ? '#4682B4' : '#6c757d',
               background: 'transparent',
               border: 'none',
-              borderBottom: activeTab === 'email' ? '3px solid #667eea' : 'none',
+              borderBottom: activeTab === 'email' ? '3px solid #4682B4' : 'none',
               cursor: 'pointer',
               transition: 'all 0.2s',
               marginBottom: '-2px'
@@ -204,10 +204,10 @@ const Unsubscribe: React.FC = () => {
               padding: '14px',
               fontSize: '16px',
               fontWeight: '600',
-              color: activeTab === 'sms' ? '#667eea' : '#718096',
+              color: activeTab === 'sms' ? '#4682B4' : '#6c757d',
               background: 'transparent',
               border: 'none',
-              borderBottom: activeTab === 'sms' ? '3px solid #667eea' : 'none',
+              borderBottom: activeTab === 'sms' ? '3px solid #4682B4' : 'none',
               cursor: 'pointer',
               transition: 'all 0.2s',
               marginBottom: '-2px'
@@ -229,13 +229,13 @@ const Unsubscribe: React.FC = () => {
                 width: '100%',
                 padding: '14px',
                 fontSize: '16px',
-                border: '2px solid #e2e8f0',
+                border: '2px solid #e9ecef',
                 borderRadius: '8px',
                 outline: 'none',
                 transition: 'border-color 0.2s'
               }}
-              onFocus={(e) => e.target.style.borderColor = '#667eea'}
-              onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+              onFocus={(e) => e.target.style.borderColor = '#4682B4'}
+              onBlur={(e) => e.target.style.borderColor = '#e9ecef'}
             />
           ) : (
             <input
@@ -247,13 +247,13 @@ const Unsubscribe: React.FC = () => {
                 width: '100%',
                 padding: '14px',
                 fontSize: '16px',
-                border: '2px solid #e2e8f0',
+                border: '2px solid #e9ecef',
                 borderRadius: '8px',
                 outline: 'none',
                 transition: 'border-color 0.2s'
               }}
-              onFocus={(e) => e.target.style.borderColor = '#667eea'}
-              onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+              onFocus={(e) => e.target.style.borderColor = '#4682B4'}
+              onBlur={(e) => e.target.style.borderColor = '#e9ecef'}
             />
           )}
         </div>
@@ -262,7 +262,7 @@ const Unsubscribe: React.FC = () => {
         {activeTab === 'email' ? (
           <>
             <div style={{ marginBottom: '30px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2d3748', marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2c3e50', marginBottom: '20px' }}>
                 Continue hearing about:
               </h3>
 
@@ -272,14 +272,14 @@ const Unsubscribe: React.FC = () => {
               alignItems: 'flex-start',
               gap: '12px',
               padding: '16px',
-              border: '2px solid #e2e8f0',
+              border: '2px solid #e9ecef',
               borderRadius: '8px',
               cursor: 'pointer',
               transition: 'all 0.2s',
-              backgroundColor: preferences.educational_content ? '#f0f4ff' : 'white'
+              backgroundColor: preferences.educational_content ? '#e3f2fd' : 'white'
             }}
-              onMouseEnter={(e) => e.currentTarget.style.borderColor = '#667eea'}
-              onMouseLeave={(e) => e.currentTarget.style.borderColor = preferences.educational_content ? '#667eea' : '#e2e8f0'}
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = '#4682B4'}
+              onMouseLeave={(e) => e.currentTarget.style.borderColor = preferences.educational_content ? '#4682B4' : '#e9ecef'}
             >
               <input
                 type="checkbox"
@@ -291,10 +291,10 @@ const Unsubscribe: React.FC = () => {
                 style={{ marginTop: '2px', width: '18px', height: '18px', cursor: 'pointer' }}
               />
               <div>
-                <div style={{ fontWeight: '600', color: '#2d3748', marginBottom: '4px' }}>
+                <div style={{ fontWeight: '600', color: '#2c3e50', marginBottom: '4px' }}>
                   Our very best educational content
                 </div>
-                <div style={{ fontSize: '14px', color: '#718096' }}>
+                <div style={{ fontSize: '14px', color: '#6c757d' }}>
                   Learn about all areas of Healthcare Digital Marketing.
                 </div>
               </div>
@@ -305,14 +305,14 @@ const Unsubscribe: React.FC = () => {
               alignItems: 'flex-start',
               gap: '12px',
               padding: '16px',
-              border: '2px solid #e2e8f0',
+              border: '2px solid #e9ecef',
               borderRadius: '8px',
               cursor: 'pointer',
               transition: 'all 0.2s',
-              backgroundColor: preferences.product_updates ? '#f0f4ff' : 'white'
+              backgroundColor: preferences.product_updates ? '#e3f2fd' : 'white'
             }}
-              onMouseEnter={(e) => e.currentTarget.style.borderColor = '#667eea'}
-              onMouseLeave={(e) => e.currentTarget.style.borderColor = preferences.product_updates ? '#667eea' : '#e2e8f0'}
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = '#4682B4'}
+              onMouseLeave={(e) => e.currentTarget.style.borderColor = preferences.product_updates ? '#4682B4' : '#e9ecef'}
             >
               <input
                 type="checkbox"
@@ -324,10 +324,10 @@ const Unsubscribe: React.FC = () => {
                 style={{ marginTop: '2px', width: '18px', height: '18px', cursor: 'pointer' }}
               />
               <div>
-                <div style={{ fontWeight: '600', color: '#2d3748', marginBottom: '4px' }}>
+                <div style={{ fontWeight: '600', color: '#2c3e50', marginBottom: '4px' }}>
                   Our latest product news and updates
                 </div>
-                <div style={{ fontSize: '14px', color: '#718096' }}>
+                <div style={{ fontSize: '14px', color: '#6c757d' }}>
                   Get the inside scoop on how to use MarketingBy tools like a pro.
                 </div>
               </div>
@@ -338,14 +338,14 @@ const Unsubscribe: React.FC = () => {
               alignItems: 'flex-start',
               gap: '12px',
               padding: '16px',
-              border: '2px solid #e2e8f0',
+              border: '2px solid #e9ecef',
               borderRadius: '8px',
               cursor: 'pointer',
               transition: 'all 0.2s',
-              backgroundColor: preferences.events ? '#f0f4ff' : 'white'
+              backgroundColor: preferences.events ? '#e3f2fd' : 'white'
             }}
-              onMouseEnter={(e) => e.currentTarget.style.borderColor = '#667eea'}
-              onMouseLeave={(e) => e.currentTarget.style.borderColor = preferences.events ? '#667eea' : '#e2e8f0'}
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = '#4682B4'}
+              onMouseLeave={(e) => e.currentTarget.style.borderColor = preferences.events ? '#4682B4' : '#e9ecef'}
             >
               <input
                 type="checkbox"
@@ -357,10 +357,10 @@ const Unsubscribe: React.FC = () => {
                 style={{ marginTop: '2px', width: '18px', height: '18px', cursor: 'pointer' }}
               />
               <div>
-                <div style={{ fontWeight: '600', color: '#2d3748', marginBottom: '4px' }}>
+                <div style={{ fontWeight: '600', color: '#2c3e50', marginBottom: '4px' }}>
                   Our upcoming events geared toward you
                 </div>
-                <div style={{ fontSize: '14px', color: '#718096' }}>
+                <div style={{ fontSize: '14px', color: '#6c757d' }}>
                   Don't miss out on exclusive healthcare marketing events and webinars.
                 </div>
               </div>
@@ -375,7 +375,7 @@ const Unsubscribe: React.FC = () => {
               borderRadius: '8px',
               cursor: 'pointer',
               transition: 'all 0.2s',
-              backgroundColor: preferences.monthly_digest ? '#f0f4ff' : 'white'
+              backgroundColor: preferences.monthly_digest ? '#e3f2fd' : 'white'
             }}>
               <input
                 type="checkbox"
@@ -387,10 +387,10 @@ const Unsubscribe: React.FC = () => {
                 style={{ marginTop: '2px', width: '18px', height: '18px', cursor: 'pointer' }}
               />
               <div>
-                <div style={{ fontWeight: '600', color: '#2d3748', marginBottom: '4px' }}>
+                <div style={{ fontWeight: '600', color: '#2c3e50', marginBottom: '4px' }}>
                   Or receive just one email per month
                 </div>
-                <div style={{ fontSize: '14px', color: '#718096' }}>
+                <div style={{ fontSize: '14px', color: '#6c757d' }}>
                   Enjoy our top articles and need-to-know industry news.
                 </div>
               </div>
@@ -400,7 +400,7 @@ const Unsubscribe: React.FC = () => {
 
             {/* Alternative Actions */}
             <div style={{ marginBottom: '30px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2d3748', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2c3e50', marginBottom: '16px' }}>
                 Alternatively, take a break from our emails for 90 days:
               </h3>
 
@@ -411,11 +411,11 @@ const Unsubscribe: React.FC = () => {
                   alignItems: 'center',
                   gap: '10px',
                   padding: '14px',
-                  border: '2px solid #e2e8f0',
+                  border: '2px solid #e9ecef',
                   borderRadius: '8px',
                   cursor: 'pointer',
-                  backgroundColor: action === 'pause' ? '#f0f4ff' : 'white',
-                  borderColor: action === 'pause' ? '#667eea' : '#e2e8f0'
+                  backgroundColor: action === 'pause' ? '#e3f2fd' : 'white',
+                  borderColor: action === 'pause' ? '#4682B4' : '#e9ecef'
                 }}>
                   <input
                     type="radio"
@@ -424,7 +424,7 @@ const Unsubscribe: React.FC = () => {
                     onChange={() => setAction('pause')}
                     style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                   />
-                  <span style={{ fontWeight: '500', color: '#2d3748' }}>Pause for 90 days</span>
+                  <span style={{ fontWeight: '500', color: '#2c3e50' }}>Pause for 90 days</span>
                 </label>
 
                 <label style={{
@@ -433,11 +433,11 @@ const Unsubscribe: React.FC = () => {
                   alignItems: 'center',
                   gap: '10px',
                   padding: '14px',
-                  border: '2px solid #e2e8f0',
+                  border: '2px solid #e9ecef',
                   borderRadius: '8px',
                   cursor: 'pointer',
                   backgroundColor: action === 'unsubscribe' ? '#fff5f5' : 'white',
-                  borderColor: action === 'unsubscribe' ? '#fc8181' : '#e2e8f0'
+                  borderColor: action === 'unsubscribe' ? '#fc8181' : '#e9ecef'
                 }}>
                   <input
                     type="radio"
@@ -446,7 +446,7 @@ const Unsubscribe: React.FC = () => {
                     onChange={() => setAction('unsubscribe')}
                     style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                   />
-                  <span style={{ fontWeight: '500', color: '#2d3748' }}>
+                  <span style={{ fontWeight: '500', color: '#2c3e50' }}>
                     Unsubscribe from all future marketing emails
                   </span>
                 </label>
@@ -457,7 +457,7 @@ const Unsubscribe: React.FC = () => {
           /* SMS Preferences */
           <>
             <div style={{ marginBottom: '30px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2d3748', marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2c3e50', marginBottom: '20px' }}>
                 Continue receiving text messages about:
               </h3>
 
@@ -467,14 +467,14 @@ const Unsubscribe: React.FC = () => {
                   alignItems: 'flex-start',
                   gap: '12px',
                   padding: '16px',
-                  border: '2px solid #e2e8f0',
+                  border: '2px solid #e9ecef',
                   borderRadius: '8px',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                  backgroundColor: smsPreferences.promotional ? '#f0f4ff' : 'white'
+                  backgroundColor: smsPreferences.promotional ? '#e3f2fd' : 'white'
                 }}
-                  onMouseEnter={(e) => e.currentTarget.style.borderColor = '#667eea'}
-                  onMouseLeave={(e) => e.currentTarget.style.borderColor = smsPreferences.promotional ? '#667eea' : '#e2e8f0'}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = '#4682B4'}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = smsPreferences.promotional ? '#4682B4' : '#e9ecef'}
                 >
                   <input
                     type="checkbox"
@@ -486,10 +486,10 @@ const Unsubscribe: React.FC = () => {
                     style={{ marginTop: '2px', width: '18px', height: '18px', cursor: 'pointer' }}
                   />
                   <div>
-                    <div style={{ fontWeight: '600', color: '#2d3748', marginBottom: '4px' }}>
+                    <div style={{ fontWeight: '600', color: '#2c3e50', marginBottom: '4px' }}>
                       Promotional offers and discounts
                     </div>
-                    <div style={{ fontSize: '14px', color: '#718096' }}>
+                    <div style={{ fontSize: '14px', color: '#6c757d' }}>
                       Get notified about special deals and limited-time offers.
                     </div>
                   </div>
@@ -500,14 +500,14 @@ const Unsubscribe: React.FC = () => {
                   alignItems: 'flex-start',
                   gap: '12px',
                   padding: '16px',
-                  border: '2px solid #e2e8f0',
+                  border: '2px solid #e9ecef',
                   borderRadius: '8px',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                  backgroundColor: smsPreferences.appointment_reminders ? '#f0f4ff' : 'white'
+                  backgroundColor: smsPreferences.appointment_reminders ? '#e3f2fd' : 'white'
                 }}
-                  onMouseEnter={(e) => e.currentTarget.style.borderColor = '#667eea'}
-                  onMouseLeave={(e) => e.currentTarget.style.borderColor = smsPreferences.appointment_reminders ? '#667eea' : '#e2e8f0'}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = '#4682B4'}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = smsPreferences.appointment_reminders ? '#4682B4' : '#e9ecef'}
                 >
                   <input
                     type="checkbox"
@@ -519,10 +519,10 @@ const Unsubscribe: React.FC = () => {
                     style={{ marginTop: '2px', width: '18px', height: '18px', cursor: 'pointer' }}
                   />
                   <div>
-                    <div style={{ fontWeight: '600', color: '#2d3748', marginBottom: '4px' }}>
+                    <div style={{ fontWeight: '600', color: '#2c3e50', marginBottom: '4px' }}>
                       Appointment and service reminders
                     </div>
-                    <div style={{ fontSize: '14px', color: '#718096' }}>
+                    <div style={{ fontSize: '14px', color: '#6c757d' }}>
                       Receive important reminders about your appointments.
                     </div>
                   </div>
@@ -537,7 +537,7 @@ const Unsubscribe: React.FC = () => {
                   borderRadius: '8px',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                  backgroundColor: smsPreferences.urgent_updates ? '#f0f4ff' : 'white'
+                  backgroundColor: smsPreferences.urgent_updates ? '#e3f2fd' : 'white'
                 }}>
                   <input
                     type="checkbox"
@@ -549,10 +549,10 @@ const Unsubscribe: React.FC = () => {
                     style={{ marginTop: '2px', width: '18px', height: '18px', cursor: 'pointer' }}
                   />
                   <div>
-                    <div style={{ fontWeight: '600', color: '#2d3748', marginBottom: '4px' }}>
+                    <div style={{ fontWeight: '600', color: '#2c3e50', marginBottom: '4px' }}>
                       Urgent updates only
                     </div>
-                    <div style={{ fontSize: '14px', color: '#718096' }}>
+                    <div style={{ fontSize: '14px', color: '#6c757d' }}>
                       Only receive critical time-sensitive information.
                     </div>
                   </div>
@@ -562,7 +562,7 @@ const Unsubscribe: React.FC = () => {
 
             {/* SMS Unsubscribe Option */}
             <div style={{ marginBottom: '30px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2d3748', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2c3e50', marginBottom: '16px' }}>
                 Or stop all text messages:
               </h3>
 
@@ -571,11 +571,11 @@ const Unsubscribe: React.FC = () => {
                 alignItems: 'center',
                 gap: '10px',
                 padding: '14px',
-                border: '2px solid #e2e8f0',
+                border: '2px solid #e9ecef',
                 borderRadius: '8px',
                 cursor: 'pointer',
                 backgroundColor: smsAction === 'unsubscribe' ? '#fff5f5' : 'white',
-                borderColor: smsAction === 'unsubscribe' ? '#fc8181' : '#e2e8f0'
+                borderColor: smsAction === 'unsubscribe' ? '#fc8181' : '#e9ecef'
               }}>
                 <input
                   type="radio"
@@ -584,7 +584,7 @@ const Unsubscribe: React.FC = () => {
                   onChange={() => setSmsAction('unsubscribe')}
                   style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                 />
-                <span style={{ fontWeight: '500', color: '#2d3748' }}>
+                <span style={{ fontWeight: '500', color: '#2c3e50' }}>
                   Unsubscribe from all text messages
                 </span>
               </label>
@@ -618,13 +618,13 @@ const Unsubscribe: React.FC = () => {
             color: 'white',
             background: (activeTab === 'email' && action === 'unsubscribe') || (activeTab === 'sms' && smsAction === 'unsubscribe')
               ? 'linear-gradient(135deg, #fc8181 0%, #f56565 100%)' 
-              : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              : 'linear-gradient(135deg, #4682B4 0%, #87CEEB 100%)',
             border: 'none',
             borderRadius: '8px',
             cursor: loading || (activeTab === 'email' && !email) || (activeTab === 'sms' && !phone) ? 'not-allowed' : 'pointer',
             opacity: loading || (activeTab === 'email' && !email) || (activeTab === 'sms' && !phone) ? 0.6 : 1,
             transition: 'all 0.3s ease',
-            boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
+            boxShadow: '0 4px 12px rgba(70, 130, 180, 0.4)'
           }}
         >
           {loading ? 'Processing...' : 
