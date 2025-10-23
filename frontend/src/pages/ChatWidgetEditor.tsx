@@ -219,8 +219,22 @@ export default function ChatWidgetEditor() {
                 required
                 value={selectedClientId || ''}
                 onChange={(e) => {
-                  setSelectedClientId(parseInt(e.target.value))
+                  const clientId = parseInt(e.target.value)
+                  setSelectedClientId(clientId)
                   setError('') // Clear error when client is selected
+                  
+                  // ✅ Auto-fill widget name and welcome message based on selected client
+                  if (clientId && Array.isArray(clients)) {
+                    const selectedClient = clients.find((c: any) => c.id === clientId)
+                    if (selectedClient) {
+                      setFormData(prev => ({
+                        ...prev,
+                        widget_name: `${selectedClient.client_name || selectedClient.email || 'Client'} Chat Widget`,
+                        welcome_message: `Hi! Welcome to ${selectedClient.client_name || selectedClient.email || 'our website'}. How can we help you today?`,
+                        bot_name: `${selectedClient.client_name || 'Support'} Assistant`
+                      }))
+                    }
+                  }
                 }}
                 style={{
                   width: '100%',
@@ -237,7 +251,8 @@ export default function ChatWidgetEditor() {
                 <option value="">🔽 -- Select a Client First --</option>
                 {Array.isArray(clients) && clients.map((client: any) => (
                   <option key={client.id} value={client.id}>
-                    🏢 {client.client_name} {client.email ? `(${client.email})` : ''}
+                    🏢 {client.client_name || client.email || `Client #${client.id}`}
+                    {client.email && client.client_name ? ` (${client.email})` : ''}
                   </option>
                 ))}
               </select>
@@ -349,21 +364,125 @@ export default function ChatWidgetEditor() {
 
           <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
-              Bot Avatar URL (optional)
+              <i className="fas fa-robot" style={{ marginRight: '8px', color: '#4682B4' }}></i>
+              Bot Avatar / Logo
             </label>
-            <input
-              type="url"
-              value={formData.bot_avatar_url}
-              onChange={(e) => handleChange('bot_avatar_url', e.target.value)}
-              placeholder="https://example.com/avatar.png"
-              style={{
-                width: '100%',
-                padding: '12px',
-                border: '2px solid #e0e0e0',
-                borderRadius: '8px',
-                fontSize: '14px'
-              }}
-            />
+            <div style={{
+              display: 'flex',
+              gap: '1rem',
+              alignItems: 'flex-start',
+              background: '#f8f9fa',
+              padding: '1rem',
+              borderRadius: '8px',
+              border: '2px solid #e0e0e0'
+            }}>
+              {/* Avatar Preview */}
+              <div style={{ flex: '0 0 80px' }}>
+                <div style={{
+                  width: '80px',
+                  height: '80px',
+                  borderRadius: '50%',
+                  background: 'white',
+                  border: '3px solid #4682B4',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '40px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                }}>
+                  {formData.bot_avatar_url ? (
+                    <img 
+                      src={formData.bot_avatar_url} 
+                      alt="Bot Avatar" 
+                      style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling!.textContent = '🤖' }}
+                    />
+                  ) : (
+                    <span>🤖</span>
+                  )}
+                </div>
+              </div>
+              
+              {/* URL Input */}
+              <div style={{ flex: 1 }}>
+                <input
+                  type="url"
+                  value={formData.bot_avatar_url}
+                  onChange={(e) => handleChange('bot_avatar_url', e.target.value)}
+                  placeholder="Enter avatar image URL (e.g., https://example.com/logo.png)"
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '2px solid #e0e0e0',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    marginBottom: '8px'
+                  }}
+                />
+                <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.5' }}>
+                  <p style={{ margin: '0 0 5px 0' }}>
+                    <strong>💡 Tips:</strong>
+                  </p>
+                  <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                    <li>Leave empty to use default 🤖 robot emoji</li>
+                    <li>Use square images (recommended: 200x200px)</li>
+                    <li>Supported: PNG, JPG, SVG</li>
+                  </ul>
+                </div>
+                
+                {/* Quick Default Options */}
+                <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleChange('bot_avatar_url', '')}
+                    style={{
+                      padding: '6px 12px',
+                      background: '#6c757d',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      fontWeight: '600'
+                    }}
+                  >
+                    Use Default 🤖
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleChange('bot_avatar_url', 'https://cdn-icons-png.flaticon.com/512/4712/4712027.png')}
+                    style={{
+                      padding: '6px 12px',
+                      background: '#17a2b8',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      fontWeight: '600'
+                    }}
+                  >
+                    Medical Bot 🏥
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleChange('bot_avatar_url', 'https://cdn-icons-png.flaticon.com/512/4712/4712109.png')}
+                    style={{
+                      padding: '6px 12px',
+                      background: '#28a745',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      fontWeight: '600'
+                    }}
+                  >
+                    Support Bot 💬
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
