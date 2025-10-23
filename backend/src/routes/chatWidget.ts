@@ -594,18 +594,35 @@ router.get('/widgets/:widgetId/conversations', async (req, res) => {
     const { widgetId } = req.params;
     const { status, limit = 50, offset = 0 } = req.query;
 
-    let query = 'SELECT * FROM widget_conversations WHERE widget_id = $1';
+    let query = `
+      SELECT 
+        wc.*,
+        wconf.widget_name,
+        COALESCE(wc.message_count, 0) as message_count,
+        COALESCE(wc.bot_response_count, 0) as bot_response_count,
+        COALESCE(wc.human_response_count, 0) as human_response_count,
+        wc.last_message,
+        wc.last_message_at,
+        wc.handoff_requested,
+        wc.handoff_requested_at
+      FROM widget_conversations wc
+      LEFT JOIN widget_configs wconf ON wc.widget_id = wconf.id
+      WHERE wc.widget_id = $1
+    `;
     const params: any[] = [widgetId];
 
     if (status) {
-      query += ' AND status = $2';
+      query += ' AND wc.status = $2';
       params.push(status);
     }
 
-    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    query += ` ORDER BY wc.updated_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
 
     const result = await pool.query(query, params);
+    
+    console.log(`📊 Fetched ${result.rows.length} conversations for widget ${widgetId}`);
+    
     res.json(result.rows);
   } catch (error) {
     console.error('Get conversations error:', error);
@@ -627,6 +644,74 @@ router.get('/conversations/:conversationId/messages', async (req, res) => {
   } catch (error) {
     console.error('Get messages error:', error);
     res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+// Send reply to conversation (HUMAN RESPONSE)
+router.post('/conversations/:conversationId/reply', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { message } = req.body;
+    const userId = (req as any).session.userId;
+    const username = (req as any).session.username || 'Support';
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('💬 HUMAN REPLY TO CONVERSATION');
+    console.log(`👤 User: ${username} (ID: ${userId})`);
+    console.log(`📝 Conversation ID: ${conversationId}`);
+    console.log(`💬 Message: ${message.substring(0, 100)}...`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    // Check if conversation exists
+    const convResult = await pool.query(
+      'SELECT * FROM widget_conversations WHERE id = $1',
+      [conversationId]
+    );
+
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    const conversation = convResult.rows[0];
+
+    // Insert human message
+    const messageResult = await pool.query(
+      `INSERT INTO widget_messages (
+        conversation_id, message_type, message_text, sender_name, created_at
+      ) VALUES ($1, $2, $3, $4, NOW())
+      RETURNING *`,
+      [conversationId, 'human', message.trim(), username]
+    );
+
+    // Update conversation
+    await pool.query(
+      `UPDATE widget_conversations SET
+        human_response_count = COALESCE(human_response_count, 0) + 1,
+        message_count = COALESCE(message_count, 0) + 1,
+        last_message = $1,
+        last_message_at = NOW(),
+        handoff_requested = false,
+        status = 'active',
+        updated_at = NOW()
+      WHERE id = $2`,
+      [message.trim(), conversationId]
+    );
+
+    console.log('✅ Human reply sent successfully');
+    console.log(`📊 Message ID: ${messageResult.rows[0].id}`);
+
+    res.json({
+      success: true,
+      message_id: messageResult.rows[0].id,
+      message: messageResult.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Send reply error:', error);
+    res.status(500).json({ error: 'Failed to send reply' });
   }
 });
 
