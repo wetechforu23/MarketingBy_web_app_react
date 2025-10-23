@@ -6,6 +6,24 @@ import archiver from 'archiver';
 const router = express.Router();
 
 // ==========================================
+// CORS MIDDLEWARE FOR ALL WIDGET ROUTES
+// ==========================================
+// Allow ALL origins for widget embedding (these are public APIs)
+router.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+});
+
+// ==========================================
 // WIDGET CONFIGURATION ENDPOINTS
 // ==========================================
 
