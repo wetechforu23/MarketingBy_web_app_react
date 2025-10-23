@@ -296,11 +296,12 @@ export default function ChatWidgetEditor() {
                   if (clientId && Array.isArray(clients)) {
                     const selectedClient = clients.find((c: any) => c.id === clientId)
                     if (selectedClient) {
+                      const clientName = selectedClient.name || selectedClient.client_name || selectedClient.company || selectedClient.email || 'Client'
                       setFormData(prev => ({
                         ...prev,
-                        widget_name: `${selectedClient.client_name || selectedClient.email || 'Client'} Chat Widget`,
-                        welcome_message: `Hi! Welcome to ${selectedClient.client_name || selectedClient.email || 'our website'}. How can we help you today?`,
-                        bot_name: `${selectedClient.client_name || 'Support'} Assistant`
+                        widget_name: `${clientName} Chat Widget`,
+                        welcome_message: `Hi! Welcome to ${clientName}. How can we help you today?`,
+                        bot_name: `${clientName} Assistant`
                       }))
                     }
                   }
@@ -320,8 +321,7 @@ export default function ChatWidgetEditor() {
                 <option value="">🔽 -- Select a Client First --</option>
                 {Array.isArray(clients) && clients.map((client: any) => (
                   <option key={client.id} value={client.id}>
-                    🏢 {client.client_name || client.email || `Client #${client.id}`}
-                    {client.email && client.client_name ? ` (${client.email})` : ''}
+                    🏢 {client.name || client.client_name || client.company || client.email || `Client #${client.id}`}
                   </option>
                 ))}
               </select>
