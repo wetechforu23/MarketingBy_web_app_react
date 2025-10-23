@@ -31,6 +31,11 @@ import ClientManagementDashboard from "../pages/ClientManagementDashboard";
 import ContentLibrary from "../pages/ContentLibrary";
 import ContentEditor from "../pages/ContentEditor";
 import ApprovalQueue from "../pages/ApprovalQueue";
+// AI Chat Widget
+import ChatWidgets from "../pages/ChatWidgets";
+import ChatWidgetEditor from "../pages/ChatWidgetEditor";
+import ChatConversations from "../pages/ChatConversations";
+import ChatAnalytics from "../pages/ChatAnalytics";
 // Email Preferences & Unsubscribe
 import Unsubscribe from "../pages/Unsubscribe";
 
@@ -69,6 +74,12 @@ export const router = createBrowserRouter([
       { path: "content-library/create", element: <ContentEditor /> },
       { path: "content-library/:id/edit", element: <ContentEditor /> },
       { path: "approvals", element: <ApprovalQueue /> },
+      // AI Chat Widget routes
+      { path: "chat-widgets", element: <ChatWidgets /> },
+      { path: "chat-widgets/create", element: <ChatWidgetEditor /> },
+      { path: "chat-widgets/:id/edit", element: <ChatWidgetEditor /> },
+      { path: "chat-conversations", element: <ChatConversations /> },
+      { path: "chat-analytics", element: <ChatAnalytics /> },
       {
         path: "customer",
         element: <CustomerPortalPage />,

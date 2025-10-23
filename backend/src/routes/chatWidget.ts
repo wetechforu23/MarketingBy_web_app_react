@@ -1,0 +1,634 @@
+import express from 'express';
+import pool from '../config/database';
+import crypto from 'crypto';
+
+const router = express.Router();
+
+// ==========================================
+// WIDGET CONFIGURATION ENDPOINTS
+// ==========================================
+
+// Get all widgets for a client
+router.get('/widgets', async (req, res) => {
+  try {
+    const clientId = (req as any).session.clientId || (req as any).user?.client_id;
+    const role = (req as any).session.role || (req as any).user?.role;
+
+    let query = 'SELECT * FROM widget_configs';
+    const params: any[] = [];
+
+    if (role !== 'super_admin' && role !== 'admin') {
+      query += ' WHERE client_id = $1';
+      params.push(clientId);
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get widgets error:', error);
+    res.status(500).json({ error: 'Failed to fetch widgets' });
+  }
+});
+
+// Create new widget
+router.post('/widgets', async (req, res) => {
+  try {
+    const {
+      client_id,
+      widget_name,
+      primary_color,
+      secondary_color,
+      position,
+      welcome_message,
+      bot_name,
+      bot_avatar_url,
+      enable_appointment_booking,
+      enable_email_capture,
+      enable_phone_capture,
+      enable_ai_handoff,
+      ai_handoff_url,
+      business_hours,
+      offline_message
+    } = req.body;
+
+    // Generate unique widget key
+    const widget_key = `wtfu_${crypto.randomBytes(16).toString('hex')}`;
+
+    const result = await pool.query(
+      `INSERT INTO widget_configs (
+        client_id, widget_key, widget_name, primary_color, secondary_color,
+        position, welcome_message, bot_name, bot_avatar_url,
+        enable_appointment_booking, enable_email_capture, enable_phone_capture,
+        enable_ai_handoff, ai_handoff_url, business_hours, offline_message,
+        created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      RETURNING *`,
+      [
+        client_id, widget_key, widget_name, primary_color, secondary_color,
+        position, welcome_message, bot_name, bot_avatar_url,
+        enable_appointment_booking, enable_email_capture, enable_phone_capture,
+        enable_ai_handoff, ai_handoff_url, JSON.stringify(business_hours), offline_message,
+        (req as any).session.userId
+      ]
+    );
+
+    // Add default knowledge base
+    await pool.query('SELECT add_default_knowledge_base($1)', [result.rows[0].id]);
+
+    console.log(`✅ Widget created: ${widget_key} for client ${client_id}`);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Create widget error:', error);
+    res.status(500).json({ error: 'Failed to create widget' });
+  }
+});
+
+// Update widget configuration
+router.put('/widgets/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    const allowedFields = [
+      'widget_name', 'primary_color', 'secondary_color', 'position',
+      'welcome_message', 'bot_name', 'bot_avatar_url',
+      'enable_appointment_booking', 'enable_email_capture', 'enable_phone_capture',
+      'enable_ai_handoff', 'ai_handoff_url', 'business_hours', 'offline_message',
+      'is_active', 'rate_limit_messages', 'rate_limit_window', 'require_captcha'
+    ];
+
+    const setClause = [];
+    const values = [];
+    let paramCount = 1;
+
+    for (const [key, value] of Object.entries(updates)) {
+      if (allowedFields.includes(key)) {
+        setClause.push(`${key} = $${paramCount}`);
+        values.push(value);
+        paramCount++;
+      }
+    }
+
+    if (setClause.length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    setClause.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(id);
+
+    const result = await pool.query(
+      `UPDATE widget_configs SET ${setClause.join(', ')} WHERE id = $${paramCount} RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+
+    console.log(`✅ Widget ${id} updated`);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update widget error:', error);
+    res.status(500).json({ error: 'Failed to update widget' });
+  }
+});
+
+// Delete widget
+router.delete('/widgets/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'DELETE FROM widget_configs WHERE id = $1 RETURNING widget_key',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+
+    console.log(`✅ Widget ${id} deleted`);
+    res.json({ success: true, message: 'Widget deleted successfully' });
+  } catch (error) {
+    console.error('Delete widget error:', error);
+    res.status(500).json({ error: 'Failed to delete widget' });
+  }
+});
+
+// ==========================================
+// KNOWLEDGE BASE ENDPOINTS
+// ==========================================
+
+// Get knowledge base for a widget
+router.get('/widgets/:widgetId/knowledge', async (req, res) => {
+  try {
+    const { widgetId } = req.params;
+
+    const result = await pool.query(
+      'SELECT * FROM widget_knowledge_base WHERE widget_id = $1 ORDER BY priority DESC, category',
+      [widgetId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get knowledge base error:', error);
+    res.status(500).json({ error: 'Failed to fetch knowledge base' });
+  }
+});
+
+// Add knowledge base entry
+router.post('/widgets/:widgetId/knowledge', async (req, res) => {
+  try {
+    const { widgetId } = req.params;
+    const { category, question, answer, keywords, priority } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO widget_knowledge_base (widget_id, category, question, answer, keywords, priority)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [widgetId, category, question, answer, keywords, priority || 0]
+    );
+
+    console.log(`✅ Knowledge base entry added for widget ${widgetId}`);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Add knowledge base error:', error);
+    res.status(500).json({ error: 'Failed to add knowledge base entry' });
+  }
+});
+
+// Update knowledge base entry
+router.put('/widgets/:widgetId/knowledge/:knowledgeId', async (req, res) => {
+  try {
+    const { widgetId, knowledgeId } = req.params;
+    const { category, question, answer, keywords, priority, is_active } = req.body;
+
+    const result = await pool.query(
+      `UPDATE widget_knowledge_base 
+       SET category = $1, question = $2, answer = $3, keywords = $4, priority = $5, 
+           is_active = $6, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $7 AND widget_id = $8
+       RETURNING *`,
+      [category, question, answer, keywords, priority, is_active, knowledgeId, widgetId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Knowledge base entry not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update knowledge base error:', error);
+    res.status(500).json({ error: 'Failed to update knowledge base entry' });
+  }
+});
+
+// Delete knowledge base entry
+router.delete('/widgets/:widgetId/knowledge/:knowledgeId', async (req, res) => {
+  try {
+    const { widgetId, knowledgeId } = req.params;
+
+    const result = await pool.query(
+      'DELETE FROM widget_knowledge_base WHERE id = $1 AND widget_id = $2 RETURNING id',
+      [knowledgeId, widgetId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Knowledge base entry not found' });
+    }
+
+    res.json({ success: true, message: 'Knowledge base entry deleted' });
+  } catch (error) {
+    console.error('Delete knowledge base error:', error);
+    res.status(500).json({ error: 'Failed to delete knowledge base entry' });
+  }
+});
+
+// ==========================================
+// PUBLIC WIDGET API (No authentication required)
+// ==========================================
+
+// Get widget configuration (public endpoint)
+router.get('/public/widget/:widgetKey/config', async (req, res) => {
+  try {
+    const { widgetKey } = req.params;
+
+    const result = await pool.query(
+      `SELECT widget_key, widget_name, primary_color, secondary_color, position,
+              welcome_message, bot_name, bot_avatar_url, enable_appointment_booking,
+              enable_email_capture, enable_phone_capture, enable_ai_handoff,
+              ai_handoff_url, business_hours, offline_message, is_active
+       FROM widget_configs
+       WHERE widget_key = $1 AND is_active = true`,
+      [widgetKey]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found or inactive' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Get widget config error:', error);
+    res.status(500).json({ error: 'Failed to fetch widget configuration' });
+  }
+});
+
+// Start a new conversation (public endpoint)
+router.post('/public/widget/:widgetKey/conversation', async (req, res) => {
+  try {
+    const { widgetKey } = req.params;
+    const { session_id, page_url, referrer_url, user_agent } = req.body;
+    const ip_address = req.ip || req.connection.remoteAddress;
+
+    // Get widget ID
+    const widgetResult = await pool.query(
+      'SELECT id, rate_limit_messages, rate_limit_window FROM widget_configs WHERE widget_key = $1 AND is_active = true',
+      [widgetKey]
+    );
+
+    if (widgetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+
+    const widget = widgetResult.rows[0];
+
+    // Check for existing active conversation
+    const existingConv = await pool.query(
+      'SELECT id FROM widget_conversations WHERE widget_id = $1 AND session_id = $2 AND status = $3',
+      [widget.id, session_id, 'active']
+    );
+
+    if (existingConv.rows.length > 0) {
+      return res.json({ conversation_id: existingConv.rows[0].id, existing: true });
+    }
+
+    // Create new conversation
+    const convResult = await pool.query(
+      `INSERT INTO widget_conversations (widget_id, session_id, ip_address, user_agent, referrer_url, page_url)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id`,
+      [widget.id, session_id, ip_address, user_agent, referrer_url, page_url]
+    );
+
+    console.log(`✅ New conversation started: ${convResult.rows[0].id} for widget ${widgetKey}`);
+    res.json({ conversation_id: convResult.rows[0].id, existing: false });
+  } catch (error) {
+    console.error('Start conversation error:', error);
+    res.status(500).json({ error: 'Failed to start conversation' });
+  }
+});
+
+// Send message and get bot response (public endpoint)
+router.post('/public/widget/:widgetKey/message', async (req, res) => {
+  try {
+    const { widgetKey } = req.params;
+    const { conversation_id, message_text } = req.body;
+
+    if (!message_text || message_text.trim().length === 0) {
+      return res.status(400).json({ error: 'Message text is required' });
+    }
+
+    const startTime = Date.now();
+
+    // Get widget and conversation info
+    const widgetResult = await pool.query(
+      'SELECT id FROM widget_configs WHERE widget_key = $1 AND is_active = true',
+      [widgetKey]
+    );
+
+    if (widgetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+
+    const widget_id = widgetResult.rows[0].id;
+
+    // Save user message
+    await pool.query(
+      `INSERT INTO widget_messages (conversation_id, message_type, message_text)
+       VALUES ($1, $2, $3)`,
+      [conversation_id, 'user', message_text]
+    );
+
+    // Update conversation message count
+    await pool.query(
+      'UPDATE widget_conversations SET message_count = message_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [conversation_id]
+    );
+
+    // Find best matching knowledge base entry
+    const knowledgeResult = await pool.query(
+      `SELECT id, answer, keywords
+       FROM widget_knowledge_base
+       WHERE widget_id = $1 AND is_active = true
+       ORDER BY priority DESC`,
+      [widget_id]
+    );
+
+    let bestMatch: any = null;
+    let bestScore = 0;
+    const messageLower = message_text.toLowerCase();
+
+    for (const entry of knowledgeResult.rows) {
+      let score = 0;
+      if (entry.keywords) {
+        for (const keyword of entry.keywords) {
+          if (messageLower.includes(keyword.toLowerCase())) {
+            score += 1;
+          }
+        }
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = entry;
+      }
+    }
+
+    // Generate bot response
+    let botResponse = 'I understand you have a question. Let me connect you with our team who can help you better. Would you like to leave your email or phone number?';
+    let confidence = 0.3;
+    let knowledge_base_id = null;
+
+    if (bestMatch && bestScore > 0) {
+      botResponse = bestMatch.answer;
+      confidence = Math.min(0.95, bestScore * 0.3);
+      knowledge_base_id = bestMatch.id;
+
+      // Update usage stats
+      await pool.query(
+        'UPDATE widget_knowledge_base SET times_used = times_used + 1 WHERE id = $1',
+        [knowledge_base_id]
+      );
+    }
+
+    const responseTime = Date.now() - startTime;
+
+    // Save bot response
+    const botMessage = await pool.query(
+      `INSERT INTO widget_messages (conversation_id, message_type, message_text, knowledge_base_id, confidence_score, response_time_ms)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [conversation_id, 'bot', botResponse, knowledge_base_id, confidence, responseTime]
+    );
+
+    // Update conversation
+    await pool.query(
+      'UPDATE widget_conversations SET bot_response_count = bot_response_count + 1 WHERE id = $1',
+      [conversation_id]
+    );
+
+    console.log(`✅ Bot response sent (confidence: ${confidence}): ${conversation_id}`);
+
+    res.json({
+      message_id: botMessage.rows[0].id,
+      response: botResponse,
+      confidence: confidence,
+      timestamp: botMessage.rows[0].created_at
+    });
+  } catch (error) {
+    console.error('Send message error:', error);
+    res.status(500).json({ error: 'Failed to process message' });
+  }
+});
+
+// Capture lead information (public endpoint)
+router.post('/public/widget/:widgetKey/capture-lead', async (req, res) => {
+  try {
+    const { widgetKey } = req.params;
+    const {
+      conversation_id,
+      visitor_name,
+      visitor_email,
+      visitor_phone,
+      handoff_type,
+      handoff_details
+    } = req.body;
+
+    // Get widget and conversation
+    const widgetResult = await pool.query(
+      `SELECT wc.id as widget_id, wc.client_id, conv.id as conversation_id
+       FROM widget_configs wc
+       JOIN widget_conversations conv ON conv.widget_id = wc.id
+       WHERE wc.widget_key = $1 AND conv.id = $2 AND wc.is_active = true`,
+      [widgetKey, conversation_id]
+    );
+
+    if (widgetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget or conversation not found' });
+    }
+
+    const { widget_id, client_id } = widgetResult.rows[0];
+
+    // Create lead in leads table
+    let lead_id = null;
+    if (visitor_email) {
+      try {
+        const leadResult = await pool.query(
+          `INSERT INTO leads (company, email, phone, source, status, client_id, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING id`,
+          [
+            visitor_name || 'Chat Visitor',
+            visitor_email,
+            visitor_phone,
+            'chat_widget',
+            'new',
+            client_id,
+            `Captured from chat widget. Handoff type: ${handoff_type}`
+          ]
+        );
+        lead_id = leadResult.rows[0].id;
+      } catch (leadError) {
+        console.error('Error creating lead:', leadError);
+      }
+    }
+
+    // Update conversation with lead info
+    await pool.query(
+      `UPDATE widget_conversations
+       SET visitor_name = $1, visitor_email = $2, visitor_phone = $3,
+           lead_captured = true, lead_id = $4, handoff_type = $5,
+           handoff_details = $6, status = $7, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $8`,
+      [
+        visitor_name,
+        visitor_email,
+        visitor_phone,
+        lead_id,
+        handoff_type,
+        JSON.stringify(handoff_details),
+        'completed',
+        conversation_id
+      ]
+    );
+
+    // Add system message
+    await pool.query(
+      `INSERT INTO widget_messages (conversation_id, message_type, message_text)
+       VALUES ($1, $2, $3)`,
+      [
+        conversation_id,
+        'system',
+        `Lead captured: ${handoff_type} handoff requested`
+      ]
+    );
+
+    console.log(`✅ Lead captured from conversation ${conversation_id}: ${visitor_email}`);
+
+    res.json({
+      success: true,
+      message: 'Thank you! We\'ll get back to you soon.',
+      lead_id: lead_id
+    });
+  } catch (error) {
+    console.error('Capture lead error:', error);
+    res.status(500).json({ error: 'Failed to capture lead information' });
+  }
+});
+
+// Rate message as helpful/not helpful (public endpoint)
+router.post('/public/widget/:widgetKey/feedback', async (req, res) => {
+  try {
+    const { message_id, was_helpful, feedback_text } = req.body;
+
+    await pool.query(
+      'UPDATE widget_messages SET was_helpful = $1, feedback_text = $2 WHERE id = $3',
+      [was_helpful, feedback_text, message_id]
+    );
+
+    // Update knowledge base stats if applicable
+    if (was_helpful !== null) {
+      await pool.query(
+        `UPDATE widget_knowledge_base
+         SET ${was_helpful ? 'helpful_count' : 'not_helpful_count'} = ${was_helpful ? 'helpful_count' : 'not_helpful_count'} + 1
+         WHERE id = (SELECT knowledge_base_id FROM widget_messages WHERE id = $1)`,
+        [message_id]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Feedback error:', error);
+    res.status(500).json({ error: 'Failed to submit feedback' });
+  }
+});
+
+// ==========================================
+// ANALYTICS ENDPOINTS
+// ==========================================
+
+// Get widget analytics
+router.get('/widgets/:widgetId/analytics', async (req, res) => {
+  try {
+    const { widgetId } = req.params;
+    const { start_date, end_date } = req.query;
+
+    let query = 'SELECT * FROM widget_analytics WHERE widget_id = $1';
+    const params: any[] = [widgetId];
+
+    if (start_date) {
+      query += ' AND date >= $2';
+      params.push(start_date);
+    }
+    if (end_date) {
+      const dateParam = params.length + 1;
+      query += ` AND date <= $${dateParam}`;
+      params.push(end_date);
+    }
+
+    query += ' ORDER BY date DESC';
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get analytics error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
+// Get conversations for a widget
+router.get('/widgets/:widgetId/conversations', async (req, res) => {
+  try {
+    const { widgetId } = req.params;
+    const { status, limit = 50, offset = 0 } = req.query;
+
+    let query = 'SELECT * FROM widget_conversations WHERE widget_id = $1';
+    const params: any[] = [widgetId];
+
+    if (status) {
+      query += ' AND status = $2';
+      params.push(status);
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get conversations error:', error);
+    res.status(500).json({ error: 'Failed to fetch conversations' });
+  }
+});
+
+// Get messages for a conversation
+router.get('/conversations/:conversationId/messages', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+
+    const result = await pool.query(
+      'SELECT * FROM widget_messages WHERE conversation_id = $1 ORDER BY created_at ASC',
+      [conversationId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get messages error:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+export default router;
+

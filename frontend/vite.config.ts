@@ -6,7 +6,25 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: 'http://localhost:9000', changeOrigin: true },
+      '/api': { 
+        target: 'http://localhost:3001', 
+        changeOrigin: true,
+        configure: (proxy, options) => {
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('🌐 FRONTEND → BACKEND REQUEST');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('📍 Method:', req.method);
+            console.log('📍 URL:', req.url);
+            console.log('🍪 Cookies:', req.headers.cookie || 'None');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          });
+        }
+      },
     },
+    hmr: {
+      overlay: true
+    }
   },
+  logLevel: 'info'
 })

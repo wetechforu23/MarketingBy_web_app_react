@@ -12,23 +12,34 @@ const otpStore = new Map();
 // Login endpoint
 router.post('/login', async (req, res) => {
   try {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔐 LOGIN REQUEST RECEIVED');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     const { email, password, rememberMe } = req.body;
+    console.log('📧 Email:', email);
+    console.log('🔑 Remember Me:', rememberMe);
+    console.log('🌐 Origin:', req.headers.origin);
+    console.log('🍪 Cookies:', req.headers.cookie);
 
     if (!email || !password) {
+      console.log('❌ Missing email or password');
       return res.status(400).json({ error: 'Email and password required' });
     }
 
     // Query user from database
+    console.log('🔍 Querying database for user...');
     const result = await pool.query(
       'SELECT id, email, username, role, password_hash, client_id FROM users WHERE email = $1',
       [email]
     );
 
     if (result.rows.length === 0) {
+      console.log('❌ User not found');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const user = result.rows[0];
+    console.log('✅ User found:', { id: user.id, email: user.email, role: user.role });
 
     // Check password - support both bcrypt and PBKDF2 formats
     let isValidPassword = false;
@@ -52,16 +63,21 @@ router.post('/login', async (req, res) => {
     }
     
     if (!isValidPassword) {
+      console.log('❌ Invalid password');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    console.log('✅ Password verified');
+
     // Update last_login timestamp
+    console.log('📝 Updating last_login...');
     await pool.query(
       'UPDATE users SET last_login = NOW() WHERE id = $1',
       [user.id]
     );
 
     // Set session with remember me functionality
+    console.log('🍪 Creating session...');
     req.session.userId = user.id;
     req.session.username = user.username;
     req.session.role = user.role;
@@ -71,24 +87,47 @@ router.post('/login', async (req, res) => {
     if (rememberMe) {
       // Set cookie to expire in 30 days
       req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+      console.log('🔒 Session cookie: 30 days (remember me)');
     } else {
       // Default session (expires when browser closes)
       req.session.cookie.maxAge = null;
+      console.log('🔒 Session cookie: browser session');
     }
 
-    res.json({
-      success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        role: user.role,
-        client_id: user.client_id
-      },
-      rememberMe: rememberMe || false
+    console.log('💾 Session ID:', req.sessionID);
+    console.log('👤 Session data:', { userId: req.session.userId, role: req.session.role });
+
+    // Save session before sending response
+    req.session.save((err) => {
+      if (err) {
+        console.error('❌ Session save error:', err);
+        return res.status(500).json({ error: 'Session save failed' });
+      }
+
+      console.log('✅ Session saved successfully');
+
+      const responseData = {
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          role: user.role,
+          client_id: user.client_id
+        },
+        rememberMe: rememberMe || false
+      };
+
+      console.log('✅ LOGIN SUCCESSFUL - Sending response');
+      console.log('📤 Response:', JSON.stringify(responseData, null, 2));
+      console.log('🍪 Set-Cookie header will be sent');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+      res.json(responseData);
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('❌ LOGIN ERROR:', error);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -106,10 +145,20 @@ router.post('/logout', (req, res) => {
 // Get current user
 router.get('/me', async (req, res) => {
   try {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('👤 /me REQUEST RECEIVED');
+    console.log('🍪 Cookies:', req.headers.cookie);
+    console.log('💾 Session ID:', req.sessionID);
+    console.log('👤 Session userId:', req.session.userId);
+    console.log('📋 Session data:', req.session);
+
     if (!req.session.userId) {
+      console.log('❌ Not authenticated - no userId in session');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
+    console.log('✅ Session valid, fetching user data...');
     const result = await pool.query(
       `SELECT id, email, username, role, team_type, client_id, first_name, last_name, phone, 
               created_at, last_login, timezone, language, notifications_enabled, profile_picture_url,
@@ -119,9 +168,13 @@ router.get('/me', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      console.log('❌ User not found in database');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       return res.status(404).json({ error: 'User not found' });
     }
 
+    console.log('✅ User data retrieved:', { id: result.rows[0].id, email: result.rows[0].email });
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Get user error:', error);

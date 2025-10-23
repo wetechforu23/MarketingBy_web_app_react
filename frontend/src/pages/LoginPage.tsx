@@ -13,15 +13,22 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.log('🔐 LOGIN FORM SUBMITTED')
+    console.log('📧 Email:', email)
+    console.log('🔑 Password length:', password.length)
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
     setLoading(true)
     setError('')
 
     try {
+      console.log('📡 Sending POST request to /auth/login...')
       const response = await api.post('/auth/login', { 
         email, 
         password, 
         rememberMe 
       })
+      console.log('✅ Response received:', response.data)
       if (response.data.success) {
         // Store remember me preference
         if (rememberMe) {

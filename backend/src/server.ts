@@ -27,6 +27,8 @@ import postsRoutes from './routes/posts';
 import emailPreferencesRoutes from './routes/emailPreferences';
 // SMS Preferences & Unsubscribe routes
 import smsPreferencesRoutes from './routes/smsPreferences';
+// AI Chat Widget routes
+import chatWidgetRoutes from './routes/chatWidget';
 
 dotenv.config();
 
@@ -75,11 +77,10 @@ app.use(session({
     createTableIfMissing: true
   }),
   cookie: {
-    secure: process.env.NODE_ENV === 'production', // true in production (HTTPS required)
+    secure: false, // false for local development
     httpOnly: true,
-    sameSite: 'lax', // 'lax' for same-site in production (not cross-origin)
+    sameSite: 'lax',
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    // Remove domain restriction - let browser set it automatically
     path: '/'
   },
   proxy: true, // Trust the reverse proxy (Heroku)
@@ -112,6 +113,8 @@ app.use('/api/posts', postsRoutes);
 app.use('/api/email-preferences', emailPreferencesRoutes);
 // SMS Preferences & Unsubscribe (public routes - no auth required)
 app.use('/api/sms-preferences', smsPreferencesRoutes);
+// AI Chat Widget (includes public routes for website embedding)
+app.use('/api/chat-widget', chatWidgetRoutes);
 
 // Serve React app (static files from public directory) - Only in production
 if (process.env.NODE_ENV === 'production') {

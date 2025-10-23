@@ -1331,13 +1331,14 @@ router.get('/client-dashboard/api-access', async (req, res) => {
           try {
             const clientResult = await pool.query(
               `INSERT INTO clients (
-                client_name, email, phone, contact_name,
+                client_name, website, email, phone, contact_name,
                 practice_address, practice_city, practice_state, practice_zip_code,
                 is_active, created_at
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW())
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, NOW())
               RETURNING id`,
               [
                 lead.company || 'New Client',
+                lead.website_url || `https://${lead.company?.toLowerCase().replace(/\s+/g, '') || 'unknown'}.com`,
                 lead.email,
                 lead.phone,
                 `${lead.contact_first_name || ''} ${lead.contact_last_name || ''}`.trim() || null,

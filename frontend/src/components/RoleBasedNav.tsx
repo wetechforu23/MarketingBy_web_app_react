@@ -211,6 +211,55 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
           </li>
         )}
 
+        {/* AI Chat Widget - NEW SECTION */}
+        {hasPageAccess('clients') && (
+          <li className="nav-item">
+            <a className="nav-link sub-btn" title={isCollapsed ? 'Chat Widget' : ''}>
+              <i className="fas fa-comments"></i>
+              {!isCollapsed && 'Chat Widget'}
+              <i className="fas fa-angle-right dropdown"></i>
+            </a>
+            <ul className="sub-menu">
+              <li>
+                <Link 
+                  className={`nav-link ${isActive('/app/chat-widgets') ? 'active' : ''}`} 
+                  to="/app/chat-widgets"
+                  onClick={onNavigate}
+                >
+                  <i className="fas fa-robot"></i> My Widgets
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  className={`nav-link ${isActive('/app/chat-widgets/create') ? 'active' : ''}`} 
+                  to="/app/chat-widgets/create"
+                  onClick={onNavigate}
+                >
+                  <i className="fas fa-plus-circle"></i> Create Widget
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  className={`nav-link ${isActive('/app/chat-conversations') ? 'active' : ''}`} 
+                  to="/app/chat-conversations"
+                  onClick={onNavigate}
+                >
+                  <i className="fas fa-comments"></i> Conversations
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  className={`nav-link ${isActive('/app/chat-analytics') ? 'active' : ''}`} 
+                  to="/app/chat-analytics"
+                  onClick={onNavigate}
+                >
+                  <i className="fas fa-chart-bar"></i> Analytics
+                </Link>
+              </li>
+            </ul>
+          </li>
+        )}
+
         {/* Leads - Own Section */}
         {hasPageAccess('leads') && (
           <li className="nav-item">
