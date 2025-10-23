@@ -34,6 +34,7 @@ import ApprovalQueue from "../pages/ApprovalQueue";
 // AI Chat Widget
 import ChatWidgets from "../pages/ChatWidgets";
 import ChatWidgetEditor from "../pages/ChatWidgetEditor";
+import ChatWidgetKnowledge from "../pages/ChatWidgetKnowledge";
 import ChatConversations from "../pages/ChatConversations";
 import ChatAnalytics from "../pages/ChatAnalytics";
 // Email Preferences & Unsubscribe
@@ -78,6 +79,7 @@ export const router = createBrowserRouter([
       { path: "chat-widgets", element: <ChatWidgets /> },
       { path: "chat-widgets/create", element: <ChatWidgetEditor /> },
       { path: "chat-widgets/:id/edit", element: <ChatWidgetEditor /> },
+      { path: "chat-widgets/:id/knowledge", element: <ChatWidgetKnowledge /> },
       { path: "chat-conversations", element: <ChatConversations /> },
       { path: "chat-analytics", element: <ChatAnalytics /> },
       {

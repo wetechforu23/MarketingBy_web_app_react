@@ -630,5 +630,191 @@ router.get('/conversations/:conversationId/messages', async (req, res) => {
   }
 });
 
+// ==========================================
+// KNOWLEDGE BASE ENDPOINTS
+// ==========================================
+
+// Get all knowledge entries for a widget
+router.get('/widgets/:id/knowledge', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'SELECT * FROM knowledge_base WHERE widget_id = $1 ORDER BY created_at DESC',
+      [id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get knowledge error:', error);
+    res.status(500).json({ error: 'Failed to fetch knowledge entries' });
+  }
+});
+
+// Create knowledge entry
+router.post('/widgets/:id/knowledge', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { question, answer, category } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO knowledge_base (widget_id, question, answer, category, is_active, created_at)
+       VALUES ($1, $2, $3, $4, true, NOW())
+       RETURNING *`,
+      [id, question, answer, category || 'General']
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Create knowledge error:', error);
+    res.status(500).json({ error: 'Failed to create knowledge entry' });
+  }
+});
+
+// Update knowledge entry
+router.put('/widgets/:id/knowledge/:knowledgeId', async (req, res) => {
+  try {
+    const { knowledgeId } = req.params;
+    const { question, answer, category } = req.body;
+
+    const result = await pool.query(
+      `UPDATE knowledge_base 
+       SET question = $1, answer = $2, category = $3
+       WHERE id = $4
+       RETURNING *`,
+      [question, answer, category, knowledgeId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Knowledge entry not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update knowledge error:', error);
+    res.status(500).json({ error: 'Failed to update knowledge entry' });
+  }
+});
+
+// Delete knowledge entry
+router.delete('/widgets/:id/knowledge/:knowledgeId', async (req, res) => {
+  try {
+    const { knowledgeId } = req.params;
+
+    await pool.query('DELETE FROM knowledge_base WHERE id = $1', [knowledgeId]);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete knowledge error:', error);
+    res.status(500).json({ error: 'Failed to delete knowledge entry' });
+  }
+});
+
+// ==========================================
+// WORDPRESS PLUGIN DOWNLOAD
+// ==========================================
+
+// Download WordPress plugin ZIP for a specific widget
+router.get('/:widgetKey/download-plugin', async (req, res) => {
+  try {
+    const { widgetKey } = req.params;
+
+    // Get widget details
+    const widgetResult = await pool.query(
+      'SELECT * FROM widget_configs WHERE widget_key = $1',
+      [widgetKey]
+    );
+
+    if (widgetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+
+    const widget = widgetResult.rows[0];
+    const backendUrl = process.env.BACKEND_URL || 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com';
+
+    // Generate WordPress plugin PHP code
+    const pluginCode = `<?php
+/**
+ * Plugin Name: WeTechForU Chat Widget - ${widget.widget_name}
+ * Description: AI-powered chat widget for ${widget.widget_name}
+ * Version: 1.0.0
+ * Author: WeTechForU
+ * Author URI: https://wetechforu.com
+ */
+
+if (!defined('ABSPATH')) {
+    exit; // Exit if accessed directly
+}
+
+// Add widget script to footer
+add_action('wp_footer', 'wetechforu_chat_widget_footer');
+function wetechforu_chat_widget_footer() {
+    ?>
+    <!-- WeTechForU Chat Widget -->
+    <script src="${backendUrl}/public/wetechforu-widget.js"></script>
+    <script>
+        WeTechForUWidget.init({
+            widgetKey: '${widgetKey}',
+            backendUrl: '${backendUrl}'
+        });
+    </script>
+    <?php
+}
+
+// Add admin menu
+add_action('admin_menu', 'wetechforu_chat_widget_menu');
+function wetechforu_chat_widget_menu() {
+    add_menu_page(
+        'Chat Widget',
+        'Chat Widget',
+        'manage_options',
+        'wetechforu-chat-widget',
+        'wetechforu_chat_widget_admin_page',
+        'dashicons-format-chat',
+        30
+    );
+}
+
+// Admin page
+function wetechforu_chat_widget_admin_page() {
+    ?>
+    <div class="wrap">
+        <h1>WeTechForU Chat Widget</h1>
+        <div class="card">
+            <h2>Widget Details</h2>
+            <p><strong>Widget Name:</strong> ${widget.widget_name}</p>
+            <p><strong>Widget Key:</strong> ${widgetKey}</p>
+            <p><strong>Status:</strong> <?php echo file_exists(plugin_dir_path(__FILE__)) ? '<span style="color: green;">Active</span>' : '<span style="color: red;">Inactive</span>'; ?></p>
+            <hr>
+            <h3>How It Works</h3>
+            <ol>
+                <li>This plugin automatically adds a chat widget to your website</li>
+                <li>The widget appears in the bottom-right corner of your pages</li>
+                <li>Visitors can chat with your AI assistant</li>
+                <li>All conversations are tracked in your WeTechForU dashboard</li>
+            </ol>
+            <p><a href="https://marketingby.wetechforu.com" target="_blank" class="button button-primary">View Dashboard</a></p>
+        </div>
+    </div>
+    <?php
+}
+?>`;
+
+    // Set headers for ZIP download
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="wetechforu-chat-widget-${widget.widget_name.toLowerCase().replace(/[^a-z0-9]/g, '-')}.zip"`);
+
+    // For now, send the PHP file as plain text
+    // TODO: Use a proper ZIP library to create actual ZIP file
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="wetechforu-chat-widget.php"`);
+    res.send(pluginCode);
+
+  } catch (error) {
+    console.error('Download plugin error:', error);
+    res.status(500).json({ error: 'Failed to generate plugin' });
+  }
+});
+
 export default router;
 

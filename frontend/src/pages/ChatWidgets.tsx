@@ -281,6 +281,46 @@ export default function ChatWidgets() {
                   <i className="fas fa-code" style={{ marginRight: '6px' }}></i>
                   Embed Code
                 </button>
+
+                <button
+                  onClick={() => window.location.href = `/app/chat-widgets/${widget.id}/knowledge`}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    background: '#17a2b8',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <i className="fas fa-brain" style={{ marginRight: '6px' }}></i>
+                  Knowledge
+                </button>
+
+                <button
+                  onClick={() => {
+                    // Download WordPress plugin
+                    window.location.href = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api'}/chat-widget/${widget.widget_key}/download-plugin`
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    background: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                  title="Download WordPress Plugin ZIP"
+                >
+                  <i className="fab fa-wordpress" style={{ marginRight: '6px' }}></i>
+                  WP Plugin
+                </button>
                 
                 <Link
                   to={`/app/chat-widgets/${widget.id}/edit`}
