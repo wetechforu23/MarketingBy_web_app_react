@@ -169,10 +169,10 @@
             position: absolute;
             ${this.config.position.includes('right') ? 'right: 0;' : 'left: 0;'}
             bottom: 80px;
-            width: 380px;
-            max-width: calc(100vw - 40px);
-            height: 600px;
-            max-height: calc(100vh - 120px);
+            width: 360px;
+            max-width: calc(100vw - 20px);
+            height: 500px;
+            max-height: calc(100vh - 100px);
             background: white;
             border-radius: 16px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.12);
@@ -206,19 +206,36 @@
                   <div style="font-size: 12px; opacity: 0.9;" id="wetechforu-status">Online</div>
                 </div>
               </div>
-              <button id="wetechforu-close-button" style="
-                background: rgba(255,255,255,0.2);
-                border: none;
-                color: white;
-                width: 32px;
-                height: 32px;
-                border-radius: 50%;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                transition: background 0.2s;
-              ">✕</button>
+              <div style="display: flex; gap: 8px;">
+                <button id="wetechforu-minimize-button" style="
+                  background: rgba(255,255,255,0.2);
+                  border: none;
+                  color: white;
+                  width: 32px;
+                  height: 32px;
+                  border-radius: 50%;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  transition: background 0.2s;
+                  font-size: 18px;
+                  font-weight: bold;
+                " title="Minimize">−</button>
+                <button id="wetechforu-close-button" style="
+                  background: rgba(255,255,255,0.2);
+                  border: none;
+                  color: white;
+                  width: 32px;
+                  height: 32px;
+                  border-radius: 50%;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  transition: background 0.2s;
+                " title="Close">✕</button>
+              </div>
             </div>
 
             <!-- Compatibility Banner (if needed) -->
@@ -335,16 +352,28 @@
             background: ${this.config.secondaryColor};
           }
 
-          #wetechforu-close-button:hover {
+          #wetechforu-close-button:hover,
+          #wetechforu-minimize-button:hover {
             background: rgba(255,255,255,0.3);
           }
 
           /* Mobile responsive */
           @media (max-width: 480px) {
             #wetechforu-chat-window {
-              width: calc(100vw - 20px) !important;
-              height: calc(100vh - 100px) !important;
+              width: calc(100vw - 16px) !important;
+              height: calc(100vh - 90px) !important;
+              max-height: calc(100vh - 90px) !important;
               bottom: 10px !important;
+              left: 8px !important;
+              right: 8px !important;
+              border-radius: 12px !important;
+            }
+            #wetechforu-chat-window > div:first-child {
+              padding: 14px !important;
+            }
+            #wetechforu-chat-button {
+              width: 50px !important;
+              height: 50px !important;
             }
           }
 
@@ -453,11 +482,13 @@
     attachEventListeners() {
       const chatButton = document.getElementById('wetechforu-chat-button');
       const closeButton = document.getElementById('wetechforu-close-button');
+      const minimizeButton = document.getElementById('wetechforu-minimize-button');
       const sendButton = document.getElementById('wetechforu-send-button');
       const input = document.getElementById('wetechforu-input');
 
       chatButton.addEventListener('click', () => this.toggleChat());
       closeButton.addEventListener('click', () => this.closeChat());
+      minimizeButton.addEventListener('click', () => this.closeChat()); // Minimize = same as close
       sendButton.addEventListener('click', () => this.sendMessage());
       input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') this.sendMessage();
