@@ -90,8 +90,9 @@ export default function ChatWidgetEditor() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!selectedClientId) {
-      setError('Please select a client')
+    if (!isEditMode && !selectedClientId && (userRole === 'super_admin' || userRole === 'admin')) {
+      setError('⚠️ REQUIRED: Please select a client in Step 1 before creating the widget!')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
     
@@ -146,6 +147,118 @@ export default function ChatWidgetEditor() {
         </div>
       )}
 
+      {/* CLIENT SELECTOR - MUST BE FIRST! */}
+      {!isEditMode && (userRole === 'super_admin' || userRole === 'admin') && (
+        <div style={{
+          background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)',
+          borderRadius: '12px',
+          padding: '2rem',
+          marginBottom: '2rem',
+          boxShadow: '0 4px 16px rgba(33, 150, 243, 0.3)',
+          border: '3px solid #2196f3'
+        }}>
+          <h3 style={{ 
+            marginTop: 0, 
+            marginBottom: '1rem', 
+            fontSize: '1.5rem', 
+            color: '#0d47a1',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+          }}>
+            <i className="fas fa-building" style={{ fontSize: '1.8rem' }}></i>
+            Step 1: Select Client (REQUIRED)
+          </h3>
+
+          {clients.length === 0 ? (
+            <div style={{
+              padding: '1.5rem',
+              background: '#fff3cd',
+              border: '2px solid #ffc107',
+              borderRadius: '8px',
+              color: '#856404',
+              marginBottom: '1rem'
+            }}>
+              <p style={{ margin: 0, fontWeight: '600' }}>
+                <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
+                Loading clients...
+              </p>
+              <p style={{ margin: '0.5rem 0 0 0', fontSize: '13px' }}>
+                Please wait while we fetch the client list.
+              </p>
+            </div>
+          ) : (
+            <>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '1rem', 
+                fontWeight: '700', 
+                color: '#1976d2',
+                fontSize: '1.1rem'
+              }}>
+                <i className="fas fa-users" style={{ marginRight: '8px' }}></i>
+                Which client is this widget for? *
+              </label>
+              <select
+                required
+                value={selectedClientId || ''}
+                onChange={(e) => {
+                  setSelectedClientId(parseInt(e.target.value))
+                  setError('') // Clear error when client is selected
+                }}
+                style={{
+                  width: '100%',
+                  padding: '15px',
+                  border: selectedClientId ? '3px solid #4caf50' : '3px solid #2196f3',
+                  borderRadius: '10px',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  background: 'white',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s'
+                }}
+              >
+                <option value="">🔽 -- Select a Client First --</option>
+                {clients.map((client: any) => (
+                  <option key={client.id} value={client.id}>
+                    🏢 {client.client_name} {client.email ? `(${client.email})` : ''}
+                  </option>
+                ))}
+              </select>
+              {selectedClientId && (
+                <div style={{
+                  marginTop: '1rem',
+                  padding: '1rem',
+                  background: '#e8f5e9',
+                  border: '2px solid #4caf50',
+                  borderRadius: '8px',
+                  color: '#2e7d32'
+                }}>
+                  <p style={{ margin: 0, fontWeight: '600', fontSize: '14px' }}>
+                    <i className="fas fa-check-circle" style={{ marginRight: '8px' }}></i>
+                    ✅ Client Selected! This widget will belong to this client.
+                  </p>
+                  <p style={{ margin: '0.5rem 0 0 0', fontSize: '13px' }}>
+                    <i className="fas fa-brain" style={{ marginRight: '4px' }}></i>
+                    They will have their own private knowledge base.
+                  </p>
+                </div>
+              )}
+              <p style={{ 
+                margin: '1rem 0 0 0', 
+                fontSize: '13px', 
+                color: '#555',
+                lineHeight: '1.6'
+              }}>
+                <i className="fas fa-info-circle" style={{ marginRight: '4px', color: '#2196f3' }}></i>
+                <strong>Important:</strong> Each widget is assigned to ONE client. The knowledge base, conversations, 
+                and settings will be isolated to that client only.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit}>
         {/* Basic Settings */}
         <div style={{
@@ -155,43 +268,9 @@ export default function ChatWidgetEditor() {
           marginBottom: '1.5rem',
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
         }}>
-          <h3 style={{ marginTop: 0 }}>Basic Settings</h3>
-
-          {/* Client Selector (Super Admin only) */}
-          {!isEditMode && (userRole === 'super_admin' || userRole === 'admin') && clients.length > 0 && (
-            <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#e3f2fd', borderRadius: '8px', border: '2px solid #2196f3' }}>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#1976d2' }}>
-                <i className="fas fa-building" style={{ marginRight: '8px' }}></i>
-                Select Client (Required) *
-              </label>
-              <select
-                required
-                value={selectedClientId || ''}
-                onChange={(e) => setSelectedClientId(parseInt(e.target.value))}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '2px solid #2196f3',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  background: 'white',
-                  cursor: 'pointer'
-                }}
-              >
-                <option value="">-- Select a Client --</option>
-                {clients.map((client: any) => (
-                  <option key={client.id} value={client.id}>
-                    {client.client_name} {client.email ? `(${client.email})` : ''}
-                  </option>
-                ))}
-              </select>
-              <p style={{ margin: '0.5rem 0 0 0', fontSize: '12px', color: '#555' }}>
-                <i className="fas fa-info-circle" style={{ marginRight: '4px' }}></i>
-                This widget will be assigned to the selected client. They can add their own knowledge base.
-              </p>
-            </div>
-          )}
+          <h3 style={{ marginTop: 0 }}>
+            {!isEditMode && (userRole === 'super_admin' || userRole === 'admin') ? 'Step 2: Basic Settings' : 'Basic Settings'}
+          </h3>
 
           <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
