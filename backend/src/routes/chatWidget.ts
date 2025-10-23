@@ -736,10 +736,11 @@ router.get('/:widgetKey/download-plugin', async (req, res) => {
     const pluginCode = `<?php
 /**
  * Plugin Name: WeTechForU Chat Widget - ${widget.widget_name}
- * Description: AI-powered chat widget for ${widget.widget_name}
- * Version: 1.0.0
+ * Description: AI-powered chat widget for ${widget.widget_name} with auto-popup and intro flow
+ * Version: 2.0.0
  * Author: WeTechForU
  * Author URI: https://wetechforu.com
+ * Text Domain: wetechforu-chat-widget
  */
 
 if (!defined('ABSPATH')) {
@@ -750,12 +751,19 @@ if (!defined('ABSPATH')) {
 add_action('wp_footer', 'wetechforu_chat_widget_footer');
 function wetechforu_chat_widget_footer() {
     ?>
-    <!-- WeTechForU Chat Widget -->
-    <script src="${backendUrl}/public/wetechforu-widget.js"></script>
+    <!-- WeTechForU Chat Widget V2 - Enhanced -->
+    <script src="${backendUrl}/public/wetechforu-widget-v2.js"></script>
     <script>
         WeTechForUWidget.init({
             widgetKey: '${widgetKey}',
-            backendUrl: '${backendUrl}'
+            backendUrl: '${backendUrl}',
+            autoPopup: true,
+            autoPopupDelay: 3000,
+            enableIntroFlow: true,
+            botName: '${widget.bot_name || 'Assistant'}',
+            primaryColor: '${widget.primary_color || '#4682B4'}',
+            secondaryColor: '${widget.secondary_color || '#2E86AB'}',
+            position: '${widget.position || 'bottom-right'}'
         });
     </script>
     <?php
