@@ -47,13 +47,24 @@ export default function ChatWidgetEditor() {
       // If super admin, fetch all clients
       if (userResponse.data.role === 'super_admin' || userResponse.data.role === 'admin') {
         const clientsResponse = await api.get('/admin/clients')
-        setClients(clientsResponse.data)
+        
+        // ✅ FIX: Ensure clients is ALWAYS an array
+        const clientsData = clientsResponse.data
+        if (Array.isArray(clientsData)) {
+          setClients(clientsData)
+        } else {
+          console.error('Clients API returned non-array:', clientsData)
+          setClients([]) // Fallback to empty array
+        }
       } else {
         // Regular user - use their client_id
         setSelectedClientId(userResponse.data.client_id)
+        setClients([]) // No client list needed for regular users
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching user/clients:', err)
+      setClients([]) // ✅ FIX: Ensure clients is always an array even on error
+      setError('Failed to load clients. Please refresh the page.')
     }
   }
 
@@ -219,7 +230,7 @@ export default function ChatWidgetEditor() {
                 }}
               >
                 <option value="">🔽 -- Select a Client First --</option>
-                {clients.map((client: any) => (
+                {Array.isArray(clients) && clients.map((client: any) => (
                   <option key={client.id} value={client.id}>
                     🏢 {client.client_name} {client.email ? `(${client.email})` : ''}
                   </option>
