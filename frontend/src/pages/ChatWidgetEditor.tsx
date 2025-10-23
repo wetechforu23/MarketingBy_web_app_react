@@ -32,6 +32,19 @@ export default function ChatWidgetEditor() {
     require_captcha: false
   })
 
+  // 🤖 NEW: Intro Questions State
+  const [introFlowEnabled, setIntroFlowEnabled] = useState(true)
+  const [introQuestions, setIntroQuestions] = useState([
+    { id: 'first_name', question: 'What is your first name?', type: 'text', required: true, order: 1 },
+    { id: 'last_name', question: 'What is your last name?', type: 'text', required: true, order: 2 },
+    { id: 'email', question: 'What is your email address?', type: 'email', required: true, order: 3 },
+    { id: 'phone', question: 'What is your phone number?', type: 'tel', required: false, order: 4 },
+    { id: 'contact_method', question: 'How would you like us to contact you?', type: 'select', options: ['Email', 'Phone Call', 'Text Message'], required: true, order: 5 },
+    { id: 'services', question: 'What services are you interested in?', type: 'textarea', required: false, order: 6 }
+  ])
+  const [editingQuestion, setEditingQuestion] = useState<any>(null)
+  const [showQuestionForm, setShowQuestionForm] = useState(false)
+
   useEffect(() => {
     fetchUserAndClients()
     if (isEditMode) {
@@ -116,13 +129,17 @@ export default function ChatWidgetEditor() {
     setError('')
 
     try {
+      const widgetData = {
+        ...formData,
+        intro_flow_enabled: introFlowEnabled,
+        intro_questions: JSON.stringify(introQuestions),
+        ...(isEditMode ? {} : { client_id: selectedClientId })
+      }
+
       if (isEditMode) {
-        await api.put(`/chat-widget/widgets/${id}`, formData)
+        await api.put(`/chat-widget/widgets/${id}`, widgetData)
       } else {
-        await api.post('/chat-widget/widgets', {
-          ...formData,
-          client_id: selectedClientId
-        })
+        await api.post('/chat-widget/widgets', widgetData)
       }
       navigate('/app/chat-widgets')
     } catch (err: any) {
@@ -134,6 +151,58 @@ export default function ChatWidgetEditor() {
 
   const handleChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  // 🤖 Question Management Functions
+  const addQuestion = () => {
+    const newQuestion = {
+      id: `custom_${Date.now()}`,
+      question: '',
+      type: 'text',
+      required: false,
+      order: introQuestions.length + 1,
+      options: []
+    }
+    setEditingQuestion(newQuestion)
+    setShowQuestionForm(true)
+  }
+
+  const saveQuestion = () => {
+    if (!editingQuestion.question.trim()) {
+      alert('Question text is required')
+      return
+    }
+
+    if (editingQuestion.id.startsWith('custom_') && !introQuestions.find(q => q.id === editingQuestion.id)) {
+      // New question
+      setIntroQuestions([...introQuestions, editingQuestion])
+    } else {
+      // Update existing
+      setIntroQuestions(introQuestions.map(q => q.id === editingQuestion.id ? editingQuestion : q))
+    }
+
+    setEditingQuestion(null)
+    setShowQuestionForm(false)
+  }
+
+  const deleteQuestion = (questionId: string) => {
+    if (confirm('Delete this question?')) {
+      setIntroQuestions(introQuestions.filter(q => q.id !== questionId))
+    }
+  }
+
+  const moveQuestion = (index: number, direction: 'up' | 'down') => {
+    const newQuestions = [...introQuestions]
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    
+    if (targetIndex < 0 || targetIndex >= newQuestions.length) return
+    
+    [newQuestions[index], newQuestions[targetIndex]] = [newQuestions[targetIndex], newQuestions[index]]
+    
+    // Update order numbers
+    newQuestions.forEach((q, i) => { q.order = i + 1 })
+    
+    setIntroQuestions(newQuestions)
   }
 
   if (loading) {
@@ -718,6 +787,361 @@ export default function ChatWidgetEditor() {
             />
             <span style={{ fontWeight: '600' }}>Require CAPTCHA (future feature)</span>
           </label>
+        </div>
+
+        {/* 🤖 Intro Questions Configuration */}
+        <div style={{
+          background: 'white',
+          padding: '2rem',
+          borderRadius: '12px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          marginBottom: '2rem'
+        }}>
+          <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <i className="fas fa-robot" style={{ fontSize: '1.5rem', color: '#4682B4' }}></i>
+            Smart Intro Flow - Collect Customer Info Before Chat
+          </h3>
+
+          <div style={{
+            background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)',
+            padding: '1rem',
+            borderRadius: '8px',
+            marginBottom: '1.5rem',
+            border: '2px solid #2196f3'
+          }}>
+            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '10px' }}>
+              <input
+                type="checkbox"
+                checked={introFlowEnabled}
+                onChange={(e) => setIntroFlowEnabled(e.target.checked)}
+                style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+              />
+              <span style={{ fontWeight: '700', fontSize: '16px', color: '#0d47a1' }}>
+                ✅ Enable Intro Questions (Collect customer info before chatting)
+              </span>
+            </label>
+            <p style={{ margin: '0.5rem 0 0 30px', fontSize: '13px', color: '#555', lineHeight: '1.6' }}>
+              <i className="fas fa-info-circle" style={{ marginRight: '5px' }}></i>
+              When enabled, the bot will ask these questions ONE BY ONE before allowing normal chat.
+              This helps capture lead information automatically!
+            </p>
+          </div>
+
+          {introFlowEnabled && (
+            <>
+              <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#666' }}>
+                  📋 {introQuestions.length} Question{introQuestions.length !== 1 ? 's' : ''} Configured
+                </div>
+                <button
+                  type="button"
+                  onClick={addQuestion}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <i className="fas fa-plus-circle"></i> Add Question
+                </button>
+              </div>
+
+              {/* Question List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {introQuestions.map((q, index) => (
+                  <div
+                    key={q.id}
+                    style={{
+                      background: '#f8f9fa',
+                      padding: '15px',
+                      borderRadius: '8px',
+                      border: '2px solid #e0e0e0',
+                      display: 'flex',
+                      gap: '15px',
+                      alignItems: 'flex-start'
+                    }}
+                  >
+                    {/* Question Number & Drag Handle */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'center' }}>
+                      <div style={{
+                        background: '#4682B4',
+                        color: 'white',
+                        width: '30px',
+                        height: '30px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: '700',
+                        fontSize: '14px'
+                      }}>
+                        {index + 1}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <button
+                          type="button"
+                          onClick={() => moveQuestion(index, 'up')}
+                          disabled={index === 0}
+                          style={{
+                            padding: '4px',
+                            background: index === 0 ? '#ccc' : '#6c757d',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: index === 0 ? 'not-allowed' : 'pointer',
+                            fontSize: '10px'
+                          }}
+                          title="Move Up"
+                        >
+                          <i className="fas fa-chevron-up"></i>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveQuestion(index, 'down')}
+                          disabled={index === introQuestions.length - 1}
+                          style={{
+                            padding: '4px',
+                            background: index === introQuestions.length - 1 ? '#ccc' : '#6c757d',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: index === introQuestions.length - 1 ? 'not-allowed' : 'pointer',
+                            fontSize: '10px'
+                          }}
+                          title="Move Down"
+                        >
+                          <i className="fas fa-chevron-down"></i>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Question Details */}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: '700', fontSize: '15px', marginBottom: '5px', color: '#333' }}>
+                        {q.question}
+                        {q.required && <span style={{ color: '#dc3545', marginLeft: '5px' }}>*</span>}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#666', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                        <span>
+                          <i className="fas fa-tag" style={{ marginRight: '5px' }}></i>
+                          Type: <strong>{q.type}</strong>
+                        </span>
+                        <span>
+                          <i className="fas fa-check-circle" style={{ marginRight: '5px' }}></i>
+                          {q.required ? 'Required' : 'Optional'}
+                        </span>
+                        {q.type === 'select' && q.options && (
+                          <span>
+                            <i className="fas fa-list" style={{ marginRight: '5px' }}></i>
+                            Options: {q.options.length}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', gap: '5px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingQuestion(q)
+                          setShowQuestionForm(true)
+                        }}
+                        style={{
+                          padding: '6px 10px',
+                          background: '#007bff',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                        title="Edit"
+                      >
+                        <i className="fas fa-edit"></i>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteQuestion(q.id)}
+                        style={{
+                          padding: '6px 10px',
+                          background: '#dc3545',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                        title="Delete"
+                      >
+                        <i className="fas fa-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Question Edit Form (Modal-like) */}
+              {showQuestionForm && editingQuestion && (
+                <div style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'rgba(0,0,0,0.5)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 9999,
+                  padding: '20px'
+                }}>
+                  <div style={{
+                    background: 'white',
+                    borderRadius: '12px',
+                    padding: '2rem',
+                    maxWidth: '600px',
+                    width: '100%',
+                    maxHeight: '90vh',
+                    overflowY: 'auto'
+                  }}>
+                    <h3 style={{ marginTop: 0 }}>
+                      {editingQuestion.id.startsWith('custom_') && !introQuestions.find(q => q.id === editingQuestion.id) ? 'Add New Question' : 'Edit Question'}
+                    </h3>
+
+                    <div style={{ marginBottom: '1rem' }}>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
+                        Question Text *
+                      </label>
+                      <input
+                        type="text"
+                        value={editingQuestion.question}
+                        onChange={(e) => setEditingQuestion({ ...editingQuestion, question: e.target.value })}
+                        placeholder="e.g., What is your email address?"
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          border: '2px solid #e0e0e0',
+                          borderRadius: '6px',
+                          fontSize: '14px'
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ marginBottom: '1rem' }}>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
+                        Input Type
+                      </label>
+                      <select
+                        value={editingQuestion.type}
+                        onChange={(e) => setEditingQuestion({ ...editingQuestion, type: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          border: '2px solid #e0e0e0',
+                          borderRadius: '6px',
+                          fontSize: '14px'
+                        }}
+                      >
+                        <option value="text">Text (Single Line)</option>
+                        <option value="email">Email</option>
+                        <option value="tel">Phone Number</option>
+                        <option value="textarea">Textarea (Multiple Lines)</option>
+                        <option value="select">Dropdown Select</option>
+                      </select>
+                    </div>
+
+                    {editingQuestion.type === 'select' && (
+                      <div style={{ marginBottom: '1rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
+                          Dropdown Options (one per line)
+                        </label>
+                        <textarea
+                          value={(editingQuestion.options || []).join('\n')}
+                          onChange={(e) => setEditingQuestion({ 
+                            ...editingQuestion, 
+                            options: e.target.value.split('\n').filter(o => o.trim())
+                          })}
+                          placeholder="Option 1&#10;Option 2&#10;Option 3"
+                          rows={4}
+                          style={{
+                            width: '100%',
+                            padding: '10px',
+                            border: '2px solid #e0e0e0',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            fontFamily: 'inherit'
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    <div style={{ marginBottom: '1.5rem' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={editingQuestion.required}
+                          onChange={(e) => setEditingQuestion({ ...editingQuestion, required: e.target.checked })}
+                          style={{ marginRight: '8px', width: '18px', height: '18px' }}
+                        />
+                        <span style={{ fontWeight: '600' }}>Required Field</span>
+                      </label>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={saveQuestion}
+                        style={{
+                          flex: 1,
+                          padding: '10px',
+                          background: '#28a745',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <i className="fas fa-save" style={{ marginRight: '6px' }}></i>
+                        Save Question
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingQuestion(null)
+                          setShowQuestionForm(false)
+                        }}
+                        style={{
+                          padding: '10px 20px',
+                          background: '#6c757d',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* Actions */}
