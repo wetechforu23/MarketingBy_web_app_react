@@ -116,6 +116,22 @@ app.use('/api/sms-preferences', smsPreferencesRoutes);
 // AI Chat Widget (includes public routes for website embedding)
 app.use('/api/chat-widget', chatWidgetRoutes);
 
+// Serve widget JavaScript files with CORS enabled for ALL origins
+// This MUST be before the React app static files to avoid conflicts
+app.use('/public', (req, res, next) => {
+  // Allow ALL origins for widget files (they're embedded on customer websites)
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+}, express.static(path.join(__dirname, '../public')));
+
 // Serve React app (static files from public directory) - Only in production
 if (process.env.NODE_ENV === 'production') {
   const frontendPath = path.join(__dirname, 'public');
