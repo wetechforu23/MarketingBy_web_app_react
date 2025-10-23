@@ -1,6 +1,7 @@
 import express from 'express';
 import pool from '../config/database';
 import crypto from 'crypto';
+import archiver from 'archiver';
 
 const router = express.Router();
 
@@ -795,6 +796,112 @@ router.delete('/widgets/:id/knowledge/:knowledgeId', async (req, res) => {
   }
 });
 
+// Bulk upload knowledge entries (CSV/JSON)
+router.post('/widgets/:id/knowledge/bulk', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { entries, skipDuplicates = true } = req.body;
+
+    if (!entries || !Array.isArray(entries)) {
+      return res.status(400).json({ error: 'Invalid entries format' });
+    }
+
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📦 BULK UPLOAD KNOWLEDGE BASE');
+    console.log(`Widget ID: ${id}`);
+    console.log(`Total Entries: ${entries.length}`);
+    console.log(`Skip Duplicates: ${skipDuplicates}`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    let inserted = 0;
+    let skipped = 0;
+    let errors = 0;
+    const errorDetails: any[] = [];
+
+    for (const entry of entries) {
+      const { question, answer, category } = entry;
+
+      if (!question || !answer) {
+        errors++;
+        errorDetails.push({ entry, reason: 'Missing question or answer' });
+        continue;
+      }
+
+      try {
+        // Check for duplicates if enabled
+        if (skipDuplicates) {
+          const existingResult = await pool.query(
+            'SELECT id FROM knowledge_base WHERE widget_id = $1 AND LOWER(question) = LOWER($2)',
+            [id, question.trim()]
+          );
+
+          if (existingResult.rows.length > 0) {
+            skipped++;
+            console.log(`⏭️  Skipped duplicate: "${question.substring(0, 50)}..."`);
+            continue;
+          }
+        }
+
+        // Insert new entry
+        await pool.query(
+          `INSERT INTO knowledge_base (widget_id, question, answer, category, is_active, created_at)
+           VALUES ($1, $2, $3, $4, true, NOW())`,
+          [id, question.trim(), answer.trim(), category?.trim() || 'General']
+        );
+
+        inserted++;
+        console.log(`✅ Inserted: "${question.substring(0, 50)}..." (${category || 'General'})`);
+      } catch (error: any) {
+        errors++;
+        errorDetails.push({ entry, reason: error.message });
+        console.error(`❌ Error inserting: "${question.substring(0, 50)}..."`, error.message);
+      }
+    }
+
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`📊 BULK UPLOAD COMPLETE`);
+    console.log(`✅ Inserted: ${inserted}`);
+    console.log(`⏭️  Skipped: ${skipped}`);
+    console.log(`❌ Errors: ${errors}`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    res.json({
+      success: true,
+      summary: {
+        total: entries.length,
+        inserted,
+        skipped,
+        errors
+      },
+      errorDetails: errors > 0 ? errorDetails : undefined
+    });
+  } catch (error) {
+    console.error('Bulk upload error:', error);
+    res.status(500).json({ error: 'Failed to bulk upload knowledge entries' });
+  }
+});
+
+// Get knowledge categories for a widget
+router.get('/widgets/:id/knowledge/categories', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `SELECT DISTINCT category, COUNT(*) as count 
+       FROM knowledge_base 
+       WHERE widget_id = $1 
+       GROUP BY category 
+       ORDER BY category`,
+      [id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get categories error:', error);
+    res.status(500).json({ error: 'Failed to fetch categories' });
+  }
+});
+
 // ==========================================
 // WORDPRESS PLUGIN DOWNLOAD
 // ==========================================
@@ -816,6 +923,7 @@ router.get('/:widgetKey/download-plugin', async (req, res) => {
 
     const widget = widgetResult.rows[0];
     const backendUrl = process.env.BACKEND_URL || 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com';
+    const pluginSlug = `wetechforu-chat-widget-${widget.widget_name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
 
     // Generate WordPress plugin PHP code
     const pluginCode = `<?php
@@ -826,6 +934,9 @@ router.get('/:widgetKey/download-plugin', async (req, res) => {
  * Author: WeTechForU
  * Author URI: https://wetechforu.com
  * Text Domain: wetechforu-chat-widget
+ * Requires at least: 4.0
+ * Tested up to: 6.4
+ * Requires PHP: 7.0
  */
 
 if (!defined('ABSPATH')) {
@@ -873,35 +984,149 @@ function wetechforu_chat_widget_admin_page() {
     ?>
     <div class="wrap">
         <h1>WeTechForU Chat Widget</h1>
-        <div class="card">
+        <div class="card" style="padding: 20px;">
             <h2>Widget Details</h2>
-            <p><strong>Widget Name:</strong> ${widget.widget_name}</p>
-            <p><strong>Widget Key:</strong> ${widgetKey}</p>
-            <p><strong>Status:</strong> <?php echo file_exists(plugin_dir_path(__FILE__)) ? '<span style="color: green;">Active</span>' : '<span style="color: red;">Inactive</span>'; ?></p>
+            <table class="form-table">
+                <tr>
+                    <th scope="row">Widget Name</th>
+                    <td><strong>${widget.widget_name}</strong></td>
+                </tr>
+                <tr>
+                    <th scope="row">Widget Key</th>
+                    <td><code>${widgetKey}</code></td>
+                </tr>
+                <tr>
+                    <th scope="row">Status</th>
+                    <td><span style="color: green; font-weight: bold;">✓ Active</span></td>
+                </tr>
+            </table>
             <hr>
             <h3>How It Works</h3>
             <ol>
                 <li>This plugin automatically adds a chat widget to your website</li>
-                <li>The widget appears in the bottom-right corner of your pages</li>
-                <li>Visitors can chat with your AI assistant</li>
+                <li>The widget appears in the bottom-right corner of all your pages</li>
+                <li>Visitors can chat with your AI assistant 24/7</li>
                 <li>All conversations are tracked in your WeTechForU dashboard</li>
+                <li>No coding required - works immediately after activation!</li>
             </ol>
-            <p><a href="https://marketingby.wetechforu.com" target="_blank" class="button button-primary">View Dashboard</a></p>
+            <p>
+                <a href="https://marketingby.wetechforu.com/app/chat-conversations" target="_blank" class="button button-primary">View Conversations</a>
+                <a href="https://marketingby.wetechforu.com/app/chat-widgets" target="_blank" class="button">Manage Widget</a>
+            </p>
         </div>
     </div>
     <?php
 }
 ?>`;
 
-    // Set headers for ZIP download
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="wetechforu-chat-widget-${widget.widget_name.toLowerCase().replace(/[^a-z0-9]/g, '-')}.zip"`);
+    // Generate README.txt for WordPress Plugin Directory
+    const readmeContent = `=== WeTechForU Chat Widget - ${widget.widget_name} ===
+Contributors: wetechforu
+Tags: chat, chatbot, customer support, live chat, widget
+Requires at least: 4.0
+Tested up to: 6.4
+Requires PHP: 7.0
+Stable tag: 2.0.0
+License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-    // For now, send the PHP file as plain text
-    // TODO: Use a proper ZIP library to create actual ZIP file
-    res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="wetechforu-chat-widget.php"`);
-    res.send(pluginCode);
+AI-powered chat widget that helps you engage with website visitors automatically.
+
+== Description ==
+
+WeTechForU Chat Widget adds a beautiful, AI-powered chat interface to your WordPress website. 
+
+**Features:**
+
+* Auto-popup to greet visitors
+* Friendly intro messages
+* Quick action buttons for common questions
+* Smart AI responses based on your knowledge base
+* Lead capture and handoff to human support
+* Mobile-responsive design
+* Works on all WordPress themes
+* No coding required!
+
+**Perfect For:**
+
+* Healthcare providers
+* Small businesses
+* E-commerce stores
+* Service providers
+* Any website that wants to engage visitors
+
+All conversations are managed through your WeTechForU dashboard at https://marketingby.wetechforu.com
+
+== Installation ==
+
+1. Upload the plugin ZIP file through WordPress admin
+2. Go to Plugins → Add New → Upload Plugin
+3. Choose the ZIP file and click "Install Now"
+4. Activate the plugin
+5. The chat widget will appear automatically on your site!
+
+== Frequently Asked Questions ==
+
+= Do I need a WeTechForU account? =
+
+Yes, this plugin connects to your WeTechForU account. Get started at https://marketingby.wetechforu.com
+
+= Will it slow down my website? =
+
+No! The widget loads asynchronously and has minimal impact on page speed.
+
+= Can I customize the widget appearance? =
+
+Yes! Manage all settings through your WeTechForU dashboard.
+
+= Does it work with my theme? =
+
+Yes! The widget works with all WordPress themes.
+
+== Changelog ==
+
+= 2.0.0 =
+* Auto-popup functionality
+* Friendly intro flow
+* Quick action buttons
+* Enhanced mobile support
+* Universal compatibility
+
+= 1.0.0 =
+* Initial release
+
+== Upgrade Notice ==
+
+= 2.0.0 =
+Major update with auto-popup and enhanced user experience.
+`;
+
+    // Set response headers for ZIP download
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${pluginSlug}.zip"`);
+
+    // Create ZIP archive
+    const archive = archiver('zip', {
+      zlib: { level: 9 } // Maximum compression
+    });
+
+    // Handle archiver errors
+    archive.on('error', (err) => {
+      console.error('Archive error:', err);
+      throw err;
+    });
+
+    // Pipe archive to response
+    archive.pipe(res);
+
+    // Add files to the archive with proper WordPress plugin structure
+    archive.append(pluginCode, { name: `${pluginSlug}/${pluginSlug}.php` });
+    archive.append(readmeContent, { name: `${pluginSlug}/readme.txt` });
+
+    // Finalize the archive
+    await archive.finalize();
+
+    console.log(`✅ WordPress plugin ZIP generated for widget: ${widget.widget_name}`);
 
   } catch (error) {
     console.error('Download plugin error:', error);

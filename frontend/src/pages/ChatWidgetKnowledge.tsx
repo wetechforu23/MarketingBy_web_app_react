@@ -89,6 +89,108 @@ export default function ChatWidgetKnowledge() {
     }
   }
 
+  // Bulk upload functionality
+  const [uploading, setUploading] = useState(false)
+  const [uploadResult, setUploadResult] = useState<any>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string>('All')
+  const [categories, setCategories] = useState<string[]>([])
+
+  useEffect(() => {
+    // Extract unique categories
+    const uniqueCategories = ['All', ...new Set(knowledge.map(k => k.category))]
+    setCategories(uniqueCategories)
+  }, [knowledge])
+
+  const parseCSV = (text: string): any[] => {
+    const lines = text.trim().split('\n')
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''))
+    
+    return lines.slice(1).map(line => {
+      // Handle CSV with quoted fields
+      const values: string[] = []
+      let current = ''
+      let inQuotes = false
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i]
+        
+        if (char === '"') {
+          inQuotes = !inQuotes
+        } else if (char === ',' && !inQuotes) {
+          values.push(current.trim().replace(/^"|"$/g, ''))
+          current = ''
+        } else {
+          current += char
+        }
+      }
+      values.push(current.trim().replace(/^"|"$/g, ''))
+      
+      const obj: any = {}
+      headers.forEach((header, index) => {
+        obj[header] = values[index] || ''
+      })
+      return obj
+    })
+  }
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      setUploading(true)
+      setUploadResult(null)
+
+      const text = await file.text()
+      let entries: any[] = []
+
+      if (file.name.endsWith('.csv')) {
+        entries = parseCSV(text)
+      } else if (file.name.endsWith('.json')) {
+        entries = JSON.parse(text)
+      } else {
+        throw new Error('Unsupported file type. Please upload CSV or JSON.')
+      }
+
+      // Send to backend
+      const response = await api.post(`/chat-widget/widgets/${id}/knowledge/bulk`, {
+        entries,
+        skipDuplicates: true
+      })
+
+      setUploadResult(response.data)
+      fetchKnowledge()
+      
+      // Clear file input
+      event.target.value = ''
+    } catch (err: any) {
+      alert(err.response?.data?.error || err.message || 'Failed to upload file')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const downloadTemplate = () => {
+    const csv = `category,question,answer
+Appointments,How do I book an appointment?,"You can book by calling us or using our online form."
+Services,What services do you offer?,"We offer comprehensive healthcare services."
+Hours,What are your business hours?,"We're open Monday-Friday 9 AM - 6 PM."
+Contact,What is your phone number?,"You can reach us at (555) 123-4567."`
+    
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'knowledge-base-template.csv'
+    a.click()
+    window.URL.revokeObjectURL(url)
+  }
+
+  // Filter knowledge by category
+  const filteredKnowledge = selectedCategory === 'All' 
+    ? knowledge 
+    : knowledge.filter(k => k.category === selectedCategory)
+
   if (loading) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center' }}>
@@ -187,6 +289,114 @@ export default function ChatWidgetKnowledge() {
           <i className="fas fa-plus" style={{ marginRight: '8px' }}></i>
           Add Knowledge Entry
         </button>
+      </div>
+
+      {/* BULK UPLOAD SECTION */}
+      <div style={{
+        background: 'linear-gradient(135deg, #fff5e6 0%, #ffe0b2 100%)',
+        padding: '1.5rem',
+        borderRadius: '12px',
+        border: '2px solid #ff9800',
+        marginBottom: '2rem',
+        boxShadow: '0 4px 12px rgba(255, 152, 0, 0.2)'
+      }}>
+        <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem', fontWeight: '700', color: '#e65100' }}>
+          <i className="fas fa-upload" style={{ marginRight: '10px' }}></i>
+          Bulk Upload Knowledge (CSV/JSON)
+        </h3>
+        <p style={{ fontSize: '14px', color: '#6c757d', marginBottom: '1rem', lineHeight: '1.6' }}>
+          Upload a CSV or JSON file with <strong>category</strong>, <strong>question</strong>, and <strong>answer</strong> columns. Duplicates will be skipped automatically.
+        </p>
+
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+          <input
+            type="file"
+            accept=".csv,.json"
+            onChange={handleFileUpload}
+            disabled={uploading}
+            style={{
+              flex: 1,
+              minWidth: '200px',
+              padding: '10px',
+              border: '2px solid #ff9800',
+              borderRadius: '8px',
+              fontSize: '14px',
+              background: 'white',
+              cursor: 'pointer'
+            }}
+          />
+          <button
+            onClick={downloadTemplate}
+            style={{
+              padding: '10px 20px',
+              background: '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            <i className="fas fa-download" style={{ marginRight: '8px' }}></i>
+            Download Template
+          </button>
+        </div>
+
+        {uploading && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '12px',
+            background: '#fff3cd',
+            border: '1px solid #ffc107',
+            borderRadius: '8px',
+            marginTop: '1rem',
+            color: '#856404'
+          }}>
+            <div className="spinner-border spinner-border-sm" role="status"></div>
+            <span style={{ fontWeight: '600' }}>Processing your file...</span>
+          </div>
+        )}
+
+        {uploadResult && (
+          <div style={{
+            padding: '1rem',
+            background: '#d4edda',
+            border: '2px solid #28a745',
+            borderRadius: '8px',
+            marginTop: '1rem',
+            color: '#155724'
+          }}>
+            <p style={{ margin: 0, marginBottom: '0.5rem', fontWeight: '700', fontSize: '16px' }}>
+              <i className="fas fa-check-circle" style={{ marginRight: '8px' }}></i>
+              Upload Complete!
+            </p>
+            <ul style={{ margin: 0, paddingLeft: '1.5rem', lineHeight: '1.8' }}>
+              <li><strong>Total Entries:</strong> {uploadResult.summary.total}</li>
+              <li style={{ color: '#28a745' }}><strong>✅ Inserted:</strong> {uploadResult.summary.inserted}</li>
+              <li style={{ color: '#ffc107' }}><strong>⏭️  Skipped (Duplicates):</strong> {uploadResult.summary.skipped}</li>
+              {uploadResult.summary.errors > 0 && (
+                <li style={{ color: '#dc3545' }}><strong>❌ Errors:</strong> {uploadResult.summary.errors}</li>
+              )}
+            </ul>
+            {uploadResult.errorDetails && uploadResult.errorDetails.length > 0 && (
+              <details style={{ marginTop: '1rem', background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                <summary style={{ cursor: 'pointer', fontWeight: '600', color: '#dc3545' }}>
+                  View Error Details
+                </summary>
+                <ul style={{ marginTop: '10px', paddingLeft: '1.5rem', fontSize: '12px', maxHeight: '150px', overflowY: 'auto' }}>
+                  {uploadResult.errorDetails.map((err: any, index: number) => (
+                    <li key={index} style={{ marginBottom: '5px' }}>
+                      {JSON.stringify(err.entry)} - <strong>Reason:</strong> {err.reason}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Add/Edit Form */}
