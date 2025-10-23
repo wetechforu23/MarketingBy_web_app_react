@@ -613,6 +613,28 @@ router.get('/widgets/:widgetId/conversations', async (req, res) => {
     const { widgetId } = req.params;
     const { status, limit = 50, offset = 0 } = req.query;
 
+    console.log(`📊 Fetching conversations for widget ${widgetId}...`);
+
+    // First check if widget exists
+    const widgetCheck = await pool.query(
+      'SELECT id, widget_name FROM widget_configs WHERE id = $1',
+      [widgetId]
+    );
+
+    if (widgetCheck.rows.length === 0) {
+      console.log(`❌ Widget ${widgetId} not found`);
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+
+    // Check if conversations table exists by trying a simple query
+    try {
+      await pool.query('SELECT COUNT(*) FROM widget_conversations WHERE widget_id = $1', [widgetId]);
+    } catch (tableError: any) {
+      console.error('❌ widget_conversations table might not exist:', tableError.message);
+      // Return empty array instead of error - table might not be created yet
+      return res.json([]);
+    }
+
     let query = `
       SELECT 
         wc.*,
@@ -640,12 +662,20 @@ router.get('/widgets/:widgetId/conversations', async (req, res) => {
 
     const result = await pool.query(query, params);
     
-    console.log(`📊 Fetched ${result.rows.length} conversations for widget ${widgetId}`);
+    console.log(`✅ Fetched ${result.rows.length} conversations for widget ${widgetId}`);
     
     res.json(result.rows);
-  } catch (error) {
-    console.error('Get conversations error:', error);
-    res.status(500).json({ error: 'Failed to fetch conversations' });
+  } catch (error: any) {
+    console.error('❌ Get conversations error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail
+    });
+    res.status(500).json({ 
+      error: 'Failed to fetch conversations',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
