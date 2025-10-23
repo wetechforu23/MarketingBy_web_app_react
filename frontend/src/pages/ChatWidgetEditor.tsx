@@ -10,6 +10,9 @@ export default function ChatWidgetEditor() {
   const [loading, setLoading] = useState(isEditMode)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [clients, setClients] = useState<any[]>([])
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null)
+  const [userRole, setUserRole] = useState('')
 
   const [formData, setFormData] = useState({
     widget_name: '',
@@ -30,10 +33,29 @@ export default function ChatWidgetEditor() {
   })
 
   useEffect(() => {
+    fetchUserAndClients()
     if (isEditMode) {
       fetchWidget()
     }
   }, [id])
+
+  const fetchUserAndClients = async () => {
+    try {
+      const userResponse = await api.get('/auth/me')
+      setUserRole(userResponse.data.role)
+      
+      // If super admin, fetch all clients
+      if (userResponse.data.role === 'super_admin' || userResponse.data.role === 'admin') {
+        const clientsResponse = await api.get('/admin/clients')
+        setClients(clientsResponse.data)
+      } else {
+        // Regular user - use their client_id
+        setSelectedClientId(userResponse.data.client_id)
+      }
+    } catch (err) {
+      console.error('Error fetching user/clients:', err)
+    }
+  }
 
   const fetchWidget = async () => {
     try {
@@ -67,6 +89,12 @@ export default function ChatWidgetEditor() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (!selectedClientId) {
+      setError('Please select a client')
+      return
+    }
+    
     setSaving(true)
     setError('')
 
@@ -74,13 +102,9 @@ export default function ChatWidgetEditor() {
       if (isEditMode) {
         await api.put(`/chat-widget/widgets/${id}`, formData)
       } else {
-        // Get current client_id from user session (you may need to fetch this)
-        const userResponse = await api.get('/auth/me')
-        const client_id = userResponse.data.client_id || 67 // Default for testing
-        
         await api.post('/chat-widget/widgets', {
           ...formData,
-          client_id
+          client_id: selectedClientId
         })
       }
       navigate('/app/chat-widgets')
@@ -132,6 +156,42 @@ export default function ChatWidgetEditor() {
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
         }}>
           <h3 style={{ marginTop: 0 }}>Basic Settings</h3>
+
+          {/* Client Selector (Super Admin only) */}
+          {!isEditMode && (userRole === 'super_admin' || userRole === 'admin') && clients.length > 0 && (
+            <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#e3f2fd', borderRadius: '8px', border: '2px solid #2196f3' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', color: '#1976d2' }}>
+                <i className="fas fa-building" style={{ marginRight: '8px' }}></i>
+                Select Client (Required) *
+              </label>
+              <select
+                required
+                value={selectedClientId || ''}
+                onChange={(e) => setSelectedClientId(parseInt(e.target.value))}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '2px solid #2196f3',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  background: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="">-- Select a Client --</option>
+                {clients.map((client: any) => (
+                  <option key={client.id} value={client.id}>
+                    {client.client_name} {client.email ? `(${client.email})` : ''}
+                  </option>
+                ))}
+              </select>
+              <p style={{ margin: '0.5rem 0 0 0', fontSize: '12px', color: '#555' }}>
+                <i className="fas fa-info-circle" style={{ marginRight: '4px' }}></i>
+                This widget will be assigned to the selected client. They can add their own knowledge base.
+              </p>
+            </div>
+          )}
 
           <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>

@@ -209,6 +209,29 @@ export default function ChatWidgets() {
                 </div>
               </div>
 
+              {/* Client Info - Important! Shows which client owns this widget */}
+              {widget.client_id && (
+                <div style={{
+                  marginBottom: '1rem',
+                  padding: '10px',
+                  background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)',
+                  borderRadius: '8px',
+                  border: '2px solid #2196f3'
+                }}>
+                  <div style={{ fontSize: '12px', color: '#1976d2', marginBottom: '4px', fontWeight: '600' }}>
+                    <i className="fas fa-building" style={{ marginRight: '6px' }}></i>
+                    Client Owner
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#0d47a1' }}>
+                    Client ID: {widget.client_id}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#555', marginTop: '4px' }}>
+                    <i className="fas fa-info-circle" style={{ marginRight: '4px' }}></i>
+                    This client manages knowledge & conversations for this widget
+                  </div>
+                </div>
+              )}
+
               <div style={{ marginBottom: '1rem' }}>
                 <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px' }}>Widget Key</div>
                 <code style={{

@@ -15,6 +15,7 @@ export default function ChatWidgetKnowledge() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [knowledge, setKnowledge] = useState<KnowledgeEntry[]>([])
+  const [widget, setWidget] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -25,8 +26,19 @@ export default function ChatWidgetKnowledge() {
   })
 
   useEffect(() => {
+    fetchWidget()
     fetchKnowledge()
   }, [id])
+
+  const fetchWidget = async () => {
+    try {
+      const response = await api.get(`/chat-widget/widgets`)
+      const widgetData = response.data.find((w: any) => w.id === parseInt(id!))
+      setWidget(widgetData)
+    } catch (err: any) {
+      console.error('Error fetching widget:', err)
+    }
+  }
 
   const fetchKnowledge = async () => {
     try {
@@ -121,6 +133,37 @@ export default function ChatWidgetKnowledge() {
           Back to Widgets
         </button>
       </div>
+
+      {/* Client Assignment Banner - Shows this knowledge is client-specific */}
+      {widget && widget.client_id && (
+        <div style={{
+          padding: '1.5rem',
+          background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)',
+          borderRadius: '12px',
+          border: '3px solid #2196f3',
+          marginBottom: '2rem',
+          boxShadow: '0 4px 12px rgba(33, 150, 243, 0.2)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <i className="fas fa-building" style={{ fontSize: '1.5rem', color: '#1976d2', marginRight: '1rem' }}></i>
+            <div>
+              <div style={{ fontSize: '14px', color: '#1976d2', fontWeight: '600' }}>
+                Widget: {widget.widget_name}
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: '700', color: '#0d47a1' }}>
+                Client ID: {widget.client_id}
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: '13px', color: '#555', marginTop: '0.5rem', lineHeight: '1.6' }}>
+            <i className="fas fa-lock" style={{ marginRight: '6px', color: '#1976d2' }}></i>
+            <strong>Private Knowledge Base:</strong> This knowledge is ONLY for Client {widget.client_id}.
+            <br/>
+            <i className="fas fa-info-circle" style={{ marginRight: '6px', color: '#1976d2', marginTop: '4px' }}></i>
+            When customers chat on this client's website, the bot will ONLY use knowledge from this list.
+          </div>
+        </div>
+      )}
 
       {/* Add New Knowledge Button */}
       <div style={{ marginBottom: '1.5rem' }}>
