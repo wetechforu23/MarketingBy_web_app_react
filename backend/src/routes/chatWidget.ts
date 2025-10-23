@@ -366,7 +366,7 @@ router.delete('/widgets/:widgetId/knowledge/:knowledgeId', async (req, res) => {
 // PUBLIC WIDGET API (No authentication required)
 // ==========================================
 
-// Get widget configuration (public endpoint)
+// Get widget configuration (public endpoint) - INCLUDING INTRO QUESTIONS
 router.get('/public/widget/:widgetKey/config', async (req, res) => {
   try {
     const { widgetKey } = req.params;
@@ -375,7 +375,8 @@ router.get('/public/widget/:widgetKey/config', async (req, res) => {
       `SELECT widget_key, widget_name, primary_color, secondary_color, position,
               welcome_message, bot_name, bot_avatar_url, enable_appointment_booking,
               enable_email_capture, enable_phone_capture, enable_ai_handoff,
-              ai_handoff_url, business_hours, offline_message, is_active
+              ai_handoff_url, business_hours, offline_message, is_active,
+              intro_flow_enabled, intro_questions
        FROM widget_configs
        WHERE widget_key = $1 AND is_active = true`,
       [widgetKey]
@@ -469,6 +470,62 @@ router.post('/public/widget/:widgetKey/conversation', async (req, res) => {
   }
 });
 
+// Save intro questions data (public endpoint)
+router.post('/public/widget/:widgetKey/intro-data', async (req, res) => {
+  try {
+    const { widgetKey } = req.params;
+    const { conversation_id, intro_data } = req.body;
+
+    if (!conversation_id || !intro_data) {
+      return res.status(400).json({ error: 'Conversation ID and intro data are required' });
+    }
+
+    console.log(`📝 Saving intro data for conversation ${conversation_id}`);
+
+    // Update conversation with intro data
+    await pool.query(
+      `UPDATE widget_conversations
+       SET intro_completed = true,
+           intro_data = $1,
+           visitor_name = $2,
+           visitor_email = $3,
+           visitor_phone = $4,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5`,
+      [
+        JSON.stringify(intro_data),
+        intro_data.first_name && intro_data.last_name 
+          ? `${intro_data.first_name} ${intro_data.last_name}`.trim()
+          : intro_data.first_name || null,
+        intro_data.email || null,
+        intro_data.phone || null,
+        conversation_id
+      ]
+    );
+
+    // Add system message
+    await pool.query(
+      `INSERT INTO widget_messages (conversation_id, message_type, message_text)
+       VALUES ($1, $2, $3)`,
+      [
+        conversation_id,
+        'system',
+        `Visitor information collected: ${intro_data.first_name || 'Anonymous'} ${intro_data.last_name || ''}`
+      ]
+    );
+
+    console.log(`✅ Intro data saved for conversation ${conversation_id}`);
+
+    res.json({ 
+      success: true,
+      message: 'Introduction completed successfully'
+    });
+  } catch (error) {
+    console.error('Save intro data error:', error);
+    res.status(500).json({ error: 'Failed to save introduction data' });
+  }
+});
+
 // Send message and get bot response (public endpoint)
 router.post('/public/widget/:widgetKey/message', async (req, res) => {
   try {
@@ -506,42 +563,20 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       [conversation_id]
     );
 
-    // Find best matching knowledge base entry
-    const knowledgeResult = await pool.query(
-      `SELECT id, answer, keywords
-       FROM widget_knowledge_base
-       WHERE widget_id = $1 AND is_active = true
-       ORDER BY priority DESC`,
-      [widget_id]
-    );
-
-    let bestMatch: any = null;
-    let bestScore = 0;
-    const messageLower = message_text.toLowerCase();
-
-    for (const entry of knowledgeResult.rows) {
-      let score = 0;
-      if (entry.keywords) {
-        for (const keyword of entry.keywords) {
-          if (messageLower.includes(keyword.toLowerCase())) {
-            score += 1;
-          }
-        }
-      }
-      if (score > bestScore) {
-        bestScore = score;
-        bestMatch = entry;
-      }
-    }
+    // 🎯 SMART MATCHING: Find best matching knowledge base entry
+    const similarQuestions = await findSimilarQuestions(message_text, widget_id, 0.5);
 
     // Generate bot response
-    let botResponse = 'I understand you have a question. Let me connect you with our team who can help you better. Would you like to leave your email or phone number?';
+    let botResponse: string;
     let confidence = 0.3;
     let knowledge_base_id = null;
+    let suggestions: any[] = [];
 
-    if (bestMatch && bestScore > 0) {
+    if (similarQuestions.length > 0 && similarQuestions[0].similarity >= 0.85) {
+      // ✅ HIGH CONFIDENCE MATCH (85%+) - Answer directly
+      const bestMatch = similarQuestions[0];
       botResponse = bestMatch.answer;
-      confidence = Math.min(0.95, bestScore * 0.3);
+      confidence = bestMatch.similarity;
       knowledge_base_id = bestMatch.id;
 
       // Update usage stats
@@ -549,6 +584,32 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
         'UPDATE widget_knowledge_base SET times_used = times_used + 1 WHERE id = $1',
         [knowledge_base_id]
       );
+
+      console.log(`✅ Direct answer (${Math.round(confidence * 100)}% match): "${bestMatch.question}"`);
+
+    } else if (similarQuestions.length > 0) {
+      // 🤔 MEDIUM CONFIDENCE (50-85%) - Suggest similar questions
+      botResponse = `I'm not sure I understood that exactly. Did you mean one of these?\n\n` +
+        similarQuestions.map((q, i) => 
+          `${i + 1}. ${q.question} (${Math.round(q.similarity * 100)}% match)`
+        ).join('\n') +
+        `\n\nPlease type the number or rephrase your question.`;
+      
+      confidence = similarQuestions[0].similarity;
+      suggestions = similarQuestions.map(q => ({
+        id: q.id,
+        question: q.question,
+        similarity: Math.round(q.similarity * 100)
+      }));
+
+      console.log(`🤔 Showing ${suggestions.length} similar question suggestions`);
+
+    } else {
+      // ❌ NO MATCH - Default response
+      botResponse = 'I understand you have a question. Let me connect you with our team who can help you better. Would you like to leave your email or phone number?';
+      confidence = 0.3;
+
+      console.log(`❌ No matching questions found for: "${message_text}"`);
     }
 
     const responseTime = Date.now() - startTime;
@@ -573,6 +634,7 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       message_id: botMessage.rows[0].id,
       response: botResponse,
       confidence: confidence,
+      suggestions: suggestions, // 🎯 Include suggested questions for frontend
       timestamp: botMessage.rows[0].created_at
     });
   } catch (error) {
