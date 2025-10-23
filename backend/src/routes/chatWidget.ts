@@ -8,6 +8,101 @@ const router = express.Router();
 const emailService = new EmailService();
 
 // ==========================================
+// UTILITY FUNCTIONS
+// ==========================================
+
+/**
+ * Calculate similarity between two strings using Levenshtein distance
+ * Returns a score from 0 to 1 (1 = identical, 0 = completely different)
+ */
+function calculateSimilarity(str1: string, str2: string): number {
+  const s1 = str1.toLowerCase().trim();
+  const s2 = str2.toLowerCase().trim();
+  
+  if (s1 === s2) return 1.0;
+  
+  const longer = s1.length > s2.length ? s1 : s2;
+  const shorter = s1.length > s2.length ? s2 : s1;
+  
+  if (longer.length === 0) return 1.0;
+  
+  // Calculate Levenshtein distance
+  const matrix: number[][] = [];
+  for (let i = 0; i <= s2.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= s1.length; j++) {
+    matrix[0][j] = j;
+  }
+  
+  for (let i = 1; i <= s2.length; i++) {
+    for (let j = 1; j <= s1.length; j++) {
+      if (s2.charAt(i - 1) === s1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+  
+  const distance = matrix[s2.length][s1.length];
+  return (longer.length - distance) / longer.length;
+}
+
+/**
+ * Find similar questions from knowledge base
+ * Returns top 3 matches with similarity score
+ */
+async function findSimilarQuestions(
+  userMessage: string,
+  widget_id: number,
+  minSimilarity: number = 0.5
+): Promise<Array<{ id: number; question: string; answer: string; similarity: number }>> {
+  const knowledgeResult = await pool.query(
+    `SELECT id, question, answer, keywords
+     FROM widget_knowledge_base
+     WHERE widget_id = $1 AND is_active = true`,
+    [widget_id]
+  );
+  
+  const matches: Array<{ id: number; question: string; answer: string; similarity: number }> = [];
+  
+  for (const entry of knowledgeResult.rows) {
+    let similarity = calculateSimilarity(userMessage, entry.question);
+    
+    // Boost score if keywords match
+    if (entry.keywords && Array.isArray(entry.keywords)) {
+      const messageLower = userMessage.toLowerCase();
+      let keywordMatches = 0;
+      for (const keyword of entry.keywords) {
+        if (messageLower.includes(keyword.toLowerCase())) {
+          keywordMatches++;
+        }
+      }
+      if (keywordMatches > 0) {
+        similarity = Math.min(1.0, similarity + (keywordMatches * 0.1));
+      }
+    }
+    
+    if (similarity >= minSimilarity) {
+      matches.push({
+        id: entry.id,
+        question: entry.question,
+        answer: entry.answer,
+        similarity: similarity
+      });
+    }
+  }
+  
+  // Sort by similarity and return top 3
+  return matches.sort((a, b) => b.similarity - a.similarity).slice(0, 3);
+}
+
+// ==========================================
 // CORS MIDDLEWARE FOR ALL WIDGET ROUTES
 // ==========================================
 // Allow ALL origins for widget embedding (these are public APIs)
