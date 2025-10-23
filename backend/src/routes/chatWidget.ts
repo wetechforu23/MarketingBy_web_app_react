@@ -2,8 +2,10 @@ import express from 'express';
 import pool from '../config/database';
 import crypto from 'crypto';
 import archiver from 'archiver';
+import { EmailService } from '../services/emailService';
 
 const router = express.Router();
+const emailService = new EmailService();
 
 // ==========================================
 // CORS MIDDLEWARE FOR ALL WIDGET ROUTES
@@ -332,8 +334,40 @@ router.post('/public/widget/:widgetKey/conversation', async (req, res) => {
       [widget.id, session_id, ip_address, user_agent, referrer_url, page_url]
     );
 
-    console.log(`✅ New conversation started: ${convResult.rows[0].id} for widget ${widgetKey}`);
-    res.json({ conversation_id: convResult.rows[0].id, existing: false });
+    const conversationId = convResult.rows[0].id;
+
+    console.log(`✅ New conversation started: ${conversationId} for widget ${widgetKey}`);
+
+    // 📧 Send email notification for NEW conversation (async - don't block response)
+    if (widget.enable_email_notifications && widget.notification_email) {
+      emailService.sendEmail({
+        to: widget.notification_email,
+        subject: `🤖 New Chat Visitor - ${widget.widget_name}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #4682B4;">🤖 New Website Visitor Started Chatting!</h2>
+            <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <p><strong>Widget:</strong> ${widget.widget_name}</p>
+              <p><strong>Conversation ID:</strong> ${conversationId}</p>
+              <p><strong>Page:</strong> ${page_url || 'Unknown'}</p>
+              <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+            </div>
+            <p style="margin: 20px 0;">
+              <a href="https://marketingby.wetechforu.com/app/chat-conversations" 
+                 style="background: #4682B4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                View Conversation →
+              </a>
+            </p>
+            <p style="color: #666; font-size: 14px;">
+              This visitor has just started chatting on your website. They may need assistance!
+            </p>
+          </div>
+        `,
+        text: `New chat visitor on ${widget.widget_name}! View at: https://marketingby.wetechforu.com/app/chat-conversations`
+      }).catch(err => console.error('Failed to send new conversation email:', err));
+    }
+
+    res.json({ conversation_id: conversationId, existing: false });
   } catch (error) {
     console.error('Start conversation error:', error);
     res.status(500).json({ error: 'Failed to start conversation' });
@@ -535,6 +569,54 @@ router.post('/public/widget/:widgetKey/capture-lead', async (req, res) => {
     );
 
     console.log(`✅ Lead captured from conversation ${conversation_id}: ${visitor_email}`);
+
+    // 📧 Send URGENT email notification for lead capture request (async)
+    const widgetInfoResult = await pool.query(
+      'SELECT widget_name, notification_email, enable_email_notifications FROM widget_configs WHERE id = $1',
+      [widget_id]
+    );
+
+    if (widgetInfoResult.rows.length > 0) {
+      const widgetInfo = widgetInfoResult.rows[0];
+      if (widgetInfo.enable_email_notifications && widgetInfo.notification_email) {
+        emailService.sendEmail({
+          to: widgetInfo.notification_email,
+          subject: `🚨 URGENT: Visitor Requests Contact - ${widgetInfo.widget_name}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #dc3545;">🚨 URGENT: Website Visitor Wants to Be Contacted!</h2>
+              <div style="background: #fff3cd; padding: 20px; border-left: 4px solid #ffc107; margin: 20px 0;">
+                <p style="margin: 0; font-size: 16px; font-weight: bold;">A visitor is waiting to hear from you!</p>
+              </div>
+              <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="margin-top: 0;">Contact Information:</h3>
+                <p><strong>Name:</strong> ${visitor_name || 'Not provided'}</p>
+                <p><strong>Email:</strong> ${visitor_email || 'Not provided'}</p>
+                <p><strong>Phone:</strong> ${visitor_phone || 'Not provided'}</p>
+                <p><strong>Requested:</strong> ${handoff_type || 'Contact'}</p>
+                <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+              </div>
+              ${handoff_details ? `
+              <div style="background: #e7f3ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0;"><strong>Additional Details:</strong></p>
+                <p style="margin: 10px 0 0 0;">${JSON.stringify(handoff_details)}</p>
+              </div>
+              ` : ''}
+              <p style="margin: 20px 0;">
+                <a href="https://marketingby.wetechforu.com/app/chat-conversations" 
+                   style="background: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                  View Full Conversation →
+                </a>
+              </p>
+              <p style="color: #666; font-size: 14px;">
+                ⏰ <strong>Action Required:</strong> Please respond to this visitor as soon as possible!
+              </p>
+            </div>
+          `,
+          text: `URGENT: ${visitor_name} (${visitor_email}) wants to be contacted via ${handoff_type}. Phone: ${visitor_phone}. View at: https://marketingby.wetechforu.com/app/chat-conversations`
+        }).catch(err => console.error('Failed to send lead capture email:', err));
+      }
+    }
 
     res.json({
       success: true,

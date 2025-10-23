@@ -23,9 +23,13 @@
       botName: 'Assistant',
       welcomeMessage: 'Hi! How can I help you today?',
       autoPopup: true,
-      autoPopupDelay: 3000, // 3 seconds
+      autoPopupDelay: 1000, // 1 second (faster response!)
       enableIntroFlow: true,
-      compatibilityCheck: true
+      compatibilityCheck: true,
+      rateLimit: {
+        maxMessages: 10,
+        timeWindow: 60000 // 10 messages per minute
+      }
     },
 
     state: {
@@ -34,6 +38,8 @@
       hasShownIntro: false,
       isTyping: false,
       messages: [],
+      messageHistory: [], // For rate limiting
+      lastMessageTime: null,
       compatibility: {
         supported: true,
         version: null,
@@ -603,6 +609,23 @@
 
     // Send message to backend
     async sendMessageToBackend(message) {
+      // 🛡️ Rate Limiting Check
+      const now = Date.now();
+      
+      // Clean up old messages from history (older than time window)
+      this.state.messageHistory = this.state.messageHistory.filter(
+        timestamp => now - timestamp < this.config.rateLimit.timeWindow
+      );
+      
+      // Check if rate limit exceeded
+      if (this.state.messageHistory.length >= this.config.rateLimit.maxMessages) {
+        this.addBotMessage('⏳ Please slow down! You\'re sending messages too quickly. Please wait a moment before trying again.');
+        return;
+      }
+      
+      // Add current message to history
+      this.state.messageHistory.push(now);
+      
       this.showTyping();
 
       try {
