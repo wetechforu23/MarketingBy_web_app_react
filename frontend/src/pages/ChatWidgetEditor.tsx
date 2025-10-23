@@ -48,12 +48,17 @@ export default function ChatWidgetEditor() {
       if (userResponse.data.role === 'super_admin' || userResponse.data.role === 'admin') {
         const clientsResponse = await api.get('/admin/clients')
         
-        // ✅ FIX: Ensure clients is ALWAYS an array
-        const clientsData = clientsResponse.data
-        if (Array.isArray(clientsData)) {
-          setClients(clientsData)
+        // ✅ FIX: API returns {clients: [], pagination: {}} so extract the clients array
+        const responseData = clientsResponse.data
+        
+        if (responseData.clients && Array.isArray(responseData.clients)) {
+          setClients(responseData.clients) // ✅ Extract the clients array
+          console.log('✅ Loaded', responseData.clients.length, 'clients')
+        } else if (Array.isArray(responseData)) {
+          // Fallback: in case API returns array directly
+          setClients(responseData)
         } else {
-          console.error('Clients API returned non-array:', clientsData)
+          console.error('Clients API returned unexpected format:', responseData)
           setClients([]) // Fallback to empty array
         }
       } else {
