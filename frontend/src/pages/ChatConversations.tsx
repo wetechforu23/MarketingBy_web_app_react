@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import http from '../api/http'
+import { api } from '../api/http'
 
 interface Conversation {
   id: number
@@ -31,13 +31,13 @@ export default function ChatConversations() {
     try {
       setLoading(true)
       // Get all widgets first
-      const widgetsResponse = await http.get('/chat-widget/widgets')
+      const widgetsResponse = await api.get('/chat-widget/widgets')
       const widgets = widgetsResponse.data
       
       // Fetch conversations for all widgets
       let allConversations: Conversation[] = []
       for (const widget of widgets) {
-        const convResponse = await http.get(`/chat-widget/widgets/${widget.id}/conversations?limit=50`)
+        const convResponse = await api.get(`/chat-widget/widgets/${widget.id}/conversations?limit=50`)
         allConversations = [...allConversations, ...convResponse.data]
       }
       
@@ -53,7 +53,7 @@ export default function ChatConversations() {
 
   const fetchMessages = async (convId: number) => {
     try {
-      const response = await http.get(`/chat-widget/conversations/${convId}/messages`)
+      const response = await api.get(`/chat-widget/conversations/${convId}/messages`)
       setMessages(response.data)
       setSelectedConv(convId)
     } catch (err: any) {

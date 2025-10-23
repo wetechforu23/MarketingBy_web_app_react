@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import http from '../api/http'
+import { api } from '../api/http'
 
 interface Widget {
   id: number
@@ -32,7 +32,7 @@ export default function ChatWidgets() {
   const fetchWidgets = async () => {
     try {
       setLoading(true)
-      const response = await http.get('/chat-widget/widgets')
+      const response = await api.get('/chat-widget/widgets')
       setWidgets(response.data)
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load widgets')
@@ -43,7 +43,7 @@ export default function ChatWidgets() {
 
   const toggleWidgetStatus = async (id: number, currentStatus: boolean) => {
     try {
-      await http.put(`/chat-widget/widgets/${id}`, {
+      await api.put(`/chat-widget/widgets/${id}`, {
         is_active: !currentStatus
       })
       fetchWidgets()
@@ -54,7 +54,7 @@ export default function ChatWidgets() {
 
   const deleteWidget = async (id: number) => {
     try {
-      await http.delete(`/chat-widget/widgets/${id}`)
+      await api.delete(`/chat-widget/widgets/${id}`)
       fetchWidgets()
       setDeleteConfirm(null)
     } catch (err: any) {

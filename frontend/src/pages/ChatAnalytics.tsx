@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import http from '../api/http'
+import { api } from '../api/http'
 
 export default function ChatAnalytics() {
   const [widgets, setWidgets] = useState<any[]>([])
@@ -20,7 +20,7 @@ export default function ChatAnalytics() {
 
   const fetchWidgets = async () => {
     try {
-      const response = await http.get('/chat-widget/widgets')
+      const response = await api.get('/chat-widget/widgets')
       setWidgets(response.data)
       if (response.data.length > 0) {
         setSelectedWidget(response.data[0].id)
@@ -34,7 +34,7 @@ export default function ChatAnalytics() {
 
   const fetchAnalytics = async () => {
     try {
-      const response = await http.get(`/chat-widget/widgets/${selectedWidget}/analytics`)
+      const response = await api.get(`/chat-widget/widgets/${selectedWidget}/analytics`)
       setAnalytics(response.data)
     } catch (err: any) {
       console.error('Failed to load analytics:', err)

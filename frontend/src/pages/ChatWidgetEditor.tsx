@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import http from '../api/http'
+import { api } from '../api/http'
 
 export default function ChatWidgetEditor() {
   const navigate = useNavigate()
@@ -37,7 +37,7 @@ export default function ChatWidgetEditor() {
 
   const fetchWidget = async () => {
     try {
-      const response = await http.get(`/chat-widget/widgets`)
+      const response = await api.get(`/chat-widget/widgets`)
       const widget = response.data.find((w: any) => w.id === parseInt(id!))
       if (widget) {
         setFormData({
@@ -72,13 +72,13 @@ export default function ChatWidgetEditor() {
 
     try {
       if (isEditMode) {
-        await http.put(`/chat-widget/widgets/${id}`, formData)
+        await api.put(`/chat-widget/widgets/${id}`, formData)
       } else {
         // Get current client_id from user session (you may need to fetch this)
-        const userResponse = await http.get('/auth/me')
+        const userResponse = await api.get('/auth/me')
         const client_id = userResponse.data.client_id || 67 // Default for testing
         
-        await http.post('/chat-widget/widgets', {
+        await api.post('/chat-widget/widgets', {
           ...formData,
           client_id
         })
