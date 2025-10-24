@@ -434,20 +434,37 @@
           /* Mobile responsive */
           @media (max-width: 480px) {
             #wetechforu-chat-window {
-              width: calc(100vw - 16px) !important;
-              height: calc(100vh - 90px) !important;
-              max-height: calc(100vh - 90px) !important;
-              bottom: 10px !important;
-              left: 8px !important;
-              right: 8px !important;
-              border-radius: 12px !important;
+              width: 100vw !important;
+              height: 100vh !important;
+              max-height: 100vh !important;
+              max-width: 100vw !important;
+              bottom: 0 !important;
+              left: 0 !important;
+              right: 0 !important;
+              top: 0 !important;
+              border-radius: 0 !important;
+              position: fixed !important;
+              z-index: 999999 !important;
             }
             #wetechforu-chat-window > div:first-child {
-              padding: 14px !important;
+              padding: 16px !important;
             }
             #wetechforu-chat-button {
-              width: 50px !important;
-              height: 50px !important;
+              width: 56px !important;
+              height: 56px !important;
+              bottom: 20px !important;
+              right: 20px !important;
+            }
+            #wetechforu-quick-actions {
+              flex-wrap: wrap !important;
+              padding: 8px !important;
+            }
+            .wetechforu-quick-action {
+              font-size: 12px !important;
+              padding: 6px 10px !important;
+            }
+            #wetechforu-input {
+              font-size: 16px !important; /* Prevents zoom on iOS */
             }
           }
 
