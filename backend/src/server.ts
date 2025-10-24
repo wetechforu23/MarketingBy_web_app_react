@@ -48,7 +48,10 @@ app.use('/public', (req, res, next) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
-  res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+  
+  // ✅ REDUCED CACHE: 5 minutes instead of 24 hours (for faster updates during development)
+  // Change to 'public, max-age=86400' for production (24 hours)
+  res.setHeader('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
   
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
@@ -78,8 +81,11 @@ app.use(morgan('combined'));
 // ==========================================
 app.use((req, res, next) => {
   // ✅ Allow ALL origins for public widget API routes (customer websites)
+  // This includes: chat widget routes + visitor tracking routes
   if (req.path.startsWith('/api/chat-widget/public/') || 
-      req.path.match(/^\/api\/chat-widget\/wtfu_[a-f0-9]+\//)) {
+      req.path.startsWith('/api/visitor-tracking/public/') || // ✅ NEW: Allow visitor tracking
+      req.path.match(/^\/api\/chat-widget\/wtfu_[a-f0-9]+\/) ||
+      req.path.match(/^\/api\/visitor-tracking\/public\/widget\/wtfu_[a-f0-9]+\//)) { // ✅ NEW: Widget-specific tracking
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
