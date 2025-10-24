@@ -591,7 +591,6 @@ export default function VisitorMonitoring() {
             </div>
           </>
         )}
-      </div>
     </div>
   )
 }
