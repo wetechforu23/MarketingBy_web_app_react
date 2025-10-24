@@ -353,7 +353,7 @@ export default function VisitorMonitoring() {
                   color: 'white',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
                 }}>
-                  <div style={{ fontSize: '14px', opacity: 0.9', marginBottom: '8px' }}>💬 Chatted</div>
+                  <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '8px' }}>💬 Chatted</div>
                   <div style={{ fontSize: '32px', fontWeight: '700' }}>
                     {stats.visitors_who_chatted} 
                     <span style={{ fontSize: '16px', marginLeft: '8px', opacity: 0.9 }}>
@@ -369,7 +369,7 @@ export default function VisitorMonitoring() {
                   color: 'white',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
                 }}>
-                  <div style={{ fontSize: '14px', opacity: 0.9', marginBottom: '8px' }}>⏱️ Avg Time</div>
+                  <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '8px' }}>⏱️ Avg Time</div>
                   <div style={{ fontSize: '32px', fontWeight: '700' }}>{formatTime(stats.avg_time_on_site || 0)}</div>
                 </div>
 
@@ -380,7 +380,7 @@ export default function VisitorMonitoring() {
                   color: 'white',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
                 }}>
-                  <div style={{ fontSize: '14px', opacity: 0.9', marginBottom: '8px' }}>📄 Avg Pages</div>
+                  <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '8px' }}>📄 Avg Pages</div>
                   <div style={{ fontSize: '32px', fontWeight: '700' }}>{stats.avg_page_views || 0}</div>
                 </div>
 
@@ -391,7 +391,7 @@ export default function VisitorMonitoring() {
                   color: '#333',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
                 }}>
-                  <div style={{ fontSize: '14px', opacity: 0.9', marginBottom: '8px' }}>🌍 Countries</div>
+                  <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '8px' }}>🌍 Countries</div>
                   <div style={{ fontSize: '32px', fontWeight: '700' }}>{stats.countries_count || 0}</div>
                 </div>
               </div>
@@ -412,7 +412,7 @@ export default function VisitorMonitoring() {
                 <h2 style={{ margin: 0, fontSize: '1.5rem' }}>
                   🟢 Active Visitors ({visitors.length})
                 </h2>
-                <p style={{ margin: '0.5rem 0 0 0', opacity: 0.9' }}>
+                <p style={{ margin: '0.5rem 0 0 0', opacity: 0.9 }}>
                   Visitors active in the last 5 minutes
                 </p>
               </div>
