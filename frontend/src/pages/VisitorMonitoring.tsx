@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../api/http'
-import AppLayout from '../components/AppLayout'
 
 interface Widget {
   id: number
@@ -175,19 +174,16 @@ export default function VisitorMonitoring() {
 
   if (loading) {
     return (
-      <AppLayout>
-        <div style={{ padding: '2rem', textAlign: 'center' }}>
-          <div className="spinner-border" role="status">
-            <span className="sr-only">Loading...</span>
-          </div>
+      <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <div className="spinner-border" role="status">
+          <span className="sr-only">Loading...</span>
         </div>
-      </AppLayout>
+      </div>
     )
   }
 
   return (
-    <AppLayout>
-      <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{
           display: 'flex',
@@ -596,7 +592,7 @@ export default function VisitorMonitoring() {
           </>
         )}
       </div>
-    </AppLayout>
+    </div>
   )
 }
 
