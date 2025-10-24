@@ -29,6 +29,8 @@ import emailPreferencesRoutes from './routes/emailPreferences';
 import smsPreferencesRoutes from './routes/smsPreferences';
 // AI Chat Widget routes
 import chatWidgetRoutes from './routes/chatWidget';
+// Visitor Tracking & Monitoring routes
+import visitorTrackingRoutes from './routes/visitorTracking';
 
 dotenv.config();
 
@@ -145,6 +147,8 @@ app.get('/api/health', (req, res) => {
 // PUBLIC ROUTES (No authentication required) - MUST BE FIRST
 // AI Chat Widget (includes public routes for website embedding)
 app.use('/api/chat-widget', chatWidgetRoutes);
+// Visitor Tracking & Monitoring (includes public tracking routes)
+app.use('/api/visitor-tracking', visitorTrackingRoutes);
 // Email Preferences & Unsubscribe (public routes - no auth required)
 app.use('/api/email-preferences', emailPreferencesRoutes);
 // SMS Preferences & Unsubscribe (public routes - no auth required)
