@@ -1013,7 +1013,7 @@ router.get('/widgets/:id/knowledge', async (req, res) => {
     const { id } = req.params;
 
     const result = await pool.query(
-      'SELECT * FROM knowledge_base WHERE widget_id = $1 ORDER BY created_at DESC',
+      'SELECT * FROM widget_knowledge_base WHERE widget_id = $1 ORDER BY created_at DESC',
       [id]
     );
 
@@ -1031,7 +1031,7 @@ router.post('/widgets/:id/knowledge', async (req, res) => {
     const { question, answer, category } = req.body;
 
     const result = await pool.query(
-      `INSERT INTO knowledge_base (widget_id, question, answer, category, is_active, created_at)
+      `INSERT INTO widget_knowledge_base (widget_id, question, answer, category, is_active, created_at)
        VALUES ($1, $2, $3, $4, true, NOW())
        RETURNING *`,
       [id, question, answer, category || 'General']
@@ -1051,7 +1051,7 @@ router.put('/widgets/:id/knowledge/:knowledgeId', async (req, res) => {
     const { question, answer, category } = req.body;
 
     const result = await pool.query(
-      `UPDATE knowledge_base 
+      `UPDATE widget_knowledge_base 
        SET question = $1, answer = $2, category = $3
        WHERE id = $4
        RETURNING *`,
@@ -1074,7 +1074,7 @@ router.delete('/widgets/:id/knowledge/:knowledgeId', async (req, res) => {
   try {
     const { knowledgeId } = req.params;
 
-    await pool.query('DELETE FROM knowledge_base WHERE id = $1', [knowledgeId]);
+    await pool.query('DELETE FROM widget_knowledge_base WHERE id = $1', [knowledgeId]);
 
     res.json({ success: true });
   } catch (error) {
@@ -1118,7 +1118,7 @@ router.post('/widgets/:id/knowledge/bulk', async (req, res) => {
         // Check for duplicates if enabled
         if (skipDuplicates) {
           const existingResult = await pool.query(
-            'SELECT id FROM knowledge_base WHERE widget_id = $1 AND LOWER(question) = LOWER($2)',
+            'SELECT id FROM widget_knowledge_base WHERE widget_id = $1 AND LOWER(question) = LOWER($2)',
             [id, question.trim()]
           );
 
@@ -1131,7 +1131,7 @@ router.post('/widgets/:id/knowledge/bulk', async (req, res) => {
 
         // Insert new entry
         await pool.query(
-          `INSERT INTO knowledge_base (widget_id, question, answer, category, is_active, created_at)
+          `INSERT INTO widget_knowledge_base (widget_id, question, answer, category, is_active, created_at)
            VALUES ($1, $2, $3, $4, true, NOW())`,
           [id, question.trim(), answer.trim(), category?.trim() || 'General']
         );
@@ -1175,9 +1175,9 @@ router.get('/widgets/:id/knowledge/categories', async (req, res) => {
 
     const result = await pool.query(
       `SELECT DISTINCT category, COUNT(*) as count 
-       FROM knowledge_base 
+       FROM widget_knowledge_base 
        WHERE widget_id = $1 
-       GROUP BY category 
+       GROUP BY category
        ORDER BY category`,
       [id]
     );
