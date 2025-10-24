@@ -1234,20 +1234,18 @@ if (!defined('ABSPATH')) {
 add_action('wp_footer', 'wetechforu_chat_widget_footer');
 function wetechforu_chat_widget_footer() {
     ?>
-    <!-- WeTechForU Chat Widget V2 - Enhanced -->
-    <script src="${backendUrl}/public/wetechforu-widget-v2.js"></script>
+    <!-- WeTechForU Chat Widget V2 - Database-Driven Config -->
+    <script src="${backendUrl}/public/wetechforu-widget-v2.js?v=<?php echo time(); ?>"></script>
     <script>
-        WeTechForUWidget.init({
-            widgetKey: '${widgetKey}',
-            backendUrl: '${backendUrl}',
-            autoPopup: true,
-            autoPopupDelay: 3000,
-            enableIntroFlow: true,
-            botName: '${widget.bot_name || 'Assistant'}',
-            primaryColor: '${widget.primary_color || '#4682B4'}',
-            secondaryColor: '${widget.secondary_color || '#2E86AB'}',
-            position: '${widget.position || 'bottom-right'}'
-        });
+        // ✅ ONLY pass required fields - widget loads ALL other settings from database!
+        if (window.WeTechForUWidget) {
+            WeTechForUWidget.init({
+                widgetKey: '${widgetKey}',
+                backendUrl: '${backendUrl}'
+                // ✅ All other settings (botName, colors, avatar, welcome message, intro flow) 
+                //    are loaded automatically from the database via loadWidgetConfig()!
+            });
+        }
     </script>
     <?php
 }
