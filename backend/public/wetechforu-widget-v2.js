@@ -826,6 +826,12 @@
 
       // Show completion message
       this.addBotMessage("✅ Thank you! I have all the information I need.");
+      
+      // ✅ FIX: Ensure conversation exists before saving intro data
+      const conversationId = await this.ensureConversation();
+      if (!conversationId) {
+        console.error('Failed to create conversation for intro data');
+      }
 
       // Submit answers to backend
       try {
@@ -833,16 +839,13 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            conversation_id: this.state.conversationId,
+            conversation_id: conversationId,
             intro_data: this.state.introFlow.answers
           })
         });
 
         if (response.ok) {
           const data = await response.json();
-          if (data.conversation_id) {
-            this.state.conversationId = data.conversation_id;
-          }
           console.log('✅ Intro data saved successfully');
         }
       } catch (error) {
@@ -1176,13 +1179,20 @@
         this.addBotMessage("Checking agent availability...");
       }, 1600);
       
+      // ✅ FIX: Ensure conversation exists before handoff
+      const conversationId = await this.ensureConversation();
+      if (!conversationId) {
+        this.addBotMessage("Sorry, I'm having trouble connecting. Please try again later.");
+        return;
+      }
+      
       // Send handoff request to backend
       try {
         const response = await fetch(`${this.config.backendUrl}/api/chat-widget/${this.config.widgetKey}/handoff`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            conversation_id: this.state.conversationId,
+            conversation_id: conversationId,
             visitor_name: info.name,
             visitor_email: info.email,
             visitor_phone: info.phone,
@@ -1220,6 +1230,49 @@
       }
     },
 
+    // Create conversation if needed
+    async ensureConversation() {
+      if (this.state.conversationId) {
+        return this.state.conversationId; // Already have one
+      }
+      
+      try {
+        const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversation`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: this.getSessionId(),
+            page_url: window.location.href,
+            referrer_url: document.referrer,
+            user_agent: navigator.userAgent
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          this.state.conversationId = data.conversation_id;
+          console.log('✅ Conversation created:', data.conversation_id);
+          return data.conversation_id;
+        } else {
+          console.error('Failed to create conversation');
+          return null;
+        }
+      } catch (error) {
+        console.error('Error creating conversation:', error);
+        return null;
+      }
+    },
+    
+    // Get or create session ID
+    getSessionId() {
+      let sessionId = sessionStorage.getItem('wetechforu_session_id');
+      if (!sessionId) {
+        sessionId = 'sess_' + Math.random().toString(36).substr(2, 9) + Date.now();
+        sessionStorage.setItem('wetechforu_session_id', sessionId);
+      }
+      return sessionId;
+    },
+    
     // Send message to backend
     async sendMessageToBackend(message) {
       // 🛡️ Rate Limiting Check
@@ -1239,6 +1292,13 @@
       // Add current message to history
       this.state.messageHistory.push(now);
       
+      // ✅ FIX: Ensure conversation exists before sending message
+      const conversationId = await this.ensureConversation();
+      if (!conversationId) {
+        this.addBotMessage("Sorry, I'm having trouble connecting. Please refresh and try again.");
+        return;
+      }
+      
       this.showTyping();
 
       try {
@@ -1248,8 +1308,8 @@
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            message,
-            conversationId: this.state.conversationId
+            message_text: message, // ✅ FIX: Changed from 'message' to 'message_text'
+            conversation_id: conversationId // ✅ FIX: Use guaranteed conversation ID
           })
         });
 
@@ -1259,10 +1319,6 @@
         
         if (data.response) {
           this.addBotMessage(data.response);
-        }
-
-        if (data.conversationId) {
-          this.state.conversationId = data.conversationId;
         }
 
         // 🎯 Handle smart suggestions (if provided)
