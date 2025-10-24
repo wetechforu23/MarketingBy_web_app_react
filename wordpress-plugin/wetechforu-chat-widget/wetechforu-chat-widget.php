@@ -2,8 +2,8 @@
 /**
  * Plugin Name: WeTechForU AI Chat Widget
  * Plugin URI: https://wetechforu.com/chat-widget
- * Description: AI-powered chat widget with lead capture, appointment booking, and smart responses
- * Version: 1.0.0
+ * Description: AI-powered chat widget V2 with database-driven config, custom avatars, intro flow, and smart responses
+ * Version: 2.0.0
  * Author: WeTechForU
  * Author URI: https://wetechforu.com
  * License: GPL v2 or later
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('WTFU_WIDGET_VERSION', '1.0.0');
+define('WTFU_WIDGET_VERSION', '2.0.0');
 define('WTFU_WIDGET_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WTFU_WIDGET_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -167,11 +167,11 @@ class WeTechForU_Chat_Widget {
                                 type="url" 
                                 name="wtfu_api_url" 
                                 id="wtfu_api_url" 
-                                value="<?php echo esc_attr(get_option('wtfu_api_url', 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com/api/chat-widget')); ?>" 
+                                value="<?php echo esc_attr(get_option('wtfu_api_url', 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com')); ?>" 
                                 class="regular-text"
                             />
                             <p class="description">
-                                <?php _e('API endpoint URL (leave default unless instructed otherwise).', 'wetechforu-chat-widget'); ?>
+                                <?php _e('Backend URL (leave default unless instructed otherwise).', 'wetechforu-chat-widget'); ?>
                             </p>
                         </td>
                     </tr>
@@ -270,13 +270,14 @@ class WeTechForU_Chat_Widget {
         check_ajax_referer('wtfu_widget_nonce', 'nonce');
         
         $widget_key = sanitize_text_field($_POST['widget_key']);
-        $api_url = esc_url_raw($_POST['api_url']);
+        $backend_url = esc_url_raw($_POST['api_url']);
         
-        if (empty($widget_key) || empty($api_url)) {
-            wp_send_json_error(array('message' => __('Widget key and API URL are required', 'wetechforu-chat-widget')));
+        if (empty($widget_key) || empty($backend_url)) {
+            wp_send_json_error(array('message' => __('Widget key and Backend URL are required', 'wetechforu-chat-widget')));
         }
         
-        $response = wp_remote_get($api_url . '/public/widget/' . $widget_key . '/config');
+        // Test connection to widget config endpoint
+        $response = wp_remote_get($backend_url . '/api/chat-widget/public/widget/' . $widget_key . '/config');
         
         if (is_wp_error($response)) {
             wp_send_json_error(array('message' => __('Failed to connect to API', 'wetechforu-chat-widget')));
@@ -301,25 +302,21 @@ class WeTechForU_Chat_Widget {
         }
         
         $widget_key = get_option('wtfu_widget_key');
-        $api_url = get_option('wtfu_api_url', 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com/api/chat-widget');
+        $backend_url = 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com'; // Fixed: Base URL only
         
         ?>
-        <!-- WeTechForU AI Chat Widget -->
+        <!-- WeTechForU AI Chat Widget V2 - Database-Driven Config -->
+        <script src="<?php echo esc_url($backend_url); ?>/public/wetechforu-widget-v2.js?v=<?php echo time(); ?>"></script>
         <script>
-        (function() {
-            var script = document.createElement('script');
-            script.src = '<?php echo esc_js($api_url); ?>/wetechforu-widget.js';
-            script.async = true;
-            script.onload = function() {
-                if (window.WeTechForUWidget) {
-                    WeTechForUWidget.init({
-                        widgetKey: '<?php echo esc_js($widget_key); ?>',
-                        apiUrl: '<?php echo esc_js($api_url); ?>'
-                    });
-                }
-            };
-            document.head.appendChild(script);
-        })();
+        // ✅ ONLY pass required fields - widget loads ALL other settings from database!
+        if (window.WeTechForUWidget) {
+            WeTechForUWidget.init({
+                widgetKey: '<?php echo esc_js($widget_key); ?>',
+                backendUrl: '<?php echo esc_js($backend_url); ?>'
+                // ✅ All other settings (botName, colors, avatar, welcome message, intro flow) 
+                //    are loaded automatically from the database via loadWidgetConfig()!
+            });
+        }
         </script>
         <?php
     }
@@ -342,7 +339,7 @@ register_activation_hook(__FILE__, 'wtfu_chat_widget_activate');
 function wtfu_chat_widget_activate() {
     // Set default options
     if (!get_option('wtfu_api_url')) {
-        update_option('wtfu_api_url', 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com/api/chat-widget');
+        update_option('wtfu_api_url', 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com');
     }
 }
 
