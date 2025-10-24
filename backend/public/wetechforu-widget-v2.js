@@ -1325,7 +1325,7 @@
       this.showTyping();
 
       try {
-        const response = await fetch(`${this.config.backendUrl}/api/chat-widget/${this.config.widgetKey}/message`, {
+        const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/message`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -1454,7 +1454,7 @@
         if (!this.state.conversationId) return;
         
         try {
-          const response = await fetch(`${this.config.backendUrl}/api/chat-widget/conversations/${this.state.conversationId}/messages`, {
+          const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${this.state.conversationId}/messages`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' }
           });

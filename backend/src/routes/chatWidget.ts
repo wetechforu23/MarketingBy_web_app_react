@@ -666,6 +666,43 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
   }
 });
 
+// Get messages for a conversation (public endpoint for widget polling)
+router.get('/public/widget/:widgetKey/conversations/:conversationId/messages', async (req, res) => {
+  try {
+    const { widgetKey, conversationId } = req.params;
+
+    // Verify widget exists
+    const widgetResult = await pool.query(
+      'SELECT id FROM widget_configs WHERE widget_key = $1 AND is_active = true',
+      [widgetKey]
+    );
+
+    if (widgetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+
+    // Get messages for this conversation
+    const result = await pool.query(
+      `SELECT 
+        id,
+        conversation_id,
+        message_type,
+        message_text,
+        agent_name,
+        created_at
+       FROM widget_messages 
+       WHERE conversation_id = $1 
+       ORDER BY created_at ASC`,
+      [conversationId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get messages error:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
 // Capture lead information (public endpoint)
 router.post('/public/widget/:widgetKey/capture-lead', async (req, res) => {
   try {
