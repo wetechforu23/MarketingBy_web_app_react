@@ -591,6 +591,14 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
 
     const widget_id = widgetResult.rows[0].id;
 
+    // ✅ CHECK IF AGENT HAS TAKEN OVER (HANDOFF)
+    const convCheck = await pool.query(
+      'SELECT agent_handoff FROM widget_conversations WHERE id = $1',
+      [conversation_id]
+    );
+
+    const isAgentHandoff = convCheck.rows.length > 0 && convCheck.rows[0].agent_handoff;
+
     // Save user message
     await pool.query(
       `INSERT INTO widget_messages (conversation_id, message_type, message_text)
@@ -603,6 +611,17 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       'UPDATE widget_conversations SET message_count = message_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
       [conversation_id]
     );
+
+    // ✅ IF AGENT HAS TAKEN OVER, BOT DOESN'T RESPOND
+    if (isAgentHandoff) {
+      console.log(`🤝 Agent handoff active for conversation ${conversation_id} - Bot staying silent`);
+      return res.json({
+        response: null, // No bot response
+        agent_handoff: true,
+        message: 'Your message has been sent to our team. An agent will respond shortly.',
+        timestamp: new Date().toISOString()
+      });
+    }
 
     // 🎯 SMART MATCHING: Find best matching knowledge base entry
     const similarQuestions = await findSimilarQuestions(message_text, widget_id, 0.5);
@@ -1057,14 +1076,16 @@ router.post('/conversations/:conversationId/reply', async (req, res) => {
       [conversationId, 'human', message.trim(), username, userId]
     );
 
-    // Update conversation
+    // Update conversation - SET AGENT HANDOFF FLAG
     await pool.query(
       `UPDATE widget_conversations SET
         human_response_count = COALESCE(human_response_count, 0) + 1,
         message_count = COALESCE(message_count, 0) + 1,
         last_message = $1,
         last_message_at = NOW(),
+        last_human_response_at = NOW(),
         handoff_requested = false,
+        agent_handoff = true,
         status = 'active',
         updated_at = NOW()
       WHERE id = $2`,

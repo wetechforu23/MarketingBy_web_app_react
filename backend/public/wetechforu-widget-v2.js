@@ -42,6 +42,7 @@
       lastMessageTime: null,
       displayedMessageIds: [], // Track displayed agent messages
       pollingInterval: null, // Polling timer
+      agentTookOver: false, // ✅ NEW: Track if agent took over conversation
       compatibility: {
         supported: true,
         version: null,
@@ -1366,6 +1367,14 @@
         const data = await response.json();
         
         this.hideTyping();
+        
+        // ✅ Check if agent has taken over conversation
+        if (data.agent_handoff) {
+          this.addBotMessage('👨‍💼 Your message has been sent to our team. An agent will respond shortly...');
+          // Stop polling for bot, start polling for agent
+          this.state.agentTookOver = true;
+          return;
+        }
         
         if (data.response) {
           this.addBotMessage(data.response);
