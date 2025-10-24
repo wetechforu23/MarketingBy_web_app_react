@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { http } from '../api/http';
 import SEODashboard from './SEODashboard';
 import LeadHeatmap from '../components/LeadHeatmap';
+import FacebookFullData from '../components/FacebookFullData';
+import FacebookPageMetrics from '../components/FacebookPageMetrics';
 
 interface Client {
   id: number;
@@ -82,6 +84,7 @@ const ClientManagementDashboard: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [facebookPageMetrics, setFacebookPageMetrics] = useState<any>(null);
   const [clientSettings, setClientSettings] = useState<ClientSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'social-media' | 'lead-tracking' | 'seo' | 'reports' | 'local-search' | 'settings'>('overview');
@@ -407,11 +410,28 @@ const ClientManagementDashboard: React.FC = () => {
       }
 
       // Fetch real Facebook data
+      console.log('🔍 Checking Facebook connection status from settings...', settingsResponse.data?.facebook);
       const facebookConnected = settingsResponse.data?.facebook?.connected;
+      console.log(`📘 Facebook connected status: ${facebookConnected}`);
+      
       if (facebookConnected) {
         try {
-          console.log('📘 Fetching real Facebook insights...');
+          console.log(`📘 Fetching real Facebook insights for client ${clientId}...`);
           const facebookResponse = await http.get(`/facebook/overview/${clientId}`);
+          console.log('📘 Facebook API response:', facebookResponse.data);
+          
+          // Fetch Facebook Page metrics (8 core metrics from v18.0 API)
+          try {
+            console.log(`📊 Fetching Facebook Page metrics for client ${clientId}...`);
+            const pageMetricsResponse = await http.get(`/facebook/core-page-metrics/${clientId}`);
+            if (pageMetricsResponse.data.success) {
+              setFacebookPageMetrics(pageMetricsResponse.data.metrics);
+              console.log('✅ Facebook Page metrics loaded:', pageMetricsResponse.data.metrics);
+            }
+          } catch (metricsError: any) {
+            console.error('❌ Error fetching Facebook Page metrics:', metricsError);
+          }
+          
           if (facebookResponse.data.success && facebookResponse.data.connected) {
             const fbData = facebookResponse.data.data;
             analyticsData.facebook = {
@@ -424,22 +444,29 @@ const ClientManagementDashboard: React.FC = () => {
               connected: true,
               status: 'Connected'
             };
-            console.log('✅ Real Facebook data loaded:', analyticsData.facebook);
-          } else {
+            console.log('✅ Real Facebook data loaded successfully:', analyticsData.facebook);
+          } else if (facebookResponse.data.success && !facebookResponse.data.connected) {
+            console.log('⚠️ Facebook API responded but says not connected');
             analyticsData.facebook.connected = false;
             analyticsData.facebook.status = 'Not Connected';
-            console.log('⚠️ Facebook connected but failed to fetch data');
+          } else {
+            console.log('⚠️ Facebook API responded unsuccessfully:', facebookResponse.data);
+            analyticsData.facebook.connected = false;
+            analyticsData.facebook.status = 'Error';
           }
-        } catch (error) {
-          console.error('Error fetching Facebook data:', error);
+        } catch (error: any) {
+          console.error('❌ Error fetching Facebook data:', error);
+          console.error('❌ Error response:', error.response?.data);
+          console.error('❌ Error status:', error.response?.status);
           analyticsData.facebook.connected = false;
           analyticsData.facebook.status = 'Error';
           console.log('⚠️ Facebook API error - showing 0 values');
         }
       } else {
+        console.log('⚠️ Facebook not connected per settings - showing 0 values');
+        console.log('💡 Facebook settings from API:', settingsResponse.data?.facebook);
         analyticsData.facebook.connected = false;
         analyticsData.facebook.status = 'Not Connected';
-        console.log('⚠️ Facebook not connected - showing 0 values');
       }
 
       // Content is always not connected (NO MOCK DATA)
@@ -2809,7 +2836,7 @@ const ClientManagementDashboard: React.FC = () => {
                     boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                      <h3 style={{ margin: 0, color: '#333' }}>📱 Social Media Analytics</h3>
+                      <h3 style={{ margin: 0, color: '#333' }}>Facebook Analytics</h3>
                       {analyticsData?.facebook?.connected && (
                         <button
                           onClick={syncFacebookData}
@@ -2957,7 +2984,7 @@ const ClientManagementDashboard: React.FC = () => {
                       }}>
                         <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Page Views</div>
                         <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4267B2' }}>
-                          {analyticsData?.facebook?.pageViews?.toLocaleString() || 0}
+                          {facebookPageMetrics?.page_views_total?.value?.toLocaleString() || analyticsData?.facebook?.pageViews?.toLocaleString() || 0}
                         </div>
                         <div style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>📘 Facebook</div>
                       </div>
@@ -2970,7 +2997,7 @@ const ClientManagementDashboard: React.FC = () => {
                       }}>
                         <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Total Followers</div>
                         <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4267B2' }}>
-                          {analyticsData?.facebook?.followers?.toLocaleString() || 0}
+                          {facebookPageMetrics?.page_fans?.value?.toLocaleString() || analyticsData?.facebook?.followers?.toLocaleString() || 0}
                         </div>
                         <div style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>👥 Followers</div>
                       </div>
@@ -2983,7 +3010,15 @@ const ClientManagementDashboard: React.FC = () => {
                       }}>
                         <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Engagement Rate</div>
                         <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4267B2' }}>
-                          {analyticsData?.facebook?.engagement?.toFixed(1) || 0}%
+                          {(() => {
+                            // Calculate engagement rate from Full Data Analytics if available
+                            const engagement = analyticsData?.facebook?.engagement || 0;
+                            const followers = facebookPageMetrics?.page_fans?.value || analyticsData?.facebook?.followers || 0;
+                            if (followers > 0 && engagement > 0) {
+                              return ((engagement / followers) * 100).toFixed(1);
+                            }
+                            return analyticsData?.facebook?.engagement?.toFixed(1) || 0;
+                          })()}%
                         </div>
                         <div style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>💬 Engagement</div>
                       </div>
@@ -3035,49 +3070,24 @@ const ClientManagementDashboard: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Detailed Facebook Metrics */}
-                    {analyticsData?.facebook?.connected && (
-                      <DetailedFacebookInsights clientId={selectedClient.id} refreshKey={refreshKey} />
-                    )}
-
-                    {/* Quick Stats Table */}
-                    <div style={{ marginTop: '30px' }}>
-                      <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>📈 Social Media Overview</h4>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                        <thead>
-                          <tr style={{ backgroundColor: '#4267B2', color: 'white' }}>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600' }}>Platform</th>
-                            <th style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>Page Views</th>
-                            <th style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>Followers</th>
-                            <th style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>Engagement</th>
-                            <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600' }}>Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr style={{ borderBottom: '1px solid #dee2e6' }}>
-                            <td style={{ padding: '12px', fontWeight: '500' }}>
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                📘 Facebook
-                              </span>
-                            </td>
-                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                              {analyticsData?.facebook?.pageViews?.toLocaleString() || 0}
-                            </td>
-                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                              {analyticsData?.facebook?.followers?.toLocaleString() || 0}
-                            </td>
-                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                              {analyticsData?.facebook?.engagement?.toFixed(1) || 0}%
-                            </td>
-                            <td style={{ padding: '12px', textAlign: 'center', fontSize: '12px', fontWeight: '600', color: analyticsData?.facebook?.connected ? '#28a745' : '#dc3545' }}>
-                              {analyticsData?.facebook?.connected ? '✅ Connected' : '❌ Not Connected'}
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-
                   </div>
+
+                  {/* Facebook Page Metrics - 8 Core Metrics */}
+                  {analyticsData?.facebook?.connected && (
+                    <FacebookPageMetrics 
+                      clientId={selectedClient.id} 
+                      refreshKey={refreshKey} 
+                    />
+                  )}
+
+                  {/* Facebook Full Data Section - NEW */}
+                  {analyticsData?.facebook?.connected && (
+                    <FacebookFullData 
+                      clientId={selectedClient.id} 
+                      refreshKey={refreshKey} 
+                    />
+                  )}
+
                 </div>
               )}
 
@@ -4176,7 +4186,7 @@ const ClientManagementDashboard: React.FC = () => {
   );
 };
 
-// Detailed Facebook Insights Component
+// Detailed Facebook Insights Component 
 const DetailedFacebookInsights: React.FC<{ clientId: number; refreshKey: number }> = ({ clientId, refreshKey }) => {
   const [posts, setPosts] = useState<any[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
@@ -4191,28 +4201,34 @@ const DetailedFacebookInsights: React.FC<{ clientId: number; refreshKey: number 
   const fetchDetailedInsights = async () => {
     setLoading(true);
     try {
+      console.log(`📊 Fetching detailed Facebook insights for client ${clientId}`);
+      
       // Fetch posts
-      const postsRes = await fetch(`/api/facebook/posts/${clientId}?limit=50`);
-      const postsData = await postsRes.json();
-      if (postsData.success) {
-        setPosts(postsData.data);
+      const postsRes = await http.get(`/facebook/posts/${clientId}?limit=50`);
+      if (postsRes.data.success) {
+        setPosts(postsRes.data.data);
+        console.log(`✅ Fetched ${postsRes.data.data.length} posts`);
       }
 
-      // Fetch analytics by post type
-      const analyticsRes = await fetch(`/api/facebook/analytics/posts/${clientId}?days=${selectedDays}`);
-      const analyticsData = await analyticsRes.json();
-      if (analyticsData.success) {
-        setAnalytics(analyticsData.data);
+      // Fetch analytics by post type (optional, may not exist)
+      try {
+        const analyticsRes = await http.get(`/facebook/analytics/posts/${clientId}?days=${selectedDays}`);
+        if (analyticsRes.data.success) {
+          setAnalytics(analyticsRes.data.data);
+          console.log(`✅ Fetched analytics data`);
+        }
+      } catch (err) {
+        console.log('⚠️ Analytics by post type not available (optional)');
       }
 
       // Fetch top performing posts
-      const topPostsRes = await fetch(`/api/facebook/analytics/top-posts/${clientId}?limit=5&days=${selectedDays}`);
-      const topPostsData = await topPostsRes.json();
-      if (topPostsData.success) {
-        setTopPosts(topPostsData.data);
+      const topPostsRes = await http.get(`/facebook/analytics/top-posts/${clientId}?limit=5`);
+      if (topPostsRes.data.success) {
+        setTopPosts(topPostsRes.data.data);
+        console.log(`✅ Fetched ${topPostsRes.data.data.length} top posts`);
       }
     } catch (error) {
-      console.error('Error fetching detailed Facebook insights:', error);
+      console.error('❌ Error fetching detailed Facebook insights:', error);
     } finally {
       setLoading(false);
     }
@@ -4249,245 +4265,229 @@ const DetailedFacebookInsights: React.FC<{ clientId: number; refreshKey: number 
         </select>
       </div>
 
-      {/* Content Type Breakdown */}
-      {analytics && analytics.length > 0 && (
-        <div style={{ marginBottom: '30px' }}>
-          <h5 style={{ margin: '0 0 15px 0', color: '#555' }}>📝 Content Performance by Type</h5>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
-            {analytics.map((item: any) => (
-              <div key={item.post_type} style={{
-                backgroundColor: '#f8f9fa',
-                padding: '20px',
-                borderRadius: '10px',
-                border: '2px solid #4267B2'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#333', textTransform: 'capitalize' }}>
-                    {item.post_type === 'photo' ? '📸' : item.post_type === 'video' ? '🎥' : item.post_type === 'link' ? '🔗' : '📄'} {item.post_type}
-                  </span>
-                  <span style={{ fontSize: '14px', color: '#666' }}>{item.post_count} posts</span>
-                </div>
-                <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.8' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Views:</span>
-                    <strong>{parseInt(item.total_impressions || 0).toLocaleString()}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Engaged Users:</span>
-                    <strong>{parseInt(item.total_engaged_users || 0).toLocaleString()}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Avg Views/Post:</span>
-                    <strong>{Math.round(item.avg_impressions_per_post || 0).toLocaleString()}</strong>
-                  </div>
-                  {item.total_video_views > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Video Views:</span>
-                      <strong>{parseInt(item.total_video_views).toLocaleString()}</strong>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {/* Top Performing Posts */}
-      {topPosts && topPosts.length > 0 && (
-        <div style={{ marginBottom: '30px' }}>
-          <h5 style={{ margin: '0 0 15px 0', color: '#555' }}>🏆 Top Performing Posts</h5>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            {topPosts.map((post: any, index: number) => (
-              <div key={post.post_id} style={{
-                backgroundColor: '#fff',
-                padding: '20px',
-                borderRadius: '10px',
-                border: '1px solid #e0e0e0',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-              }}>
-                <div style={{ display: 'flex', gap: '15px' }}>
-                  {/* Post Image */}
-                  {post.full_picture && (
-                    <img 
-                      src={post.full_picture} 
-                      alt="Post" 
-                      style={{ 
-                        width: '100px', 
-                        height: '100px', 
-                        objectFit: 'cover', 
-                        borderRadius: '8px' 
-                      }} 
-                    />
-                  )}
-                  
-                  {/* Post Details */}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                      <div>
-                        <span style={{ 
-                          backgroundColor: '#4267B2', 
-                          color: 'white', 
-                          padding: '4px 8px', 
-                          borderRadius: '4px', 
-                          fontSize: '12px',
-                          marginRight: '8px'
-                        }}>
-                          #{index + 1}
-                        </span>
-                        <span style={{ fontSize: '12px', color: '#666', textTransform: 'capitalize' }}>
-                          {post.post_type === 'photo' ? '📸' : post.post_type === 'video' ? '🎥' : post.post_type === 'link' ? '🔗' : '📄'} {post.post_type}
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '12px', color: '#999' }}>
-                        {new Date(post.created_time).toLocaleDateString()}
-                      </span>
-                    </div>
-                    
-                    <p style={{ 
-                      margin: '0 0 10px 0', 
-                      color: '#333', 
-                      fontSize: '14px',
+      {/* Posts Data Table */}
+      {posts && posts.length > 0 && (
+        <div style={{ marginTop: '30px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <h5 style={{ margin: 0, color: '#555' }}>📊 Posts Data ({posts.length})</h5>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => fetchDetailedInsights()}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#4267B2',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#365899'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4267B2'}
+              >
+                🔄 Refresh
+              </button>
+              <button
+                onClick={() => {
+                  // Export to CSV functionality
+                  const headers = ['Post ID', 'Message', 'Created Time', 'Likes', 'Comments', 'Shares', 'Total Reactions', 'Impressions', 'Unique Impressions', 'Engaged Users'];
+                  const rows = posts.map((post: any) => [
+                    post.post_id,
+                    (post.message || 'No text').replace(/[\r\n]+/g, ' ').replace(/"/g, '""'),
+                    new Date(post.created_time).toLocaleDateString('en-US'),
+                    post.likes || 0,
+                    post.comments || 0,
+                    post.shares || 0,
+                    post.total_reactions || 0,
+                    post.post_impressions || 0,
+                    post.post_reach || 0,
+                    post.post_engaged_users || 0
+                  ]);
+                  const csvContent = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+                  const blob = new Blob([csvContent], { type: 'text/csv' });
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `facebook_posts_${new Date().toISOString().split('T')[0]}.csv`;
+                  a.click();
+                }}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#218838'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
+              >
+                📥 Export CSV
+              </button>
+            </div>
+          </div>
+          
+          <div style={{ 
+            overflowX: 'auto', 
+            backgroundColor: 'white', 
+            borderRadius: '8px', 
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)' 
+          }}>
+            <table style={{ 
+              width: '100%', 
+              borderCollapse: 'collapse',
+              fontSize: '13px'
+            }}>
+              <thead>
+                <tr style={{ backgroundColor: '#4267B2', color: 'white' }}>
+                  <th style={{ padding: '12px 8px', textAlign: 'left', fontWeight: '600', minWidth: '150px' }}>Post ID</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'left', fontWeight: '600', minWidth: '250px' }}>Message</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'left', fontWeight: '600', minWidth: '110px' }}>Created Time</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600', minWidth: '60px' }}>Likes</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600', minWidth: '80px' }}>Comments</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600', minWidth: '60px' }}>Shares</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600', minWidth: '100px' }}>Total Reactions</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600', minWidth: '90px' }}>Impressions</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600', minWidth: '130px' }}>Unique Impressions</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600', minWidth: '110px' }}>Engaged Users</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'center', fontWeight: '600', minWidth: '100px' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {posts.map((post: any, index: number) => (
+                  <tr 
+                    key={post.post_id} 
+                    style={{ 
+                      borderBottom: '1px solid #e9ecef',
+                      backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8f9fa',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e3f2fd'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = index % 2 === 0 ? '#ffffff' : '#f8f9fa'}
+                  >
+                    <td style={{ 
+                      padding: '10px 8px', 
+                      fontSize: '11px', 
+                      fontFamily: 'monospace',
+                      color: '#4267B2',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      fontWeight: '500'
+                    }}
+                      onClick={() => {
+                        navigator.clipboard.writeText(post.post_id);
+                        alert(`Post ID copied to clipboard!\n${post.post_id}`);
+                      }}
+                      title="Click to copy Post ID"
+                    >
+                      {post.post_id}
+                    </td>
+                    <td style={{ 
+                      padding: '10px 8px',
+                      maxWidth: '300px',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical'
+                      whiteSpace: 'nowrap'
                     }}>
-                      {post.message || 'No message'}
-                    </p>
-                    
-                    {/* Metrics */}
-                    <div style={{ 
-                      display: 'grid', 
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', 
-                      gap: '10px',
-                      fontSize: '12px'
-                    }}>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ color: '#666' }}>Views</span>
-                        <strong style={{ color: '#4267B2', fontSize: '16px' }}>
-                          {parseInt(post.post_impressions || 0).toLocaleString()}
-                        </strong>
+                      {post.message || 'No text'}
+                    </td>
+                    <td style={{ padding: '10px 8px' }}>
+                      {new Date(post.created_time).toLocaleDateString('en-US')}
+                    </td>
+                    <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '500' }}>
+                      {post.likes || 0}
+                    </td>
+                    <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '500' }}>
+                      {post.comments || 0}
+                    </td>
+                    <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '500' }}>
+                      {post.shares || 0}
+                    </td>
+                    <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '500', color: '#4267B2' }}>
+                      {post.total_reactions || 0}
+                    </td>
+                    <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '500', color: post.post_impressions > 0 ? '#28a745' : '#dc3545' }}>
+                      {post.post_impressions > 0 ? post.post_impressions.toLocaleString() : 'N/A'}
+                    </td>
+                    <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '500', color: post.post_reach > 0 ? '#28a745' : '#dc3545' }}>
+                      {post.post_reach > 0 ? post.post_reach.toLocaleString() : 'N/A'}
+                    </td>
+                    <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: '500', color: post.post_engaged_users > 0 ? '#28a745' : '#dc3545' }}>
+                      {post.post_engaged_users > 0 ? post.post_engaged_users.toLocaleString() : 'N/A'}
+                    </td>
+                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                        <button
+                          onClick={() => {
+                            const fbUrl = `https://www.facebook.com/${post.post_id}`;
+                            window.open(fbUrl, '_blank');
+                          }}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#4267B2',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            fontWeight: '500',
+                            transition: 'background-color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#365899'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4267B2'}
+                          title="View on Facebook"
+                        >
+                          👁️ View
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Are you sure you want to delete this post?\n\nPost ID: ${post.post_id}\nMessage: ${(post.message || 'No text').substring(0, 100)}...`)) {
+                              // Delete functionality - you can implement the API call here
+                              alert('Delete functionality - API endpoint needed');
+                            }
+                          }}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#dc3545',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            fontWeight: '500',
+                            transition: 'background-color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#c82333'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#dc3545'}
+                          title="Delete post"
+                        >
+                          🗑️ Delete
+                        </button>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ color: '#666' }}>Engaged</span>
-                        <strong style={{ color: '#28a745', fontSize: '16px' }}>
-                          {parseInt(post.post_engaged_users || 0).toLocaleString()}
-                        </strong>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ color: '#666' }}>Clicks</span>
-                        <strong style={{ color: '#ffc107', fontSize: '16px' }}>
-                          {parseInt(post.post_clicks || 0).toLocaleString()}
-                        </strong>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ color: '#666' }}>Engagement Rate</span>
-                        <strong style={{ color: '#dc3545', fontSize: '16px' }}>
-                          {post.engagement_rate ? `${parseFloat(post.engagement_rate).toFixed(1)}%` : '0%'}
-                        </strong>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ color: '#666' }}>Reactions</span>
-                        <strong style={{ color: '#6c757d', fontSize: '16px' }}>
-                          {parseInt(post.total_reactions || 0).toLocaleString()}
-                        </strong>
-                      </div>
-                      {post.post_video_views > 0 && (
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ color: '#666' }}>Video Views</span>
-                          <strong style={{ color: '#17a2b8', fontSize: '16px' }}>
-                            {parseInt(post.post_video_views).toLocaleString()}
-                          </strong>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* View Post Link */}
-                    {post.permalink_url && (
-                      <a 
-                        href={post.permalink_url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        style={{
-                          display: 'inline-block',
-                          marginTop: '10px',
-                          color: '#4267B2',
-                          fontSize: '12px',
-                          textDecoration: 'none'
-                        }}
-                      >
-                        View on Facebook →
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
-      )}
-
-      {/* Recent Posts Grid */}
-      {posts && posts.length > 0 && (
-        <div>
-          <h5 style={{ margin: '0 0 15px 0', color: '#555' }}>📋 Recent Posts ({posts.length})</h5>
+          
           <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
-            gap: '15px' 
+            marginTop: '15px', 
+            padding: '15px', 
+            backgroundColor: '#fff3cd', 
+            border: '1px solid #ffc107',
+            borderRadius: '6px',
+            fontSize: '13px',
+            color: '#856404'
           }}>
-            {posts.slice(0, 12).map((post: any) => (
-              <div key={post.post_id} style={{
-                backgroundColor: '#fff',
-                borderRadius: '10px',
-                overflow: 'hidden',
-                border: '1px solid #e0e0e0',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                transition: 'transform 0.2s',
-                cursor: 'pointer'
-              }}
-              onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
-              onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-              onClick={() => window.open(post.permalink_url, '_blank')}
-              >
-                {post.full_picture && (
-                  <img 
-                    src={post.full_picture} 
-                    alt="Post" 
-                    style={{ width: '100%', height: '150px', objectFit: 'cover' }} 
-                  />
-                )}
-                <div style={{ padding: '12px' }}>
-                  <div style={{ fontSize: '11px', color: '#999', marginBottom: '5px' }}>
-                    {new Date(post.created_time).toLocaleDateString()}
-                  </div>
-                  <p style={{ 
-                    fontSize: '13px', 
-                    color: '#333', 
-                    margin: '0 0 8px 0',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical'
-                  }}>
-                    {post.message || 'No caption'}
-                  </p>
-                  <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    fontSize: '11px', 
-                    color: '#666' 
-                  }}>
-                    <span>❤️ {post.total_reactions || 0}</span>
-                    <span>💬 {post.comments || 0}</span>
-                    <span>🔁 {post.shares || 0}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
+            <strong>ℹ️ Note:</strong> Impressions, Unique Impressions, and Engaged Users show "N/A" until you sync Facebook data. 
+            Click <strong>"Sync Facebook Data"</strong> button above to fetch detailed metrics.
           </div>
         </div>
       )}

@@ -4531,6 +4531,208 @@ router.get('/analytics/leads/:clientId/date-range', requireAuth, async (req, res
 
 // ==================== FACEBOOK INTEGRATION ENDPOINTS ====================
 
+// Exchange User Token for Page Token
+router.post('/facebook/exchange-for-page-token/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { userAccessToken } = req.body;
+    
+    if (!userAccessToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'User Access Token is required'
+      });
+    }
+    
+    console.log(`\n🔄 === EXCHANGING USER TOKEN FOR PAGE TOKEN ===`);
+    
+    const axios = require('axios');
+    
+    // Step 1: Get user's pages
+    console.log(`1️⃣ Fetching user's pages...`);
+    const pagesResponse = await axios.get(`https://graph.facebook.com/v18.0/me/accounts`, {
+      params: {
+        access_token: userAccessToken,
+        fields: 'id,name,access_token,tasks'
+      }
+    });
+    
+    const pages = pagesResponse.data.data || [];
+    console.log(`   Found ${pages.length} pages`);
+    
+    if (pages.length === 0) {
+      return res.json({
+        success: false,
+        error: 'No pages found for this user. Make sure you manage at least one Facebook Page.'
+      });
+    }
+    
+    // Return all pages with their tokens
+    const pageTokens = pages.map((page: any) => ({
+      pageId: page.id,
+      pageName: page.name,
+      pageAccessToken: page.access_token,
+      tasks: page.tasks || []
+    }));
+    
+    console.log(`✅ Successfully retrieved page tokens`);
+    pageTokens.forEach((p: any) => {
+      console.log(`   - ${p.pageName} (${p.pageId})`);
+    });
+    
+    res.json({
+      success: true,
+      pages: pageTokens,
+      message: 'Select a page and use its Page Access Token'
+    });
+    
+  } catch (error: any) {
+    console.error(`❌ Exchange token error:`, error.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      error: error.response?.data?.error?.message || error.message,
+      hint: 'Make sure you are using a valid User Access Token with pages_show_list permission'
+    });
+  }
+});
+
+// Test Facebook token and permissions
+router.get('/facebook/test-token/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    console.log(`\n🧪 === TESTING FACEBOOK TOKEN FOR CLIENT ${clientId} ===`);
+    
+    const result = await pool.query(
+      'SELECT credentials FROM client_credentials WHERE client_id = $1 AND service_type = $2',
+      [clientId, 'facebook']
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({
+        success: false,
+        error: 'No Facebook credentials found'
+      });
+    }
+
+    const { page_id, access_token } = result.rows[0].credentials;
+    
+    console.log(`📋 Page ID: ${page_id}`);
+    console.log(`🔑 Token: ${access_token.substring(0, 20)}...${access_token.substring(access_token.length - 20)}`);
+    
+    // Test 1: Check token validity
+    console.log(`\n1️⃣ Testing token validity...`);
+    const axios = require('axios');
+    const debugResponse = await axios.get(`https://graph.facebook.com/v18.0/debug_token`, {
+      params: {
+        input_token: access_token,
+        access_token: access_token
+      }
+    });
+    
+    console.log(`   Token valid:`, debugResponse.data.data?.is_valid);
+    console.log(`   Scopes:`, debugResponse.data.data?.scopes);
+    console.log(`   Expires:`, debugResponse.data.data?.expires_at);
+    
+    // Test 2: Get page info
+    console.log(`\n2️⃣ Testing page access...`);
+    const pageResponse = await axios.get(`https://graph.facebook.com/v18.0/${page_id}`, {
+      params: {
+        access_token: access_token,
+        fields: 'id,name,fan_count,followers_count'
+      }
+    });
+    
+    console.log(`   Page name:`, pageResponse.data.name);
+    console.log(`   Fans:`, pageResponse.data.fan_count);
+    console.log(`   Followers:`, pageResponse.data.followers_count);
+    
+    // Test 3: Try to get posts
+    console.log(`\n3️⃣ Testing posts access...`);
+    const postsResponse = await axios.get(`https://graph.facebook.com/v18.0/${page_id}/posts`, {
+      params: {
+        access_token: access_token,
+        limit: 5
+      }
+    });
+    
+    console.log(`   Posts found:`, postsResponse.data.data?.length || 0);
+    
+    // Test 4: Try to get insights
+    console.log(`\n4️⃣ Testing insights access...`);
+    try {
+      const insightsResponse = await axios.get(`https://graph.facebook.com/v18.0/${page_id}/insights/page_fans`, {
+        params: {
+          access_token: access_token,
+          period: 'lifetime'
+        }
+      });
+      console.log(`   Insights accessible: ✅`);
+      console.log(`   Fans value:`, insightsResponse.data.data?.[0]?.values?.[0]?.value);
+    } catch (insightsError: any) {
+      console.log(`   Insights accessible: ❌`);
+      console.log(`   Error:`, insightsError.response?.data?.error?.message);
+    }
+    
+    res.json({
+      success: true,
+      tests: {
+        tokenValid: debugResponse.data.data?.is_valid,
+        scopes: debugResponse.data.data?.scopes,
+        pageName: pageResponse.data.name,
+        fanCount: pageResponse.data.fan_count,
+        postsCount: postsResponse.data.data?.length || 0,
+        hasInsights: true
+      }
+    });
+    
+  } catch (error: any) {
+    console.error(`❌ Token test error:`, error.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      error: error.response?.data?.error?.message || error.message
+    });
+  }
+});
+
+// Get current Facebook credentials (for admin/debug)
+router.get('/client-credentials/:clientId/facebook', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    console.log(`🔑 Fetching Facebook credentials for client ${clientId}`);
+
+    const result = await pool.query(
+      'SELECT credentials FROM client_credentials WHERE client_id = $1 AND service_type = $2',
+      [clientId, 'facebook']
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({
+        success: true,
+        credentials: null,
+        message: 'No Facebook credentials found'
+      });
+    }
+
+    const credentials = result.rows[0].credentials;
+
+    res.json({
+      success: true,
+      credentials: {
+        page_id: credentials.page_id,
+        access_token: credentials.access_token
+      }
+    });
+  } catch (error) {
+    console.error('❌ Get credentials error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch credentials'
+    });
+  }
+});
+
 // Save Facebook Page credentials
 router.post('/facebook/connect/:clientId', requireAuth, async (req, res) => {
   try {
@@ -4842,6 +5044,30 @@ router.post('/facebook/sync/:clientId', requireAuth, async (req, res) => {
   }
 });
 
+// NEW: Get 8 core Facebook Page metrics
+router.get('/facebook/core-page-metrics/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    console.log(`📊 Fetching 8 core Facebook Page metrics for client ${clientId}`);
+
+    const FacebookService = (await import('../services/facebookService')).default;
+    const facebookService = new FacebookService(pool);
+
+    const metrics = await facebookService.getCorePageMetrics(parseInt(clientId));
+
+    res.json({
+      success: true,
+      metrics
+    });
+  } catch (error: any) {
+    console.error(`❌ Error fetching core page metrics:`, error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Get Facebook overview metrics - Simple pattern like Google Analytics
 router.get('/facebook/overview/:clientId', requireAuth, async (req, res) => {
   try {
@@ -4855,6 +5081,24 @@ router.get('/facebook/overview/:clientId', requireAuth, async (req, res) => {
     // Get stored data from database (like GA)
     const data = await facebookService.getStoredData(parseInt(clientId));
     const credentials = await facebookService.getClientCredentials(parseInt(clientId));
+    
+    // Handle case where no data exists yet
+    if (!data) {
+      console.log(`  ⚠️ No Facebook data found for client ${clientId} - returning zeros`);
+      return res.json({
+        success: true,
+        connected: !!credentials,
+        data: {
+          pageViews: 0,
+          followers: 0,
+          engagement: 0,
+          reach: 0,
+          impressions: 0,
+          connected: !!credentials,
+          status: credentials ? 'Connected' : 'Not Connected'
+        }
+      });
+    }
     
     console.log(`  ✅ Data retrieved: ${data.followers} followers, ${data.pageViews} views, ${data.posts.length} posts`);
     
@@ -4886,12 +5130,24 @@ router.get('/facebook/posts/:clientId', requireAuth, async (req, res) => {
     const { clientId } = req.params;
     const limit = parseInt(req.query.limit as string) || 50;
 
-    console.log(`📝 Fetching Facebook posts for client ${clientId}`);
+    console.log(`\n📝 === API: Fetching Facebook posts for client ${clientId} ===`);
 
     const FacebookService = (await import('../services/facebookService')).default;
     const facebookService = new FacebookService(pool);
 
     const recentPosts = await facebookService.getRecentPosts(parseInt(clientId), limit);
+
+    console.log(`\n✅ === API: Returning ${recentPosts.length} posts to frontend ===`);
+    if (recentPosts.length > 0) {
+      console.log(`📊 Sample post being sent to frontend:`);
+      const sample = recentPosts[0];
+      console.log(`   Post ID: ${sample.post_id}`);
+      console.log(`   Impressions: ${sample.post_impressions}`);
+      console.log(`   Reach: ${sample.post_reach}`);
+      console.log(`   Engaged Users: ${sample.post_engaged_users}`);
+      console.log(`   Message: ${(sample.message || 'No message').substring(0, 60)}...`);
+    }
+    console.log('');
 
     res.json({
       success: true,
@@ -5040,6 +5296,527 @@ router.get('/facebook/analytics/timeline/:clientId', requireAuth, async (req, re
     res.status(500).json({ 
       success: false,
       error: 'Failed to fetch post timeline' 
+    });
+  }
+});
+
+// ========================================
+// NEW: Comprehensive Facebook Full Data APIs
+// Based on reference implementation
+// ========================================
+
+// Get comprehensive Facebook data with inline insights
+router.get('/facebook/full-data/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const limit = parseInt(req.query.limit as string) || 100;
+
+    console.log(`\n📊 === API: Fetching FULL Facebook data for client ${clientId} ===`);
+    console.log(`   Requesting ${limit} posts with inline insights`);
+
+    const FacebookService = (await import('../services/facebookService')).default;
+    const facebookService = new FacebookService(pool);
+
+    // Get credentials
+    const credentials = await facebookService.getClientCredentials(parseInt(clientId));
+    if (!credentials) {
+      return res.status(404).json({
+        success: false,
+        error: 'Facebook not connected for this client'
+      });
+    }
+
+    // Fetch posts with inline insights directly from Facebook API
+    let posts = [];
+    try {
+      posts = await facebookService.fetchPostsWithInlineInsights(
+        credentials.page_id,
+        credentials.access_token,
+        limit
+      );
+      console.log(`✅ Fetched ${posts.length} posts with inline insights`);
+    } catch (postsError: any) {
+      console.error(`⚠️ Error fetching posts with inline insights:`, postsError.message);
+      console.log(`   Continuing with empty posts array...`);
+      posts = [];
+    }
+
+    // Get REAL-TIME page overview metrics using specific API endpoints
+    // Using: page_fans (day), page_views_total (days_28), page_impressions (days_28), 
+    //        page_impressions_unique (days_28), page_post_engagements (days_28)
+    let overview = null;
+    try {
+      console.log(`📄 Fetching real-time page overview metrics...`);
+      overview = await facebookService.getPageOverviewMetrics(
+        credentials.page_id,
+        credentials.access_token
+      );
+      console.log(`✅ Overview data fetched from Facebook API:`, overview);
+    } catch (overviewError: any) {
+      console.error(`⚠️ Error fetching overview from Facebook API:`, overviewError.message);
+      // Fallback to stored data if real-time fetch fails
+      try {
+        overview = await facebookService.getStoredData(parseInt(clientId));
+        console.log(`✅ Using stored overview data as fallback`);
+      } catch (fallbackError: any) {
+        console.error(`⚠️ Stored data also unavailable:`, fallbackError.message);
+      }
+    }
+
+    // Calculate comprehensive analytics
+    const analytics = {
+      totalPosts: posts.length,
+      totalReactions: posts.reduce((sum, p) => sum + (
+        (p.reactions_like || 0) + (p.reactions_love || 0) + 
+        (p.reactions_haha || 0) + (p.reactions_wow || 0) + 
+        (p.reactions_sad || 0) + (p.reactions_angry || 0)
+      ), 0),
+      totalComments: posts.reduce((sum, p) => sum + (p.comments_count || 0), 0),
+      totalShares: posts.reduce((sum, p) => sum + (p.shares_count || 0), 0),
+      totalImpressions: posts.reduce((sum, p) => sum + (p.post_impressions || 0), 0),
+      totalReach: posts.reduce((sum, p) => sum + (p.post_reach || 0), 0),
+      totalEngagedUsers: posts.reduce((sum, p) => sum + (p.post_engaged_users || 0), 0),
+      avgEngagementPerPost: posts.length > 0 
+        ? Math.round(posts.reduce((sum, p) => sum + (p.post_engaged_users || 0), 0) / posts.length)
+        : 0,
+      reactionBreakdown: {
+        like: posts.reduce((sum, p) => sum + (p.reactions_like || 0), 0),
+        love: posts.reduce((sum, p) => sum + (p.reactions_love || 0), 0),
+        haha: posts.reduce((sum, p) => sum + (p.reactions_haha || 0), 0),
+        wow: posts.reduce((sum, p) => sum + (p.reactions_wow || 0), 0),
+        sad: posts.reduce((sum, p) => sum + (p.reactions_sad || 0), 0),
+        angry: posts.reduce((sum, p) => sum + (p.reactions_angry || 0), 0)
+      }
+    };
+
+    console.log(`✅ Fetched ${posts.length} posts with full insights`);
+    console.log(`   Total reactions: ${analytics.totalReactions}`);
+    console.log(`   Total impressions: ${analytics.totalImpressions}`);
+
+    res.json({
+      success: true,
+      data: {
+        overview: overview || {
+          pageViews: 0,
+          followers: 0,
+          engagement: 0,
+          reach: 0,
+          impressions: 0
+        },
+        posts,
+        analytics,
+        fetchedAt: new Date().toISOString()
+      }
+    });
+  } catch (error: any) {
+    console.error('❌ Get full Facebook data error:', error);
+    console.error('   Error stack:', error.stack);
+    console.error('   Error details:', {
+      message: error.message,
+      name: error.name,
+      response: error.response?.data
+    });
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch full Facebook data',
+      details: error.response?.data?.error?.message || error.toString()
+    });
+  }
+});
+
+// Get posts with inline insights (direct from Facebook API)
+router.get('/facebook/posts-with-insights/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const limit = parseInt(req.query.limit as string) || 25;
+
+    console.log(`\n📝 === API: Fetching posts with inline insights for client ${clientId} ===`);
+
+    const FacebookService = (await import('../services/facebookService')).default;
+    const facebookService = new FacebookService(pool);
+
+    const credentials = await facebookService.getClientCredentials(parseInt(clientId));
+    if (!credentials) {
+      return res.status(404).json({
+        success: false,
+        error: 'Facebook not connected'
+      });
+    }
+
+    const posts = await facebookService.fetchPostsWithInlineInsights(
+      credentials.page_id,
+      credentials.access_token,
+      limit
+    );
+
+    console.log(`✅ Fetched ${posts.length} posts with inline insights`);
+
+    res.json({
+      success: true,
+      data: posts,
+      count: posts.length
+    });
+  } catch (error: any) {
+    console.error('❌ Get posts with insights error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch posts with insights'
+    });
+  }
+});
+
+// Get follower statistics with historical data
+router.get('/facebook/follower-history/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const days = parseInt(req.query.days as string) || 28;
+
+    console.log(`\n👥 === API: Fetching follower history for client ${clientId} (${days} days) ===`);
+
+    const FacebookService = (await import('../services/facebookService')).default;
+    const facebookService = new FacebookService(pool);
+
+    const credentials = await facebookService.getClientCredentials(parseInt(clientId));
+    if (!credentials) {
+      return res.status(404).json({
+        success: false,
+        error: 'Facebook not connected'
+      });
+    }
+
+    // Fetch follower insights with historical data
+    const followerData = await facebookService.fetchFollowerInsights(
+      credentials.page_id,
+      credentials.access_token,
+      days
+    );
+
+    res.json({
+      success: true,
+      data: followerData
+    });
+  } catch (error: any) {
+    console.error('❌ Get follower history error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch follower history'
+    });
+  }
+});
+
+// Get page insights with all available metrics
+router.get('/facebook/page-insights/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    console.log(`\n📊 === API: Fetching comprehensive page insights for client ${clientId} ===`);
+
+    const FacebookService = (await import('../services/facebookService')).default;
+    const facebookService = new FacebookService(pool);
+
+    const credentials = await facebookService.getClientCredentials(parseInt(clientId));
+    if (!credentials) {
+      return res.status(404).json({
+        success: false,
+        error: 'Facebook not connected'
+      });
+    }
+
+    // Fetch all page insights
+    const insights = await facebookService.fetchAllPageInsights(
+      credentials.page_id,
+      credentials.access_token
+    );
+
+    res.json({
+      success: true,
+      data: insights
+    });
+  } catch (error: any) {
+    console.error('❌ Get page insights error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch page insights'
+    });
+  }
+});
+
+// Get post analytics by type (photo, video, link, status)
+router.get('/facebook/analytics/by-type/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    console.log(`\n📊 === API: Fetching post analytics by type for client ${clientId} ===`);
+
+    const result = await pool.query(
+      `SELECT 
+        post_type,
+        COUNT(*) as post_count,
+        SUM(post_impressions) as total_impressions,
+        SUM(post_reach) as total_reach,
+        SUM(post_engaged_users) as total_engaged_users,
+        SUM(reactions_like + reactions_love + reactions_haha + reactions_wow + reactions_sad + reactions_angry) as total_reactions,
+        SUM(comments_count) as total_comments,
+        SUM(shares_count) as total_shares,
+        ROUND(AVG(post_impressions), 2) as avg_impressions,
+        ROUND(AVG(post_engaged_users), 2) as avg_engagement
+      FROM facebook_posts
+      WHERE client_id = $1
+      GROUP BY post_type
+      ORDER BY total_engaged_users DESC`,
+      [clientId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error: any) {
+    console.error('❌ Get analytics by type error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch analytics by type'
+    });
+  }
+});
+
+// Get reaction breakdown for a specific post
+router.get('/facebook/post-reactions/:postId', requireAuth, async (req, res) => {
+  try {
+    const { postId } = req.params;
+
+    console.log(`\n💕 === API: Fetching reactions for post ${postId} ===`);
+
+    const result = await pool.query(
+      `SELECT 
+        post_id,
+        message,
+        created_time,
+        reactions_like,
+        reactions_love,
+        reactions_haha,
+        reactions_wow,
+        reactions_sad,
+        reactions_angry,
+        comments_count,
+        shares_count,
+        post_impressions,
+        post_reach,
+        post_engaged_users
+      FROM facebook_posts
+      WHERE post_id = $1`,
+      [postId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Post not found'
+      });
+    }
+
+    const post = result.rows[0];
+    const totalReactions = post.reactions_like + post.reactions_love + 
+                          post.reactions_haha + post.reactions_wow + 
+                          post.reactions_sad + post.reactions_angry;
+
+    res.json({
+      success: true,
+      data: {
+        ...post,
+        totalReactions,
+        reactionBreakdown: {
+          like: { count: post.reactions_like, percentage: totalReactions > 0 ? ((post.reactions_like / totalReactions) * 100).toFixed(1) : 0 },
+          love: { count: post.reactions_love, percentage: totalReactions > 0 ? ((post.reactions_love / totalReactions) * 100).toFixed(1) : 0 },
+          haha: { count: post.reactions_haha, percentage: totalReactions > 0 ? ((post.reactions_haha / totalReactions) * 100).toFixed(1) : 0 },
+          wow: { count: post.reactions_wow, percentage: totalReactions > 0 ? ((post.reactions_wow / totalReactions) * 100).toFixed(1) : 0 },
+          sad: { count: post.reactions_sad, percentage: totalReactions > 0 ? ((post.reactions_sad / totalReactions) * 100).toFixed(1) : 0 },
+          angry: { count: post.reactions_angry, percentage: totalReactions > 0 ? ((post.reactions_angry / totalReactions) * 100).toFixed(1) : 0 }
+        }
+      }
+    });
+  } catch (error: any) {
+    console.error('❌ Get post reactions error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch post reactions'
+    });
+  }
+});
+
+// Get best time to post analysis
+router.get('/facebook/analytics/best-time/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    console.log(`\n⏰ === API: Analyzing best time to post for client ${clientId} ===`);
+
+    const result = await pool.query(
+      `SELECT 
+        EXTRACT(DOW FROM created_time) as day_of_week,
+        EXTRACT(HOUR FROM created_time) as hour_of_day,
+        COUNT(*) as post_count,
+        ROUND(AVG(post_engaged_users), 2) as avg_engagement,
+        ROUND(AVG(post_impressions), 2) as avg_impressions,
+        ROUND(AVG(post_reach), 2) as avg_reach
+      FROM facebook_posts
+      WHERE client_id = $1
+      GROUP BY day_of_week, hour_of_day
+      ORDER BY avg_engagement DESC
+      LIMIT 10`,
+      [clientId]
+    );
+
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    
+    const bestTimes = result.rows.map(row => ({
+      dayOfWeek: dayNames[row.day_of_week],
+      hour: `${row.hour_of_day}:00`,
+      postCount: parseInt(row.post_count),
+      avgEngagement: parseFloat(row.avg_engagement),
+      avgImpressions: parseFloat(row.avg_impressions),
+      avgReach: parseFloat(row.avg_reach)
+    }));
+
+    res.json({
+      success: true,
+      data: bestTimes
+    });
+  } catch (error: any) {
+    console.error('❌ Get best time analysis error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to analyze best posting times'
+    });
+  }
+});
+
+// Get engagement trends over time
+router.get('/facebook/analytics/engagement-trend/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const days = parseInt(req.query.days as string) || 30;
+
+    console.log(`\n📈 === API: Fetching engagement trends for client ${clientId} (${days} days) ===`);
+
+    const result = await pool.query(
+      `SELECT 
+        DATE(created_time) as date,
+        COUNT(*) as post_count,
+        SUM(post_impressions) as total_impressions,
+        SUM(post_reach) as total_reach,
+        SUM(post_engaged_users) as total_engaged_users,
+        SUM(reactions_like + reactions_love + reactions_haha + reactions_wow + reactions_sad + reactions_angry) as total_reactions,
+        SUM(comments_count) as total_comments,
+        SUM(shares_count) as total_shares,
+        ROUND(AVG(post_engaged_users), 2) as avg_engagement_per_post
+      FROM facebook_posts
+      WHERE client_id = $1
+        AND created_time >= NOW() - INTERVAL '${days} days'
+      GROUP BY DATE(created_time)
+      ORDER BY date DESC`,
+      [clientId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error: any) {
+    console.error('❌ Get engagement trend error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch engagement trends'
+    });
+  }
+});
+
+// Refresh Facebook data (sync from API to database)
+router.post('/facebook/refresh-full-data/:clientId', requireAuth, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { clientId } = req.params;
+
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`🔄 [REFRESH API] Starting Facebook data refresh for client ${clientId}`);
+    console.log(`📅 Timestamp: ${new Date().toISOString()}`);
+    console.log(`👤 User: ${(req as any).user?.email || 'Unknown'}`);
+    console.log(`${'='.repeat(80)}`);
+
+    // Step 1: Validate client ID
+    console.log(`\n📋 Step 1: Validating client ID...`);
+    const clientIdNum = parseInt(clientId);
+    if (isNaN(clientIdNum)) {
+      console.error(`❌ Invalid client ID: ${clientId}`);
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid client ID'
+      });
+    }
+    console.log(`✅ Client ID validated: ${clientIdNum}`);
+
+    // Step 2: Initialize Facebook Service
+    console.log(`\n🔧 Step 2: Initializing Facebook Service...`);
+    const FacebookService = (await import('../services/facebookService')).default;
+    const facebookService = new FacebookService(pool);
+    console.log(`✅ Facebook Service initialized`);
+
+    // Step 3: Check if credentials exist
+    console.log(`\n🔑 Step 3: Checking for Facebook credentials...`);
+    const creds = await facebookService.getClientCredentials(clientIdNum);
+    if (!creds) {
+      console.error(`❌ No Facebook credentials found for client ${clientIdNum}`);
+      return res.status(404).json({
+        success: false,
+        error: 'No Facebook credentials found for this client. Please connect your Facebook page first.'
+      });
+    }
+    console.log(`✅ Credentials found:`);
+    console.log(`   📄 Page ID: ${creds.page_id}`);
+    console.log(`   🔑 Token: ${creds.access_token.substring(0, 20)}...${creds.access_token.substring(creds.access_token.length - 10)}`);
+
+    // Step 4: Fetch and store data from Facebook
+    console.log(`\n📊 Step 4: Fetching fresh data from Facebook API...`);
+    const data = await facebookService.fetchAndStoreData(clientIdNum);
+    
+    const duration = Date.now() - startTime;
+    console.log(`\n✅ SUCCESS! Facebook data refresh completed for client ${clientIdNum}`);
+    console.log(`   ⏱️  Duration: ${duration}ms`);
+    console.log(`   📊 Page Views: ${data.pageViews}`);
+    console.log(`   👥 Followers: ${data.followers}`);
+    console.log(`   💬 Engagement: ${data.engagement}`);
+    console.log(`   📝 Posts: ${data.posts.length}`);
+    console.log(`   📈 Engagement Rate: ${data.engagementRate}%`);
+    console.log(`${'='.repeat(80)}\n`);
+
+    res.json({
+      success: true,
+      message: 'Facebook data refreshed successfully',
+      data: {
+        pageViews: data.pageViews,
+        followers: data.followers,
+        engagement: data.engagement,
+        engagementRate: data.engagementRate,
+        reach: data.reach,
+        impressions: data.impressions,
+        postsCount: data.posts.length,
+        syncedAt: new Date().toISOString(),
+        duration: `${duration}ms`
+      }
+    });
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+    console.error(`\n${'='.repeat(80)}`);
+    console.error(`❌ [REFRESH API ERROR] Client ${req.params.clientId}`);
+    console.error(`   ⏱️  Duration: ${duration}ms`);
+    console.error(`   📋 Error Message: ${error.message}`);
+    console.error(`   📚 Error Stack:\n${error.stack}`);
+    console.error(`${'='.repeat(80)}\n`);
+    
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to refresh Facebook data',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
