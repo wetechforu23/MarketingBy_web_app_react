@@ -44,6 +44,15 @@
         supported: true,
         version: null,
         platform: null
+      },
+      // Intro flow state
+      introFlow: {
+        enabled: false,
+        questions: [],
+        currentQuestionIndex: 0,
+        answers: {},
+        isActive: false,
+        isComplete: false
       }
     },
 
@@ -521,11 +530,48 @@
       this.state.isOpen = false;
     },
 
-    // Start intro flow
-    startIntroFlow() {
+    // Start intro flow (Enhanced with database questions)
+    async startIntroFlow() {
       if (this.state.hasShownIntro) return;
       this.state.hasShownIntro = true;
 
+      // Fetch widget config including intro questions
+      try {
+        const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/config`);
+        const config = await response.json();
+
+        // Check if intro flow is enabled
+        if (config.intro_flow_enabled && config.intro_questions && config.intro_questions.length > 0) {
+          this.state.introFlow.enabled = true;
+          this.state.introFlow.questions = config.intro_questions;
+          this.state.introFlow.isActive = true;
+
+          // Start with welcome message
+          setTimeout(() => {
+            this.addBotMessage(`👋 Welcome! I'm ${this.config.botName}.`);
+          }, 500);
+
+          setTimeout(() => {
+            this.addBotMessage("Before we begin, I'd like to know a bit more about you.");
+          }, 1500);
+
+          setTimeout(() => {
+            this.askIntroQuestion();
+          }, 2500);
+
+        } else {
+          // Original intro flow (no questions)
+          this.startDefaultIntroFlow();
+        }
+      } catch (error) {
+        console.error('Failed to load intro flow config:', error);
+        // Fall back to default intro
+        this.startDefaultIntroFlow();
+      }
+    },
+
+    // Default intro flow (no questions)
+    startDefaultIntroFlow() {
       const introMessages = [
         {
           text: `👋 Welcome! I'm ${this.config.botName}, your virtual assistant.`,
@@ -550,6 +596,96 @@
           }
         }, msg.delay);
       });
+    },
+
+    // Ask current intro question
+    askIntroQuestion() {
+      if (this.state.introFlow.currentQuestionIndex >= this.state.introFlow.questions.length) {
+        this.completeIntroFlow();
+        return;
+      }
+
+      const question = this.state.introFlow.questions[this.state.introFlow.currentQuestionIndex];
+      const required = question.required ? '*' : '';
+      
+      // Display question
+      this.addBotMessage(`${question.question}${required}`);
+
+      // If it's a select type, show options as buttons
+      if (question.type === 'select' && question.options && question.options.length > 0) {
+        setTimeout(() => {
+          this.showIntroOptions(question.options, question.id);
+        }, 500);
+      }
+    },
+
+    // Show intro question options as buttons
+    showIntroOptions(options, questionId) {
+      const quickActions = document.getElementById('wetechforu-quick-actions');
+      if (!quickActions) return;
+
+      quickActions.style.display = 'flex';
+      quickActions.innerHTML = options.map(option => 
+        `<button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleIntroOption('${questionId}', '${option.replace(/'/g, "\\'")}')">${option}</button>`
+      ).join('');
+    },
+
+    // Handle intro option selection
+    handleIntroOption(questionId, answer) {
+      const quickActions = document.getElementById('wetechforu-quick-actions');
+      if (quickActions) quickActions.style.display = 'none';
+
+      // Save answer and show as user message
+      this.addUserMessage(answer);
+      this.saveIntroAnswer(questionId, answer);
+
+      // Move to next question
+      setTimeout(() => {
+        this.state.introFlow.currentQuestionIndex++;
+        this.askIntroQuestion();
+      }, 500);
+    },
+
+    // Save intro answer
+    saveIntroAnswer(questionId, answer) {
+      this.state.introFlow.answers[questionId] = answer;
+    },
+
+    // Complete intro flow
+    async completeIntroFlow() {
+      this.state.introFlow.isActive = false;
+      this.state.introFlow.isComplete = true;
+
+      // Show completion message
+      this.addBotMessage("✅ Thank you! I have all the information I need.");
+
+      // Submit answers to backend
+      try {
+        const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/intro-data`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conversation_id: this.state.conversationId,
+            intro_data: this.state.introFlow.answers
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.conversation_id) {
+            this.state.conversationId = data.conversation_id;
+          }
+          console.log('✅ Intro data saved successfully');
+        }
+      } catch (error) {
+        console.error('Failed to save intro data:', error);
+      }
+
+      // Show "how can I help" message
+      setTimeout(() => {
+        this.addBotMessage("How can I help you today?");
+        this.showQuickActions();
+      }, 1000);
     },
 
     // Show quick action buttons
@@ -635,7 +771,28 @@
       this.addUserMessage(message);
       input.value = '';
       
-      this.sendMessageToBackend(message);
+      // If intro flow is active, treat as intro answer
+      if (this.state.introFlow.isActive) {
+        const question = this.state.introFlow.questions[this.state.introFlow.currentQuestionIndex];
+        
+        // Validate required fields
+        if (question.required && !message) {
+          this.addBotMessage("This field is required. Please provide an answer.");
+          return;
+        }
+
+        // Save answer
+        this.saveIntroAnswer(question.id, message);
+
+        // Move to next question
+        setTimeout(() => {
+          this.state.introFlow.currentQuestionIndex++;
+          this.askIntroQuestion();
+        }, 500);
+      } else {
+        // Normal chat mode
+        this.sendMessageToBackend(message);
+      }
     },
 
     // Send message to backend
@@ -682,11 +839,44 @@
         if (data.conversationId) {
           this.state.conversationId = data.conversationId;
         }
+
+        // 🎯 Handle smart suggestions (if provided)
+        if (data.suggestions && data.suggestions.length > 0) {
+          setTimeout(() => {
+            this.showSmartSuggestions(data.suggestions);
+          }, 500);
+        }
       } catch (error) {
         this.hideTyping();
         this.addBotMessage("I'm sorry, I'm having trouble connecting. Please try again later.");
         console.error('Widget error:', error);
       }
+    },
+
+    // Show smart suggestions as clickable buttons
+    showSmartSuggestions(suggestions) {
+      const quickActions = document.getElementById('wetechforu-quick-actions');
+      if (!quickActions) return;
+
+      quickActions.style.display = 'flex';
+      quickActions.innerHTML = `
+        <div style="width: 100%; font-size: 12px; color: #666; margin-bottom: 8px;">
+          💡 Did you mean one of these?
+        </div>
+        ${suggestions.map((sug, index) => 
+          `<button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleSuggestionClick('${sug.question.replace(/'/g, "\\'")}')">${index + 1}. ${sug.question} (${sug.similarity}% match)</button>`
+        ).join('')}
+      `;
+    },
+
+    // Handle suggestion click
+    handleSuggestionClick(question) {
+      const quickActions = document.getElementById('wetechforu-quick-actions');
+      if (quickActions) quickActions.style.display = 'none';
+
+      // Send the suggested question as user message
+      this.addUserMessage(question);
+      this.sendMessageToBackend(question);
     },
 
     // Scroll to bottom
