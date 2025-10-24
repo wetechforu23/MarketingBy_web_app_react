@@ -29,7 +29,14 @@
       rateLimit: {
         maxMessages: 10,
         timeWindow: 60000 // 10 messages per minute
-      }
+      },
+      // 🏥 Healthcare Compliance
+      industry: 'general',
+      practicePhone: null,
+      emergencyDisclaimer: 'If this is a medical emergency, please call 911 immediately.',
+      hipaaDisclaimer: 'This chat is not for medical emergencies. For urgent medical concerns, please call 911 or visit your nearest emergency room.',
+      showEmergencyWarning: false,
+      autoDetectEmergency: false
     },
 
     state: {
@@ -120,6 +127,14 @@
         if (config.intro_flow_enabled !== undefined) {
           this.config.enableIntroFlow = config.intro_flow_enabled;
         }
+        
+        // 🏥 Healthcare Compliance Settings
+        if (config.industry) this.config.industry = config.industry;
+        if (config.practice_phone) this.config.practicePhone = config.practice_phone;
+        if (config.emergency_disclaimer) this.config.emergencyDisclaimer = config.emergency_disclaimer;
+        if (config.hipaa_disclaimer) this.config.hipaaDisclaimer = config.hipaa_disclaimer;
+        if (config.show_emergency_warning !== undefined) this.config.showEmergencyWarning = config.show_emergency_warning;
+        if (config.auto_detect_emergency !== undefined) this.config.autoDetectEmergency = config.auto_detect_emergency;
         
         console.log('✅ Widget config loaded from database:', config);
       } catch (error) {
@@ -410,6 +425,17 @@
             0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
             40% { transform: translateY(-10px); }
             60% { transform: translateY(-5px); }
+          }
+          
+          @keyframes pulse {
+            0%, 100% { 
+              transform: scale(1); 
+              box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+            }
+            50% { 
+              transform: scale(1.02); 
+              box-shadow: 0 0 20px 10px rgba(220, 53, 69, 0);
+            }
           }
 
           #wetechforu-chat-button:hover {
@@ -887,29 +913,81 @@
         console.error('Failed to save intro data:', error);
       }
 
-      // Show "how can I help" message
+      // 🏥 Show HIPAA/Emergency Disclaimer for Healthcare Clients
+      if (this.config.showEmergencyWarning && this.config.industry === 'healthcare') {
+        setTimeout(() => {
+          this.addEmergencyDisclaimer();
+        }, 500);
+      }
+
+      // Show "how can I help" message - OPEN-ENDED
       setTimeout(() => {
-        this.addBotMessage("How can I help you today?");
-        this.showQuickActions();
-      }, 1000);
+        this.addBotMessage("How can I help you today? Feel free to ask me anything! 😊");
+        // ✅ Don't show quick actions - let user ask naturally
+        this.state.awaitingUserQuestion = true;
+      }, this.config.showEmergencyWarning ? 2000 : 1000);
+    },
+    
+    // 🚨 Show emergency disclaimer (HIPAA compliance for healthcare)
+    addEmergencyDisclaimer() {
+      const messagesDiv = document.getElementById('wetechforu-messages');
+      if (!messagesDiv) return;
+      
+      const disclaimerDiv = document.createElement('div');
+      disclaimerDiv.style.cssText = `
+        margin-bottom: 16px;
+        padding: 12px;
+        background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%);
+        border: 2px solid #ff9800;
+        border-radius: 8px;
+        font-size: 13px;
+        line-height: 1.6;
+        color: #856404;
+        animation: slideUp 0.3s ease-out;
+      `;
+      
+      disclaimerDiv.innerHTML = `
+        <div style="font-weight: 700; margin-bottom: 8px; color: #dc3545; display: flex; align-items: center; gap: 6px;">
+          🚨 IMPORTANT NOTICE
+        </div>
+        <div style="margin-bottom: 8px;">
+          ${this.config.hipaaDisclaimer || 'This chat is not for medical emergencies.'}
+        </div>
+        <div style="font-weight: 600; color: #dc3545; margin-top: 8px;">
+          ${this.config.emergencyDisclaimer || 'If this is a medical emergency, please call 911 immediately.'}
+        </div>
+        ${this.config.practicePhone ? `
+          <div style="margin-top: 10px; padding: 8px; background: white; border-radius: 6px; border: 1px solid #ff9800;">
+            <strong>📞 Practice Phone:</strong> <a href="tel:${this.config.practicePhone}" style="color: #4682B4; text-decoration: none; font-weight: 600;">${this.config.practicePhone}</a>
+          </div>
+        ` : ''}
+      `;
+      
+      messagesDiv.appendChild(disclaimerDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
     },
 
-    // Show quick action buttons - SMART CATEGORIES
-    showQuickActions() {
+    // Show quick action buttons - ONLY when needed
+    showQuickActions(suggestions = []) {
       const quickActions = document.getElementById('wetechforu-quick-actions');
       quickActions.style.display = 'flex';
 
-      const categories = [
-        { icon: "🏥", label: "Healthcare Services", id: "healthcare" },
-        { icon: "📅", label: "Book Appointment", id: "appointment" },
-        { icon: "🕐", label: "Business Hours", id: "hours" },
-        { icon: "📞", label: "Contact Us", id: "contact" },
-        { icon: "💬", label: "Talk to Human", id: "agent" }
-      ];
+      if (suggestions && suggestions.length > 0) {
+        // Show similar question suggestions
+        quickActions.innerHTML = suggestions.map((sug, i) => 
+          `<button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleSuggestionClick(${sug.id})">${i+1}. ${sug.question}</button>`
+        ).join('');
+      } else {
+        // Show default categories only if no suggestions
+        const categories = [
+          { icon: "💬", label: "Talk to Agent", id: "agent" },
+          { icon: "📅", label: "Book Appointment", id: "appointment" }
+        ];
 
-      quickActions.innerHTML = categories.map(cat => 
-        `<button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleCategory('${cat.id}')">${cat.icon} ${cat.label}</button>`
-      ).join('');
+        quickActions.innerHTML = categories.map(cat => 
+          `<button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleCategory('${cat.id}')">${cat.icon} ${cat.label}</button>`
+        ).join('');
+      }
     },
 
     // Handle category selection - SMART ROUTING
@@ -1169,6 +1247,17 @@
       this.addUserMessage(message);
       input.value = '';
       
+      // 🚨 Emergency keyword detection for healthcare
+      if (this.config.autoDetectEmergency && this.config.industry === 'healthcare') {
+        const emergencyDetected = this.detectEmergencyKeywords(message);
+        if (emergencyDetected) {
+          setTimeout(() => {
+            this.showEmergencyAlert(emergencyDetected);
+          }, 500);
+          return; // Stop processing - prioritize emergency
+        }
+      }
+      
       // ✅ If collecting contact info for live agent
       if (this.state.currentContactField) {
         if (!this.state.contactInfo) this.state.contactInfo = {};
@@ -1204,6 +1293,104 @@
         // Normal chat mode
         this.sendMessageToBackend(message);
       }
+    },
+    
+    // 🚨 Detect emergency keywords in user message
+    detectEmergencyKeywords(message) {
+      const emergencyKeywords = [
+        { words: ['emergency', '911', 'urgent', 'asap', 'immediately'], severity: 'high' },
+        { words: ['chest pain', 'heart attack', 'stroke', 'can\'t breathe', 'cant breathe', 'difficulty breathing', 'shortness of breath'], severity: 'high' },
+        { words: ['bleeding', 'blood', 'unconscious', 'passed out', 'seizure', 'overdose'], severity: 'high' },
+        { words: ['severe pain', 'excruciating', 'unbearable', 'sudden', 'critical'], severity: 'medium' },
+        { words: ['pain', 'hurt', 'injured', 'accident', 'fall'], severity: 'low' }
+      ];
+      
+      const messageLower = message.toLowerCase();
+      
+      for (const category of emergencyKeywords) {
+        for (const keyword of category.words) {
+          if (messageLower.includes(keyword.toLowerCase())) {
+            return { keyword, severity: category.severity };
+          }
+        }
+      }
+      
+      return null;
+    },
+    
+    // 🚨 Show emergency alert with 911 and practice phone
+    showEmergencyAlert(detection) {
+      const quickActions = document.getElementById('wetechforu-quick-actions');
+      quickActions.style.display = 'none';
+      
+      // Show urgent warning message
+      const messagesDiv = document.getElementById('wetechforu-messages');
+      if (!messagesDiv) return;
+      
+      const alertDiv = document.createElement('div');
+      alertDiv.style.cssText = `
+        margin-bottom: 16px;
+        padding: 16px;
+        background: linear-gradient(135deg, #fee 0%, #fcc 100%);
+        border: 3px solid #dc3545;
+        border-radius: 10px;
+        font-size: 14px;
+        line-height: 1.7;
+        color: #721c24;
+        animation: pulse 1.5s ease-in-out infinite;
+      `;
+      
+      alertDiv.innerHTML = `
+        <div style="font-weight: 800; font-size: 16px; margin-bottom: 10px; color: #dc3545; display: flex; align-items: center; gap: 8px;">
+          🚨 MEDICAL EMERGENCY DETECTED
+        </div>
+        <div style="font-weight: 600; margin-bottom: 12px;">
+          It sounds like you may need immediate medical attention.
+        </div>
+        <div style="background: white; padding: 12px; border-radius: 8px; margin: 12px 0; border: 2px solid #dc3545;">
+          <div style="font-weight: 700; font-size: 15px; color: #dc3545; margin-bottom: 8px;">
+            ☎️ CALL 911 NOW if this is life-threatening!
+          </div>
+          <a href="tel:911" style="display: inline-block; padding: 10px 20px; background: #dc3545; color: white; text-decoration: none; border-radius: 6px; font-weight: 700; margin-top: 8px;">
+            📞 Call 911 Emergency
+          </a>
+        </div>
+        ${this.config.practicePhone ? `
+          <div style="background: white; padding: 12px; border-radius: 8px; border: 2px solid #ff9800;">
+            <div style="font-weight: 600; margin-bottom: 6px;">
+              For non-life-threatening concerns, call our practice:
+            </div>
+            <a href="tel:${this.config.practicePhone}" style="display: inline-block; padding: 10px 20px; background: #4682B4; color: white; text-decoration: none; border-radius: 6px; font-weight: 700;">
+              📞 Call ${this.config.practicePhone}
+            </a>
+          </div>
+        ` : ''}
+        <div style="margin-top: 12px; font-size: 12px; color: #666;">
+          💬 This chat is not monitored for emergencies. For immediate medical assistance, please use the phone numbers above.
+        </div>
+      `;
+      
+      messagesDiv.appendChild(alertDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      
+      // Show option to continue anyway
+      setTimeout(() => {
+        quickActions.style.display = 'flex';
+        quickActions.innerHTML = `
+          <button class="wetechforu-quick-action" onclick="WeTechForUWidget.acknowledgeEmergency()" style="background: #4682B4; color: white; border: none;">
+            ✅ I understand, continue chat
+          </button>
+        `;
+      }, 2000);
+    },
+    
+    // User acknowledges emergency warning
+    acknowledgeEmergency() {
+      const quickActions = document.getElementById('wetechforu-quick-actions');
+      quickActions.style.display = 'none';
+      
+      this.addBotMessage("Understood. I'm here to help with general questions. How can I assist you? (Remember: This is not for emergencies)");
+      this.state.awaitingUserQuestion = true;
     },
     
     // Submit collected info to live agent
@@ -1395,18 +1582,95 @@
         
         if (data.response) {
           this.addBotMessage(data.response);
-        }
-
-        // 🎯 Handle smart suggestions (if provided)
-        if (data.suggestions && data.suggestions.length > 0) {
-          setTimeout(() => {
-            this.showSmartSuggestions(data.suggestions);
-          }, 500);
+          
+          // ✅ SMART FOLLOW-UP FLOW
+          const confidence = data.confidence || 0;
+          
+          if (confidence >= 0.85) {
+            // ✅ HIGH CONFIDENCE (85%+) - Answer is good, ask if helpful
+            setTimeout(() => {
+              this.showHelpfulButtons();
+            }, 1500);
+          } else if (data.suggestions && data.suggestions.length > 0) {
+            // 🤔 MEDIUM CONFIDENCE (50-85%) - Show similar questions
+            setTimeout(() => {
+              this.addBotMessage("Or did you mean one of these?");
+              this.showSmartSuggestions(data.suggestions);
+            }, 1000);
+          } else {
+            // ❌ LOW CONFIDENCE (<50%) - Offer agent help immediately
+            setTimeout(() => {
+              this.addBotMessage("I'm not sure I fully understood your question. Would you like me to connect you with a live agent?");
+              this.showHelpfulButtons(true); // Show Yes/No for agent
+            }, 1000);
+          }
         }
       } catch (error) {
         this.hideTyping();
         this.addBotMessage("I'm sorry, I'm having trouble connecting. Please try again later.");
         console.error('Widget error:', error);
+      }
+    },
+    
+    // Show "Was this helpful?" or "Talk to agent?" buttons
+    showHelpfulButtons(offerAgent = false) {
+      const quickActions = document.getElementById('wetechforu-quick-actions');
+      if (!quickActions) return;
+      
+      quickActions.style.display = 'flex';
+      
+      if (offerAgent) {
+        // Offer to connect with agent
+        quickActions.innerHTML = `
+          <button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleFeedback('agent')" style="background: #4682B4; color: white; border: none;">
+            💬 Yes, connect me with an agent
+          </button>
+          <button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleFeedback('retry')" style="background: #6c757d; color: white; border: none;">
+            🔄 Let me try rephrasing
+          </button>
+        `;
+      } else {
+        // Ask if answer was helpful
+        quickActions.innerHTML = `
+          <button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleFeedback('yes')" style="background: #28a745; color: white; border: none;">
+            ✅ Yes, that helped!
+          </button>
+          <button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleFeedback('no')" style="background: #dc3545; color: white; border: none;">
+            ❌ No, I need more help
+          </button>
+        `;
+      }
+    },
+    
+    // Handle user feedback on bot answers
+    handleFeedback(feedback) {
+      const quickActions = document.getElementById('wetechforu-quick-actions');
+      quickActions.style.display = 'none';
+      
+      if (feedback === 'yes') {
+        this.addUserMessage("✅ Yes, that helped!");
+        setTimeout(() => {
+          this.addBotMessage("Awesome! 🎉 Is there anything else I can help you with?");
+          this.state.awaitingUserQuestion = true;
+        }, 500);
+      } else if (feedback === 'no') {
+        this.addUserMessage("❌ No, I need more help");
+        setTimeout(() => {
+          this.addBotMessage("No problem! Let me connect you with a live agent who can assist you better. 👨‍💼");
+          this.requestLiveAgent();
+        }, 500);
+      } else if (feedback === 'agent') {
+        this.addUserMessage("💬 Yes, connect me with an agent");
+        setTimeout(() => {
+          this.addBotMessage("Great! Let me gather some information so our agent can help you better.");
+          this.requestLiveAgent();
+        }, 500);
+      } else if (feedback === 'retry') {
+        this.addUserMessage("🔄 Let me try rephrasing");
+        setTimeout(() => {
+          this.addBotMessage("Of course! Please go ahead and rephrase your question. I'm here to help! 😊");
+          this.state.awaitingUserQuestion = true;
+        }, 500);
       }
     },
 

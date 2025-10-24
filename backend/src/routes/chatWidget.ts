@@ -399,7 +399,9 @@ router.get('/public/widget/:widgetKey/config', async (req, res) => {
               welcome_message, bot_name, bot_avatar_url, enable_appointment_booking,
               enable_email_capture, enable_phone_capture, enable_ai_handoff,
               ai_handoff_url, business_hours, offline_message, is_active,
-              intro_flow_enabled, intro_questions
+              intro_flow_enabled, intro_questions,
+              industry, practice_phone, emergency_disclaimer, hipaa_disclaimer,
+              show_emergency_warning, auto_detect_emergency
        FROM widget_configs
        WHERE widget_key = $1 AND is_active = true`,
       [widgetKey]
