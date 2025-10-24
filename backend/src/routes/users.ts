@@ -194,7 +194,7 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
         u.created_at,
         u.created_by,
         c.username as created_by_name,
-        cl.name as client_name
+        cl.client_name as client_name
       FROM users u
       LEFT JOIN users c ON u.created_by = c.id
       LEFT JOIN clients cl ON u.client_id = cl.id
