@@ -57,13 +57,17 @@
     },
 
     // Initialize widget
-    init(options) {
+    async init(options) {
       if (!options.widgetKey || !options.backendUrl) {
         console.error('WeTechForU Widget: widgetKey and backendUrl are required');
         return;
       }
 
       this.config = { ...this.config, ...options };
+      
+      // Load widget configuration from database
+      await this.loadWidgetConfig();
+      
       this.detectCompatibility();
       this.createWidgetHTML();
       this.attachEventListeners();
@@ -75,6 +79,38 @@
             this.startIntroFlow();
           }
         }, this.config.autoPopupDelay);
+      }
+    },
+
+    // Load widget configuration from database
+    async loadWidgetConfig() {
+      try {
+        const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/config`);
+        
+        if (!response.ok) {
+          console.warn('Failed to load widget config, using defaults');
+          return;
+        }
+
+        const config = await response.json();
+        
+        // Update config with database values
+        if (config.bot_name) this.config.botName = config.bot_name;
+        if (config.welcome_message) this.config.welcomeMessage = config.welcome_message;
+        if (config.bot_avatar_url) this.config.botAvatarUrl = config.bot_avatar_url;
+        if (config.primary_color) this.config.primaryColor = config.primary_color;
+        if (config.secondary_color) this.config.secondaryColor = config.secondary_color;
+        if (config.position) this.config.position = config.position;
+        
+        // Store intro flow settings
+        if (config.intro_flow_enabled !== undefined) {
+          this.config.enableIntroFlow = config.intro_flow_enabled;
+        }
+        
+        console.log('✅ Widget config loaded from database:', config);
+      } catch (error) {
+        console.error('Failed to load widget config:', error);
+        // Continue with default config
       }
     },
 
@@ -209,7 +245,12 @@
                   align-items: center;
                   justify-content: center;
                   font-size: 20px;
-                ">🤖</div>
+                  overflow: hidden;
+                ">
+                  ${this.config.botAvatarUrl 
+                    ? `<img src="${this.config.botAvatarUrl}" alt="Bot Avatar" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.parentElement.innerHTML='🤖';" />` 
+                    : '🤖'}
+                </div>
                 <div>
                   <div style="font-weight: 600; font-size: 16px;">${this.config.botName}</div>
                   <div style="font-size: 12px; opacity: 0.9;" id="wetechforu-status">Online</div>
@@ -574,16 +615,12 @@
     startDefaultIntroFlow() {
       const introMessages = [
         {
-          text: `👋 Welcome! I'm ${this.config.botName}, your virtual assistant.`,
+          text: `👋 Welcome! I'm ${this.config.botName}.`,
           delay: 500
         },
         {
-          text: "I'm here to help you with any questions you might have!",
-          delay: 1500
-        },
-        {
-          text: "What can I help you with today?",
-          delay: 2500,
+          text: this.config.welcomeMessage || "How can I help you today?",
+          delay: 1500,
           showQuickActions: true
         }
       ];
