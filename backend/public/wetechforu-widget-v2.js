@@ -1260,6 +1260,29 @@
       }
       
       try {
+        // Collect visitor info from intro flow or contact info
+        let visitorName = 'Anonymous Visitor';
+        let visitorEmail = null;
+        let visitorPhone = null;
+        
+        // Check intro flow answers
+        if (this.state.introFlow && this.state.introFlow.answers) {
+          visitorName = this.state.introFlow.answers['name'] || 
+                       this.state.introFlow.answers['first_name'] || 
+                       this.state.introFlow.answers['full_name'] || 
+                       visitorName;
+          visitorEmail = this.state.introFlow.answers['email'] || null;
+          visitorPhone = this.state.introFlow.answers['phone'] || 
+                        this.state.introFlow.answers['phone_number'] || null;
+        }
+        
+        // Also check contact info (from live agent request)
+        if (this.state.contactInfo) {
+          if (this.state.contactInfo.name) visitorName = this.state.contactInfo.name;
+          if (this.state.contactInfo.email) visitorEmail = this.state.contactInfo.email;
+          if (this.state.contactInfo.phone) visitorPhone = this.state.contactInfo.phone;
+        }
+        
         const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversation`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1267,14 +1290,18 @@
             session_id: this.getSessionId(),
             page_url: window.location.href,
             referrer_url: document.referrer,
-            user_agent: navigator.userAgent
+            user_agent: navigator.userAgent,
+            visitor_name: visitorName,
+            visitor_email: visitorEmail,
+            visitor_phone: visitorPhone,
+            visitor_session_id: this.state.tracking.sessionId // Link to visitor tracking
           })
         });
         
         if (response.ok) {
           const data = await response.json();
           this.state.conversationId = data.conversation_id;
-          console.log('✅ Conversation created:', data.conversation_id);
+          console.log('✅ Conversation created:', data.conversation_id, 'for', visitorName);
           return data.conversation_id;
         } else {
           console.error('Failed to create conversation');
