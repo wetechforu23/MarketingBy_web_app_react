@@ -1326,44 +1326,57 @@ router.get('/client-dashboard/api-access', async (req, res) => {
         
         if (existingCheck.rows[0]?.converted_to_client_id) {
           clientId = existingCheck.rows[0].converted_to_client_id;
+          console.log(`✅ Lead ${id} already linked to client ${clientId}`);
         } else {
-          // Create new client from lead data
-          try {
-            const clientResult = await pool.query(
-              `INSERT INTO clients (
-                client_name, website, email, phone, contact_name,
-                practice_address, practice_city, practice_state, practice_zip_code,
-                is_active, created_at
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, NOW())
-              RETURNING id`,
-              [
-                lead.company || 'New Client',
-                lead.website_url || `https://${lead.company?.toLowerCase().replace(/\s+/g, '') || 'unknown'}.com`,
-                lead.email,
-                lead.phone,
-                `${lead.contact_first_name || ''} ${lead.contact_last_name || ''}`.trim() || null,
-                lead.address,
-                lead.city,
-                lead.state,
-                lead.zip_code
-              ]
-            );
-            
-            clientId = clientResult.rows[0].id;
-            
-            console.log(`✅ Auto-created client ${clientId} from lead ${id}`);
-          } catch (clientError: any) {
-            console.error(`❌ Error creating client from lead ${id}:`, clientError);
-            console.error('Lead data:', { 
-              company: lead.company, 
-              email: lead.email, 
-              phone: lead.phone,
-              address: lead.address,
-              city: lead.city,
-              state: lead.state,
-              zip_code: lead.zip_code
-            });
-            throw new Error(`Failed to create client: ${clientError.message}`);
+          // Check if a client with this email already exists
+          const existingClientCheck = await pool.query(
+            'SELECT id FROM clients WHERE email = $1 LIMIT 1',
+            [lead.email]
+          );
+          
+          if (existingClientCheck.rows.length > 0) {
+            // Client with this email already exists - use it!
+            clientId = existingClientCheck.rows[0].id;
+            console.log(`✅ Found existing client ${clientId} with email ${lead.email} - linking to lead ${id}`);
+          } else {
+            // Create new client from lead data
+            try {
+              const clientResult = await pool.query(
+                `INSERT INTO clients (
+                  client_name, website, email, phone, contact_name,
+                  practice_address, practice_city, practice_state, practice_zip_code,
+                  is_active, created_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, NOW())
+                RETURNING id`,
+                [
+                  lead.company || 'New Client',
+                  lead.website_url || `https://${lead.company?.toLowerCase().replace(/\s+/g, '') || 'unknown'}.com`,
+                  lead.email,
+                  lead.phone,
+                  `${lead.contact_first_name || ''} ${lead.contact_last_name || ''}`.trim() || null,
+                  lead.address,
+                  lead.city,
+                  lead.state,
+                  lead.zip_code
+                ]
+              );
+              
+              clientId = clientResult.rows[0].id;
+              
+              console.log(`✅ Auto-created NEW client ${clientId} from lead ${id}`);
+            } catch (clientError: any) {
+              console.error(`❌ Error creating client from lead ${id}:`, clientError);
+              console.error('Lead data:', { 
+                company: lead.company, 
+                email: lead.email, 
+                phone: lead.phone,
+                address: lead.address,
+                city: lead.city,
+                state: lead.state,
+                zip_code: lead.zip_code
+              });
+              throw new Error(`Failed to create client: ${clientError.message}`);
+            }
           }
         }
       }
