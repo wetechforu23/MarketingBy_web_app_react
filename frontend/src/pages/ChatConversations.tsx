@@ -35,7 +35,8 @@ interface Message {
   message_type: 'user' | 'bot' | 'human'
   message_text: string
   created_at: string
-  sender_name?: string
+  agent_name?: string  // Agent name for human responses
+  agent_user_id?: number  // Agent user ID
 }
 
 export default function ChatConversations() {
@@ -131,14 +132,14 @@ export default function ChatConversations() {
         message: replyText.trim()
       })
 
-      // Add message to UI
+      // Add message to UI  
       const newMessage: Message = {
         id: response.data.message_id || Date.now(),
         conversation_id: selectedConv.id,
         message_type: 'human',
         message_text: replyText.trim(),
         created_at: new Date().toISOString(),
-        sender_name: 'You'
+        agent_name: response.data.agent_name || 'You'  // Use agent name from response
       }
       
       setMessages([...messages, newMessage])
@@ -580,7 +581,17 @@ export default function ChatConversations() {
                       gap: '6px'
                     }}>
                       {getMessageTypeLabel(msg.message_type)}
-                      {msg.sender_name && ` (${msg.sender_name})`}
+                      {msg.message_type === 'human' && msg.agent_name && (
+                        <span style={{
+                          background: '#28a745',
+                          color: 'white',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          fontSize: '11px'
+                        }}>
+                          {msg.agent_name}
+                        </span>
+                      )}
                     </div>
 
                     {/* Message Bubble */}
