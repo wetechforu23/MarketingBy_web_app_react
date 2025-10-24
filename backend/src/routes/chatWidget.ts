@@ -612,6 +612,54 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       [conversation_id]
     );
 
+    // 📧 SEND EMAIL NOTIFICATION TO AGENT (if agent handoff is active)
+    if (isAgentHandoff) {
+      try {
+        const widgetInfo = await pool.query(
+          `SELECT wc.widget_name, wc.notification_email, wc.enable_email_notifications,
+                  wconv.visitor_name, wconv.visitor_email
+           FROM widget_configs wc
+           JOIN widget_conversations wconv ON wconv.widget_id = wc.id
+           WHERE wc.id = $1 AND wconv.id = $2`,
+          [widget_id, conversation_id]
+        );
+
+        if (widgetInfo.rows.length > 0) {
+          const info = widgetInfo.rows[0];
+          if (info.enable_email_notifications && info.notification_email) {
+            emailService.sendEmail({
+              to: info.notification_email,
+              subject: `💬 New Message from ${info.visitor_name || 'Visitor'} - ${info.widget_name}`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <h2 style="color: #4682B4;">💬 Customer Sent You a Message!</h2>
+                  <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4682B4;">
+                    <p style="margin: 0 0 10px 0;"><strong>From:</strong> ${info.visitor_name || 'Anonymous Visitor'}</p>
+                    ${info.visitor_email ? `<p style="margin: 0 0 10px 0;"><strong>Email:</strong> ${info.visitor_email}</p>` : ''}
+                    <p style="margin: 10px 0 0 0;"><strong>Message:</strong></p>
+                    <p style="margin: 10px 0 0 0; padding: 10px; background: white; border-radius: 4px;">${message_text}</p>
+                  </div>
+                  <p style="margin: 20px 0;">
+                    <a href="https://marketingby.wetechforu.com/app/chat-conversations" 
+                       style="background: #4682B4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                      Reply Now →
+                    </a>
+                  </p>
+                  <p style="color: #666; font-size: 14px;">
+                    Click the button above to respond to the customer in real-time.
+                  </p>
+                </div>
+              `,
+              text: `New message from ${info.visitor_name || 'Visitor'}: ${message_text}. Reply at: https://marketingby.wetechforu.com/app/chat-conversations`
+            }).catch(err => console.error('Failed to send agent notification email:', err));
+          }
+        }
+      } catch (emailError) {
+        console.error('Error sending agent notification:', emailError);
+        // Don't fail the request if email fails
+      }
+    }
+
     // ✅ IF AGENT HAS TAKEN OVER, BOT DOESN'T RESPOND
     if (isAgentHandoff) {
       console.log(`🤝 Agent handoff active for conversation ${conversation_id} - Bot staying silent`);
