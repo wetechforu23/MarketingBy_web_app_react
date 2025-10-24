@@ -55,6 +55,14 @@
         answers: {},
         isActive: false,
         isComplete: false
+      },
+      // 📊 Visitor tracking state
+      tracking: {
+        sessionId: null,
+        heartbeatInterval: null,
+        lastPageUrl: null,
+        pageStartTime: null,
+        visitorFingerprint: null
       }
     },
 
@@ -73,6 +81,9 @@
       this.detectCompatibility();
       this.createWidgetHTML();
       this.attachEventListeners();
+      
+      // 📊 START VISITOR TRACKING
+      this.startSessionTracking();
       
       if (this.config.autoPopup) {
         setTimeout(() => {
@@ -686,6 +697,12 @@
       badge.textContent = '1'; // Reset badge
       this.state.isOpen = true;
 
+      // 📊 Track chat opened event
+      this.trackEvent('chat_opened', {
+        page_url: window.location.href,
+        timestamp: new Date().toISOString()
+      });
+
       // Focus input
       setTimeout(() => {
         document.getElementById('wetechforu-input').focus();
@@ -1017,6 +1034,12 @@
     // Request live agent - Collect contact info
     requestLiveAgent() {
       this.addBotMessage("Let me connect you with a live agent. To get started, I need a few details:");
+      
+      // 📊 Track live agent request event
+      this.trackEvent('live_agent_requested', {
+        page_url: window.location.href,
+        timestamp: new Date().toISOString()
+      });
       
       // Start contact info collection
       setTimeout(() => {
@@ -1467,6 +1490,277 @@
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
+    },
+    
+    // ==========================================
+    // 📊 VISITOR TRACKING FUNCTIONS (NEW!)
+    // ==========================================
+    
+    // Detect browser, OS, and device information
+    detectBrowserInfo() {
+      const ua = navigator.userAgent;
+      const info = {
+        browser: 'Unknown',
+        browser_version: 'Unknown',
+        os: 'Unknown',
+        os_version: 'Unknown',
+        device_type: 'desktop'
+      };
+      
+      // Detect browser
+      if (ua.indexOf('Firefox') > -1) {
+        info.browser = 'Firefox';
+        info.browser_version = ua.match(/Firefox\/([0-9.]+)/)?.[1] || 'Unknown';
+      } else if (ua.indexOf('Edg') > -1) {
+        info.browser = 'Edge';
+        info.browser_version = ua.match(/Edg\/([0-9.]+)/)?.[1] || 'Unknown';
+      } else if (ua.indexOf('Chrome') > -1) {
+        info.browser = 'Chrome';
+        info.browser_version = ua.match(/Chrome\/([0-9.]+)/)?.[1] || 'Unknown';
+      } else if (ua.indexOf('Safari') > -1) {
+        info.browser = 'Safari';
+        info.browser_version = ua.match(/Version\/([0-9.]+)/)?.[1] || 'Unknown';
+      }
+      
+      // Detect OS
+      if (ua.indexOf('Windows') > -1) {
+        info.os = 'Windows';
+        if (ua.indexOf('Windows NT 10.0') > -1) info.os_version = '10';
+        else if (ua.indexOf('Windows NT 6.3') > -1) info.os_version = '8.1';
+        else if (ua.indexOf('Windows NT 6.2') > -1) info.os_version = '8';
+        else if (ua.indexOf('Windows NT 6.1') > -1) info.os_version = '7';
+      } else if (ua.indexOf('Mac OS X') > -1) {
+        info.os = 'macOS';
+        info.os_version = ua.match(/Mac OS X ([0-9_]+)/)?.[1]?.replace(/_/g, '.') || 'Unknown';
+      } else if (ua.indexOf('Linux') > -1) {
+        info.os = 'Linux';
+      } else if (ua.indexOf('Android') > -1) {
+        info.os = 'Android';
+        info.os_version = ua.match(/Android ([0-9.]+)/)?.[1] || 'Unknown';
+      } else if (ua.indexOf('iOS') > -1 || ua.indexOf('iPhone') > -1 || ua.indexOf('iPad') > -1) {
+        info.os = 'iOS';
+        info.os_version = ua.match(/OS ([0-9_]+)/)?.[1]?.replace(/_/g, '.') || 'Unknown';
+      }
+      
+      // Detect device type
+      if (/Mobi|Android/i.test(ua)) {
+        info.device_type = 'mobile';
+      } else if (/Tablet|iPad/i.test(ua)) {
+        info.device_type = 'tablet';
+      }
+      
+      return info;
+    },
+    
+    // Generate visitor fingerprint (simple version)
+    generateFingerprint() {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      ctx.textBaseline = 'top';
+      ctx.font = '14px Arial';
+      ctx.fillText('fingerprint', 2, 2);
+      const canvasData = canvas.toDataURL();
+      
+      const data = [
+        navigator.userAgent,
+        navigator.language,
+        screen.width + 'x' + screen.height,
+        screen.colorDepth,
+        new Date().getTimezoneOffset(),
+        canvasData.substring(0, 100)
+      ].join('|');
+      
+      // Simple hash
+      let hash = 0;
+      for (let i = 0; i < data.length; i++) {
+        const char = data.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+      }
+      
+      return 'fp_' + Math.abs(hash).toString(36);
+    },
+    
+    // Start visitor session tracking
+    async startSessionTracking() {
+      try {
+        // Generate or retrieve session ID
+        if (!this.state.tracking.sessionId) {
+          this.state.tracking.sessionId = this.getSessionId();
+        }
+        
+        // Generate visitor fingerprint
+        if (!this.state.tracking.visitorFingerprint) {
+          this.state.tracking.visitorFingerprint = this.generateFingerprint();
+        }
+        
+        // Detect browser info
+        const browserInfo = this.detectBrowserInfo();
+        
+        // Send initial session tracking
+        await fetch(`${this.config.backendUrl}/api/visitor-tracking/public/widget/${this.config.widgetKey}/track-session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: this.state.tracking.sessionId,
+            visitor_fingerprint: this.state.tracking.visitorFingerprint,
+            current_page_url: window.location.href,
+            current_page_title: document.title,
+            referrer_url: document.referrer,
+            user_agent: navigator.userAgent,
+            ...browserInfo
+          })
+        });
+        
+        console.log('✅ Visitor tracking started:', this.state.tracking.sessionId);
+        
+        // Start heartbeat (every 30 seconds)
+        this.startHeartbeat();
+        
+        // Track initial page view
+        this.trackPageView();
+        
+        // Listen for page changes (single page apps)
+        this.setupPageChangeListener();
+        
+        // Track when page is about to close
+        window.addEventListener('beforeunload', () => this.stopTracking());
+        
+      } catch (error) {
+        console.error('Failed to start visitor tracking:', error);
+      }
+    },
+    
+    // Send heartbeat to keep session active
+    startHeartbeat() {
+      // Clear any existing interval
+      if (this.state.tracking.heartbeatInterval) {
+        clearInterval(this.state.tracking.heartbeatInterval);
+      }
+      
+      // Send heartbeat every 30 seconds
+      this.state.tracking.heartbeatInterval = setInterval(async () => {
+        try {
+          await fetch(`${this.config.backendUrl}/api/visitor-tracking/public/widget/${this.config.widgetKey}/track-session`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              session_id: this.state.tracking.sessionId,
+              current_page_url: window.location.href,
+              current_page_title: document.title
+            })
+          });
+          console.log('💓 Heartbeat sent');
+        } catch (error) {
+          console.error('Heartbeat failed:', error);
+        }
+      }, 30000); // 30 seconds
+    },
+    
+    // Track page view
+    async trackPageView(pageUrl = window.location.href, pageTitle = document.title) {
+      try {
+        // Calculate time on previous page
+        let timeOnPage = 0;
+        if (this.state.tracking.lastPageUrl && this.state.tracking.pageStartTime) {
+          timeOnPage = Math.floor((Date.now() - this.state.tracking.pageStartTime) / 1000);
+        }
+        
+        // Send page view
+        await fetch(`${this.config.backendUrl}/api/visitor-tracking/public/widget/${this.config.widgetKey}/track-pageview`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: this.state.tracking.sessionId,
+            page_url: pageUrl,
+            page_title: pageTitle,
+            referrer_url: this.state.tracking.lastPageUrl || document.referrer,
+            time_on_page: timeOnPage
+          })
+        });
+        
+        // Update tracking state
+        this.state.tracking.lastPageUrl = pageUrl;
+        this.state.tracking.pageStartTime = Date.now();
+        
+        console.log('📄 Page view tracked:', pageTitle);
+      } catch (error) {
+        console.error('Failed to track page view:', error);
+      }
+    },
+    
+    // Track visitor event
+    async trackEvent(eventType, eventData = {}) {
+      try {
+        await fetch(`${this.config.backendUrl}/api/visitor-tracking/public/widget/${this.config.widgetKey}/track-event`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: this.state.tracking.sessionId,
+            event_type: eventType,
+            event_data: eventData,
+            page_url: window.location.href
+          })
+        });
+        
+        console.log('📊 Event tracked:', eventType);
+      } catch (error) {
+        console.error('Failed to track event:', error);
+      }
+    },
+    
+    // Setup listener for page changes (SPA support)
+    setupPageChangeListener() {
+      // Listen for popstate (back/forward button)
+      window.addEventListener('popstate', () => {
+        this.trackPageView();
+      });
+      
+      // Listen for hash changes
+      window.addEventListener('hashchange', () => {
+        this.trackPageView();
+      });
+      
+      // For SPAs using pushState/replaceState
+      const originalPushState = history.pushState;
+      const originalReplaceState = history.replaceState;
+      const self = this;
+      
+      history.pushState = function() {
+        originalPushState.apply(this, arguments);
+        self.trackPageView();
+      };
+      
+      history.replaceState = function() {
+        originalReplaceState.apply(this, arguments);
+        self.trackPageView();
+      };
+    },
+    
+    // Stop tracking (cleanup)
+    stopTracking() {
+      if (this.state.tracking.heartbeatInterval) {
+        clearInterval(this.state.tracking.heartbeatInterval);
+        this.state.tracking.heartbeatInterval = null;
+      }
+      
+      // Track final page time
+      if (this.state.tracking.lastPageUrl && this.state.tracking.pageStartTime) {
+        const timeOnPage = Math.floor((Date.now() - this.state.tracking.pageStartTime) / 1000);
+        
+        // Use sendBeacon for reliable delivery on page unload
+        navigator.sendBeacon(
+          `${this.config.backendUrl}/api/visitor-tracking/public/widget/${this.config.widgetKey}/track-pageview`,
+          JSON.stringify({
+            session_id: this.state.tracking.sessionId,
+            page_url: this.state.tracking.lastPageUrl,
+            page_title: document.title,
+            time_on_page: timeOnPage
+          })
+        );
+      }
+      
+      console.log('🛑 Visitor tracking stopped');
     }
   };
 
