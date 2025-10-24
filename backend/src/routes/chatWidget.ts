@@ -166,7 +166,9 @@ router.post('/widgets', async (req, res) => {
       enable_ai_handoff,
       ai_handoff_url,
       business_hours,
-      offline_message
+      offline_message,
+      intro_flow_enabled,
+      intro_questions
     } = req.body;
 
     // Generate unique widget key
@@ -178,14 +180,17 @@ router.post('/widgets', async (req, res) => {
         position, welcome_message, bot_name, bot_avatar_url,
         enable_appointment_booking, enable_email_capture, enable_phone_capture,
         enable_ai_handoff, ai_handoff_url, business_hours, offline_message,
+        intro_flow_enabled, intro_questions,
         created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *`,
       [
         client_id, widget_key, widget_name, primary_color, secondary_color,
         position, welcome_message, bot_name, bot_avatar_url,
         enable_appointment_booking, enable_email_capture, enable_phone_capture,
         enable_ai_handoff, ai_handoff_url, JSON.stringify(business_hours), offline_message,
+        intro_flow_enabled !== undefined ? intro_flow_enabled : true, // ✅ Default to true
+        intro_questions || null, // ✅ Store intro questions JSON
         (req as any).session.userId
       ]
     );
@@ -212,7 +217,8 @@ router.put('/widgets/:id', async (req, res) => {
       'welcome_message', 'bot_name', 'bot_avatar_url',
       'enable_appointment_booking', 'enable_email_capture', 'enable_phone_capture',
       'enable_ai_handoff', 'ai_handoff_url', 'business_hours', 'offline_message',
-      'is_active', 'rate_limit_messages', 'rate_limit_window', 'require_captcha'
+      'is_active', 'rate_limit_messages', 'rate_limit_window', 'require_captcha',
+      'intro_flow_enabled', 'intro_questions' // ✅ FIXED: Allow intro flow fields to be saved
     ];
 
     const setClause = [];

@@ -108,6 +108,27 @@ export default function ChatWidgetEditor() {
           rate_limit_window: widget.rate_limit_window,
           require_captcha: widget.require_captcha
         })
+        
+        // ✅ FIX: Load intro flow settings
+        if (widget.intro_flow_enabled !== undefined) {
+          setIntroFlowEnabled(widget.intro_flow_enabled)
+        }
+        
+        if (widget.intro_questions) {
+          try {
+            const questions = typeof widget.intro_questions === 'string' 
+              ? JSON.parse(widget.intro_questions) 
+              : widget.intro_questions
+            setIntroQuestions(questions)
+          } catch (e) {
+            console.error('Failed to parse intro_questions:', e)
+          }
+        }
+        
+        // Set client_id for edit mode
+        if (widget.client_id) {
+          setSelectedClientId(widget.client_id)
+        }
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load widget')
