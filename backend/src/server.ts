@@ -82,10 +82,12 @@ app.use(morgan('combined'));
 app.use((req, res, next) => {
   // ✅ Allow ALL origins for public widget API routes (customer websites)
   // This includes: chat widget routes + visitor tracking routes
-  if (req.path.startsWith('/api/chat-widget/public/') || 
-      req.path.startsWith('/api/visitor-tracking/public/') || // ✅ NEW: Allow visitor tracking
-      req.path.match(/^\/api\/chat-widget\/wtfu_[a-f0-9]+\/) ||
-      req.path.match(/^\/api\/visitor-tracking\/public\/widget\/wtfu_[a-f0-9]+\//)) { // ✅ NEW: Widget-specific tracking
+  const isPublicChatWidget = req.path.startsWith('/api/chat-widget/public/');
+  const isPublicVisitorTracking = req.path.startsWith('/api/visitor-tracking/public/');
+  const isChatWidgetKey = /^\/api\/chat-widget\/wtfu_[a-f0-9]+\//.test(req.path);
+  const isVisitorTrackingKey = /^\/api\/visitor-tracking\/public\/widget\/wtfu_[a-f0-9]+\//.test(req.path);
+  
+  if (isPublicChatWidget || isPublicVisitorTracking || isChatWidgetKey || isVisitorTrackingKey) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
