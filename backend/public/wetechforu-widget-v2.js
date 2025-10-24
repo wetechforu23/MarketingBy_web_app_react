@@ -303,13 +303,17 @@
 
             <!-- Quick Actions (shown during intro) -->
             <div id="wetechforu-quick-actions" style="
-              padding: 12px 20px;
+              padding: 8px 12px;
               background: white;
               border-top: 1px solid #e0e0e0;
               display: none;
-              gap: 8px;
+              gap: 6px;
               flex-wrap: wrap;
+              font-size: 11px;
             "></div>
+            
+            <!-- Resize Handle -->
+            <div class="wetechforu-resize-handle" id="wetechforu-resize-handle" title="Drag to resize"></div>
 
             <!-- Input Area -->
             <div style="
@@ -505,22 +509,47 @@
           }
 
           .wetechforu-quick-action {
-            padding: 10px 16px;
+            padding: 6px 12px;
             background: white;
-            border: 2px solid ${this.config.primaryColor};
+            border: 1.5px solid ${this.config.primaryColor};
             color: ${this.config.primaryColor};
-            border-radius: 20px;
-            font-size: 13px;
+            border-radius: 16px;
+            font-size: 11px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
+            white-space: nowrap;
           }
 
           .wetechforu-quick-action:hover {
             background: ${this.config.primaryColor};
             color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transform: scale(1.05);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+          }
+          
+          /* Draggable widget cursor */
+          #wetechforu-chat-window.dragging {
+            cursor: move !important;
+            user-select: none;
+          }
+          
+          /* Resize handle */
+          .wetechforu-resize-handle {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 20px;
+            height: 20px;
+            cursor: nwse-resize;
+            background: linear-gradient(135deg, transparent 50%, ${this.config.primaryColor} 50%);
+            border-bottom-right-radius: 16px;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+          }
+          
+          .wetechforu-resize-handle:hover {
+            opacity: 1;
           }
         </style>
       `;
@@ -535,6 +564,8 @@
       const minimizeButton = document.getElementById('wetechforu-minimize-button');
       const sendButton = document.getElementById('wetechforu-send-button');
       const input = document.getElementById('wetechforu-input');
+      const chatWindow = document.getElementById('wetechforu-chat-window');
+      const resizeHandle = document.getElementById('wetechforu-resize-handle');
 
       chatButton.addEventListener('click', () => this.toggleChat());
       closeButton.addEventListener('click', () => this.closeChat());
@@ -542,6 +573,94 @@
       sendButton.addEventListener('click', () => this.sendMessage());
       input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') this.sendMessage();
+      });
+      
+      // ✅ Make widget draggable by header
+      this.makeDraggable(chatWindow);
+      
+      // ✅ Make widget resizable
+      this.makeResizable(chatWindow, resizeHandle);
+    },
+    
+    // Make widget draggable
+    makeDraggable(element) {
+      const header = element.querySelector('div'); // First div is header
+      let isDragging = false;
+      let startX, startY, startLeft, startBottom;
+      
+      header.addEventListener('mousedown', (e) => {
+        // Don't drag if clicking on buttons
+        if (e.target.id.includes('button')) return;
+        
+        isDragging = true;
+        element.classList.add('dragging');
+        
+        startX = e.clientX;
+        startY = e.clientY;
+        
+        const rect = element.getBoundingClientRect();
+        startLeft = rect.left;
+        startBottom = window.innerHeight - rect.bottom;
+        
+        header.style.cursor = 'move';
+      });
+      
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        const deltaX = e.clientX - startX;
+        const deltaY = e.clientY - startY;
+        
+        const newLeft = startLeft + deltaX;
+        const newBottom = startBottom - deltaY;
+        
+        // Keep within viewport
+        const maxLeft = window.innerWidth - element.offsetWidth;
+        const maxBottom = window.innerHeight - element.offsetHeight;
+        
+        element.style.left = Math.max(0, Math.min(newLeft, maxLeft)) + 'px';
+        element.style.bottom = Math.max(0, Math.min(newBottom, maxBottom)) + 'px';
+        element.style.right = 'auto'; // Override right positioning
+      });
+      
+      document.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          element.classList.remove('dragging');
+          header.style.cursor = '';
+        }
+      });
+    },
+    
+    // Make widget resizable
+    makeResizable(element, handle) {
+      let isResizing = false;
+      let startX, startY, startWidth, startHeight;
+      
+      handle.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startWidth = element.offsetWidth;
+        startHeight = element.offsetHeight;
+        e.preventDefault();
+      });
+      
+      document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        
+        const deltaX = e.clientX - startX;
+        const deltaY = e.clientY - startY;
+        
+        const newWidth = Math.max(300, Math.min(600, startWidth + deltaX));
+        const newHeight = Math.max(400, Math.min(800, startHeight + deltaY));
+        
+        element.style.width = newWidth + 'px';
+        element.style.height = newHeight + 'px';
+      });
+      
+      document.addEventListener('mouseup', () => {
+        isResizing = false;
       });
     },
 
