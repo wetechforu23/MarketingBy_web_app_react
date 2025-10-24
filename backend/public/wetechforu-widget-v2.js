@@ -40,6 +40,8 @@
       messages: [],
       messageHistory: [], // For rate limiting
       lastMessageTime: null,
+      displayedMessageIds: [], // Track displayed agent messages
+      pollingInterval: null, // Polling timer
       compatibility: {
         supported: true,
         version: null,
@@ -391,6 +393,12 @@
             0%, 100% { opacity: 0.3; }
             50% { opacity: 1; }
           }
+          
+          @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+          }
 
           #wetechforu-chat-button:hover {
             transform: scale(1.1);
@@ -675,12 +683,16 @@
       const badge = document.getElementById('wetechforu-badge');
       chatWindow.style.display = 'flex';
       badge.style.display = 'none';
+      badge.textContent = '1'; // Reset badge
       this.state.isOpen = true;
 
       // Focus input
       setTimeout(() => {
         document.getElementById('wetechforu-input').focus();
       }, 300);
+      
+      // 📨 Start polling for agent messages
+      this.startPollingForAgentMessages();
     },
 
     // Close chat
@@ -844,41 +856,227 @@
       }, 1000);
     },
 
-    // Show quick action buttons
+    // Show quick action buttons - SMART CATEGORIES
     showQuickActions() {
       const quickActions = document.getElementById('wetechforu-quick-actions');
       quickActions.style.display = 'flex';
 
-      const actions = [
-        "📞 Contact Information",
-        "🕐 Business Hours",
-        "💼 Our Services",
-        "📅 Book Appointment"
+      const categories = [
+        { icon: "🏥", label: "Healthcare Services", id: "healthcare" },
+        { icon: "📅", label: "Book Appointment", id: "appointment" },
+        { icon: "🕐", label: "Business Hours", id: "hours" },
+        { icon: "📞", label: "Contact Us", id: "contact" },
+        { icon: "💬", label: "Talk to Human", id: "agent" }
       ];
 
-      quickActions.innerHTML = actions.map(action => 
-        `<button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleQuickAction('${action}')">${action}</button>`
+      quickActions.innerHTML = categories.map(cat => 
+        `<button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleCategory('${cat.id}')">${cat.icon} ${cat.label}</button>`
       ).join('');
     },
 
-    // Handle quick action click
-    handleQuickAction(action) {
-      this.addUserMessage(action);
-      document.getElementById('wetechforu-quick-actions').style.display = 'none';
-      this.sendMessageToBackend(action);
+    // Handle category selection - SMART ROUTING
+    handleCategory(categoryId) {
+      const quickActions = document.getElementById('wetechforu-quick-actions');
+      
+      if (categoryId === 'agent') {
+        // User wants to talk to human - Request contact info
+        this.addUserMessage("💬 Talk to Human");
+        quickActions.style.display = 'none';
+        this.requestLiveAgent();
+        return;
+      }
+      
+      if (categoryId === 'appointment') {
+        this.addUserMessage("📅 Book Appointment");
+        quickActions.style.display = 'none';
+        this.handleAppointmentRequest();
+        return;
+      }
+      
+      if (categoryId === 'hours') {
+        this.addUserMessage("🕐 Business Hours");
+        quickActions.style.display = 'none';
+        this.sendMessageToBackend("What are your business hours?");
+        return;
+      }
+      
+      if (categoryId === 'contact') {
+        this.addUserMessage("📞 Contact Us");
+        quickActions.style.display = 'none';
+        this.sendMessageToBackend("How can I contact you?");
+        return;
+      }
+      
+      // Healthcare category - show sub-options
+      if (categoryId === 'healthcare') {
+        this.addUserMessage("🏥 Healthcare Services");
+        this.showHealthcareOptions();
+      }
+    },
+
+    // Show healthcare sub-options
+    showHealthcareOptions() {
+      const quickActions = document.getElementById('wetechforu-quick-actions');
+      quickActions.style.display = 'flex';
+      
+      setTimeout(() => {
+        this.addBotMessage("Great! What type of healthcare service are you interested in?");
+        
+        const services = [
+          "🩺 General Consultation",
+          "🦷 Dental Services",
+          "👁️ Eye Care",
+          "💊 Prescription Refill",
+          "📋 Lab Results",
+          "🔙 Back to Menu"
+        ];
+        
+        quickActions.innerHTML = services.map(service => 
+          `<button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleServiceSelection('${service.replace(/'/g, "\\'")}')">${service}</button>`
+        ).join('');
+      }, 800);
+    },
+
+    // Handle service selection
+    handleServiceSelection(service) {
+      const quickActions = document.getElementById('wetechforu-quick-actions');
+      
+      if (service.includes('Back to Menu')) {
+        this.addUserMessage("🔙 Back to Menu");
+        quickActions.style.display = 'none';
+        setTimeout(() => {
+          this.addBotMessage("How else can I help you?");
+          this.showQuickActions();
+        }, 800);
+        return;
+      }
+      
+      this.addUserMessage(service);
+      quickActions.style.display = 'none';
+      
+      // Send to backend to get answer from knowledge base
+      this.sendMessageToBackend(service);
+      
+      // Show "not helpful" option after response
+      setTimeout(() => {
+        this.showHelpfulOptions();
+      }, 3000);
+    },
+
+    // Show "Was this helpful?" options
+    showHelpfulOptions() {
+      const quickActions = document.getElementById('wetechforu-quick-actions');
+      quickActions.style.display = 'flex';
+      
+      quickActions.innerHTML = `
+        <div style="width: 100%; text-align: center; font-size: 12px; color: #666; margin-bottom: 8px;">
+          Was this answer helpful?
+        </div>
+        <button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleFeedback('yes')" style="background: #28a745; color: white; border-color: #28a745;">
+          👍 Yes, Thank You
+        </button>
+        <button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleFeedback('no')">
+          👎 No, Need More Help
+        </button>
+        <button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleFeedback('agent')">
+          💬 Talk to Human
+        </button>
+      `;
+    },
+
+    // Handle feedback
+    handleFeedback(type) {
+      const quickActions = document.getElementById('wetechforu-quick-actions');
+      quickActions.style.display = 'none';
+      
+      if (type === 'yes') {
+        this.addUserMessage("👍 Yes, Thank You");
+        this.addBotMessage("Great! Glad I could help. Is there anything else you need?");
+        setTimeout(() => this.showQuickActions(), 1500);
+      } else if (type === 'no') {
+        this.addUserMessage("👎 Need More Help");
+        this.addBotMessage("I understand. Let me try to help you better. Could you rephrase your question?");
+        setTimeout(() => this.showQuickActions(), 1500);
+      } else if (type === 'agent') {
+        this.addUserMessage("💬 Talk to Human");
+        this.requestLiveAgent();
+      }
+    },
+
+    // Handle appointment request
+    handleAppointmentRequest() {
+      this.addBotMessage("I'd be happy to help you book an appointment! Let me connect you with our scheduling team.");
+      setTimeout(() => {
+        this.requestLiveAgent();
+      }, 1500);
+    },
+
+    // Request live agent - Collect contact info
+    requestLiveAgent() {
+      this.addBotMessage("Let me connect you with a live agent. To get started, I need a few details:");
+      
+      // Start contact info collection
+      setTimeout(() => {
+        this.state.contactInfoStep = 0;
+        this.state.contactInfo = {};
+        this.askContactInfo();
+      }, 1000);
+    },
+
+    // Ask contact info step by step
+    askContactInfo() {
+      const steps = [
+        { field: 'name', question: "What's your full name?" },
+        { field: 'email', question: "What's your email address?" },
+        { field: 'phone', question: "What's your phone number?" },
+        { field: 'reason', question: "Briefly, what can we help you with?" }
+      ];
+      
+      if (!this.state.contactInfoStep) this.state.contactInfoStep = 0;
+      
+      if (this.state.contactInfoStep < steps.length) {
+        const step = steps[this.state.contactInfoStep];
+        this.addBotMessage(step.question);
+        this.state.currentContactField = step.field;
+      } else {
+        // All info collected - send to portal
+        this.submitToLiveAgent();
+      }
     },
 
     // Add bot message
-    addBotMessage(text) {
+    addBotMessage(text, isAgent = false, agentName = null) {
       const messagesContainer = document.getElementById('wetechforu-messages');
+      
+      // Use agent avatar if it's a human response
+      const avatarHTML = isAgent 
+        ? (this.config.botAvatarUrl 
+            ? `<img src="${this.config.botAvatarUrl}" alt="Agent" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;" onerror="this.style.display='none'; this.parentElement.innerHTML='👤';" />`
+            : '👤')
+        : (this.config.botAvatarUrl 
+            ? `<img src="${this.config.botAvatarUrl}" alt="Bot" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;" onerror="this.style.display='none'; this.parentElement.innerHTML='🤖';" />`
+            : '🤖');
+      
+      const senderName = isAgent ? (agentName || 'Agent') : this.config.botName;
+      
       const messageHTML = `
-        <div class="wetechforu-message wetechforu-message-bot">
-          <div class="wetechforu-message-avatar">🤖</div>
-          <div class="wetechforu-message-content">${this.escapeHTML(text)}</div>
+        <div class="wetechforu-message wetechforu-message-bot" ${isAgent ? 'data-agent="true"' : ''}>
+          <div class="wetechforu-message-avatar">${avatarHTML}</div>
+          <div style="flex: 1;">
+            ${isAgent ? `<div style="font-size: 11px; color: #666; margin-bottom: 4px; font-weight: 600;">
+              ${senderName}
+            </div>` : ''}
+            <div class="wetechforu-message-content">${this.escapeHTML(text)}</div>
+          </div>
         </div>
       `;
       messagesContainer.insertAdjacentHTML('beforeend', messageHTML);
       this.scrollToBottom();
+      
+      // 🔔 Show notification if agent responded and chat is minimized
+      if (isAgent && !this.state.isOpen) {
+        this.showNotification(agentName || 'Agent', text);
+      }
     },
 
     // Add user message
@@ -927,6 +1125,19 @@
       this.addUserMessage(message);
       input.value = '';
       
+      // ✅ If collecting contact info for live agent
+      if (this.state.currentContactField) {
+        if (!this.state.contactInfo) this.state.contactInfo = {};
+        this.state.contactInfo[this.state.currentContactField] = message;
+        this.state.contactInfoStep++;
+        this.state.currentContactField = null;
+        
+        setTimeout(() => {
+          this.askContactInfo();
+        }, 500);
+        return;
+      }
+      
       // If intro flow is active, treat as intro answer
       if (this.state.introFlow.isActive) {
         const question = this.state.introFlow.questions[this.state.introFlow.currentQuestionIndex];
@@ -948,6 +1159,64 @@
       } else {
         // Normal chat mode
         this.sendMessageToBackend(message);
+      }
+    },
+    
+    // Submit collected info to live agent
+    async submitToLiveAgent() {
+      const info = this.state.contactInfo;
+      
+      // Show confirmation message
+      this.addBotMessage(`Thank you, ${info.name}! I've collected your information:`);
+      setTimeout(() => {
+        this.addBotMessage(`📧 Email: ${info.email}\n📱 Phone: ${info.phone}\n📝 Question: ${info.reason}`);
+      }, 800);
+      
+      setTimeout(() => {
+        this.addBotMessage("Checking agent availability...");
+      }, 1600);
+      
+      // Send handoff request to backend
+      try {
+        const response = await fetch(`${this.config.backendUrl}/api/chat-widget/${this.config.widgetKey}/handoff`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conversation_id: this.state.conversationId,
+            visitor_name: info.name,
+            visitor_email: info.email,
+            visitor_phone: info.phone,
+            handoff_type: 'live_agent',
+            handoff_details: { reason: info.reason }
+          })
+        });
+        
+        const data = await response.json();
+        
+        setTimeout(() => {
+          if (data.agent_online) {
+            // Agent is online
+            this.addBotMessage(`✅ Great news! ${data.agent_name || 'An agent'} is available and will assist you shortly.`);
+            setTimeout(() => {
+              this.addBotMessage(`You're now connected with ${data.agent_name || 'a live agent'}. They'll respond to you here in this chat.`);
+            }, 1500);
+          } else {
+            // Agent is offline
+            this.addBotMessage("Our agents are currently offline. Your message has been sent, and we'll get back to you as soon as possible!");
+            setTimeout(() => {
+              this.addBotMessage("You can expect a response within 24 hours at the email address you provided.");
+            }, 1500);
+          }
+          
+          // Reset contact info collection
+          this.state.contactInfo = {};
+          this.state.contactInfoStep = 0;
+          this.state.currentContactField = null;
+        }, 2400);
+        
+      } catch (error) {
+        console.error('Failed to submit to agent:', error);
+        this.addBotMessage("Sorry, there was an issue connecting you. Please try again or call us directly.");
       }
     },
 
@@ -1039,6 +1308,102 @@
     scrollToBottom() {
       const messagesContainer = document.getElementById('wetechforu-messages');
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    },
+    
+    // 🔔 Show notification when agent responds
+    showNotification(agentName, message) {
+      const badge = document.getElementById('wetechforu-badge');
+      const chatButton = document.getElementById('wetechforu-chat-button');
+      
+      // Update badge with message count
+      if (badge) {
+        const currentCount = parseInt(badge.textContent) || 0;
+        badge.textContent = currentCount + 1;
+        badge.style.display = 'flex';
+      }
+      
+      // Add bounce animation to chat button
+      if (chatButton) {
+        chatButton.style.animation = 'bounce 0.5s ease 3';
+        setTimeout(() => {
+          chatButton.style.animation = '';
+        }, 1500);
+      }
+      
+      // Browser notification (if permission granted)
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(`${agentName} replied`, {
+          body: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
+          icon: this.config.botAvatarUrl || 'https://cdn-icons-png.flaticon.com/512/4712/4712027.png',
+          tag: 'wetechforu-agent-message'
+        });
+      }
+      
+      // Play notification sound (optional)
+      this.playNotificationSound();
+    },
+    
+    // Play notification sound
+    playNotificationSound() {
+      try {
+        // Simple beep using Web Audio API
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.3);
+      } catch (error) {
+        // Silently fail if audio not supported
+      }
+    },
+    
+    // 📨 Poll for new agent messages
+    startPollingForAgentMessages() {
+      if (this.state.pollingInterval) return; // Already polling
+      
+      this.state.pollingInterval = setInterval(async () => {
+        if (!this.state.conversationId) return;
+        
+        try {
+          const response = await fetch(`${this.config.backendUrl}/api/chat-widget/conversations/${this.state.conversationId}/messages`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          
+          if (response.ok) {
+            const messages = await response.json();
+            const newMessages = messages.filter(msg => 
+              msg.message_type === 'human' && 
+              !this.state.displayedMessageIds.includes(msg.id)
+            );
+            
+            newMessages.forEach(msg => {
+              this.addBotMessage(msg.message_text, true, msg.agent_name || 'Agent');
+              this.state.displayedMessageIds.push(msg.id);
+            });
+          }
+        } catch (error) {
+          console.error('Failed to poll for messages:', error);
+        }
+      }, 5000); // Poll every 5 seconds
+    },
+    
+    // Stop polling
+    stopPollingForAgentMessages() {
+      if (this.state.pollingInterval) {
+        clearInterval(this.state.pollingInterval);
+        this.state.pollingInterval = null;
+      }
     },
 
     // Escape HTML
