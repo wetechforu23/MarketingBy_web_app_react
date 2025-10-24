@@ -420,7 +420,16 @@ router.get('/public/widget/:widgetKey/config', async (req, res) => {
 router.post('/public/widget/:widgetKey/conversation', async (req, res) => {
   try {
     const { widgetKey } = req.params;
-    const { session_id, page_url, referrer_url, user_agent } = req.body;
+    const { 
+      session_id, 
+      page_url, 
+      referrer_url, 
+      user_agent,
+      visitor_name,
+      visitor_email,
+      visitor_phone,
+      visitor_session_id
+    } = req.body;
     const ip_address = req.ip || req.connection.remoteAddress;
 
     // Get widget ID
@@ -445,12 +454,21 @@ router.post('/public/widget/:widgetKey/conversation', async (req, res) => {
       return res.json({ conversation_id: existingConv.rows[0].id, existing: true });
     }
 
-    // Create new conversation
+    // Create new conversation with visitor info
     const convResult = await pool.query(
-      `INSERT INTO widget_conversations (widget_id, session_id, ip_address, user_agent, referrer_url, page_url)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO widget_conversations (
+        widget_id, session_id, ip_address, user_agent, referrer_url, page_url,
+        visitor_name, visitor_email, visitor_phone, visitor_session_id
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING id`,
-      [widget.id, session_id, ip_address, user_agent, referrer_url, page_url]
+      [
+        widget.id, session_id, ip_address, user_agent, referrer_url, page_url,
+        visitor_name || 'Anonymous Visitor', 
+        visitor_email || null,
+        visitor_phone || null,
+        visitor_session_id || session_id
+      ]
     );
 
     const conversationId = convResult.rows[0].id;
@@ -944,7 +962,11 @@ router.get('/widgets/:widgetId/conversations', async (req, res) => {
         wc.last_message,
         wc.last_message_at,
         wc.handoff_requested,
-        wc.handoff_requested_at
+        wc.handoff_requested_at,
+        COALESCE(wc.visitor_name, 'Anonymous Visitor') as visitor_name,
+        wc.visitor_email,
+        wc.visitor_phone,
+        wc.visitor_session_id
       FROM widget_conversations wc
       LEFT JOIN widget_configs wconf ON wc.widget_id = wconf.id
       WHERE wc.widget_id = $1
@@ -1026,13 +1048,13 @@ router.post('/conversations/:conversationId/reply', async (req, res) => {
 
     const conversation = convResult.rows[0];
 
-    // Insert human message
+    // Insert human message with agent info
     const messageResult = await pool.query(
       `INSERT INTO widget_messages (
-        conversation_id, message_type, message_text, sender_name, created_at
-      ) VALUES ($1, $2, $3, $4, NOW())
+        conversation_id, message_type, message_text, agent_name, agent_user_id, created_at
+      ) VALUES ($1, $2, $3, $4, $5, NOW())
       RETURNING *`,
-      [conversationId, 'human', message.trim(), username]
+      [conversationId, 'human', message.trim(), username, userId]
     );
 
     // Update conversation
