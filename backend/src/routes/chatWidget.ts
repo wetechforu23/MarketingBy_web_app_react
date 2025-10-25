@@ -692,6 +692,11 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
     let suggestions: any[] = [];
     let llmUsed = false;
 
+    // 🔍 DEBUG: Log LLM configuration
+    console.log(`🔍 LLM Debug - widget_id: ${widget_id}, client_id: ${client_id}`);
+    console.log(`🔍 LLM Debug - llm_enabled: ${widget.llm_enabled}, llm_provider: ${widget.llm_provider}`);
+    console.log(`🔍 LLM Debug - Condition check: llm_enabled=${widget.llm_enabled}, client_id=${client_id}, both=${widget.llm_enabled && client_id}`);
+
     if (widget.llm_enabled && client_id) {
       console.log(`🤖 LLM enabled for widget ${widget_id} - Attempting AI response...`);
       
