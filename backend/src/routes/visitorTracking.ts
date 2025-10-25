@@ -1,7 +1,162 @@
 import express from 'express';
 import pool from '../config/database';
+import { EmailService } from '../services/emailService';
 
 const router = express.Router();
+const emailService = new EmailService();
+
+// ==========================================
+// HELPER: Send Visitor Engagement Email
+// ==========================================
+async function sendVisitorEngagementEmail(
+  widget_id: number,
+  session_id: string,
+  ip_address: string,
+  visitor_fingerprint: string | null
+) {
+  try {
+    // Get widget and client info
+    const widgetInfo = await pool.query(
+      `SELECT wc.widget_name, wc.notification_email, wc.enable_email_notifications, wc.client_id,
+              c.client_name, c.email as client_email
+       FROM widget_configs wc
+       LEFT JOIN clients c ON c.id = wc.client_id
+       WHERE wc.id = $1`,
+      [widget_id]
+    );
+
+    if (widgetInfo.rows.length === 0 || !widgetInfo.rows[0].enable_email_notifications) {
+      return; // No email needed
+    }
+
+    const widget = widgetInfo.rows[0];
+    const notifyEmail = widget.notification_email || widget.client_email;
+
+    if (!notifyEmail) {
+      console.log('⚠️ No notification email configured for widget');
+      return;
+    }
+
+    // Get session details
+    const sessionInfo = await pool.query(
+      `SELECT 
+        vs.current_page_url, vs.current_page_title, vs.landing_page_url,
+        vs.browser, vs.os, vs.device_type, vs.country, vs.city,
+        vs.session_started_at, vs.referrer_url,
+        EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - vs.session_started_at))/60 as minutes_on_site
+       FROM widget_visitor_sessions vs
+       WHERE vs.session_id = $1`,
+      [session_id]
+    );
+
+    if (sessionInfo.rows.length === 0) return;
+
+    const session = sessionInfo.rows[0];
+
+    // Check if returning visitor (same fingerprint, different session)
+    let isReturningVisitor = false;
+    let previousVisitCount = 0;
+
+    if (visitor_fingerprint) {
+      const previousVisits = await pool.query(
+        `SELECT COUNT(*) as visit_count
+         FROM widget_visitor_sessions
+         WHERE widget_id = $1 
+           AND visitor_fingerprint = $2 
+           AND session_id != $3
+           AND session_started_at < (
+             SELECT session_started_at FROM widget_visitor_sessions WHERE session_id = $3
+           )`,
+        [widget_id, visitor_fingerprint, session_id]
+      );
+
+      if (previousVisits.rows.length > 0) {
+        previousVisitCount = parseInt(previousVisits.rows[0].visit_count) || 0;
+        isReturningVisitor = previousVisitCount > 0;
+      }
+    }
+
+    // Update session with returning visitor info
+    await pool.query(
+      `UPDATE widget_visitor_sessions 
+       SET is_returning_visitor = $1, previous_visit_count = $2
+       WHERE session_id = $3`,
+      [isReturningVisitor, previousVisitCount, session_id]
+    );
+
+    // Get total active visitors count
+    const activeVisitorsResult = await pool.query(
+      `SELECT COUNT(*) as active_count
+       FROM widget_visitor_sessions
+       WHERE widget_id = $1 AND is_active = true`,
+      [widget_id]
+    );
+
+    const totalActiveVisitors = parseInt(activeVisitorsResult.rows[0]?.active_count) || 1;
+
+    // Get country from IP (simplified - you can use a GeoIP service)
+    const country = session.country || 'Unknown';
+    const city = session.city || '';
+    const location = city ? `${city}, ${country}` : country;
+
+    // Send email notification
+    await emailService.sendEmail({
+      to: notifyEmail,
+      subject: `🔔 ${isReturningVisitor ? 'Returning' : 'New'} Visitor Engaged on ${widget.widget_name}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #4682B4;">
+            ${isReturningVisitor ? '🔄 Returning Visitor' : '🆕 New Visitor'} Engaged on Your Site!
+          </h2>
+          
+          <div style="background: ${isReturningVisitor ? '#e3f2fd' : '#e8f5e9'}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isReturningVisitor ? '#2196f3' : '#4caf50'};">
+            <h3 style="margin-top: 0; color: ${isReturningVisitor ? '#1976d2' : '#2e7d32'};">
+              ${isReturningVisitor ? '🎉 Welcome Back Visitor!' : '✨ Brand New Visitor!'}
+            </h3>
+            <p style="margin: 5px 0;"><strong>Time on Site:</strong> ${Math.round(session.minutes_on_site)} minutes ⏱️</p>
+            ${isReturningVisitor ? `<p style="margin: 5px 0;"><strong>Previous Visits:</strong> ${previousVisitCount} times before</p>` : ''}
+          </div>
+
+          <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin-top: 0;">📍 Visitor Details:</h3>
+            <p style="margin: 8px 0;"><strong>Location:</strong> ${location}</p>
+            <p style="margin: 8px 0;"><strong>IP Address:</strong> ${ip_address}</p>
+            <p style="margin: 8px 0;"><strong>Device:</strong> ${session.device_type || 'Unknown'} (${session.browser || 'Unknown'} on ${session.os || 'Unknown'})</p>
+            ${totalActiveVisitors > 1 ? `<p style="margin: 8px 0; color: #ff9800; font-weight: 600;">👥 Total Active Visitors: ${totalActiveVisitors}</p>` : ''}
+          </div>
+
+          <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #ffc107;">
+            <h3 style="margin-top: 0;">🌐 Browsing Activity:</h3>
+            <p style="margin: 5px 0;"><strong>Landing Page:</strong> ${session.landing_page_url || 'Unknown'}</p>
+            <p style="margin: 5px 0;"><strong>Current Page:</strong> ${session.current_page_title || session.current_page_url}</p>
+            ${session.referrer_url ? `<p style="margin: 5px 0;"><strong>Came From:</strong> ${session.referrer_url}</p>` : ''}
+          </div>
+
+          <p style="margin: 20px 0;">
+            <a href="https://marketingby.wetechforu.com/app/visitor-monitoring" 
+               style="background: #4682B4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              👁️ View Live Visitor Dashboard →
+            </a>
+          </p>
+
+          <p style="color: #666; font-size: 13px; margin-top: 20px;">
+            💡 <strong>Tip:</strong> This visitor has been actively engaged for 5+ minutes. 
+            ${isReturningVisitor 
+              ? 'They\'ve visited before - might be ready to convert!' 
+              : 'First-time visitor showing interest - great opportunity to engage!'
+            }
+          </p>
+        </div>
+      `,
+      text: `${isReturningVisitor ? 'Returning' : 'New'} visitor on ${widget.widget_name} - ${Math.round(session.minutes_on_site)} minutes on site. Location: ${location}. IP: ${ip_address}. ${totalActiveVisitors > 1 ? `${totalActiveVisitors} active visitors.` : ''} View: https://marketingby.wetechforu.com/app/visitor-monitoring`
+    });
+
+    console.log(`📧 Visitor engagement email sent for session ${session_id}`);
+  } catch (error) {
+    console.error('Error sending visitor engagement email:', error);
+    throw error;
+  }
+}
 
 // ==========================================
 // CORS Middleware for ALL visitor tracking routes
@@ -75,7 +230,31 @@ router.post('/public/widget/:widgetKey/track-session', async (req, res) => {
         [current_page_url, current_page_title, session_id]
       );
 
-      console.log(`✅ Updated session: ${session_id}`);
+      // ✅ CHECK IF VISITOR HAS BEEN HERE 5+ MINUTES (and email not sent yet)
+      const sessionStarted = existingSession.rows[0].session_started_at;
+      const minutesOnSite = Math.floor((Date.now() - new Date(sessionStarted).getTime()) / 1000 / 60);
+      
+      if (minutesOnSite >= 5) {
+        // Check if email already sent
+        const emailCheck = await pool.query(
+          'SELECT engagement_email_sent FROM widget_visitor_sessions WHERE session_id = $1',
+          [session_id]
+        );
+        
+        if (emailCheck.rows.length > 0 && !emailCheck.rows[0].engagement_email_sent) {
+          // Send email notification (async - don't block response)
+          sendVisitorEngagementEmail(widget_id, session_id, ip_address, visitor_fingerprint)
+            .catch(err => console.error('Failed to send visitor engagement email:', err));
+          
+          // Mark as sent
+          await pool.query(
+            'UPDATE widget_visitor_sessions SET engagement_email_sent = true, engagement_email_sent_at = CURRENT_TIMESTAMP WHERE session_id = $1',
+            [session_id]
+          );
+        }
+      }
+
+      console.log(`✅ Updated session: ${session_id} (${minutesOnSite} minutes)`);
       res.json({ status: 'updated', session_id });
     } else {
       // Create new session
