@@ -782,10 +782,10 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
         console.log(`✅ Knowledge base answer (${Math.round(confidence * 100)}% match): "${bestMatch.question}"`);
 
       } else if (similarQuestions.length > 0) {
-        // 🤔 MEDIUM CONFIDENCE (50-85%) - Suggest similar questions
+        // 🤔 MEDIUM CONFIDENCE (50-85%) - Suggest similar questions (NO percentages shown to user)
         const suggestionText = `I'm not sure I understood that exactly. Did you mean one of these?\n\n` +
           similarQuestions.map((q, i) => 
-            `${i + 1}. ${q.question} (${Math.round(q.similarity * 100)}% match)`
+            `${i + 1}. ${q.question}`  // ✅ NO PERCENTAGE SHOWN
           ).join('\n') +
           `\n\nPlease type the number or rephrase your question.`;
         
@@ -798,8 +798,8 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
         confidence = similarQuestions[0].similarity;
         suggestions = similarQuestions.map(q => ({
           id: q.id,
-          question: q.question,
-          similarity: Math.round(q.similarity * 100)
+          question: q.question
+          // ✅ NO similarity field sent to frontend
         }));
 
         console.log(`🤔 Showing ${suggestions.length} similar question suggestions`);

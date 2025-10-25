@@ -71,41 +71,59 @@ export class LLMService {
       return cached.key;
     }
 
-    try {
-      // Try new schema first (service_name, credential_type, environment)
-      let result = await pool.query(
-        `SELECT encrypted_value FROM encrypted_credentials 
-         WHERE service_name = $1 
-           AND credential_type = 'api_key' 
-           AND environment = $2
-           AND is_active = true
-         LIMIT 1`,
-        [provider, process.env.NODE_ENV || 'production']
-      );
+    let result: any = { rows: [] };
 
-      // Fallback to old schema (service, key_name) - used on Heroku production
-      if (result.rows.length === 0) {
+    // Try old schema first (service, key_name) - Heroku production uses this
+    try {
+      result = await pool.query(
+        `SELECT encrypted_value FROM encrypted_credentials 
+         WHERE service = $1 AND key_name = 'api_key'
+         LIMIT 1`,
+        [provider]
+      );
+      
+      if (result.rows.length > 0) {
+        console.log(`✅ Found ${provider} API key in old schema (service, key_name)`);
+      }
+    } catch (oldSchemaError) {
+      console.log(`ℹ️  Old schema not available, trying new schema...`);
+    }
+
+    // If not found, try new schema (service_name, credential_type, environment)
+    if (result.rows.length === 0) {
+      try {
         result = await pool.query(
           `SELECT encrypted_value FROM encrypted_credentials 
-           WHERE service = $1 AND key_name = 'api_key'
+           WHERE service_name = $1 
+             AND credential_type = 'api_key' 
+             AND environment = $2
+             AND is_active = true
            LIMIT 1`,
-          [provider]
+          [provider, process.env.NODE_ENV || 'production']
         );
-      }
-
-      if (result.rows.length === 0) {
-        // Fallback to environment variable (for backward compatibility)
-        const envKey = provider.toUpperCase() + '_API_KEY';
-        const apiKey = process.env[envKey];
         
-        if (!apiKey) {
-          throw new Error(`${provider} API key not found in database or environment`);
+        if (result.rows.length > 0) {
+          console.log(`✅ Found ${provider} API key in new schema (service_name, credential_type, environment)`);
         }
-        
-        console.log(`⚠️  Using ${provider} API key from environment variable (consider storing in database)`);
-        return apiKey;
+      } catch (newSchemaError) {
+        console.log(`ℹ️  New schema not available, trying environment variable...`);
       }
+    }
 
+    // If still not found, try environment variable
+    if (result.rows.length === 0) {
+      const envKey = provider.toUpperCase() + '_API_KEY';
+      const apiKey = process.env[envKey];
+      
+      if (!apiKey) {
+        throw new Error(`${provider} API key not found in database (old/new schema) or environment`);
+      }
+      
+      console.log(`⚠️  Using ${provider} API key from environment variable`);
+      return apiKey;
+    }
+
+    try {
       // Decrypt the key
       const encryptedValue = result.rows[0].encrypted_value;
       const decryptedKey = this.decrypt(encryptedValue);
@@ -116,12 +134,11 @@ export class LLMService {
         timestamp: Date.now()
       });
 
-      console.log(`✅ Retrieved ${provider} API key from encrypted database`);
+      console.log(`✅ Retrieved and decrypted ${provider} API key successfully`);
       return decryptedKey;
-
-    } catch (error) {
-      console.error(`Error getting ${provider} API key:`, error);
-      throw error;
+    } catch (decryptError) {
+      console.error(`Error decrypting ${provider} API key:`, decryptError);
+      throw new Error(`Failed to decrypt ${provider} API key`);
     }
   }
 
