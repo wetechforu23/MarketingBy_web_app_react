@@ -11,9 +11,11 @@ const emailService = new EmailService();
 async function sendVisitorEngagementEmail(
   widget_id: number,
   session_id: string,
-  ip_address: string,
+  ip_address: string | string[],
   visitor_fingerprint: string | null
 ) {
+  // Normalize IP address (handle string array from x-forwarded-for)
+  const normalizedIp = Array.isArray(ip_address) ? ip_address[0] : ip_address;
   try {
     // Get widget and client info
     const widgetInfo = await pool.query(
@@ -120,7 +122,7 @@ async function sendVisitorEngagementEmail(
           <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <h3 style="margin-top: 0;">📍 Visitor Details:</h3>
             <p style="margin: 8px 0;"><strong>Location:</strong> ${location}</p>
-            <p style="margin: 8px 0;"><strong>IP Address:</strong> ${ip_address}</p>
+            <p style="margin: 8px 0;"><strong>IP Address:</strong> ${normalizedIp}</p>
             <p style="margin: 8px 0;"><strong>Device:</strong> ${session.device_type || 'Unknown'} (${session.browser || 'Unknown'} on ${session.os || 'Unknown'})</p>
             ${totalActiveVisitors > 1 ? `<p style="margin: 8px 0; color: #ff9800; font-weight: 600;">👥 Total Active Visitors: ${totalActiveVisitors}</p>` : ''}
           </div>
@@ -148,7 +150,7 @@ async function sendVisitorEngagementEmail(
           </p>
         </div>
       `,
-      text: `${isReturningVisitor ? 'Returning' : 'New'} visitor on ${widget.widget_name} - ${Math.round(session.minutes_on_site)} minutes on site. Location: ${location}. IP: ${ip_address}. ${totalActiveVisitors > 1 ? `${totalActiveVisitors} active visitors.` : ''} View: https://marketingby.wetechforu.com/app/visitor-monitoring`
+      text: `${isReturningVisitor ? 'Returning' : 'New'} visitor on ${widget.widget_name} - ${Math.round(session.minutes_on_site)} minutes on site. Location: ${location}. IP: ${normalizedIp}. ${totalActiveVisitors > 1 ? `${totalActiveVisitors} active visitors.` : ''} View: https://marketingby.wetechforu.com/app/visitor-monitoring`
     });
 
     console.log(`📧 Visitor engagement email sent for session ${session_id}`);
