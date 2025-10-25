@@ -1,4 +1,5 @@
 import axios from 'axios';
+import crypto from 'crypto';
 import pool from '../config/database';
 
 // ==========================================
@@ -27,6 +28,8 @@ interface LLMResponse {
 
 export class LLMService {
   private static instance: LLMService;
+  private cachedKeys: Map<string, { key: string; timestamp: number }> = new Map();
+  private CACHE_TTL = 3600000; // 1 hour cache
 
   private constructor() {}
 
@@ -35,6 +38,81 @@ export class LLMService {
       LLMService.instance = new LLMService();
     }
     return LLMService.instance;
+  }
+
+  // ==========================================
+  // CREDENTIAL MANAGEMENT (Encrypted in DB)
+  // ==========================================
+
+  private decrypt(encryptedValue: string): string {
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key!!';
+    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+    
+    try {
+      const parts = encryptedValue.split(':');
+      const iv = Buffer.from(parts[0], 'hex');
+      const encrypted = parts[1];
+      const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+      let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return decrypted;
+    } catch (error) {
+      console.error('Decryption error:', error);
+      throw new Error('Failed to decrypt API key');
+    }
+  }
+
+  private async getApiKey(provider: string): Promise<string> {
+    // Check cache first
+    const cacheKey = `${provider}_api_key`;
+    const cached = this.cachedKeys.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      return cached.key;
+    }
+
+    try {
+      // Get from database (encrypted)
+      const result = await pool.query(
+        `SELECT encrypted_value FROM encrypted_credentials 
+         WHERE service_name = $1 
+           AND credential_type = 'api_key' 
+           AND environment = $2
+           AND is_active = true
+         LIMIT 1`,
+        [provider, process.env.NODE_ENV || 'production']
+      );
+
+      if (result.rows.length === 0) {
+        // Fallback to environment variable (for backward compatibility)
+        const envKey = provider.toUpperCase() + '_API_KEY';
+        const apiKey = process.env[envKey];
+        
+        if (!apiKey) {
+          throw new Error(`${provider} API key not found in database or environment`);
+        }
+        
+        console.log(`⚠️  Using ${provider} API key from environment variable (consider storing in database)`);
+        return apiKey;
+      }
+
+      // Decrypt the key
+      const encryptedValue = result.rows[0].encrypted_value;
+      const decryptedKey = this.decrypt(encryptedValue);
+
+      // Cache it
+      this.cachedKeys.set(cacheKey, {
+        key: decryptedKey,
+        timestamp: Date.now()
+      });
+
+      console.log(`✅ Retrieved ${provider} API key from encrypted database`);
+      return decryptedKey;
+
+    } catch (error) {
+      console.error(`Error getting ${provider} API key:`, error);
+      throw error;
+    }
   }
 
   // ==========================================
@@ -138,11 +216,8 @@ export class LLMService {
     config: LLMConfig
   ): Promise<LLMResponse> {
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      
-      if (!apiKey) {
-        throw new Error('GEMINI_API_KEY not configured');
-      }
+      // Get API key from encrypted database
+      const apiKey = await this.getApiKey('gemini');
 
       // Build prompt with context
       const systemPrompt = `You are a helpful customer service assistant for a business. Be friendly, concise, and professional. Keep responses under 3 sentences unless more detail is needed.
@@ -213,11 +288,8 @@ Answer the customer's question based on the context above.`;
     config: LLMConfig
   ): Promise<LLMResponse> {
     try {
-      const apiKey = process.env.OPENAI_API_KEY;
-      
-      if (!apiKey) {
-        throw new Error('OPENAI_API_KEY not configured');
-      }
+      // Get API key from encrypted database
+      const apiKey = await this.getApiKey('openai');
 
       const response = await axios.post(
         'https://api.openai.com/v1/chat/completions',
@@ -273,11 +345,8 @@ Answer the customer's question based on the context above.`;
     config: LLMConfig
   ): Promise<LLMResponse> {
     try {
-      const apiKey = process.env.GROQ_API_KEY;
-      
-      if (!apiKey) {
-        throw new Error('GROQ_API_KEY not configured');
-      }
+      // Get API key from encrypted database
+      const apiKey = await this.getApiKey('groq');
 
       const response = await axios.post(
         'https://api.groq.com/openai/v1/chat/completions',
@@ -333,11 +402,8 @@ Answer the customer's question based on the context above.`;
     config: LLMConfig
   ): Promise<LLMResponse> {
     try {
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      
-      if (!apiKey) {
-        throw new Error('ANTHROPIC_API_KEY not configured');
-      }
+      // Get API key from encrypted database
+      const apiKey = await this.getApiKey('claude');
 
       const response = await axios.post(
         'https://api.anthropic.com/v1/messages',
