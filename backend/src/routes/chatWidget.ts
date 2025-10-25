@@ -3,6 +3,7 @@ import pool from '../config/database';
 import crypto from 'crypto';
 import archiver from 'archiver';
 import { EmailService } from '../services/emailService';
+import llmService from '../services/llmService';
 
 const router = express.Router();
 const emailService = new EmailService();
@@ -583,9 +584,12 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
 
     const startTime = Date.now();
 
-    // Get widget and conversation info
+    // Get widget and conversation info WITH LLM config
     const widgetResult = await pool.query(
-      'SELECT id FROM widget_configs WHERE widget_key = $1 AND is_active = true',
+      `SELECT id, client_id, llm_enabled, llm_provider, llm_model, 
+              llm_temperature, llm_max_tokens, fallback_to_knowledge_base
+       FROM widget_configs 
+       WHERE widget_key = $1 AND is_active = true`,
       [widgetKey]
     );
 
@@ -593,7 +597,9 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       return res.status(404).json({ error: 'Widget not found' });
     }
 
-    const widget_id = widgetResult.rows[0].id;
+    const widget = widgetResult.rows[0];
+    const widget_id = widget.id;
+    const client_id = widget.client_id;
 
     // ✅ CHECK IF AGENT HAS TAKEN OVER (HANDOFF)
     const convCheck = await pool.query(
@@ -677,53 +683,134 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       });
     }
 
-    // 🎯 SMART MATCHING: Find best matching knowledge base entry
-    const similarQuestions = await findSimilarQuestions(message_text, widget_id, 0.5);
-
-    // Generate bot response
+    // ==========================================
+    // 🤖 LLM-POWERED RESPONSE (if enabled)
+    // ==========================================
     let botResponse: string;
     let confidence = 0.3;
     let knowledge_base_id = null;
     let suggestions: any[] = [];
+    let llmUsed = false;
 
-    if (similarQuestions.length > 0 && similarQuestions[0].similarity >= 0.85) {
-      // ✅ HIGH CONFIDENCE MATCH (85%+) - Answer directly
-      const bestMatch = similarQuestions[0];
-      botResponse = bestMatch.answer;
-      confidence = bestMatch.similarity;
-      knowledge_base_id = bestMatch.id;
-
-      // Update usage stats
-      await pool.query(
-        'UPDATE widget_knowledge_base SET times_used = times_used + 1 WHERE id = $1',
-        [knowledge_base_id]
-      );
-
-      console.log(`✅ Direct answer (${Math.round(confidence * 100)}% match): "${bestMatch.question}"`);
-
-    } else if (similarQuestions.length > 0) {
-      // 🤔 MEDIUM CONFIDENCE (50-85%) - Suggest similar questions
-      botResponse = `I'm not sure I understood that exactly. Did you mean one of these?\n\n` +
-        similarQuestions.map((q, i) => 
-          `${i + 1}. ${q.question} (${Math.round(q.similarity * 100)}% match)`
-        ).join('\n') +
-        `\n\nPlease type the number or rephrase your question.`;
+    if (widget.llm_enabled && client_id) {
+      console.log(`🤖 LLM enabled for widget ${widget_id} - Attempting AI response...`);
       
-      confidence = similarQuestions[0].similarity;
-      suggestions = similarQuestions.map(q => ({
-        id: q.id,
-        question: q.question,
-        similarity: Math.round(q.similarity * 100)
-      }));
+      try {
+        // Build context from knowledge base
+        const kbResult = await pool.query(
+          `SELECT question, answer, category 
+           FROM widget_knowledge_base 
+           WHERE widget_id = $1 AND is_active = true
+           ORDER BY times_used DESC
+           LIMIT 10`,
+          [widget_id]
+        );
 
-      console.log(`🤔 Showing ${suggestions.length} similar question suggestions`);
+        let context = '';
+        if (kbResult.rows.length > 0) {
+          context = 'Business Knowledge Base:\n\n' + 
+            kbResult.rows.map(kb => `Q: ${kb.question}\nA: ${kb.answer}\n`).join('\n');
+        }
 
-    } else {
-      // ❌ NO MATCH - Friendly default response (don't immediately offer agent)
-      botResponse = `I'd love to help you with that! I'm still learning about all our services. Could you tell me a bit more about what you're looking for?\n\nSome things I can help with:\n• Our services and offerings\n• Business hours and location\n• Booking an appointment\n• General questions\n\nOr feel free to rephrase your question, and I'll do my best to assist! 😊`;
-      confidence = 0.3;
+        // Call LLM service
+        const llmResponse = await llmService.generateSmartResponse(
+          client_id,
+          widget_id,
+          conversation_id,
+          message_text,
+          context,
+          {
+            provider: widget.llm_provider || 'gemini',
+            model: widget.llm_model || 'gemini-pro',
+            temperature: widget.llm_temperature || 0.7,
+            maxTokens: widget.llm_max_tokens || 500
+          }
+        );
 
-      console.log(`❌ No matching questions found for: "${message_text}"`);
+        if (llmResponse.success && llmResponse.text) {
+          // ✅ LLM SUCCESS - Use AI-generated response
+          botResponse = llmResponse.text;
+          confidence = 0.95; // High confidence for LLM responses
+          llmUsed = true;
+
+          console.log(`✅ LLM response generated (${llmResponse.tokensUsed} tokens, ${llmResponse.responseTimeMs}ms)`);
+        } else if (llmResponse.error === 'credits_exhausted') {
+          // ⚠️ CREDITS EXHAUSTED - Fall back to knowledge base
+          console.log(`⚠️ LLM credits exhausted for client ${client_id} - Using knowledge base fallback`);
+          
+          // Add a notice about credits
+          botResponse = `[Note: You've reached your free AI assistant limit for this month. Upgrade for unlimited AI responses!]\n\n`;
+          
+          // Fall through to knowledge base logic below
+        } else {
+          // ❌ LLM FAILED - Fall back to knowledge base
+          console.log(`❌ LLM failed: ${llmResponse.error} - Using knowledge base fallback`);
+        }
+      } catch (llmError) {
+        console.error('LLM error:', llmError);
+        // Fall through to knowledge base
+      }
+    }
+
+    // ==========================================
+    // 📚 KNOWLEDGE BASE FALLBACK (if LLM not used or failed)
+    // ==========================================
+    if (!llmUsed) {
+      // 🎯 SMART MATCHING: Find best matching knowledge base entry
+      const similarQuestions = await findSimilarQuestions(message_text, widget_id, 0.5);
+
+      if (similarQuestions.length > 0 && similarQuestions[0].similarity >= 0.85) {
+        // ✅ HIGH CONFIDENCE MATCH (85%+) - Answer directly
+        const bestMatch = similarQuestions[0];
+        
+        // If we already have a "credits exhausted" message, append the answer
+        if (botResponse && botResponse.includes('free AI assistant limit')) {
+          botResponse += bestMatch.answer;
+        } else {
+          botResponse = bestMatch.answer;
+        }
+        
+        confidence = bestMatch.similarity;
+        knowledge_base_id = bestMatch.id;
+
+        // Update usage stats
+        await pool.query(
+          'UPDATE widget_knowledge_base SET times_used = times_used + 1 WHERE id = $1',
+          [knowledge_base_id]
+        );
+
+        console.log(`✅ Knowledge base answer (${Math.round(confidence * 100)}% match): "${bestMatch.question}"`);
+
+      } else if (similarQuestions.length > 0) {
+        // 🤔 MEDIUM CONFIDENCE (50-85%) - Suggest similar questions
+        const suggestionText = `I'm not sure I understood that exactly. Did you mean one of these?\n\n` +
+          similarQuestions.map((q, i) => 
+            `${i + 1}. ${q.question} (${Math.round(q.similarity * 100)}% match)`
+          ).join('\n') +
+          `\n\nPlease type the number or rephrase your question.`;
+        
+        if (botResponse && botResponse.includes('free AI assistant limit')) {
+          botResponse += suggestionText;
+        } else {
+          botResponse = suggestionText;
+        }
+        
+        confidence = similarQuestions[0].similarity;
+        suggestions = similarQuestions.map(q => ({
+          id: q.id,
+          question: q.question,
+          similarity: Math.round(q.similarity * 100)
+        }));
+
+        console.log(`🤔 Showing ${suggestions.length} similar question suggestions`);
+
+      } else if (!botResponse) {
+        // ❌ NO MATCH - Friendly default response (only if no LLM credits message)
+        botResponse = `I'd love to help you with that! I'm still learning about all our services. Could you tell me a bit more about what you're looking for?\n\nSome things I can help with:\n• Our services and offerings\n• Business hours and location\n• Booking an appointment\n• General questions\n\nOr feel free to rephrase your question, and I'll do my best to assist! 😊`;
+        confidence = 0.3;
+
+        console.log(`❌ No matching questions found for: "${message_text}"`);
+      }
     }
 
     const responseTime = Date.now() - startTime;
@@ -1575,6 +1662,114 @@ Major update with auto-popup and enhanced user experience.
   } catch (error) {
     console.error('Download plugin error:', error);
     res.status(500).json({ error: 'Failed to generate plugin' });
+  }
+});
+
+// ==========================================
+// LLM ADMIN ROUTES (Manage credits & usage)
+// ==========================================
+
+// Get LLM usage for a client
+router.get('/clients/:clientId/llm-usage', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    const result = await pool.query(
+      `SELECT cu.*, w.widget_name
+       FROM client_llm_usage cu
+       LEFT JOIN widget_configs w ON w.id = cu.widget_id
+       WHERE cu.client_id = $1
+       ORDER BY cu.created_at DESC`,
+      [clientId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get LLM usage error:', error);
+    res.status(500).json({ error: 'Failed to fetch LLM usage' });
+  }
+});
+
+// Update client LLM limits
+router.put('/clients/:clientId/widgets/:widgetId/llm-limits', async (req, res) => {
+  try {
+    const { clientId, widgetId } = req.params;
+    const { monthlyTokenLimit, dailyTokenLimit, monthlyRequestLimit, dailyRequestLimit } = req.body;
+
+    await llmService.updateClientLimits(
+      parseInt(clientId),
+      parseInt(widgetId),
+      {
+        monthlyTokenLimit,
+        dailyTokenLimit,
+        monthlyRequestLimit,
+        dailyRequestLimit
+      }
+    );
+
+    res.json({ success: true, message: 'Limits updated successfully' });
+  } catch (error) {
+    console.error('Update LLM limits error:', error);
+    res.status(500).json({ error: 'Failed to update limits' });
+  }
+});
+
+// Get LLM request logs for analytics
+router.get('/widgets/:widgetId/llm-logs', async (req, res) => {
+  try {
+    const { widgetId } = req.params;
+    const { limit = 100, offset = 0 } = req.query;
+
+    const result = await pool.query(
+      `SELECT 
+        id, created_at, llm_provider, llm_model,
+        total_tokens, response_time_ms, status,
+        prompt_text, response_text, error_message
+       FROM llm_request_logs
+       WHERE widget_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [widgetId, limit, offset]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get LLM logs error:', error);
+    res.status(500).json({ error: 'Failed to fetch logs' });
+  }
+});
+
+// Get LLM analytics summary
+router.get('/widgets/:widgetId/llm-analytics', async (req, res) => {
+  try {
+    const { widgetId } = req.params;
+
+    const [usage, logs] = await Promise.all([
+      pool.query(
+        `SELECT * FROM client_llm_usage WHERE widget_id = $1`,
+        [widgetId]
+      ),
+      pool.query(
+        `SELECT 
+          COUNT(*) as total_requests,
+          SUM(total_tokens) as total_tokens,
+          AVG(response_time_ms) as avg_response_time,
+          COUNT(CASE WHEN status = 'success' THEN 1 END) as successful_requests,
+          COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_requests,
+          COUNT(CASE WHEN status = 'credits_exhausted' THEN 1 END) as credits_exhausted_count
+         FROM llm_request_logs
+         WHERE widget_id = $1 AND created_at >= NOW() - INTERVAL '30 days'`,
+        [widgetId]
+      )
+    ]);
+
+    res.json({
+      usage: usage.rows[0] || null,
+      analytics: logs.rows[0] || {}
+    });
+  } catch (error) {
+    console.error('Get LLM analytics error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
   }
 });
 
