@@ -333,9 +333,9 @@ Answer the customer's question based on the context above.`;
 
       const prompt = `${systemPrompt}\n\nCustomer: ${userMessage}\n\nAssistant:`;
 
-      // Call Gemini API
+      // Call Gemini API (v1 for Gemini 1.5 models)
       const response = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1/models/${config.model}:generateContent?key=${apiKey}`,
         {
           contents: [{
             parts: [{
