@@ -126,6 +126,52 @@ export class LLMService {
   }
 
   // ==========================================
+  // SENSITIVE DATA DETECTION
+  // ==========================================
+  
+  private detectSensitiveData(message: string): { hasSensitive: boolean; detectedTypes: string[] } {
+    const sensitive = {
+      hasSensitive: false,
+      detectedTypes: [] as string[]
+    };
+
+    const patterns = {
+      // SSN patterns
+      ssn: /\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b/,
+      
+      // Credit card patterns (simple check)
+      creditCard: /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/,
+      
+      // Medical record numbers
+      medicalRecord: /\b(MR|MRN|Medical Record|Patient ID)[\s#:]+[A-Z0-9-]+\b/i,
+      
+      // Insurance info
+      insurance: /\b(insurance|policy|member|subscriber)[\s#:]+[A-Z0-9-]+\b/i,
+      
+      // Date of birth (various formats)
+      dob: /\b(DOB|date of birth|birthday)[\s:]+\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/i,
+      
+      // Diagnosis codes (ICD)
+      diagnosisCodes: /\b[A-Z]\d{2}\.\d{1,2}\b/,
+      
+      // Common sensitive phrases
+      sensitivePhrases: /\b(diagnosed with|prescription for|medication|symptoms|medical condition|health condition|test results)\b/i,
+      
+      // Bank account
+      bankAccount: /\b(account|routing)[\s#:]+\d{8,17}\b/i
+    };
+
+    for (const [type, pattern] of Object.entries(patterns)) {
+      if (pattern.test(message)) {
+        sensitive.hasSensitive = true;
+        sensitive.detectedTypes.push(type);
+      }
+    }
+
+    return sensitive;
+  }
+
+  // ==========================================
   // MAIN METHOD: Generate Smart Response
   // ==========================================
   async generateSmartResponse(
@@ -139,7 +185,39 @@ export class LLMService {
     const startTime = Date.now();
 
     try {
-      // 1. Check if client has credits
+      // 1. Check for sensitive/HIPAA data FIRST
+      const sensitiveCheck = this.detectSensitiveData(userMessage);
+      
+      if (sensitiveCheck.hasSensitive) {
+        console.log(`🚨 SENSITIVE DATA DETECTED in conversation ${conversationId}: ${sensitiveCheck.detectedTypes.join(', ')}`);
+        
+        // Log the blocked attempt
+        await pool.query(
+          `INSERT INTO llm_request_logs (
+            client_id, widget_id, conversation_id,
+            llm_provider, llm_model, prompt_text,
+            status, error_message
+          ) VALUES ($1, $2, $3, 'security_block', 'sensitive_data_filter', $4, 'blocked', $5)`,
+          [
+            clientId,
+            widgetId,
+            conversationId,
+            userMessage.substring(0, 100),
+            `Sensitive data detected: ${sensitiveCheck.detectedTypes.join(', ')}`
+          ]
+        );
+        
+        return {
+          success: true,
+          text: `⚠️ **Security Notice**: For your privacy and security, we cannot handle sensitive information like ${sensitiveCheck.detectedTypes.join(', ')} through this chat.\n\n🔒 **Please:**\n• Call us directly at [PRACTICE_PHONE]\n• Or request to speak with an agent who can handle your inquiry securely\n\nWe take your privacy seriously and comply with all HIPAA regulations.`,
+          tokensUsed: 0,
+          provider: 'security_filter',
+          model: 'sensitive_data_detection',
+          responseTimeMs: Date.now() - startTime
+        };
+      }
+
+      // 2. Check if client has credits
       const hasCredits = await this.checkClientCredits(clientId, widgetId);
       
       if (!hasCredits) {

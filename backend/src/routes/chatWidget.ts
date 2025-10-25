@@ -1250,6 +1250,153 @@ router.post('/conversations/:conversationId/reply', async (req, res) => {
 });
 
 // ==========================================
+// AGENT HANDBACK TO AI
+// ==========================================
+router.post('/conversations/:conversationId/handback-to-ai', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { userId, username } = req.body;
+
+    // Update conversation - CLEAR agent handoff, AI can respond again
+    await pool.query(
+      `UPDATE widget_conversations SET
+        agent_handoff = false,
+        agent_can_handback_to_ai = true,
+        updated_at = NOW()
+      WHERE id = $1`,
+      [conversationId]
+    );
+
+    // Add system message
+    await pool.query(
+      `INSERT INTO widget_messages (
+        conversation_id, message_type, message_text, agent_name, created_at
+      ) VALUES ($1, $2, $3, $4, NOW())`,
+      [conversationId, 'system', `Agent ${username} handed conversation back to AI assistant`, username]
+    );
+
+    console.log(`✅ Conversation ${conversationId} handed back to AI by agent ${username}`);
+
+    res.json({ success: true, message: 'Conversation handed back to AI' });
+  } catch (error) {
+    console.error('❌ Handback to AI error:', error);
+    res.status(500).json({ error: 'Failed to hand back to AI' });
+  }
+});
+
+// ==========================================
+// END CONVERSATION & SEND SUMMARY EMAIL TO CLIENT
+// ==========================================
+router.post('/conversations/:conversationId/end', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { userId, username, summaryNote } = req.body;
+
+    // Get conversation details
+    const convResult = await pool.query(
+      `SELECT wc.*, w.widget_name, w.notification_email, c.client_name, c.email as client_email
+       FROM widget_conversations wc
+       JOIN widget_configs w ON w.id = wc.widget_id
+       LEFT JOIN clients c ON c.id = w.client_id
+       WHERE wc.id = $1`,
+      [conversationId]
+    );
+
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    const conversation = convResult.rows[0];
+
+    // Update conversation status
+    await pool.query(
+      `UPDATE widget_conversations SET
+        status = 'closed',
+        agent_handoff = false,
+        updated_at = NOW()
+      WHERE id = $1`,
+      [conversationId]
+    );
+
+    // Add system message
+    await pool.query(
+      `INSERT INTO widget_messages (
+        conversation_id, message_type, message_text, agent_name, created_at
+      ) VALUES ($1, $2, $3, $4, NOW())`,
+      [conversationId, 'system', `Conversation closed by agent ${username}`, username]
+    );
+
+    // 📧 Send summary email to CLIENT (visitor)
+    if (conversation.visitor_email) {
+      const clientBrandedName = conversation.widget_name || conversation.client_name || 'Our Team';
+      
+      // Get conversation messages for summary
+      const messagesResult = await pool.query(
+        `SELECT message_type, message_text, agent_name, created_at
+         FROM widget_messages
+         WHERE conversation_id = $1
+         ORDER BY created_at ASC`,
+        [conversationId]
+      );
+
+      const messagesSummary = messagesResult.rows
+        .filter(m => m.message_type !== 'system')
+        .map(m => {
+          const sender = m.message_type === 'user' ? conversation.visitor_name || 'You' :
+                        m.message_type === 'human' ? m.agent_name || 'Agent' :
+                        'Bot';
+          return `${sender}: ${m.message_text}`;
+        })
+        .join('\n\n');
+
+      emailService.sendEmail({
+        to: conversation.visitor_email,
+        from: `"${clientBrandedName}" <info@wetechforu.com>`,
+        subject: `Conversation Summary - ${clientBrandedName}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #4682B4;">Thank You for Contacting ${clientBrandedName}!</h2>
+            
+            <p>Hi ${conversation.visitor_name || 'there'},</p>
+            
+            <p>Thank you for chatting with us! Here's a summary of our conversation:</p>
+            
+            ${summaryNote ? `
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196f3;">
+              <strong>Agent Note:</strong>
+              <p style="margin: 10px 0 0 0;">${summaryNote}</p>
+            </div>
+            ` : ''}
+            
+            <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="margin-top: 0;">Conversation Transcript:</h3>
+              <pre style="white-space: pre-wrap; font-size: 14px; line-height: 1.6;">${messagesSummary}</pre>
+            </div>
+            
+            <p>If you have any further questions, feel free to:</p>
+            <ul>
+              <li>Reply to this email</li>
+              <li>Visit our website again and start a new chat</li>
+              <li>Call us directly</li>
+            </ul>
+            
+            <p>Best regards,<br><strong>${clientBrandedName}</strong></p>
+          </div>
+        `,
+        text: `Thank you for chatting with ${clientBrandedName}!\n\n${summaryNote ? 'Agent Note: ' + summaryNote + '\n\n' : ''}Conversation:\n${messagesSummary}`
+      }).catch(err => console.error('Failed to send conversation summary email:', err));
+    }
+
+    console.log(`✅ Conversation ${conversationId} ended by agent ${username}`);
+
+    res.json({ success: true, message: 'Conversation ended and summary email sent' });
+  } catch (error) {
+    console.error('❌ End conversation error:', error);
+    res.status(500).json({ error: 'Failed to end conversation' });
+  }
+});
+
+// ==========================================
 // KNOWLEDGE BASE ENDPOINTS
 // ==========================================
 
