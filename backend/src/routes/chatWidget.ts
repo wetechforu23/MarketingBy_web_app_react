@@ -715,8 +715,8 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       console.log(`🤔 Showing ${suggestions.length} similar question suggestions`);
 
     } else {
-      // ❌ NO MATCH - Default response
-      botResponse = 'I understand you have a question. Let me connect you with our team who can help you better. Would you like to leave your email or phone number?';
+      // ❌ NO MATCH - Friendly default response (don't immediately offer agent)
+      botResponse = `I'd love to help you with that! I'm still learning about all our services. Could you tell me a bit more about what you're looking for?\n\nSome things I can help with:\n• Our services and offerings\n• Business hours and location\n• Booking an appointment\n• General questions\n\nOr feel free to rephrase your question, and I'll do my best to assist! 😊`;
       confidence = 0.3;
 
       console.log(`❌ No matching questions found for: "${message_text}"`);

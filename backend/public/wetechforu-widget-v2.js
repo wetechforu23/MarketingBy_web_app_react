@@ -50,6 +50,7 @@
       displayedMessageIds: [], // Track displayed agent messages
       pollingInterval: null, // Polling timer
       agentTookOver: false, // ✅ NEW: Track if agent took over conversation
+      unsuccessfulAttempts: 0, // Track failed knowledge base matches
       compatibility: {
         supported: true,
         version: null,
@@ -457,29 +458,30 @@
             background: rgba(255,255,255,0.3);
           }
 
-          /* Mobile responsive */
+          /* Mobile responsive - Like other chat widgets */
           @media (max-width: 480px) {
             #wetechforu-chat-window {
-              width: 100vw !important;
-              height: 100vh !important;
-              max-height: 100vh !important;
+              width: calc(100vw - 16px) !important;
+              height: 70vh !important;
+              max-height: 600px !important;
               max-width: 100vw !important;
-              bottom: 0 !important;
-              left: 0 !important;
-              right: 0 !important;
-              top: 0 !important;
-              border-radius: 0 !important;
+              bottom: 80px !important;
+              left: 8px !important;
+              right: 8px !important;
+              border-radius: 16px !important;
               position: fixed !important;
               z-index: 999999 !important;
+              box-shadow: 0 10px 40px rgba(0,0,0,0.3) !important;
             }
             #wetechforu-chat-window > div:first-child {
               padding: 16px !important;
             }
             #wetechforu-chat-button {
-              width: 56px !important;
-              height: 56px !important;
-              bottom: 20px !important;
-              right: 20px !important;
+              width: 60px !important;
+              height: 60px !important;
+              bottom: 16px !important;
+              right: 16px !important;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             }
             #wetechforu-quick-actions {
               flex-wrap: wrap !important;
@@ -491,6 +493,22 @@
             }
             #wetechforu-input {
               font-size: 16px !important; /* Prevents zoom on iOS */
+            }
+            #wetechforu-close-button,
+            #wetechforu-minimize-button {
+              width: 36px !important;
+              height: 36px !important;
+              font-size: 18px !important;
+            }
+          }
+          
+          /* Tablet responsive */
+          @media (max-width: 768px) and (min-width: 481px) {
+            #wetechforu-chat-window {
+              width: 400px !important;
+              height: 550px !important;
+              bottom: 90px !important;
+              right: 20px !important;
             }
           }
 
@@ -1588,21 +1606,31 @@
           
           if (confidence >= 0.85) {
             // ✅ HIGH CONFIDENCE (85%+) - Answer is good, ask if helpful
+            this.state.unsuccessfulAttempts = 0; // Reset counter on good match
             setTimeout(() => {
               this.showHelpfulButtons();
             }, 1500);
           } else if (data.suggestions && data.suggestions.length > 0) {
             // 🤔 MEDIUM CONFIDENCE (50-85%) - Show similar questions
+            this.state.unsuccessfulAttempts = 0; // Reset counter on suggestions
             setTimeout(() => {
               this.addBotMessage("Or did you mean one of these?");
               this.showSmartSuggestions(data.suggestions);
             }, 1000);
-          } else {
-            // ❌ LOW CONFIDENCE (<50%) - Offer agent help immediately
-            setTimeout(() => {
-              this.addBotMessage("I'm not sure I fully understood your question. Would you like me to connect you with a live agent?");
-              this.showHelpfulButtons(true); // Show Yes/No for agent
-            }, 1000);
+          } else if (confidence < 0.5) {
+            // ❌ LOW CONFIDENCE - Bot is still helpful, doesn't immediately push agent
+            // The backend already sent a friendly "tell me more" message
+            // Only show agent button after 2-3 unsuccessful attempts
+            this.state.unsuccessfulAttempts = (this.state.unsuccessfulAttempts || 0) + 1;
+            
+            if (this.state.unsuccessfulAttempts >= 2) {
+              // After 2 failed attempts, offer agent
+              setTimeout(() => {
+                this.addBotMessage("I'm sorry I couldn't find the exact information you're looking for. Would you like to speak with someone from our team?");
+                this.showHelpfulButtons(true); // Show Yes/No for agent
+              }, 1500);
+            }
+            // Otherwise, let user continue asking (bot already responded with helpful message)
           }
         }
       } catch (error) {
@@ -1649,6 +1677,7 @@
       
       if (feedback === 'yes') {
         this.addUserMessage("✅ Yes, that helped!");
+        this.state.unsuccessfulAttempts = 0; // Reset counter on positive feedback
         setTimeout(() => {
           this.addBotMessage("Awesome! 🎉 Is there anything else I can help you with?");
           this.state.awaitingUserQuestion = true;
