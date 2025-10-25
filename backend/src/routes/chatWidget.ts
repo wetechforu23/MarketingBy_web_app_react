@@ -479,9 +479,11 @@ router.post('/public/widget/:widgetKey/conversation', async (req, res) => {
 
     // 📧 Send email notification for NEW conversation (async - don't block response)
     if (widget.enable_email_notifications && widget.notification_email) {
+      const clientBrandedName = widget.widget_name || 'Your Website';
       emailService.sendEmail({
         to: widget.notification_email,
-        subject: `🤖 New Chat Visitor - ${widget.widget_name}`,
+        from: `"💬 ${clientBrandedName} - Chat Alert" <info@wetechforu.com>`, // ✅ Branded with client name
+        subject: `💬 New Chat Visitor on ${clientBrandedName}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #4682B4;">🤖 New Website Visitor Started Chatting!</h2>
@@ -629,9 +631,11 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
         if (widgetInfo.rows.length > 0) {
           const info = widgetInfo.rows[0];
           if (info.enable_email_notifications && info.notification_email) {
+            const clientBrandedName = info.widget_name || 'Your Website';
             emailService.sendEmail({
               to: info.notification_email,
-              subject: `💬 New Message from ${info.visitor_name || 'Visitor'} - ${info.widget_name}`,
+              from: `"💬 ${clientBrandedName} - Chat Alert" <info@wetechforu.com>`, // ✅ Branded with client name
+              subject: `💬 New Message from ${info.visitor_name || 'Visitor'} on ${clientBrandedName}`,
               html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                   <h2 style="color: #4682B4;">💬 Customer Sent You a Message!</h2>
@@ -883,9 +887,11 @@ router.post('/public/widget/:widgetKey/capture-lead', async (req, res) => {
     if (widgetInfoResult.rows.length > 0) {
       const widgetInfo = widgetInfoResult.rows[0];
       if (widgetInfo.enable_email_notifications && widgetInfo.notification_email) {
+        const clientBrandedName = widgetInfo.widget_name || 'Your Website';
         emailService.sendEmail({
           to: widgetInfo.notification_email,
-          subject: `🚨 URGENT: Visitor Requests Contact - ${widgetInfo.widget_name}`,
+          from: `"🚨 ${clientBrandedName} - URGENT Lead Alert" <info@wetechforu.com>`, // ✅ Branded with client name
+          subject: `🚨 URGENT: Visitor Wants Contact on ${clientBrandedName}`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
               <h2 style="color: #dc3545;">🚨 URGENT: Website Visitor Wants to Be Contacted!</h2>

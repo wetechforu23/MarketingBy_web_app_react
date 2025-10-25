@@ -101,10 +101,12 @@ async function sendVisitorEngagementEmail(
     const city = session.city || '';
     const location = city ? `${city}, ${country}` : country;
 
-    // Send email notification
+    // Send email notification with CLIENT-BRANDED sender name
+    const clientBrandedName = widget.widget_name || widget.client_name || 'Your Website';
     await emailService.sendEmail({
       to: notifyEmail,
-      subject: `🔔 ${isReturningVisitor ? 'Returning' : 'New'} Visitor Engaged on ${widget.widget_name}`,
+      from: `"🔔 ${clientBrandedName} - Visitor Alert" <info@wetechforu.com>`, // ✅ Branded with client name
+      subject: `🔔 ${isReturningVisitor ? 'Returning' : 'New'} Visitor on ${clientBrandedName}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #4682B4;">
