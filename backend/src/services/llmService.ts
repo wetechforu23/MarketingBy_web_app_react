@@ -72,8 +72,8 @@ export class LLMService {
     }
 
     try {
-      // Get from database (encrypted)
-      const result = await pool.query(
+      // Try new schema first (service_name, credential_type, environment)
+      let result = await pool.query(
         `SELECT encrypted_value FROM encrypted_credentials 
          WHERE service_name = $1 
            AND credential_type = 'api_key' 
@@ -82,6 +82,16 @@ export class LLMService {
          LIMIT 1`,
         [provider, process.env.NODE_ENV || 'production']
       );
+
+      // Fallback to old schema (service, key_name) - used on Heroku production
+      if (result.rows.length === 0) {
+        result = await pool.query(
+          `SELECT encrypted_value FROM encrypted_credentials 
+           WHERE service = $1 AND key_name = 'api_key'
+           LIMIT 1`,
+          [provider]
+        );
+      }
 
       if (result.rows.length === 0) {
         // Fallback to environment variable (for backward compatibility)
