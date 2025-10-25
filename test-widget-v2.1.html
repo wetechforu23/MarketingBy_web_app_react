@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WeTechForU Widget Test v2.1</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .test-container {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .version {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+        .status {
+            background: #f0f9ff;
+            border-left: 4px solid #0ea5e9;
+            padding: 16px;
+            margin-bottom: 24px;
+            border-radius: 4px;
+        }
+        .status h3 {
+            margin: 0 0 8px 0;
+            color: #0c4a6e;
+        }
+        .status p {
+            margin: 0;
+            color: #475569;
+        }
+        .instructions {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 16px;
+            margin: 24px 0;
+            border-radius: 4px;
+        }
+        .instructions h3 {
+            margin: 0 0 12px 0;
+            color: #78350f;
+        }
+        .instructions ol {
+            margin: 0;
+            padding-left: 20px;
+            color: #92400e;
+        }
+        .instructions li {
+            margin-bottom: 8px;
+        }
+        .console-output {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 24px;
+        }
+        .console-output div {
+            margin: 4px 0;
+            padding: 4px 0;
+            border-bottom: 1px solid #334155;
+        }
+        .console-output div:last-child {
+            border-bottom: none;
+        }
+        button {
+            background: #0ea5e9;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 8px;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #0284c7;
+        }
+        button.danger {
+            background: #ef4444;
+        }
+        button.danger:hover {
+            background: #dc2626;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🤖 WeTechForU Widget Test Page</h1>
+        <p class="version">Version 2.1 - Enhanced with AI & Debug Logging</p>
+        
+        <div class="status">
+            <h3>🔍 What's Being Tested:</h3>
+            <p><strong>Widget Version:</strong> v2.1 (Oct 25, 2024)</p>
+            <p><strong>New Features:</strong> AI-powered responses (Gemini), Debug console logging, Better caching</p>
+            <p><strong>Backend:</strong> Heroku Production (marketingby-wetechforu)</p>
+        </div>
+
+        <div class="instructions">
+            <h3>📋 Testing Instructions:</h3>
+            <ol>
+                <li><strong>Open Browser Console</strong> (F12 or Right-click → Inspect → Console)</li>
+                <li>Look for "🤖 WeTechForU Widget v2.1 Loading..." message</li>
+                <li>Click the chat widget button (bottom-right corner)</li>
+                <li>Type a test message like "hello" or "what are your services?"</li>
+                <li>Watch the console for these logs:
+                    <ul>
+                        <li>📝 sendMessage() called</li>
+                        <li>📨 sendMessageToBackend() called</li>
+                        <li>📡 Sending POST to: [endpoint]</li>
+                        <li>📥 Response status: 200</li>
+                        <li>📦 Response data: {...}</li>
+                    </ul>
+                </li>
+                <li>Verify the bot responds with AI-generated answers (not default fallback)</li>
+            </ol>
+        </div>
+
+        <div style="margin: 24px 0;">
+            <button onclick="clearConsole()">🧹 Clear Console</button>
+            <button onclick="testMessage()">💬 Send Test Message</button>
+            <button onclick="location.reload()" class="danger">🔄 Hard Refresh (Clear Cache)</button>
+        </div>
+
+        <h3>📊 Expected Console Output:</h3>
+        <div class="console-output" id="example-console">
+            <div>🤖 WeTechForU Widget v2.1 Loading...</div>
+            <div>✅ Widget config loaded from backend</div>
+            <div>📝 sendMessage() called, input value: "hello"</div>
+            <div>✅ User message added to UI</div>
+            <div>📨 sendMessageToBackend() called with: "hello"</div>
+            <div>🔑 Widget Key: wtfu_464ed6cab852594fce9034020d77dee3</div>
+            <div>🔗 Backend URL: https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com</div>
+            <div>🔄 Ensuring conversation exists...</div>
+            <div>✅ Conversation ID: 10</div>
+            <div>📡 Sending POST to: https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com/api/chat-widget/public/widget/wtfu_464ed6cab852594fce9034020d77dee3/message</div>
+            <div>📥 Response status: 200</div>
+            <div>📦 Response data: {response: "Hi! How can I help you today?", confidence: 0.95, ...}</div>
+        </div>
+
+        <div style="margin-top: 24px; padding: 16px; background: #f1f5f9; border-radius: 8px;">
+            <p style="margin: 0; color: #475569; font-size: 14px;">
+                <strong>⚠️ Important:</strong> If you don't see console logs or the widget shows old behavior:
+            </p>
+            <ul style="color: #64748b; font-size: 14px;">
+                <li>Press <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px;">Ctrl+Shift+R</code> (Windows) or <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px;">Cmd+Shift+R</code> (Mac) to force reload</li>
+                <li>Clear browser cache: Settings → Privacy → Clear browsing data → Cached images and files</li>
+                <li>Try incognito/private mode</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Load Widget from LOCAL backend -->
+    <script>
+        // Test functions
+        function clearConsole() {
+            console.clear();
+            console.log('🧹 Console cleared - Widget should still be loaded');
+        }
+
+        function testMessage() {
+            console.log('💬 Simulating test message...');
+            if (window.WeTechForUWidget) {
+                window.WeTechForUWidget.openChat();
+                setTimeout(() => {
+                    const input = document.getElementById('wetechforu-input');
+                    if (input) {
+                        input.value = 'test message';
+                        console.log('✅ Test message added to input. Click send or press enter.');
+                    } else {
+                        console.error('❌ Input field not found. Is widget open?');
+                    }
+                }, 500);
+            } else {
+                console.error('❌ Widget not loaded yet!');
+            }
+        }
+
+        // Capture console logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        const outputDiv = document.getElementById('example-console');
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            const div = document.createElement('div');
+            div.textContent = message;
+            if (outputDiv.children.length > 50) {
+                outputDiv.removeChild(outputDiv.firstChild);
+            }
+            outputDiv.appendChild(div);
+            outputDiv.scrollTop = outputDiv.scrollHeight;
+        };
+
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            const div = document.createElement('div');
+            div.textContent = '❌ ' + message;
+            div.style.color = '#fca5a5';
+            if (outputDiv.children.length > 50) {
+                outputDiv.removeChild(outputDiv.firstChild);
+            }
+            outputDiv.appendChild(div);
+            outputDiv.scrollTop = outputDiv.scrollHeight;
+        };
+    </script>
+
+    <!-- Load Widget -->
+    <script>
+        // PRODUCTION BACKEND
+        const WIDGET_KEY = 'wtfu_464ed6cab852594fce9034020d77dee3';
+        const BACKEND_URL = 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com';
+        
+        // Dynamically load widget script with cache-busting
+        const script = document.createElement('script');
+        script.src = `${BACKEND_URL}/public/wetechforu-widget-v2.js?v=${Date.now()}`;
+        script.onload = function() {
+            console.log('✅ Widget script loaded successfully');
+            if (window.WeTechForUWidget) {
+                console.log('✅ WeTechForUWidget object found, initializing...');
+                WeTechForUWidget.init({
+                    widgetKey: WIDGET_KEY,
+                    backendUrl: BACKEND_URL
+                });
+            } else {
+                console.error('❌ WeTechForUWidget object NOT found after script load!');
+            }
+        };
+        script.onerror = function() {
+            console.error('❌ Failed to load widget script from:', script.src);
+        };
+        document.body.appendChild(script);
+        console.log('📥 Loading widget script from:', script.src);
+    </script>
+</body>
+</html>
+

@@ -1,5 +1,5 @@
 /**
- * WeTechForU AI Chat Widget - Enhanced Version 2.0
+ * WeTechForU AI Chat Widget - Enhanced Version 2.1
  * 
  * Features:
  * - Auto-popup on page load
@@ -8,10 +8,15 @@
  * - Responsive design
  * - Smart question flow
  * - Version compatibility checker
+ * - AI-powered responses with Gemini
+ * 
+ * VERSION: v2.1 (Oct 25, 2024)
  */
 
 (function() {
   'use strict';
+  
+  console.log('🤖 WeTechForU Widget v2.1 Loading...');
 
   const WeTechForUWidget = {
     config: {
@@ -1260,10 +1265,16 @@
       const input = document.getElementById('wetechforu-input');
       const message = input.value.trim();
       
-      if (!message) return;
+      console.log('📝 sendMessage() called, input value:', message);
+      
+      if (!message) {
+        console.log('⚠️  Empty message, skipping');
+        return;
+      }
 
       this.addUserMessage(message);
       input.value = '';
+      console.log('✅ User message added to UI');
       
       // 🚨 Emergency keyword detection for healthcare
       if (this.config.autoDetectEmergency && this.config.industry === 'healthcare') {
@@ -1548,6 +1559,10 @@
     
     // Send message to backend
     async sendMessageToBackend(message) {
+      console.log('📨 sendMessageToBackend() called with:', message);
+      console.log('🔑 Widget Key:', this.config.widgetKey);
+      console.log('🔗 Backend URL:', this.config.backendUrl);
+      
       // 🛡️ Rate Limiting Check
       const now = Date.now();
       
@@ -1558,6 +1573,7 @@
       
       // Check if rate limit exceeded
       if (this.state.messageHistory.length >= this.config.rateLimit.maxMessages) {
+        console.log('⚠️  Rate limit exceeded');
         this.addBotMessage('⏳ Please slow down! You\'re sending messages too quickly. Please wait a moment before trying again.');
         return;
       }
@@ -1566,16 +1582,23 @@
       this.state.messageHistory.push(now);
       
       // ✅ FIX: Ensure conversation exists before sending message
+      console.log('🔄 Ensuring conversation exists...');
       const conversationId = await this.ensureConversation();
+      console.log('✅ Conversation ID:', conversationId);
+      
       if (!conversationId) {
+        console.error('❌ Failed to get conversation ID');
         this.addBotMessage("Sorry, I'm having trouble connecting. Please refresh and try again.");
         return;
       }
       
       this.showTyping();
+      
+      const endpoint = `${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/message`;
+      console.log('📡 Sending POST to:', endpoint);
 
       try {
-        const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/message`, {
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -1586,7 +1609,9 @@
           })
         });
 
+        console.log('📥 Response status:', response.status);
         const data = await response.json();
+        console.log('📦 Response data:', data);
         
         this.hideTyping();
         
