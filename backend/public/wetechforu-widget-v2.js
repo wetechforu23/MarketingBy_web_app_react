@@ -1521,12 +1521,44 @@
       }
     },
 
-    // Create conversation if needed
+    // Create conversation if needed (with persistence across page navigation)
     async ensureConversation() {
+      // ✅ 1. Check if already in state
       if (this.state.conversationId) {
-        return this.state.conversationId; // Already have one
+        console.log('✅ Using existing conversation ID from state:', this.state.conversationId);
+        return this.state.conversationId;
       }
       
+      // ✅ 2. Check localStorage for persisted conversation (not closed)
+      const persistedConvId = localStorage.getItem(`wetechforu_conversation_${this.config.widgetKey}`);
+      const conversationClosed = sessionStorage.getItem(`wetechforu_conversation_closed_${this.config.widgetKey}`);
+      
+      if (persistedConvId && !conversationClosed) {
+        // Check if conversation is still active on backend
+        try {
+          const checkResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${persistedConvId}/status`);
+          if (checkResponse.ok) {
+            const statusData = await checkResponse.json();
+            if (statusData.status === 'active') {
+              this.state.conversationId = persistedConvId;
+              console.log('✅ Restored active conversation from localStorage:', persistedConvId);
+              
+              // ✅ Load previous messages
+              await this.loadPreviousMessages(persistedConvId);
+              
+              return persistedConvId;
+            } else {
+              console.log('⚠️ Previous conversation was closed:', statusData.status);
+              // Clear closed conversation
+              localStorage.removeItem(`wetechforu_conversation_${this.config.widgetKey}`);
+            }
+          }
+        } catch (error) {
+          console.warn('Could not check conversation status:', error);
+        }
+      }
+      
+      // ✅ 3. Create new conversation
       try {
         // Collect visitor info from intro flow or contact info
         let visitorName = 'Anonymous Visitor';
@@ -1569,7 +1601,11 @@
         if (response.ok) {
           const data = await response.json();
           this.state.conversationId = data.conversation_id;
-          console.log('✅ Conversation created:', data.conversation_id, 'for', visitorName);
+          
+          // ✅ Store in localStorage for persistence across pages
+          localStorage.setItem(`wetechforu_conversation_${this.config.widgetKey}`, data.conversation_id);
+          
+          console.log('✅ New conversation created & persisted:', data.conversation_id, 'for', visitorName);
           return data.conversation_id;
         } else {
           console.error('Failed to create conversation');
@@ -1579,6 +1615,51 @@
         console.error('Error creating conversation:', error);
         return null;
       }
+    },
+    
+    // ✅ Load previous messages from conversation
+    async loadPreviousMessages(conversationId) {
+      try {
+        const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/messages`);
+        if (response.ok) {
+          const data = await response.json();
+          const messages = data.messages || [];
+          
+          if (messages.length > 0) {
+            console.log(`✅ Loading ${messages.length} previous messages`);
+            
+            // Clear existing messages
+            const messagesDiv = document.getElementById('wetechforu-messages');
+            if (messagesDiv) {
+              messagesDiv.innerHTML = '';
+            }
+            
+            // Add system message about restored conversation
+            this.addBotMessage('👋 Welcome back! Here\'s your previous conversation:');
+            
+            // Display all previous messages
+            messages.forEach(msg => {
+              if (msg.message_type === 'user') {
+                this.addUserMessage(msg.message_text, false); // Don't send to backend
+              } else if (msg.message_type === 'bot') {
+                this.addBotMessage(msg.message_text);
+              } else if (msg.message_type === 'human' && msg.agent_name) {
+                this.addBotMessage(msg.message_text, true, msg.agent_name); // Show as agent
+              } else if (msg.message_type === 'system') {
+                this.addBotMessage(`ℹ️ ${msg.message_text}`);
+              }
+            });
+            
+            // Add system message
+            this.addBotMessage('How else can I help you today?');
+            
+            return true;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load previous messages:', error);
+      }
+      return false;
     },
     
     // Get or create session ID
@@ -1761,6 +1842,13 @@
         
         if (response.ok) {
           console.log('✅ Session closed on backend');
+          
+          // ✅ Mark conversation as closed in storage
+          sessionStorage.setItem(`wetechforu_conversation_closed_${this.config.widgetKey}`, 'true');
+          localStorage.removeItem(`wetechforu_conversation_${this.config.widgetKey}`);
+          
+          // Clear state
+          this.state.conversationId = null;
         }
       } catch (error) {
         console.error('Failed to close session on backend:', error);

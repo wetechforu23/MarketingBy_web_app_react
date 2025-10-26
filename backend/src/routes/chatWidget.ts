@@ -2078,5 +2078,50 @@ router.post('/conversations/:conversationId/close-manual', async (req, res) => {
   }
 });
 
+/**
+ * Get conversation status (for widget to check if conversation still active)
+ */
+router.get('/public/widget/:widgetKey/conversations/:conversationId/status', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    
+    const result = await pool.query(
+      'SELECT status, closed_at, close_reason FROM widget_conversations WHERE id = $1',
+      [conversationId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching conversation status:', error);
+    res.status(500).json({ error: 'Failed to fetch status' });
+  }
+});
+
+/**
+ * Get all messages for a conversation (for widget to restore conversation)
+ */
+router.get('/public/widget/:widgetKey/conversations/:conversationId/messages', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    
+    const result = await pool.query(
+      `SELECT id, message_type, message_text, sender_name, agent_name, created_at
+       FROM widget_messages
+       WHERE conversation_id = $1
+       ORDER BY created_at ASC`,
+      [conversationId]
+    );
+    
+    res.json({ messages: result.rows });
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
 export default router;
 
