@@ -5693,3 +5693,418 @@ DROP COLUMN IF EXISTS previous_visit_count;
 4. Collect client feedback on branded emails
 5. Optimize mobile UI based on usage analytics
 
+---
+
+## 🚀 Version 5.0 - Professional Bot Flow & Session Management
+
+### Version 5.0.0 (v355-v358) - November 2025
+
+#### 📧 Email Notification System (v355)
+
+**Issue Fixed:**
+- Microsoft Graph API authentication error: `/me/sendMail` requires delegated auth
+- Updated to use `/users/{email}/sendMail` for application permissions (client credentials flow)
+
+**Features Added:**
+- ✅ Test email endpoints for debugging
+- ✅ Visitor engagement email notifications (5+ min on site)
+- ✅ Beautiful HTML email templates
+- ✅ Automatic email sending via Microsoft Graph API
+
+**New API Endpoints:**
+```
+POST /api/test-email/send-test
+POST /api/test-email/send-visitor-engagement
+```
+
+**Configuration:**
+- Uses existing Microsoft Graph credentials from Heroku config
+- Falls back to Azure Communication Services if Graph fails
+- Final fallback to SMTP
+
+**Testing Results:**
+- ✅ Test email successfully sent to viral.tarpara@hotmail.com
+- ✅ Email service working correctly
+- ✅ Visitor engagement notifications active
+
+---
+
+#### ⏰ Auto-Close Inactive Sessions (v356)
+
+**Database Function Created:**
+```sql
+CREATE FUNCTION close_inactive_conversations()
+RETURNS INTEGER
+-- Closes conversations inactive for 15+ minutes
+-- Adds friendly system message before closing
+```
+
+**Features:**
+- Tracks `last_activity_at` on every user/bot message
+- Auto-closes after 15 minutes of inactivity
+- Sends system message: "This conversation has been closed due to X minutes of inactivity..."
+- Updates status to 'inactive'
+
+**New API Endpoints:**
+```
+POST /api/chat-widget/admin/close-inactive-sessions
+GET  /api/chat-widget/admin/inactive-sessions/stats
+POST /api/chat-widget/conversations/:id/close-manual
+```
+
+**Testing Results:**
+- ✅ Successfully closed 12 inactive conversations (1000+ min old)
+- ✅ System messages sent to all closed conversations
+- ✅ Status tracking working correctly
+
+---
+
+#### 💬 Session End Prompt (v357)
+
+**User Flow Enhancement:**
+
+After bot successfully answers a question:
+1. Bot asks: "Is there anything else I can help you with?"
+2. User sees two buttons:
+   - 💬 "Yes, I have more questions" → Returns to quick actions
+   - ✅ "No, I'm all set. Thanks!" → Closes session gracefully
+
+**Implementation:**
+- `showSessionEndOptions()` - Displays session end buttons
+- `closeSessionOnBackend()` - Closes conversation on backend with reason
+- Hides input/actions after session ends
+- Friendly goodbye message displayed
+
+**Backend Integration:**
+- Calls `POST /api/chat-widget/conversations/:id/close-manual`
+- Reason: "User finished their questions and ended the session"
+- Status updated to 'closed'
+
+---
+
+#### 🎨 Portal Status Display (v357)
+
+**Status Badge Colors:**
+- 🟢 **Active** (green) - Ongoing conversations
+- 🔵 **Closed** (blue) - User/agent manually ended
+- ⚪ **Inactive** (gray) - Auto-closed due to inactivity
+
+**Updated Files:**
+- `frontend/src/pages/ChatConversations.tsx`
+- Enhanced `getStatusColor()` function
+- Clear visual indicators for conversation states
+
+---
+
+#### 🎯 Professional Welcome Flow (v358)
+
+**Session Management:**
+- ✅ Welcome message shown ONLY on first visit
+- ✅ Bot won't auto-popup if user closed it in this session
+- ✅ Uses `sessionStorage` to track:
+  - `wetechforu_welcome_shown_{widgetKey}` - Welcome message flag
+  - `wetechforu_closed_{widgetKey}` - User closed bot flag
+
+**Smart Auto-Popup Logic:**
+```javascript
+// Check if user closed bot in this session
+const hasClosedBot = sessionStorage.getItem(`wetechforu_closed_${widgetKey}`);
+
+if (!hasClosedBot && config.autoPopup) {
+  // Auto-popup enabled - show bot
+  setTimeout(() => openChat(), autoPopupDelay);
+} else {
+  // Don't popup - user closed it already
+  console.log('Bot was closed - not auto-popping');
+}
+```
+
+**Welcome Message Flow:**
+```javascript
+// On openChat()
+const hasShownWelcome = sessionStorage.getItem(`wetechforu_welcome_shown_${widgetKey}`);
+
+if (!hasShownWelcome) {
+  // First visit - show welcome + intro flow
+  sessionStorage.setItem(`wetechforu_welcome_shown_${widgetKey}`, 'true');
+  
+  if (enableIntroFlow) {
+    startIntroFlow(); // Database questions
+  } else {
+    startDefaultIntroFlow(); // Standard welcome
+  }
+} else {
+  // Returning visitor - skip welcome
+  console.log('Returning visitor - skipping welcome');
+}
+```
+
+**Database Config Loading:**
+- Bot loads `welcome_message`, `bot_name`, `bot_avatar_url` from database
+- Uses widget-specific configuration
+- Fallback to defaults if config not available
+
+---
+
+#### 🎓 Individual Bot Training & Business Hours (v358)
+
+**New Database Schema:**
+
+**widget_configs additions:**
+```sql
+business_hours JSONB -- Full week schedule with open/close times
+timezone VARCHAR(100) -- e.g., 'America/New_York'
+agent_response_time VARCHAR(100) -- e.g., 'within 24 hours'
+out_of_hours_message TEXT -- Message shown when agents offline
+widget_specific_llm_key TEXT -- Encrypted API key for this bot
+widget_training_notes TEXT -- Custom training instructions
+last_trained_at TIMESTAMP
+training_data_version INTEGER
+```
+
+**widget_conversations additions:**
+```sql
+unread_agent_messages INTEGER -- Count of unread messages from agents
+unread_visitor_messages INTEGER -- Count of unread messages from visitors
+last_read_by_agent_at TIMESTAMP
+last_read_by_visitor_at TIMESTAMP
+pages_visited JSONB -- Array of {url, title, time_spent}
+session_summary TEXT -- AI-generated conversation summary
+summary_sent_at TIMESTAMP
+```
+
+**Business Hours Structure:**
+```json
+{
+  "monday": {
+    "open": "09:00",
+    "close": "17:00",
+    "enabled": true
+  },
+  "tuesday": {
+    "open": "09:00",
+    "close": "17:00",
+    "enabled": true
+  },
+  // ... all 7 days
+}
+```
+
+**Individual Bot Training:**
+- Each widget can have its own Google AI API key
+- Stored encrypted in `widget_specific_llm_key`
+- Custom training notes per bot
+- Version tracking for training updates
+- Allows client-specific AI personalities
+
+**Use Cases:**
+1. **Healthcare Bot** - Trained on medical terminology, HIPAA compliance
+2. **Legal Bot** - Trained on legal terms, case studies
+3. **E-commerce Bot** - Trained on products, inventory, shipping
+4. **Restaurant Bot** - Trained on menu, hours, reservations
+
+---
+
+#### 📊 Session Summary & Analytics (v358 - Prepared)
+
+**Session Tracking:**
+- Pages visited during conversation
+- Time spent on each page
+- User journey through website
+- Conversation highlights
+- AI-generated summary
+
+**Summary Email Structure:**
+```
+Subject: Chat Session Summary - [Visitor Name]
+
+📍 Pages Visited:
+1. Homepage (2 min 30 sec)
+2. Services Page (1 min 45 sec)
+3. Contact Page (30 sec)
+
+💬 Conversation Summary:
+Visitor asked about pricing for healthcare marketing.
+Bot provided Basic ($399), Professional ($799), 
+and Enterprise ($1,499) plan details.
+
+✅ Outcome:
+User requested contact with sales team.
+Agent handoff completed at 3:45 PM.
+
+📧 Contact Info:
+Name: John Doe
+Email: john@example.com
+Phone: (555) 123-4567
+```
+
+---
+
+#### 🔔 Portal Notifications (v358 - In Progress)
+
+**Real-Time Notification System:**
+- Notification badge when new messages arrive
+- Sound alert for agent responses
+- Browser notification API
+- Portal dashboard notification center
+
+**Notification Types:**
+1. 🆕 New conversation started
+2. 💬 New message from visitor
+3. 🤝 Agent handoff requested
+4. ⚠️ Urgent lead alert
+5. ⏰ Visitor waiting 5+ minutes
+
+**Implementation Plan:**
+- WebSocket connection for real-time updates
+- Polling fallback if WebSocket unavailable
+- Notification preferences per widget
+- Do Not Disturb mode
+
+---
+
+#### 📋 Complete Feature Roadmap
+
+**✅ COMPLETED (v355-v358):**
+1. ✅ Email notifications fixed (Microsoft Graph)
+2. ✅ Auto-close inactive sessions (15 min)
+3. ✅ Session end prompt
+4. ✅ Portal status display
+5. ✅ Welcome message flow fixed
+6. ✅ Session storage (no re-popup)
+7. ✅ Database schema for business hours
+8. ✅ Database schema for bot training
+9. ✅ Database schema for session summary
+10. ✅ Removed unused ChatAnalytics page
+
+**⏳ IN PROGRESS:**
+1. Portal real-time notifications
+2. AI training interface in portal
+3. Business hours UI in portal
+4. 5-minute inactivity confirmation
+5. Session summary email automation
+6. Widget settings UI (no mock data)
+
+**📅 PLANNED:**
+1. Individual bot training per client
+2. Google AI Studio project per bot
+3. Knowledge base training interface
+4. Business hours enforcement
+5. Out-of-hours auto-responder
+6. Session summary reports
+7. Agent availability status
+8. SMS notifications (future)
+
+---
+
+#### 🗂️ Version History
+
+| Version | Heroku Release | Date | Key Features |
+|---------|---------------|------|--------------|
+| v355 | v355 | Oct 26, 2025 | Email notifications fixed |
+| v356 | v356 | Oct 26, 2025 | Auto-close inactive sessions |
+| v357 | v357 | Oct 26, 2025 | Session end prompt + portal status |
+| v358 | v358 | Oct 26, 2025 | Welcome flow + session management |
+
+---
+
+#### 📁 Modified Files (v355-v358)
+
+**Backend:**
+- `backend/src/services/microsoftGraphEmailService.ts` - Fixed email API
+- `backend/src/routes/testEmail.ts` - NEW: Test email endpoints
+- `backend/src/routes/chatWidget.ts` - Session management APIs
+- `backend/src/server.ts` - Registered new routes
+- `backend/public/wetechforu-widget-v2.js` - Welcome flow + session storage
+- `backend/database/add_session_management.sql` - Session tracking schema
+- `backend/database/add_widget_business_hours_and_training.sql` - NEW: Business hours + training
+
+**Frontend:**
+- `frontend/src/pages/ChatConversations.tsx` - Status badge colors
+- `frontend/src/pages/ChatAnalytics.tsx` - DELETED: Unused page
+
+---
+
+#### 🧪 Testing Checklist
+
+**Email System:**
+- [x] Test email sent successfully
+- [x] Visitor engagement email sent
+- [x] Microsoft Graph API working
+- [x] Email templates rendering correctly
+
+**Session Management:**
+- [x] Auto-close closes inactive conversations
+- [x] System message sent before closing
+- [x] `last_activity_at` updates on messages
+- [x] Status changes to 'inactive'
+
+**Welcome Flow:**
+- [x] Welcome shown only on first visit
+- [x] Bot doesn't re-popup if closed
+- [x] Session storage persists across pages
+- [x] Database config loaded correctly
+
+**Portal:**
+- [x] Status badges show correct colors
+- [x] Active = green, Closed = blue, Inactive = gray
+- [ ] Real-time notifications (pending)
+- [ ] Unread message counter (pending)
+
+---
+
+#### 🚀 Deployment Status
+
+**Current Version:** v358  
+**Heroku Release:** v358  
+**Status:** 🟢 LIVE  
+**Last Deployed:** October 26, 2025  
+
+**Database Migrations:**
+- [x] `add_session_management.sql` - Applied
+- [x] `add_widget_business_hours_and_training.sql` - Applied
+- [x] All new columns created successfully
+
+**Environment:**
+- [x] Production database updated
+- [x] Microsoft Graph credentials verified
+- [x] Email service tested
+- [x] Widget JavaScript cached cleared (v2)
+
+---
+
+#### 🎯 Next Development Sprint
+
+**Priority 1 - Portal Enhancements:**
+1. Real-time notification system
+2. Unread message badges
+3. Sound/visual alerts
+4. Notification preferences
+
+**Priority 2 - Bot Training:**
+1. AI training interface
+2. Widget-specific LLM keys
+3. Knowledge base editor
+4. Training version control
+
+**Priority 3 - Business Hours:**
+1. Business hours UI
+2. Timezone management
+3. Out-of-hours auto-responder
+4. Agent availability indicator
+
+**Priority 4 - Session Intelligence:**
+1. 5-minute inactivity warning
+2. Session summary generation
+3. Automated summary emails
+4. Page visit tracking visualization
+
+---
+
+**Version 5.0 - Professional Bot Flow & Session Management - ✅ PHASE 1 COMPLETE**  
+**Heroku Release**: v358  
+**Date**: October 26, 2025  
+**Status**: 🟢 PRODUCTION - PHASE 1  
+
+---
+
