@@ -1855,13 +1855,69 @@
       }
     },
     
+    // ✅ Send quick message (display in UI + send to backend)
+    async sendQuickMessage(messageText) {
+      // Display message in UI
+      const messagesDiv = document.getElementById('wetechforu-messages');
+      if (!messagesDiv) return;
+      
+      const messageDiv = document.createElement('div');
+      messageDiv.style.cssText = `
+        margin-bottom: 16px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+      `;
+      
+      const bubble = document.createElement('div');
+      bubble.style.cssText = `
+        background: linear-gradient(135deg, #4682B4, #5a9fd4);
+        color: white;
+        padding: 12px 16px;
+        border-radius: 18px 18px 4px 18px;
+        max-width: 70%;
+        word-wrap: break-word;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      `;
+      bubble.textContent = messageText;
+      
+      messageDiv.appendChild(bubble);
+      messagesDiv.appendChild(messageDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      
+      // Send to backend
+      try {
+        const conversationId = await this.ensureConversation();
+        if (!conversationId) {
+          console.error('No conversation ID - cannot send message');
+          return;
+        }
+        
+        const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message_text: messageText,
+            conversation_id: conversationId
+          })
+        });
+        
+        if (response.ok) {
+          console.log('✅ Quick message sent to backend:', messageText);
+        }
+      } catch (error) {
+        console.error('Failed to send quick message to backend:', error);
+      }
+    },
+    
     // Handle user feedback on bot answers
-    handleFeedback(feedback) {
+    async handleFeedback(feedback) {
       const quickActions = document.getElementById('wetechforu-quick-actions');
       quickActions.style.display = 'none';
       
       if (feedback === 'yes') {
-        this.addUserMessage("✅ Yes, that helped!");
+        // ✅ SEND TO BACKEND: Display AND send message
+        await this.sendQuickMessage("✅ Yes, that helped!");
         this.state.unsuccessfulAttempts = 0; // Reset counter on positive feedback
         setTimeout(() => {
           this.addBotMessage("Awesome! 🎉 Is there anything else I can help you with?");
@@ -1869,13 +1925,15 @@
           this.showSessionEndOptions();
         }, 500);
       } else if (feedback === 'more_questions') {
-        this.addUserMessage("Yes, I have more questions");
+        // ✅ SEND TO BACKEND
+        await this.sendQuickMessage("Yes, I have more questions");
         setTimeout(() => {
           this.addBotMessage("Great! What else would you like to know?");
           this.showQuickActions(); // Show main category buttons
         }, 500);
       } else if (feedback === 'finish_session') {
-        this.addUserMessage("No, I'm all set. Thank you!");
+        // ✅ SEND TO BACKEND
+        await this.sendQuickMessage("No, I'm all set. Thank you!");
         setTimeout(() => {
           this.addBotMessage("Thank you for chatting with us! 😊 If you need anything in the future, just come back and start a new chat. Have a wonderful day!");
           // Hide input and quick actions to indicate session is ending

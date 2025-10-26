@@ -41,7 +41,29 @@ interface RoleBasedNavProps {
 export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBasedNavProps) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [unreadCount, setUnreadCount] = useState(0)
   const location = useLocation()
+
+  // ✅ Fetch unread message counts
+  useEffect(() => {
+    const fetchUnreadCounts = async () => {
+      try {
+        const response = await http.get('/chat-widget/admin/unread-counts')
+        const totalUnread = response.data.total_unread || 0
+        setUnreadCount(totalUnread)
+      } catch (error) {
+        console.warn('Failed to fetch unread counts:', error)
+      }
+    }
+    
+    // Fetch immediately
+    fetchUnreadCounts()
+    
+    // Poll every 10 seconds for updates
+    const interval = setInterval(fetchUnreadCounts, 10000)
+    
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -243,8 +265,27 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
                   className={`nav-link ${isActive('/app/chat-conversations') ? 'active' : ''}`} 
                   to="/app/chat-conversations"
                   onClick={onNavigate}
+                  style={{ position: 'relative' }}
                 >
                   <i className="fas fa-comments"></i> Conversations
+                  {unreadCount > 0 && (
+                    <span style={{
+                      position: 'absolute',
+                      top: '8px',
+                      right: '12px',
+                      background: '#dc3545',
+                      color: 'white',
+                      borderRadius: '10px',
+                      padding: '2px 8px',
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      minWidth: '20px',
+                      textAlign: 'center',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                    }}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
                 </Link>
               </li>
               <li>
