@@ -249,15 +249,6 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
               </li>
               <li>
                 <Link 
-                  className={`nav-link ${isActive('/app/chat-analytics') ? 'active' : ''}`} 
-                  to="/app/chat-analytics"
-                  onClick={onNavigate}
-                >
-                  <i className="fas fa-chart-bar"></i> Analytics
-                </Link>
-              </li>
-              <li>
-                <Link 
                   className={`nav-link ${isActive('/app/visitor-monitoring') ? 'active' : ''}`} 
                   to="/app/visitor-monitoring"
                   onClick={onNavigate}

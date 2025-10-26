@@ -36,7 +36,6 @@ import ChatWidgets from "../pages/ChatWidgets";
 import ChatWidgetEditor from "../pages/ChatWidgetEditor";
 import ChatWidgetKnowledge from "../pages/ChatWidgetKnowledge";
 import ChatConversations from "../pages/ChatConversations";
-import ChatAnalytics from "../pages/ChatAnalytics";
 import VisitorMonitoring from "../pages/VisitorMonitoring";
 // Email Preferences & Unsubscribe
 import Unsubscribe from "../pages/Unsubscribe";
@@ -82,7 +81,6 @@ export const router = createBrowserRouter([
       { path: "chat-widgets/:id/edit", element: <ChatWidgetEditor /> },
       { path: "chat-widgets/:id/knowledge", element: <ChatWidgetKnowledge /> },
       { path: "chat-conversations", element: <ChatConversations /> },
-      { path: "chat-analytics", element: <ChatAnalytics /> },
       { path: "visitor-monitoring", element: <VisitorMonitoring /> },
       {
         path: "customer",
