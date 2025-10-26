@@ -1695,6 +1695,44 @@
       }
     },
     
+    // Show session end options after successful answer
+    showSessionEndOptions() {
+      const quickActions = document.getElementById('wetechforu-quick-actions');
+      if (!quickActions) return;
+      
+      quickActions.style.display = 'flex';
+      quickActions.innerHTML = `
+        <button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleFeedback('more_questions')" style="background: #4682B4; color: white; border: none;">
+          💬 Yes, I have more questions
+        </button>
+        <button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleFeedback('finish_session')" style="background: #28a745; color: white; border: none;">
+          ✅ No, I'm all set. Thanks!
+        </button>
+      `;
+    },
+    
+    // Close conversation on backend when session ends
+    async closeSessionOnBackend() {
+      if (!this.state.conversationId) return;
+      
+      try {
+        const backendUrl = this.config.backendUrl || 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com';
+        const response = await fetch(`${backendUrl}/api/chat-widget/conversations/${this.state.conversationId}/close-manual`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reason: 'User finished their questions and ended the session'
+          })
+        });
+        
+        if (response.ok) {
+          console.log('✅ Session closed on backend');
+        }
+      } catch (error) {
+        console.error('Failed to close session on backend:', error);
+      }
+    },
+    
     // Handle user feedback on bot answers
     handleFeedback(feedback) {
       const quickActions = document.getElementById('wetechforu-quick-actions');
@@ -1705,7 +1743,29 @@
         this.state.unsuccessfulAttempts = 0; // Reset counter on positive feedback
         setTimeout(() => {
           this.addBotMessage("Awesome! 🎉 Is there anything else I can help you with?");
-          this.state.awaitingUserQuestion = true;
+          // Show "More questions" or "Finish session" buttons
+          this.showSessionEndOptions();
+        }, 500);
+      } else if (feedback === 'more_questions') {
+        this.addUserMessage("Yes, I have more questions");
+        setTimeout(() => {
+          this.addBotMessage("Great! What else would you like to know?");
+          this.showQuickActions(); // Show main category buttons
+        }, 500);
+      } else if (feedback === 'finish_session') {
+        this.addUserMessage("No, I'm all set. Thank you!");
+        setTimeout(() => {
+          this.addBotMessage("Thank you for chatting with us! 😊 If you need anything in the future, just come back and start a new chat. Have a wonderful day!");
+          // Hide input and quick actions to indicate session is ending
+          const inputContainer = document.getElementById('wetechforu-input-container');
+          const quickActions = document.getElementById('wetechforu-quick-actions');
+          if (inputContainer) inputContainer.style.display = 'none';
+          if (quickActions) quickActions.style.display = 'none';
+          
+          // Optionally close conversation on backend
+          setTimeout(() => {
+            this.closeSessionOnBackend();
+          }, 1000);
         }, 500);
       } else if (feedback === 'no') {
         this.addUserMessage("❌ No, I need more help");

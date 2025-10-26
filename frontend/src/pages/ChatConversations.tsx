@@ -171,7 +171,9 @@ export default function ChatConversations() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return '#28a745'
+      case 'active': return '#28a745'  // Green for active conversations
+      case 'closed': return '#007bff'  // Blue for closed by user/agent
+      case 'inactive': return '#6c757d'  // Gray for auto-closed due to inactivity
       case 'completed': return '#007bff'
       case 'abandoned': return '#ffc107'
       case 'spam': return '#dc3545'
