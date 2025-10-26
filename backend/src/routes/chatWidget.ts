@@ -616,9 +616,9 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       [conversation_id, 'user', message_text]
     );
 
-    // Update conversation message count
+    // Update conversation message count and last_activity_at (for inactivity tracking)
     await pool.query(
-      'UPDATE widget_conversations SET message_count = message_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+      'UPDATE widget_conversations SET message_count = message_count + 1, updated_at = CURRENT_TIMESTAMP, last_activity_at = CURRENT_TIMESTAMP WHERE id = $1',
       [conversation_id]
     );
 
@@ -828,9 +828,9 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       [conversation_id, 'bot', botResponse, knowledge_base_id, confidence, responseTime]
     );
 
-    // Update conversation
+    // Update conversation (including last_activity_at for inactivity tracking)
     await pool.query(
-      'UPDATE widget_conversations SET bot_response_count = bot_response_count + 1 WHERE id = $1',
+      'UPDATE widget_conversations SET bot_response_count = bot_response_count + 1, last_activity_at = CURRENT_TIMESTAMP WHERE id = $1',
       [conversation_id]
     );
 
@@ -1922,6 +1922,159 @@ router.get('/widgets/:widgetId/llm-analytics', async (req, res) => {
   } catch (error) {
     console.error('Get LLM analytics error:', error);
     res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
+// ==========================================
+// SESSION MANAGEMENT - Auto-close inactive conversations
+// ==========================================
+
+/**
+ * Auto-close inactive conversations (15+ minutes no activity)
+ * This should be called by a scheduled job/cron
+ */
+router.post('/admin/close-inactive-sessions', async (req, res) => {
+  try {
+    console.log('🔄 Running auto-close for inactive conversations...');
+    
+    // Step 1: Find conversations that will be closed
+    const toCloseResult = await pool.query(
+      `SELECT 
+        wc.id as conversation_id,
+        wc.widget_id,
+        wc.visitor_name,
+        wc.visitor_email,
+        w.widget_name,
+        w.notification_email,
+        EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - wc.last_activity_at))/60 as minutes_inactive
+       FROM widget_conversations wc
+       JOIN widget_configs w ON w.id = wc.widget_id
+       WHERE wc.status = 'active'
+         AND wc.last_activity_at < CURRENT_TIMESTAMP - INTERVAL '15 minutes'
+         AND wc.message_count > 0`
+    );
+    
+    const conversationsToClose = toCloseResult.rows;
+    
+    if (conversationsToClose.length === 0) {
+      console.log('✅ No inactive conversations to close');
+      return res.json({
+        success: true,
+        closed_count: 0,
+        message: 'No inactive conversations found'
+      });
+    }
+    
+    console.log(`📊 Found ${conversationsToClose.length} inactive conversations`);
+    
+    // Step 2: Send "closing due to inactivity" message to each conversation
+    for (const conv of conversationsToClose) {
+      try {
+        // Add system message to conversation
+        await pool.query(
+          `INSERT INTO widget_messages (conversation_id, message_type, message_text, sender_name)
+           VALUES ($1, $2, $3, $4)`,
+          [
+            conv.conversation_id,
+            'system',
+            `This conversation has been closed due to ${Math.round(conv.minutes_inactive)} minutes of inactivity. Thank you for visiting! If you have more questions, feel free to start a new chat anytime. 😊`,
+            'System'
+          ]
+        );
+        
+        console.log(`✅ Sent closing message to conversation ${conv.conversation_id}`);
+      } catch (msgError) {
+        console.error(`❌ Failed to send closing message to conversation ${conv.conversation_id}:`, msgError);
+      }
+    }
+    
+    // Step 3: Call database function to close conversations
+    const result = await pool.query('SELECT close_inactive_conversations() as closed_count');
+    const closedCount = result.rows[0]?.closed_count || 0;
+    
+    console.log(`✅ Successfully closed ${closedCount} inactive conversations`);
+    
+    res.json({
+      success: true,
+      closed_count: closedCount,
+      conversations: conversationsToClose.map(c => ({
+        conversation_id: c.conversation_id,
+        visitor_name: c.visitor_name,
+        minutes_inactive: Math.round(c.minutes_inactive),
+        widget_name: c.widget_name
+      }))
+    });
+  } catch (error) {
+    console.error('❌ Error closing inactive sessions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to close inactive sessions',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * Get inactive conversation statistics
+ */
+router.get('/admin/inactive-sessions/stats', async (req, res) => {
+  try {
+    const stats = await pool.query(
+      `SELECT 
+        COUNT(*) FILTER (WHERE status = 'active' AND last_activity_at < CURRENT_TIMESTAMP - INTERVAL '10 minutes') as ready_to_warn,
+        COUNT(*) FILTER (WHERE status = 'active' AND last_activity_at < CURRENT_TIMESTAMP - INTERVAL '15 minutes') as ready_to_close,
+        COUNT(*) FILTER (WHERE status = 'inactive') as already_closed,
+        COUNT(*) FILTER (WHERE status = 'active') as total_active,
+        AVG(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - last_activity_at))/60) FILTER (WHERE status = 'active') as avg_minutes_inactive
+       FROM widget_conversations
+       WHERE created_at > CURRENT_TIMESTAMP - INTERVAL '24 hours'`
+    );
+    
+    res.json({
+      success: true,
+      stats: stats.rows[0] || {}
+    });
+  } catch (error) {
+    console.error('Error fetching inactive session stats:', error);
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+/**
+ * Manually close a specific conversation
+ */
+router.post('/conversations/:conversationId/close-manual', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { reason } = req.body;
+    
+    // Add system message
+    await pool.query(
+      `INSERT INTO widget_messages (conversation_id, message_type, message_text, sender_name)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        conversationId,
+        'system',
+        reason || 'This conversation has been closed. Thank you for chatting with us!',
+        'System'
+      ]
+    );
+    
+    // Close conversation
+    await pool.query(
+      `UPDATE widget_conversations
+       SET status = 'closed',
+           closed_at = CURRENT_TIMESTAMP,
+           closed_by = 'admin',
+           close_reason = $2
+       WHERE id = $1`,
+      [conversationId, reason || 'Manually closed by admin']
+    );
+    
+    res.json({ success: true, message: 'Conversation closed' });
+  } catch (error) {
+    console.error('Error closing conversation:', error);
+    res.status(500).json({ error: 'Failed to close conversation' });
   }
 });
 
