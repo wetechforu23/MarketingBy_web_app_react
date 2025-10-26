@@ -67,8 +67,12 @@ export class MicrosoftGraphEmailService {
         saveToSentItems: true
       };
 
+      // Use /users/{email}/sendMail for application permissions (client credentials flow)
+      // instead of /me/sendMail which requires delegated permissions
+      const senderEmail = options.from || this.fromEmail;
+      
       await this.graphClient
-        .api('/me/sendMail')
+        .api(`/users/${senderEmail}/sendMail`)
         .post(sendMailRequest);
 
       console.log('Email sent successfully via Microsoft Graph API');
