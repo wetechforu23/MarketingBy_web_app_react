@@ -31,6 +31,8 @@ import smsPreferencesRoutes from './routes/smsPreferences';
 import chatWidgetRoutes from './routes/chatWidget';
 // Visitor Tracking & Monitoring routes
 import visitorTrackingRoutes from './routes/visitorTracking';
+// Test Email routes (for debugging email service)
+import testEmailRoutes from './routes/testEmail';
 
 dotenv.config();
 
@@ -166,6 +168,8 @@ app.use('/api/sms-preferences', smsPreferencesRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/seo', seoRoutes);
 app.use('/api/email', emailRoutes);
+// Test Email routes (authenticated - for admins only)
+app.use('/api/test-email', testEmailRoutes);
 app.use('/api/compliance', complianceRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/lead-assignment', leadAssignmentRoutes);
