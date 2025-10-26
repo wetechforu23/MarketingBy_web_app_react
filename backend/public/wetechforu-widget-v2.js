@@ -99,13 +99,18 @@
       // 📊 START VISITOR TRACKING
       this.startSessionTracking();
       
+      // ✅ Auto-popup ONLY if not closed in this session
       if (this.config.autoPopup) {
-        setTimeout(() => {
-          this.openChat();
-          if (this.config.enableIntroFlow) {
-            this.startIntroFlow();
-          }
-        }, this.config.autoPopupDelay);
+        const hasClosedBot = sessionStorage.getItem(`wetechforu_closed_${this.config.widgetKey}`);
+        
+        if (!hasClosedBot) {
+          console.log('🤖 Auto-popup enabled - showing bot');
+          setTimeout(() => {
+            this.openChat();
+          }, this.config.autoPopupDelay);
+        } else {
+          console.log('🚫 Bot was closed in this session - not auto-popping');
+        }
       }
     },
 
@@ -770,6 +775,28 @@
         timestamp: new Date().toISOString()
       });
 
+      // ✅ Show welcome message ONLY on first visit in this session
+      const hasShownWelcome = sessionStorage.getItem(`wetechforu_welcome_shown_${this.config.widgetKey}`);
+      
+      if (!hasShownWelcome) {
+        console.log('🎉 First visit - showing welcome message');
+        // Mark welcome as shown for this session
+        sessionStorage.setItem(`wetechforu_welcome_shown_${this.config.widgetKey}`, 'true');
+        
+        // Start intro flow or show welcome
+        if (this.config.enableIntroFlow) {
+          setTimeout(() => {
+            this.startIntroFlow();
+          }, 500);
+        } else {
+          setTimeout(() => {
+            this.startDefaultIntroFlow();
+          }, 500);
+        }
+      } else {
+        console.log('👋 Returning visitor - skipping welcome message');
+      }
+
       // Focus input
       setTimeout(() => {
         document.getElementById('wetechforu-input').focus();
@@ -784,6 +811,13 @@
       const chatWindow = document.getElementById('wetechforu-chat-window');
       chatWindow.style.display = 'none';
       this.state.isOpen = false;
+      
+      // ✅ Mark bot as closed for this session (don't auto-popup again)
+      sessionStorage.setItem(`wetechforu_closed_${this.config.widgetKey}`, 'true');
+      console.log('🚫 Bot closed - will not auto-popup again this session');
+      
+      // 📨 Stop polling for agent messages
+      this.stopPollingForAgentMessages();
     },
 
     // Start intro flow (Enhanced with database questions)
