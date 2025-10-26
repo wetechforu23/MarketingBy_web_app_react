@@ -549,6 +549,50 @@ export default function ChatConversations() {
               </div>
             </div>
 
+            {/* ✅ VISITOR INFO PANEL */}
+            {(selectedConv.visitor_email || selectedConv.visitor_phone) && (
+              <div style={{
+                padding: '1rem 1.5rem',
+                background: 'linear-gradient(135deg, #e3f2fd 0%, #f0f7ff 100%)',
+                borderBottom: '2px solid #2196F3',
+                display: 'flex',
+                gap: '2rem',
+                flexWrap: 'wrap'
+              }}>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#1976d2', marginBottom: '8px', width: '100%' }}>
+                  📋 Visitor Information:
+                </div>
+                {selectedConv.visitor_name && selectedConv.visitor_name !== 'Anonymous Visitor' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="fas fa-user" style={{ color: '#4682B4', fontSize: '16px' }}></i>
+                    <span style={{ fontSize: '14px', color: '#333' }}>{selectedConv.visitor_name}</span>
+                  </div>
+                )}
+                {selectedConv.visitor_email && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="fas fa-envelope" style={{ color: '#4682B4', fontSize: '16px' }}></i>
+                    <a href={`mailto:${selectedConv.visitor_email}`} style={{ fontSize: '14px', color: '#4682B4', textDecoration: 'none' }}>
+                      {selectedConv.visitor_email}
+                    </a>
+                  </div>
+                )}
+                {selectedConv.visitor_phone && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="fas fa-phone" style={{ color: '#4682B4', fontSize: '16px' }}></i>
+                    <a href={`tel:${selectedConv.visitor_phone}`} style={{ fontSize: '14px', color: '#4682B4', textDecoration: 'none' }}>
+                      {selectedConv.visitor_phone}
+                    </a>
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="fas fa-comments" style={{ color: '#4682B4', fontSize: '16px' }}></i>
+                  <span style={{ fontSize: '14px', color: '#666' }}>
+                    {selectedConv.message_count} messages • {selectedConv.bot_response_count} bot • {selectedConv.human_response_count || 0} you
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Messages Area */}
             <div style={{
               flex: 1,
