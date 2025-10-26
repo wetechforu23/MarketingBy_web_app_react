@@ -616,9 +616,9 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       [conversation_id, 'user', message_text]
     );
 
-    // Update conversation message count and last_activity_at (for inactivity tracking)
+    // Update conversation message count, last_activity_at, and unread count (for notifications)
     await pool.query(
-      'UPDATE widget_conversations SET message_count = message_count + 1, updated_at = CURRENT_TIMESTAMP, last_activity_at = CURRENT_TIMESTAMP WHERE id = $1',
+      'UPDATE widget_conversations SET message_count = message_count + 1, updated_at = CURRENT_TIMESTAMP, last_activity_at = CURRENT_TIMESTAMP, unread_agent_messages = unread_agent_messages + 1 WHERE id = $1',
       [conversation_id]
     );
 
@@ -2120,6 +2120,58 @@ router.get('/public/widget/:widgetKey/conversations/:conversationId/messages', a
   } catch (error) {
     console.error('Error fetching messages:', error);
     res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+/**
+ * Get unread message counts for all widgets (for portal notification badge)
+ */
+router.get('/admin/unread-counts', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT 
+        wc.widget_id,
+        w.widget_name,
+        COUNT(DISTINCT wc.id) as unread_conversations,
+        SUM(wc.unread_agent_messages) as total_unread_messages,
+        MAX(wc.updated_at) as last_message_at
+       FROM widget_conversations wc
+       JOIN widget_configs w ON w.id = wc.widget_id
+       WHERE wc.status = 'active' 
+         AND wc.unread_agent_messages > 0
+       GROUP BY wc.widget_id, w.widget_name
+       ORDER BY last_message_at DESC`
+    );
+    
+    res.json({ 
+      widgets: result.rows,
+      total_unread: result.rows.reduce((sum, w) => sum + parseInt(w.total_unread_messages || 0), 0)
+    });
+  } catch (error) {
+    console.error('Error fetching unread counts:', error);
+    res.status(500).json({ error: 'Failed to fetch unread counts' });
+  }
+});
+
+/**
+ * Mark conversation as read by agent
+ */
+router.post('/conversations/:conversationId/mark-read', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    
+    await pool.query(
+      `UPDATE widget_conversations 
+       SET unread_agent_messages = 0,
+           last_read_by_agent_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [conversationId]
+    );
+    
+    res.json({ success: true, message: 'Marked as read' });
+  } catch (error) {
+    console.error('Error marking as read:', error);
+    res.status(500).json({ error: 'Failed to mark as read' });
   }
 });
 

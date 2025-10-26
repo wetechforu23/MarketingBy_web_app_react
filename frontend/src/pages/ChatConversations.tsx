@@ -116,6 +116,18 @@ export default function ChatConversations() {
       const response = await api.get(`/chat-widget/conversations/${conv.id}/messages`)
       setMessages(response.data)
       setSelectedConv(conv)
+      
+      // ✅ Mark conversation as read
+      try {
+        await api.post(`/chat-widget/conversations/${conv.id}/mark-read`)
+        
+        // Refresh conversations to update unread counts
+        if (selectedWidgetId) {
+          fetchConversations(selectedWidgetId)
+        }
+      } catch (markReadErr) {
+        console.warn('Failed to mark as read:', markReadErr)
+      }
     } catch (err: any) {
       alert('Failed to load messages')
     }
