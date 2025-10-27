@@ -435,9 +435,12 @@ router.post('/public/widget/:widgetKey/conversation', async (req, res) => {
     } = req.body;
     const ip_address = req.ip || req.connection.remoteAddress;
 
-    // Get widget ID
+    // Get widget ID AND email notification settings
     const widgetResult = await pool.query(
-      'SELECT id, rate_limit_messages, rate_limit_window FROM widget_configs WHERE widget_key = $1 AND is_active = true',
+      `SELECT id, widget_name, rate_limit_messages, rate_limit_window,
+              enable_email_notifications, notification_email, notify_new_conversation
+       FROM widget_configs 
+       WHERE widget_key = $1 AND is_active = true`,
       [widgetKey]
     );
 
@@ -479,7 +482,7 @@ router.post('/public/widget/:widgetKey/conversation', async (req, res) => {
     console.log(`✅ New conversation started: ${conversationId} for widget ${widgetKey}`);
 
     // 📧 Send email notification for NEW conversation (async - don't block response)
-    if (widget.enable_email_notifications && widget.notification_email) {
+    if (widget.enable_email_notifications && widget.notification_email && widget.notify_new_conversation) {
       const clientBrandedName = widget.widget_name || 'Your Website';
       emailService.sendEmail({
         to: widget.notification_email,

@@ -6,6 +6,102 @@ const router = express.Router();
 const emailService = new EmailService();
 
 // ==========================================
+// HELPER: Enhanced GeoIP Lookup (ipapi.co)
+// Source: https://ipapi.co/ - Free tier: 30K lookups/month (1K/day)
+// ==========================================
+interface GeoIPData {
+  city: string | null;
+  region: string | null;
+  region_code: string | null;
+  country: string | null;
+  country_code: string | null;
+  country_code_iso3: string | null;
+  country_capital: string | null;
+  country_tld: string | null;
+  continent_code: string | null;
+  in_eu: boolean | null;
+  postal: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  timezone: string | null;
+  utc_offset: string | null;
+  country_calling_code: string | null;
+  currency: string | null;
+  currency_name: string | null;
+  languages: string | null;
+  asn: string | null;
+  org: string | null;
+}
+
+async function getGeoLocation(ip: string): Promise<GeoIPData> {
+  const emptyResult: GeoIPData = {
+    city: null, region: null, region_code: null, country: null, country_code: null,
+    country_code_iso3: null, country_capital: null, country_tld: null, continent_code: null,
+    in_eu: null, postal: null, latitude: null, longitude: null, timezone: null,
+    utc_offset: null, country_calling_code: null, currency: null, currency_name: null,
+    languages: null, asn: null, org: null
+  };
+
+  try {
+    // Skip private/local IPs
+    if (!ip || ip.startsWith('10.') || ip.startsWith('192.168.') || ip.startsWith('172.') || 
+        ip === 'localhost' || ip === '127.0.0.1' || ip === '::1') {
+      console.log(`⚠️ Skipping GeoIP for private/local IP: ${ip}`);
+      return emptyResult;
+    }
+
+    console.log(`🌍 Looking up GeoIP for: ${ip} (via ipapi.co)`);
+    
+    const response = await fetch(`https://ipapi.co/${ip}/json/`, {
+      headers: { 'User-Agent': 'MarketingBy-WeTechForU/1.0' },
+      signal: AbortSignal.timeout(5000) // 5 second timeout
+    });
+
+    if (!response.ok) {
+      console.warn(`⚠️ GeoIP lookup failed for ${ip}: ${response.status}`);
+      return emptyResult;
+    }
+
+    const data = await response.json();
+    
+    // Check for API errors (e.g., rate limit, invalid IP)
+    if (data.error) {
+      console.warn(`⚠️ ipapi.co error for ${ip}:`, data.reason || data.error);
+      return emptyResult;
+    }
+    
+    console.log(`✅ GeoIP result: ${data.city || 'Unknown'}, ${data.region || ''}, ${data.country_name || 'Unknown'} | Timezone: ${data.timezone || 'Unknown'}`);
+    
+    return {
+      city: data.city || null,
+      region: data.region || null,
+      region_code: data.region_code || null,
+      country: data.country_name || null,
+      country_code: data.country_code || null,
+      country_code_iso3: data.country_code_iso3 || null,
+      country_capital: data.country_capital || null,
+      country_tld: data.country_tld || null,
+      continent_code: data.continent_code || null,
+      in_eu: typeof data.in_eu === 'boolean' ? data.in_eu : null,
+      postal: data.postal || null,
+      latitude: typeof data.latitude === 'number' ? data.latitude : null,
+      longitude: typeof data.longitude === 'number' ? data.longitude : null,
+      timezone: data.timezone || null,
+      utc_offset: data.utc_offset || null,
+      country_calling_code: data.country_calling_code || null,
+      currency: data.currency || null,
+      currency_name: data.currency_name || null,
+      languages: data.languages || null,
+      asn: data.asn || null,
+      org: data.org || null
+    };
+  } catch (error: any) {
+    console.error(`❌ GeoIP lookup error for ${ip}:`, error.message);
+    return emptyResult;
+  }
+}
+
+// ==========================================
 // HELPER: Send Visitor Engagement Email
 // ==========================================
 async function sendVisitorEngagementEmail(
@@ -201,7 +297,16 @@ router.post('/public/widget/:widgetKey/track-session', async (req, res) => {
       device_type
     } = req.body;
 
-    const ip_address = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    // 🔧 FIX: Extract real client IP from X-Forwarded-For header (Heroku/proxy safe)
+    let ip_address = req.headers['x-forwarded-for'] || req.ip || req.connection.remoteAddress;
+    // X-Forwarded-For can be: "client, proxy1, proxy2" - take the first (real client IP)
+    if (typeof ip_address === 'string' && ip_address.includes(',')) {
+      ip_address = ip_address.split(',')[0].trim();
+    }
+    // Remove IPv6 prefix if present
+    if (typeof ip_address === 'string' && ip_address.startsWith('::ffff:')) {
+      ip_address = ip_address.substring(7);
+    }
 
     // Get widget ID
     const widgetResult = await pool.query(
@@ -261,22 +366,41 @@ router.post('/public/widget/:widgetKey/track-session', async (req, res) => {
       console.log(`✅ Updated session: ${session_id} (${minutesOnSite} minutes)`);
       res.json({ status: 'updated', session_id });
     } else {
-      // Create new session
+      // 🌍 Lookup Enhanced GeoIP data (all fields from ipapi.co)
+      const geo = await getGeoLocation(ip_address as string);
+      
+      // Create new session with FULL GeoIP data
       await pool.query(
         `INSERT INTO widget_visitor_sessions (
           widget_id, session_id, visitor_fingerprint, ip_address,
           current_page_url, current_page_title, referrer_url, landing_page_url,
           user_agent, browser, browser_version, os, os_version, device_type,
+          city, region, region_code, country, country_code, country_code_iso3,
+          country_capital, country_tld, continent_code, in_eu, postal,
+          latitude, longitude, timezone, utc_offset,
+          country_calling_code, currency, currency_name, languages, asn, org,
           is_active, last_active_at, session_started_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25,
+          $26, $27, $28, $29, $30, $31, $32, $33, $34, $35,
+          true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )`,
         [
           widget_id, session_id, visitor_fingerprint, ip_address,
           current_page_url, current_page_title, referrer_url, current_page_url, // landing_page = current_page on first visit
-          user_agent, browser, browser_version, os, os_version, device_type
+          user_agent, browser, browser_version, os, os_version, device_type,
+          geo.city, geo.region, geo.region_code, geo.country, geo.country_code, geo.country_code_iso3,
+          geo.country_capital, geo.country_tld, geo.continent_code, geo.in_eu, geo.postal,
+          geo.latitude, geo.longitude, geo.timezone, geo.utc_offset,
+          geo.country_calling_code, geo.currency, geo.currency_name, geo.languages, geo.asn, geo.org
         ]
       );
 
-      console.log(`✅ New visitor session created: ${session_id}`);
+      console.log(`✅ New visitor session: ${session_id}`);
+      console.log(`   📍 Location: ${geo.city || 'Unknown'}, ${geo.region || ''}, ${geo.country || 'Unknown'} (${geo.country_code || ''})`);
+      console.log(`   🕐 Timezone: ${geo.timezone || 'Unknown'} | 💰 Currency: ${geo.currency || 'Unknown'} | 🌐 ISP: ${geo.org || 'Unknown'}`);
+      
       res.json({ status: 'created', session_id });
     }
   } catch (error) {
