@@ -33,6 +33,8 @@ import chatWidgetRoutes from './routes/chatWidget';
 import visitorTrackingRoutes from './routes/visitorTracking';
 // Test Email routes (for debugging email service)
 import testEmailRoutes from './routes/testEmail';
+// Duplicate Management routes
+import duplicateManagementRoutes from './routes/duplicateManagement';
 
 dotenv.config();
 
@@ -170,6 +172,8 @@ app.use('/api/seo', seoRoutes);
 app.use('/api/email', emailRoutes);
 // Test Email routes (authenticated - for admins only)
 app.use('/api/test-email', testEmailRoutes);
+// Duplicate Management routes (authenticated)
+app.use('/api/duplicates', duplicateManagementRoutes);
 app.use('/api/compliance', complianceRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/lead-assignment', leadAssignmentRoutes);
