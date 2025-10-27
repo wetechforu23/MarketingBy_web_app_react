@@ -32,11 +32,12 @@ interface Conversation {
 interface Message {
   id: number
   conversation_id: number
-  message_type: 'user' | 'bot' | 'human'
+  message_type: 'user' | 'bot' | 'human' | 'system' | 'agent'
   message_text: string
   created_at: string
   agent_name?: string  // Agent name for human responses
   agent_user_id?: number  // Agent user ID
+  sender_name?: string  // Sender name for system messages
 }
 
 export default function ChatConversations() {
@@ -50,6 +51,8 @@ export default function ChatConversations() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [loadingMessages, setLoadingMessages] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Fetch widgets on mount
@@ -91,8 +94,10 @@ export default function ChatConversations() {
     }
   }
 
-  const fetchConversations = async (widgetId: number) => {
+  const fetchConversations = async (widgetId: number, showLoading = false) => {
     try {
+      if (showLoading) setRefreshing(true)
+      
       const response = await api.get(`/chat-widget/widgets/${widgetId}/conversations?limit=50`)
       const convList = response.data
       
@@ -103,16 +108,27 @@ export default function ChatConversations() {
         widget_name: widget?.widget_name || 'Unknown'
       }))
       
-      setConversations(conversationsWithWidget.sort((a: Conversation, b: Conversation) => 
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-      ))
+      // Sort: Unread first, then by updated time
+      const sorted = conversationsWithWidget.sort((a: Conversation, b: Conversation) => {
+        const aUnread = (a as any).unread_agent_messages || 0
+        const bUnread = (b as any).unread_agent_messages || 0
+        if (bUnread !== aUnread) {
+          return bUnread - aUnread
+        }
+        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      })
+      
+      setConversations(sorted)
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load conversations')
+    } finally {
+      if (showLoading) setRefreshing(false)
     }
   }
 
   const fetchMessages = async (conv: Conversation) => {
     try {
+      setLoadingMessages(true)
       const response = await api.get(`/chat-widget/conversations/${conv.id}/messages`)
       setMessages(response.data)
       setSelectedConv(conv)
@@ -130,6 +146,8 @@ export default function ChatConversations() {
       }
     } catch (err: any) {
       alert('Failed to load messages')
+    } finally {
+      setLoadingMessages(false)
     }
   }
 
@@ -268,7 +286,9 @@ export default function ChatConversations() {
     switch (type) {
       case 'user': return '#4682B4'
       case 'bot': return '#e0e0e0'
-      case 'human': return '#28a745'
+      case 'human': 
+      case 'agent': return '#28a745'
+      case 'system': return '#ffc107'
       default: return '#6c757d'
     }
   }
@@ -276,8 +296,10 @@ export default function ChatConversations() {
   const getMessageTypeLabel = (type: string) => {
     switch (type) {
       case 'user': return '👤 Customer'
-      case 'bot': return '🤖 Bot'
-      case 'human': return '👨‍💼 You'
+      case 'bot': return '🤖 AI Bot'
+      case 'human': 
+      case 'agent': return '👨‍💼 Agent (You)'
+      case 'system': return '⚙️ System'
       default: return type
     }
   }
@@ -365,38 +387,63 @@ export default function ChatConversations() {
           </div>
         )}
 
-        {/* Delete All Button */}
-        {selectedWidgetId && conversations.length > 0 && (
-          <div style={{ marginTop: '1rem' }}>
+        {/* Action Buttons */}
+        {selectedWidgetId && (
+          <div style={{ marginTop: '1rem', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
             <button
-              onClick={deleteAllConversations}
+              onClick={() => selectedWidgetId && fetchConversations(selectedWidgetId, true)}
+              disabled={refreshing}
               style={{
                 padding: '10px 20px',
-                background: '#dc3545',
+                background: refreshing ? '#ccc' : '#4682B4',
                 color: 'white',
                 border: 'none',
                 borderRadius: '8px',
                 fontSize: '14px',
                 fontWeight: '600',
-                cursor: 'pointer',
+                cursor: refreshing ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px'
               }}
-              onMouseOver={(e) => e.currentTarget.style.background = '#c82333'}
-              onMouseOut={(e) => e.currentTarget.style.background = '#dc3545'}
             >
-              <i className="fas fa-trash-alt"></i>
-              🗑️ Delete All Conversations ({conversations.length})
+              <i className={`fas fa-sync-alt ${refreshing ? 'fa-spin' : ''}`}></i>
+              {refreshing ? 'Refreshing...' : '🔄 Refresh Conversations'}
             </button>
-            <p style={{
-              margin: '0.5rem 0 0 0',
-              fontSize: '12px',
-              color: '#dc3545',
-              fontStyle: 'italic'
-            }}>
-              ⚠️ This will permanently delete ALL conversations for the selected widget
-            </p>
+            
+            {conversations.length > 0 && (
+              <>
+                <button
+                  onClick={deleteAllConversations}
+                  style={{
+                    padding: '10px 20px',
+                    background: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.background = '#c82333'}
+                  onMouseOut={(e) => e.currentTarget.style.background = '#dc3545'}
+                >
+                  <i className="fas fa-trash-alt"></i>
+                  🗑️ Delete All ({conversations.length})
+                </button>
+                <p style={{
+                  margin: 0,
+                  fontSize: '12px',
+                  color: '#dc3545',
+                  fontStyle: 'italic'
+                }}>
+                  ⚠️ Permanently deletes ALL conversations
+                </p>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -765,62 +812,94 @@ export default function ChatConversations() {
               padding: '1.5rem',
               background: '#f8f9fa'
             }}>
-              {messages.length === 0 ? (
+              {loadingMessages ? (
+                <div style={{ textAlign: 'center', padding: '3rem', color: '#999' }}>
+                  <i className="fas fa-spinner fa-spin" style={{ fontSize: '48px', color: '#4682B4', marginBottom: '1rem' }}></i>
+                  <div>Loading messages...</div>
+                </div>
+              ) : messages.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '3rem', color: '#999' }}>
                   <i className="fas fa-inbox" style={{ fontSize: '48px', marginBottom: '1rem' }}></i>
                   <div>No messages yet</div>
                 </div>
               ) : (
-                messages.map(msg => (
+                messages.map(msg => {
+                  const isSystem = msg.message_type === 'system'
+                  const isUser = msg.message_type === 'user'
+                  const isAgent = msg.message_type === 'human' || msg.message_type === 'agent'
+                  const isBot = msg.message_type === 'bot'
+                  
+                  return (
                   <div
                     key={msg.id}
                     style={{
                       marginBottom: '1.5rem',
                       display: 'flex',
                       flexDirection: 'column',
-                      alignItems: msg.message_type === 'user' ? 'flex-end' : 'flex-start'
+                      alignItems: isSystem ? 'center' : isUser ? 'flex-end' : 'flex-start'
                     }}
                   >
                     {/* Sender Label */}
-                    <div style={{
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#666',
-                      marginBottom: '6px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}>
-                      {getMessageTypeLabel(msg.message_type)}
-                      {msg.message_type === 'human' && msg.agent_name && (
-                        <span style={{
-                          background: '#28a745',
-                          color: 'white',
-                          padding: '2px 8px',
-                          borderRadius: '4px',
-                          fontSize: '11px'
-                        }}>
-                          {msg.agent_name}
-                        </span>
-                      )}
-                    </div>
+                    {!isSystem && (
+                      <div style={{
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        color: isUser ? '#4682B4' : isAgent ? '#28a745' : '#666',
+                        marginBottom: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '4px 8px',
+                        background: isUser ? '#e3f2fd' : isAgent ? '#e8f5e9' : isBot ? '#fff8e1' : 'transparent',
+                        borderRadius: '6px'
+                      }}>
+                        {getMessageTypeLabel(msg.message_type)}
+                        {isAgent && msg.agent_name && (
+                          <span style={{
+                            background: '#28a745',
+                            color: 'white',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: '700'
+                          }}>
+                            {msg.agent_name}
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     {/* Message Bubble */}
                     <div style={{
-                      maxWidth: '75%',
-                      padding: '12px 16px',
-                      borderRadius: '12px',
-                      background: msg.message_type === 'user' 
-                        ? '#4682B4' 
-                        : msg.message_type === 'human'
-                        ? '#28a745'
+                      maxWidth: isSystem ? '85%' : '75%',
+                      padding: isSystem ? '10px 16px' : '12px 16px',
+                      borderRadius: isSystem ? '8px' : '12px',
+                      background: isUser 
+                        ? 'linear-gradient(135deg, #4682B4, #5a9fd4)' 
+                        : isAgent
+                        ? 'linear-gradient(135deg, #28a745, #34c759)'
+                        : isSystem
+                        ? '#fff3cd'
                         : 'white',
-                      color: msg.message_type === 'bot' ? '#333' : 'white',
+                      color: isBot ? '#333' : isSystem ? '#856404' : 'white',
                       boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                      border: msg.message_type === 'bot' ? '1px solid #e0e0e0' : 'none'
+                      border: isBot ? '2px solid #e0e0e0' : isSystem ? '2px solid #ffc107' : 'none',
+                      fontStyle: isSystem ? 'italic' : 'normal'
                     }}>
+                      {isSystem && (
+                        <div style={{
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          marginBottom: '6px',
+                          color: '#856404',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px'
+                        }}>
+                          ⚙️ System Notification
+                        </div>
+                      )}
                       <div style={{
-                        fontSize: '15px',
+                        fontSize: isSystem ? '14px' : '15px',
                         lineHeight: '1.5',
                         marginBottom: '6px',
                         whiteSpace: 'pre-wrap'
@@ -836,7 +915,8 @@ export default function ChatConversations() {
                       </div>
                     </div>
                   </div>
-                ))
+                  )
+                })
               )}
               <div ref={messagesEndRef} />
             </div>
