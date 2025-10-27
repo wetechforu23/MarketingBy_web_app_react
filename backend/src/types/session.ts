@@ -6,5 +6,6 @@ declare module 'express-session' {
     username?: string;
     role?: string;
     clientId?: number;
+    teamType?: string;
   }
 }
