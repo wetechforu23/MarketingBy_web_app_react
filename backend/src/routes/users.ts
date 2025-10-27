@@ -96,14 +96,8 @@ function getAllPermissions(): object {
 function getDefaultPermissions(role: string): object {
   const permissions: { [key: string]: any } = {
     super_admin: getAllPermissions(),
-    wtfu_developer: {
-      leads: { view: true, add: true, edit: true, delete: false, assign: true },
-      users: { view: true, add: false, edit: false, delete: false },
-      reports: { view: true, generate: true, export: true },
-      clients: { view: true, add: false, edit: false, delete: false },
-      seo: { basic: true, comprehensive: true },
-      email: { send: true, templates: false },
-    },
+    // 🔧 DEVELOPERS GET FULL ACCESS (same as super_admin)
+    wtfu_developer: getAllPermissions(),
     wtfu_sales: {
       leads: { view: true, add: true, edit: true, delete: false, assign: false },
       users: { view: false, add: false, edit: false, delete: false },

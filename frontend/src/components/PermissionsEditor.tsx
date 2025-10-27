@@ -315,7 +315,11 @@ export default function PermissionsEditor({ permissions, onChange }: Permissions
           Permission Summary
         </div>
         <div style={{ fontSize: '12px', color: '#495057' }}>
-          {Object.values(permissions).reduce((acc: number, section: any) => {
+          {Object.entries(permissions).reduce((acc: number, [key, section]: [string, any]) => {
+            // Exclude client_access from count (it's tracked separately)
+            if (key === 'client_access' || !section || typeof section !== 'object') {
+              return acc;
+            }
             return acc + Object.values(section).filter(v => v === true).length;
           }, 0)} permissions granted
         </div>
