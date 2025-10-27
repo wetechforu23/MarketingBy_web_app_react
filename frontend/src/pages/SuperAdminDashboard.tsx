@@ -8,6 +8,21 @@ interface SystemOverview {
   totalUsers: number;
   newLeadsToday: number;
   systemHealth: number;
+  // Additional comprehensive metrics
+  activeClients?: number;
+  activeUsers?: number;
+  totalLeads?: number;
+  totalConversations?: number;
+  activeConversations?: number;
+  conversationsToday?: number;
+  messagesToday?: number;
+  activeWidgets?: number;
+  totalPosts?: number;
+  postedCount?: number;
+  postsToday?: number;
+  gaSessions?: number;
+  gaUsers?: number;
+  gaPageViews?: number;
 }
 
 interface RecentActivity {
@@ -51,73 +66,106 @@ const SuperAdminDashboard: React.FC = () => {
       try {
         setLoading(true);
         
-        // Fetch real data from multiple endpoints
+        // Fetch comprehensive real data from dashboard API
         const [overviewResponse, clientsResponse, usersResponse] = await Promise.all([
           api.get('/admin/dashboard/overview'),
           api.get('/admin/clients'),
           api.get('/admin/users')
         ]);
 
-        const overviewData = overviewResponse.data;
+        const data = overviewResponse.data;
         const clients = clientsResponse.data.clients || [];
         const users = usersResponse.data.users || [];
+
+        console.log('📊 Dashboard data received:', data);
 
         // Store all clients for dropdown
         setAllClients(clients.map((client: any) => ({
           id: client.id,
-          name: client.client_name,
+          name: client.name || client.client_name,
           email: client.email,
-          status: client.is_active ? 'Active' : 'Inactive',
+          status: client.status === 'Active' || client.is_active ? 'Active' : 'Inactive',
           created_at: client.created_at
         })));
 
-        // Calculate real metrics
-        const totalClients = clients.length;
-        const activeClients = clients.filter((c: any) => c.is_active).length;
-        const totalUsers = users.length;
-        const adminUsers = users.filter((u: any) => u.is_admin).length;
-
+        // Set comprehensive metrics from real data
         setOverview({
-          totalClients,
-          activeCampaigns: activeClients,
-          revenueThisMonth: overviewData.revenueThisMonth || 0,
-          totalUsers,
-          newLeadsToday: Math.floor(Math.random() * 20) + 5,
-          systemHealth: 98
+          totalClients: data.totalClients,
+          activeCampaigns: data.activeCampaigns, // Real posted posts count
+          revenueThisMonth: data.revenueThisMonth, // Calculated from active clients
+          totalUsers: data.totalUsers,
+          newLeadsToday: data.newLeadsToday, // Real leads created today
+          systemHealth: data.systemHealth,
+          // Additional metrics
+          activeClients: data.activeClients,
+          activeUsers: data.activeUsers,
+          totalLeads: data.totalLeads,
+          totalConversations: data.totalConversations,
+          activeConversations: data.activeConversations,
+          conversationsToday: data.conversationsToday,
+          messagesToday: data.messagesToday,
+          activeWidgets: data.activeWidgets,
+          totalPosts: data.totalPosts,
+          postedCount: data.postedCount,
+          postsToday: data.postsToday,
+          gaSessions: data.gaSessions,
+          gaUsers: data.gaUsers,
+          gaPageViews: data.gaPageViews
         });
 
         // Set recent clients (last 5)
         setRecentClients(clients.slice(0, 5).map((client: any) => ({
           id: client.id,
-          name: client.client_name,
+          name: client.name || client.client_name,
           email: client.email,
-          status: client.is_active ? 'Active' : 'Inactive',
+          status: client.status === 'Active' || client.is_active ? 'Active' : 'Inactive',
           created_at: client.created_at
         })));
 
-        // Real activity data based on recent clients
+        // Build real activity feed with actual data
         const activities: RecentActivity[] = [
-          ...clients.slice(0, 3).map((client: any, index: number) => ({
+          // Recent client onboarding
+          ...clients.slice(0, 3).map((client: any) => ({
             id: `client-${client.id}`,
             type: 'client_onboarded' as const,
-            message: `New client "${client.client_name}" onboarded`,
+            message: `New client "${client.name || client.client_name}" onboarded`,
             timestamp: client.created_at,
-            clientName: client.client_name,
+            clientName: client.name || client.client_name,
             icon: 'fas fa-building',
             status: 'success' as const
           })),
+          // Real leads today
           {
-            id: 'system-1',
+            id: 'leads-today',
             type: 'leads_generated',
-            message: `${Math.floor(Math.random() * 10) + 5} new leads generated today`,
+            message: `${data.newLeadsToday} new leads generated today`,
             timestamp: new Date().toISOString(),
-            icon: 'fas fa-chart-line',
+            icon: 'fas fa-user-plus',
+            status: data.newLeadsToday > 0 ? 'success' as const : 'info' as const
+          },
+          // Real conversations today
+          {
+            id: 'conversations-today',
+            type: 'system_alert',
+            message: `${data.conversationsToday} widget conversations started today`,
+            timestamp: new Date().toISOString(),
+            icon: 'fas fa-comments',
             status: 'info' as const
           },
+          // Real posts today
           {
-            id: 'system-2',
+            id: 'posts-today',
+            type: 'campaign_completed',
+            message: `${data.postsToday} social media posts published today`,
+            timestamp: new Date().toISOString(),
+            icon: 'fas fa-bullhorn',
+            status: data.postsToday > 0 ? 'success' as const : 'info' as const
+          },
+          // Active users
+          {
+            id: 'users-active',
             type: 'user_created',
-            message: `${adminUsers} admin users active`,
+            message: `${data.activeUsers} active users in the system`,
             timestamp: new Date().toISOString(),
             icon: 'fas fa-users',
             status: 'info' as const
@@ -125,12 +173,15 @@ const SuperAdminDashboard: React.FC = () => {
         ];
         setRecentActivity(activities);
 
-        // System status with real health checks
+        // System status with health indicators
+        const healthStatus = data.systemHealth > 95 ? 'online' : data.systemHealth > 80 ? 'warning' : 'offline';
         setSystemStatus([
           { id: '1', name: 'Backend API', status: 'online', uptime: '99.9%', responseTime: '45ms' },
           { id: '2', name: 'Database', status: 'online', uptime: '99.8%', responseTime: '12ms' },
-          { id: '3', name: 'Email Service', status: 'warning', uptime: '95.2%', responseTime: '2.1s' },
-          { id: '4', name: 'Google Ads API', status: 'online', uptime: '99.5%', responseTime: '180ms' },
+          { id: '3', name: 'Chat Widgets', status: data.activeWidgets > 0 ? 'online' : 'warning', uptime: '98.5%', responseTime: `${data.activeWidgets} active` },
+          { id: '4', name: 'Email Service', status: 'online', uptime: '95.2%', responseTime: '2.1s' },
+          { id: '5', name: 'Google Analytics', status: data.gaSessions > 0 ? 'online' : 'warning', uptime: '99.5%', responseTime: `${data.gaSessions} sessions` },
+          { id: '6', name: 'Social Media', status: data.postedCount > 0 ? 'online' : 'warning', uptime: '99.0%', responseTime: `${data.postedCount} posts` },
         ]);
 
       } catch (err) {
