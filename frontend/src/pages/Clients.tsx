@@ -14,6 +14,7 @@ const Clients: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<{ [key: number]: boolean }>({});
 
   useEffect(() => {
     const fetchClients = async () => {
@@ -53,6 +54,7 @@ const Clients: React.FC = () => {
 
   const handleToggleClientStatus = async (clientId: number, isActive: boolean) => {
     try {
+      setActionLoading(prev => ({ ...prev, [clientId]: true }));
       await http.patch(`/clients/${clientId}/toggle-active`, { is_active: isActive });
       alert(`Client ${isActive ? 'activated' : 'deactivated'} successfully`);
       // Refresh the clients list
@@ -70,11 +72,14 @@ const Clients: React.FC = () => {
     } catch (error) {
       console.error('Error toggling client status:', error);
       alert('Failed to update client status. Please try again.');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [clientId]: false }));
     }
   };
 
   const handleConvertClientToLead = async (clientId: number) => {
     try {
+      setActionLoading(prev => ({ ...prev, [`convert_${clientId}`]: true }));
       await http.post('/clients/convert-to-lead', { clientId });
       alert('Client converted back to lead successfully');
       // Refresh the clients list
@@ -92,11 +97,21 @@ const Clients: React.FC = () => {
     } catch (error) {
       console.error('Error converting client to lead:', error);
       alert('Failed to convert client to lead. Please try again.');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [`convert_${clientId}`]: false }));
     }
   };
 
   if (loading) {
-    return <div className="loading">Loading clients...</div>;
+    return (
+      <div style={{ padding: '2rem' }}>
+        <div style={{ textAlign: 'center', padding: '4rem' }}>
+          <i className="fas fa-spinner fa-spin" style={{ fontSize: '48px', color: '#4682B4', marginBottom: '1rem' }}></i>
+          <div style={{ fontSize: '18px', color: '#666', fontWeight: '600' }}>Loading clients...</div>
+          <div style={{ fontSize: '14px', color: '#999', marginTop: '0.5rem' }}>Please wait while we fetch the data</div>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
@@ -140,44 +155,51 @@ const Clients: React.FC = () => {
                   <td>{client.email}</td>
                   <td>{client.contact_name}</td>
                   <td>
-                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                      <input 
-                        type="checkbox" 
-                        checked={client.is_active}
-                        onChange={(e) => handleToggleClientStatus(client.id, e.target.checked)}
-                        style={{ width: '0', height: '0', opacity: 0, position: 'absolute' }}
-                      />
-                      <span 
-                        aria-label={client.is_active ? 'Active' : 'Inactive'}
-                        title={client.is_active ? 'Active' : 'Inactive'}
-                        style={{
-                          display: 'inline-block',
-                          width: '40px',
-                          height: '22px',
-                          backgroundColor: client.is_active ? '#28a745' : '#dc3545',
-                          borderRadius: '999px',
-                          position: 'relative',
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
+                    {actionLoading[client.id] ? (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                        <i className="fas fa-spinner fa-spin" style={{ color: '#4682B4', fontSize: '16px' }}></i>
+                        <span style={{ fontSize: '12px', color: '#666' }}>Updating...</span>
+                      </div>
+                    ) : (
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={client.is_active}
+                          onChange={(e) => handleToggleClientStatus(client.id, e.target.checked)}
+                          style={{ width: '0', height: '0', opacity: 0, position: 'absolute' }}
+                        />
                         <span 
+                          aria-label={client.is_active ? 'Active' : 'Inactive'}
+                          title={client.is_active ? 'Active' : 'Inactive'}
                           style={{
-                            position: 'absolute',
-                            top: '2px',
-                            left: client.is_active ? '20px' : '2px',
-                            width: '18px',
-                            height: '18px',
-                            borderRadius: '50%',
-                            background: '#fff',
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                            display: 'inline-block',
+                            width: '40px',
+                            height: '22px',
+                            backgroundColor: client.is_active ? '#28a745' : '#dc3545',
+                            borderRadius: '999px',
+                            position: 'relative',
                             transition: 'all 0.2s ease'
                           }}
-                        />
-                      </span>
-                      <span style={{ fontSize: '12px', color: client.is_active ? '#28a745' : '#dc3545', fontWeight: 600 }}>
-                        {client.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </label>
+                        >
+                          <span 
+                            style={{
+                              position: 'absolute',
+                              top: '2px',
+                              left: client.is_active ? '20px' : '2px',
+                              width: '18px',
+                              height: '18px',
+                              borderRadius: '50%',
+                              background: '#fff',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                              transition: 'all 0.2s ease'
+                            }}
+                          />
+                        </span>
+                        <span style={{ fontSize: '12px', color: client.is_active ? '#28a745' : '#dc3545', fontWeight: 600 }}>
+                          {client.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </label>
+                    )}
                   </td>
                   <td>{new Date(client.created_at).toLocaleDateString()}</td>
                   <td>
@@ -220,14 +242,16 @@ const Clients: React.FC = () => {
                             handleConvertClientToLead(client.id);
                           }
                         }}
+                        disabled={actionLoading[`convert_${client.id}`]}
                         style={{
                           padding: '4px 8px',
+                          opacity: actionLoading[`convert_${client.id}`] ? 0.6 : 1,
+                          cursor: actionLoading[`convert_${client.id}`] ? 'not-allowed' : 'pointer',
                           fontSize: '11px',
                           borderRadius: '4px',
                           border: '1px solid #6c757d',
                           backgroundColor: '#6c757d',
                           color: 'white',
-                          cursor: 'pointer',
                           transition: 'all 0.2s ease'
                         }}
                         onMouseEnter={(e) => {
@@ -240,7 +264,7 @@ const Clients: React.FC = () => {
                         }}
                         title="Convert Back to Lead"
                       >
-                        <i className="fas fa-undo"></i>
+                        <i className={`fas ${actionLoading[`convert_${client.id}`] ? 'fa-spinner fa-spin' : 'fa-undo'}`}></i>
                       </button>
                     </div>
                   </td>
