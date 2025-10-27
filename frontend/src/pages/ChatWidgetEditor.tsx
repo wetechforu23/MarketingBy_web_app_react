@@ -29,7 +29,14 @@ export default function ChatWidgetEditor() {
     ai_handoff_url: '',
     rate_limit_messages: 10,
     rate_limit_window: 60,
-    require_captcha: false
+    require_captcha: false,
+    // 📧 Email Notification Settings
+    enable_email_notifications: true,
+    notification_email: '',
+    visitor_engagement_minutes: 5,
+    notify_new_conversation: true,
+    notify_agent_handoff: true,
+    notify_daily_summary: false
   })
 
   // 🤖 NEW: Intro Questions State
@@ -106,7 +113,14 @@ export default function ChatWidgetEditor() {
           ai_handoff_url: widget.ai_handoff_url || '',
           rate_limit_messages: widget.rate_limit_messages,
           rate_limit_window: widget.rate_limit_window,
-          require_captcha: widget.require_captcha
+          require_captcha: widget.require_captcha,
+          // 📧 Email Notification Settings
+          enable_email_notifications: widget.enable_email_notifications !== undefined ? widget.enable_email_notifications : true,
+          notification_email: widget.notification_email || '',
+          visitor_engagement_minutes: widget.visitor_engagement_minutes || 5,
+          notify_new_conversation: widget.notify_new_conversation !== undefined ? widget.notify_new_conversation : true,
+          notify_agent_handoff: widget.notify_agent_handoff !== undefined ? widget.notify_agent_handoff : true,
+          notify_daily_summary: widget.notify_daily_summary !== undefined ? widget.notify_daily_summary : false
         })
         
         // ✅ FIX: Load intro flow settings
@@ -808,6 +822,141 @@ export default function ChatWidgetEditor() {
             />
             <span style={{ fontWeight: '600' }}>Require CAPTCHA (future feature)</span>
           </label>
+        </div>
+
+        {/* 📧 Email Notification Settings */}
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '2rem',
+          marginBottom: '1.5rem',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }}>
+          <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            📧 Email Notifications
+          </h3>
+          <p style={{ fontSize: '14px', color: '#666', marginBottom: '1.5rem' }}>
+            Configure email alerts for new messages, visitors, and agent handoffs
+          </p>
+
+          <label style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={formData.enable_email_notifications}
+              onChange={(e) => handleChange('enable_email_notifications', e.target.checked)}
+              style={{ marginRight: '0.5rem', width: '20px', height: '20px' }}
+            />
+            <span style={{ fontWeight: '700', fontSize: '16px' }}>Enable Email Notifications</span>
+          </label>
+
+          {formData.enable_email_notifications && (
+            <>
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
+                  Notification Email Address *
+                </label>
+                <input
+                  type="email"
+                  value={formData.notification_email}
+                  onChange={(e) => handleChange('notification_email', e.target.value)}
+                  placeholder="your-email@example.com"
+                  required={formData.enable_email_notifications}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '2px solid #e0e0e0',
+                    borderRadius: '8px',
+                    fontSize: '14px'
+                  }}
+                />
+                <p style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                  All email alerts will be sent to this address
+                </p>
+              </div>
+
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
+                  Visitor Engagement Alert (after X minutes on site)
+                </label>
+                <select
+                  value={formData.visitor_engagement_minutes}
+                  onChange={(e) => handleChange('visitor_engagement_minutes', parseInt(e.target.value))}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '2px solid #e0e0e0',
+                    borderRadius: '8px',
+                    fontSize: '14px'
+                  }}
+                >
+                  <option value={1}>After 1 minute</option>
+                  <option value={2}>After 2 minutes</option>
+                  <option value={3}>After 3 minutes</option>
+                  <option value={5}>After 5 minutes (Recommended)</option>
+                  <option value={10}>After 10 minutes</option>
+                  <option value={15}>After 15 minutes</option>
+                  <option value={30}>After 30 minutes</option>
+                  <option value={0}>Never (Disabled)</option>
+                </select>
+                <p style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                  Get notified when a visitor stays on your site for this long (potential hot lead!)
+                </p>
+              </div>
+
+              <div style={{ 
+                padding: '1rem', 
+                background: '#f8f9fa', 
+                borderRadius: '8px',
+                border: '1px solid #e0e0e0'
+              }}>
+                <p style={{ fontSize: '13px', fontWeight: '600', marginBottom: '1rem' }}>
+                  Email Notification Types:
+                </p>
+
+                <label style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.notify_new_conversation}
+                    onChange={(e) => handleChange('notify_new_conversation', e.target.checked)}
+                    style={{ marginRight: '0.5rem', width: '18px', height: '18px' }}
+                  />
+                  <span>💬 New Conversation Started</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.notify_agent_handoff}
+                    onChange={(e) => handleChange('notify_agent_handoff', e.target.checked)}
+                    style={{ marginRight: '0.5rem', width: '18px', height: '18px' }}
+                  />
+                  <span>🔴 Agent Handoff Requested (Urgent)</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.notify_daily_summary}
+                    onChange={(e) => handleChange('notify_daily_summary', e.target.checked)}
+                    style={{ marginRight: '0.5rem', width: '18px', height: '18px' }}
+                  />
+                  <span>📊 Daily Summary Report (Coming Soon)</span>
+                </label>
+              </div>
+
+              <div style={{ 
+                marginTop: '1rem',
+                padding: '1rem',
+                background: '#e3f2fd',
+                borderRadius: '8px',
+                fontSize: '13px',
+                color: '#1565c0'
+              }}>
+                <strong>💡 Tip:</strong> You'll receive instant email alerts for every new message when agent handoff is active.
+                This helps you respond quickly to customers waiting for human support!
+              </div>
+            </>
+          )}
         </div>
 
         {/* 🤖 Intro Questions Configuration */}
