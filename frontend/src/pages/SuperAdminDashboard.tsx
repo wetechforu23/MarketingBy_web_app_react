@@ -4,7 +4,7 @@ import { api } from '../api/http';
 interface SystemOverview {
   totalClients: number;
   activeCampaigns: number;
-  revenueThisMonth: number;
+  revenueThisMonth?: number; // Optional - not displayed
   totalUsers: number;
   newLeadsToday: number;
   systemHealth: number;
@@ -84,7 +84,7 @@ const SuperAdminDashboard: React.FC = () => {
           id: client.id,
           name: client.name || client.client_name,
           email: client.email,
-          status: client.status === 'Active' || client.is_active ? 'Active' : 'Inactive',
+          status: client.is_active === true || client.status === true ? 'Active' : 'Inactive',
           created_at: client.created_at
         })));
 
@@ -113,12 +113,15 @@ const SuperAdminDashboard: React.FC = () => {
           gaPageViews: data.gaPageViews
         });
 
-        // Set recent clients (last 5)
-        setRecentClients(clients.slice(0, 5).map((client: any) => ({
+        // Set recent clients (last 5) - sorted by most recently created
+        const sortedClients = [...clients].sort((a: any, b: any) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        setRecentClients(sortedClients.slice(0, 5).map((client: any) => ({
           id: client.id,
           name: client.name || client.client_name,
           email: client.email,
-          status: client.status === 'Active' || client.is_active ? 'Active' : 'Inactive',
+          status: client.is_active === true || client.status === true ? 'Active' : 'Inactive',
           created_at: client.created_at
         })));
 
@@ -317,20 +320,6 @@ const SuperAdminDashboard: React.FC = () => {
             <div className="stat-trend">
               <i className="fas fa-arrow-up text-success"></i>
               <span className="text-success">+8% this week</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon">
-            <i className="fas fa-dollar-sign"></i>
-          </div>
-          <div className="stat-content">
-            <h3 className="stat-value">${overview?.revenueThisMonth?.toLocaleString() || 0}</h3>
-            <p className="stat-label">Revenue This Month</p>
-            <div className="stat-trend">
-              <i className="fas fa-arrow-up text-success"></i>
-              <span className="text-success">+15% vs last month</span>
             </div>
           </div>
         </div>
