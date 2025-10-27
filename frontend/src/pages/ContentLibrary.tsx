@@ -35,16 +35,9 @@ const ContentLibrary: React.FC = () => {
 
   useEffect(() => {
     fetchClients();
-    // Also fetch content immediately for super_admin
     fetchContents();
     fetchStats();
   }, []);
-
-  useEffect(() => {
-    if (clients.length > 0 && !selectedClient) {
-      setSelectedClient(clients[0].id);
-    }
-  }, [clients]);
 
   useEffect(() => {
     fetchContents();
@@ -56,6 +49,10 @@ const ContentLibrary: React.FC = () => {
       console.log('📊 Fetching clients...');
       const response = await http.get('/clients');
       console.log('✅ Clients fetched:', response.data);
+      console.log('📋 Number of clients:', response.data.clients?.length || 0);
+      if (response.data.clients && response.data.clients.length > 0) {
+        console.log('👤 First client:', response.data.clients[0]);
+      }
       setClients(response.data.clients || []);
     } catch (error) {
       console.error('❌ Error fetching clients:', error);
@@ -66,12 +63,19 @@ const ContentLibrary: React.FC = () => {
   const fetchContents = async () => {
     setLoading(true);
     try {
-      console.log('📚 Fetching contents...');
+      console.log('📚 Fetching contents for client:', selectedClient);
       const params: any = {};
+      
+      // Add client filter
+      if (selectedClient) {
+        params.client_id = selectedClient;
+      }
+      
       if (statusFilter !== 'all') params.status = statusFilter;
       if (platformFilter !== 'all') params.platform = platformFilter;
       if (searchQuery) params.search = searchQuery;
 
+      console.log('🔍 Fetch params:', params);
       const response = await http.get('/content', { params });
       console.log('✅ Contents fetched:', response.data);
       setContents(response.data.content || []);
@@ -143,6 +147,20 @@ const ContentLibrary: React.FC = () => {
       failed: 'Failed',
     };
     return labels[status] || status;
+  };
+
+  const getStatusStyle = (status: string) => {
+    const styles: any = {
+      draft: { background: '#e2e8f0', color: '#2d3748' },
+      pending_wtfu_approval: { background: '#fef3c7', color: '#92400e' },
+      pending_client_approval: { background: '#dbeafe', color: '#1e40af' },
+      approved: { background: '#d1fae5', color: '#065f46' },
+      rejected: { background: '#fee2e2', color: '#991b1b' },
+      posted: { background: '#e9d5ff', color: '#6b21a8' },
+      scheduled: { background: '#c7d2fe', color: '#3730a3' },
+      failed: { background: '#fee2e2', color: '#991b1b' },
+    };
+    return styles[status] || { background: '#e2e8f0', color: '#2d3748' };
   };
 
   const getPlatformIcon = (platform: string) => {
@@ -220,7 +238,7 @@ const ContentLibrary: React.FC = () => {
         </div>
 
         {/* Client Selector */}
-        {clients.length > 1 && (
+        {clients.length > 0 && (
           <div style={{ marginBottom: '20px' }}>
             <label style={{ 
               display: 'block', 
@@ -232,8 +250,11 @@ const ContentLibrary: React.FC = () => {
               Select Client
             </label>
             <select
-              value={selectedClient || ''}
-              onChange={(e) => setSelectedClient(Number(e.target.value))}
+              value={selectedClient || 'all'}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSelectedClient(value === 'all' ? null : Number(value));
+              }}
               style={{
                 width: '100%',
                 maxWidth: '400px',
@@ -245,9 +266,10 @@ const ContentLibrary: React.FC = () => {
                 cursor: 'pointer'
               }}
             >
+              <option value="all">All Clients</option>
               {clients.map((client) => (
                 <option key={client.id} value={client.id}>
-                  {client.business_name || client.name}
+                  {client.client_name || client.business_name || client.name || `Client ${client.id}`}
                 </option>
               ))}
             </select>
@@ -493,94 +515,143 @@ const ContentLibrary: React.FC = () => {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {contents.map((content) => (
-            <div key={content.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow">
-              {/* Media Preview */}
-              {content.media_urls && content.media_urls.length > 0 && (
-                <div className="h-48 bg-gray-200 rounded-t-lg overflow-hidden">
-                  <img
-                    src={content.media_urls[0]}
-                    alt={content.title}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23ddd" width="400" height="300"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle"%3ENo Preview%3C/text%3E%3C/svg%3E';
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+          overflow: 'hidden'
+        }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
+                  <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', fontSize: '14px' }}>Title</th>
+                  <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', fontSize: '14px' }}>Status</th>
+                  <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', fontSize: '14px' }}>Platforms</th>
+                  <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', fontSize: '14px' }}>Client</th>
+                  <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', fontSize: '14px' }}>Created By</th>
+                  <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', fontSize: '14px' }}>Created Date</th>
+                  <th style={{ padding: '16px', textAlign: 'center', fontWeight: '600', fontSize: '14px' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {contents.map((content, index) => (
+                  <tr 
+                    key={content.id} 
+                    style={{ 
+                      borderBottom: '1px solid #e2e8f0',
+                      background: index % 2 === 0 ? 'white' : '#f7fafc',
+                      transition: 'background 0.2s'
                     }}
-                  />
-                </div>
-              )}
-
-              {/* Content Info */}
-              <div className="p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-gray-900 text-lg flex-1">{content.title}</h3>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(content.status)}`}>
-                    {getStatusLabel(content.status)}
-                  </span>
-                </div>
-
-                <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                  {content.content_text}
-                </p>
-
-                {/* Platforms */}
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {content.target_platforms?.map((platform) => (
-                    <span
-                      key={platform}
-                      className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-medium"
-                    >
-                      {getPlatformIcon(platform)} {platform}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Hashtags */}
-                {content.hashtags && content.hashtags.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-blue-600 text-sm">
-                      {content.hashtags.map(tag => tag.startsWith('#') ? tag : `#${tag}`).join(' ')}
-                    </p>
-                  </div>
-                )}
-
-                {/* Meta Info */}
-                <div className="text-xs text-gray-500 mb-3">
-                  <p>Created by: {content.created_by_name}</p>
-                  <p>Created: {new Date(content.created_at).toLocaleDateString()}</p>
-                  {content.posted_count > 0 && (
-                    <p className="text-green-600 font-medium">✓ Posted to {content.posted_count} platform(s)</p>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => navigate(`/app/content-library/${content.id}/edit`)}
-                    className="flex-1 bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-sm font-medium"
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#edf2f7'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = index % 2 === 0 ? 'white' : '#f7fafc'}
                   >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDuplicate(content.id)}
-                    className="bg-gray-100 text-gray-700 px-3 py-2 rounded hover:bg-gray-200 text-sm font-medium"
-                    title="Duplicate"
-                  >
-                    📋
-                  </button>
-                  {content.status === 'draft' && (
-                    <button
-                      onClick={() => handleDelete(content.id)}
-                      className="bg-red-100 text-red-700 px-3 py-2 rounded hover:bg-red-200 text-sm font-medium"
-                      title="Delete"
-                    >
-                      🗑️
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
+                    <td style={{ padding: '16px', maxWidth: '250px' }}>
+                      <div style={{ fontWeight: '600', color: '#2d3748', marginBottom: '4px' }}>
+                        {content.title}
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#718096', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {content.content_text}
+                      </div>
+                    </td>
+                    <td style={{ padding: '16px' }}>
+                      <span style={{
+                        padding: '6px 12px',
+                        borderRadius: '20px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        whiteSpace: 'nowrap',
+                        ...getStatusStyle(content.status)
+                      }}>
+                        {getStatusLabel(content.status)}
+                      </span>
+                    </td>
+                    <td style={{ padding: '16px' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {content.target_platforms?.map((platform) => (
+                          <span
+                            key={platform}
+                            style={{
+                              background: '#f7fafc',
+                              color: '#4a5568',
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: '500'
+                            }}
+                          >
+                            {getPlatformIcon(platform)}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td style={{ padding: '16px', fontSize: '14px', color: '#4a5568' }}>
+                      {content.client_name || '-'}
+                    </td>
+                    <td style={{ padding: '16px', fontSize: '14px', color: '#4a5568' }}>
+                      {content.created_by_name || '-'}
+                    </td>
+                    <td style={{ padding: '16px', fontSize: '14px', color: '#4a5568', whiteSpace: 'nowrap' }}>
+                      {new Date(content.created_at).toLocaleDateString()}
+                    </td>
+                    <td style={{ padding: '16px' }}>
+                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                        {/* Only show Edit button if content is NOT posted */}
+                        {content.status !== 'posted' && (
+                          <button
+                            onClick={() => navigate(`/app/content-library/${content.id}/edit`)}
+                            style={{
+                              background: '#4299e1',
+                              color: 'white',
+                              padding: '6px 12px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              cursor: 'pointer'
+                            }}
+                            title="Edit"
+                          >
+                            ✏️ Edit
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDuplicate(content.id)}
+                          style={{
+                            background: '#a0aec0',
+                            color: 'white',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            fontSize: '12px',
+                            cursor: 'pointer'
+                          }}
+                          title="Duplicate"
+                        >
+                          📋
+                        </button>
+                        <button
+                          onClick={() => handleDelete(content.id)}
+                          style={{
+                            background: '#fc8181',
+                            color: 'white',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            fontSize: '12px',
+                            cursor: 'pointer'
+                          }}
+                          title="Delete"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
