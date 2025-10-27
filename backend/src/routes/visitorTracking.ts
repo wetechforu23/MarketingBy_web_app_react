@@ -6,6 +6,39 @@ const router = express.Router();
 const emailService = new EmailService();
 
 // ==========================================
+// HELPER: Check if IP is private/internal
+// ==========================================
+function isPrivateIP(ip: string): boolean {
+  if (!ip || typeof ip !== 'string') return true;
+  
+  // Remove IPv6 prefix
+  const cleanIp = ip.startsWith('::ffff:') ? ip.substring(7) : ip;
+  
+  // Check for localhost
+  if (cleanIp === '127.0.0.1' || cleanIp === 'localhost' || cleanIp === '::1') {
+    return true;
+  }
+  
+  // Check for private IP ranges
+  const parts = cleanIp.split('.');
+  if (parts.length !== 4) return true; // Invalid or IPv6
+  
+  const first = parseInt(parts[0]);
+  const second = parseInt(parts[1]);
+  
+  // 10.0.0.0 - 10.255.255.255
+  if (first === 10) return true;
+  
+  // 172.16.0.0 - 172.31.255.255
+  if (first === 172 && second >= 16 && second <= 31) return true;
+  
+  // 192.168.0.0 - 192.168.255.255
+  if (first === 192 && second === 168) return true;
+  
+  return false;
+}
+
+// ==========================================
 // HELPER: Enhanced GeoIP Lookup (ipapi.co)
 // Source: https://ipapi.co/ - Free tier: 30K lookups/month (1K/day)
 // ==========================================
@@ -299,14 +332,33 @@ router.post('/public/widget/:widgetKey/track-session', async (req, res) => {
 
     // 🔧 FIX: Extract real client IP from X-Forwarded-For header (Heroku/proxy safe)
     let ip_address = req.headers['x-forwarded-for'] || req.ip || req.connection.remoteAddress;
+    
+    console.log('🔍 IP Detection:', {
+      'x-forwarded-for': req.headers['x-forwarded-for'],
+      'req.ip': req.ip,
+      'remoteAddress': req.connection.remoteAddress,
+      'selected': ip_address
+    });
+    
     // X-Forwarded-For can be: "client, proxy1, proxy2" - take the first (real client IP)
     if (typeof ip_address === 'string' && ip_address.includes(',')) {
-      ip_address = ip_address.split(',')[0].trim();
+      const ips = ip_address.split(',').map(ip => ip.trim());
+      // Take the FIRST non-private IP from the chain
+      ip_address = ips.find(ip => !isPrivateIP(ip)) || ips[0];
+      console.log('🔗 Multiple IPs found, selected:', ip_address);
     }
+    
     // Remove IPv6 prefix if present
     if (typeof ip_address === 'string' && ip_address.startsWith('::ffff:')) {
       ip_address = ip_address.substring(7);
     }
+    
+    // Skip GeoIP for private/local IPs
+    if (isPrivateIP(ip_address as string)) {
+      console.log('⚠️ Private IP detected, GeoIP will return null:', ip_address);
+    }
+    
+    console.log('✅ Final IP for tracking:', ip_address);
 
     // Get widget ID
     const widgetResult = await pool.query(
