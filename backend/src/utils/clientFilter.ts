@@ -10,11 +10,17 @@ import { Request } from 'express';
 export function getClientFilter(req: Request, tableAlias?: string): { whereClause: string; params: any[] } {
   const role = req.session.role;
   const clientId = req.session.clientId;
+  const teamType = req.session.teamType;
   const prefix = tableAlias ? `${tableAlias}.` : '';
 
-  // Super admin sees ALL data
+  // Super admin sees ALL data (use 1=1 to avoid empty WHERE clause)
   if (role === 'super_admin') {
-    return { whereClause: '', params: [] };
+    return { whereClause: '1=1', params: [] };
+  }
+
+  // WeTechForU team members see ALL data (developers, managers, etc.)
+  if (teamType === 'wetechforu' || role?.startsWith('wtfu_')) {
+    return { whereClause: '1=1', params: [] };
   }
 
   // Admin/customer/client_user see only their client's data
@@ -25,9 +31,9 @@ export function getClientFilter(req: Request, tableAlias?: string): { whereClaus
     };
   }
 
-  // If admin but no client_id (legacy WeTechForU admin), see all
+  // If admin but no client_id (legacy WeTechForU admin), see all (use 1=1)
   if (role === 'admin' && !clientId) {
-    return { whereClause: '', params: [] };
+    return { whereClause: '1=1', params: [] };
   }
 
   // Default: no access
@@ -44,9 +50,15 @@ export function getClientFilter(req: Request, tableAlias?: string): { whereClaus
 export function hasClientAccess(req: Request, targetClientId: number): boolean {
   const role = req.session.role;
   const clientId = req.session.clientId;
+  const teamType = req.session.teamType;
 
   // Super admin has access to all clients
   if (role === 'super_admin') {
+    return true;
+  }
+
+  // WeTechForU team members have access to all clients
+  if (teamType === 'wetechforu' || role?.startsWith('wtfu_')) {
     return true;
   }
 
