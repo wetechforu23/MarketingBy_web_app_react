@@ -181,6 +181,77 @@ export default function ChatConversations() {
     }
   }
 
+  const deleteConversation = async (convId: number, visitorName: string) => {
+    const confirmMessage = `Are you sure you want to delete conversation with "${visitorName}"?\n\nThis will permanently delete:\n- All messages in this conversation\n- Conversation history\n\nType "DELETE" to confirm:`
+    const confirmation = prompt(confirmMessage)
+    
+    if (confirmation !== 'DELETE') {
+      if (confirmation !== null) {
+        alert('❌ Deletion cancelled. You must type "DELETE" exactly.')
+      }
+      return
+    }
+
+    try {
+      await api.delete(`/chat-widget/conversations/${convId}`)
+      alert('✅ Conversation deleted successfully!')
+      
+      // Close modal if this conversation was open
+      if (selectedConv?.id === convId) {
+        setSelectedConv(null)
+        setMessages([])
+      }
+      
+      // Refresh list
+      if (selectedWidgetId) {
+        fetchConversations(selectedWidgetId)
+      }
+    } catch (err: any) {
+      alert('❌ Failed to delete conversation: ' + (err.response?.data?.error || err.message))
+      console.error(err)
+    }
+  }
+
+  const deleteAllConversations = async () => {
+    if (!selectedWidgetId) {
+      alert('❌ Please select a widget first')
+      return
+    }
+
+    const widget = widgets.find(w => w.id === selectedWidgetId)
+    const widgetName = widget?.widget_name || 'this widget'
+    const confirmMessage = `⚠️ WARNING: This will DELETE ALL ${conversations.length} conversations for "${widgetName}"!\n\nThis action CANNOT be undone!\n\nAll messages and conversation history will be permanently deleted.\n\nType "DELETE ALL" to confirm:`
+    
+    const confirmation = prompt(confirmMessage)
+    
+    if (confirmation !== 'DELETE ALL') {
+      if (confirmation !== null) {
+        alert('❌ Deletion cancelled. You must type "DELETE ALL" exactly.')
+      }
+      return
+    }
+
+    try {
+      const response = await api.post('/chat-widget/conversations/bulk-delete', {
+        widget_id: selectedWidgetId,
+        delete_all: true
+      })
+      
+      alert(`✅ Successfully deleted ${response.data.deleted_count} conversation(s)!`)
+      
+      // Clear UI
+      setConversations([])
+      setSelectedConv(null)
+      setMessages([])
+      
+      // Refresh
+      fetchConversations(selectedWidgetId)
+    } catch (err: any) {
+      alert('❌ Failed to delete conversations: ' + (err.response?.data?.error || err.message))
+      console.error(err)
+    }
+  }
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return '#28a745'  // Green for active conversations
@@ -290,6 +361,41 @@ export default function ChatConversations() {
             }}>
               <i className="fas fa-info-circle" style={{ marginRight: '6px' }}></i>
               Switch between your chat widgets to see their conversations
+            </p>
+          </div>
+        )}
+
+        {/* Delete All Button */}
+        {selectedWidgetId && conversations.length > 0 && (
+          <div style={{ marginTop: '1rem' }}>
+            <button
+              onClick={deleteAllConversations}
+              style={{
+                padding: '10px 20px',
+                background: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.background = '#c82333'}
+              onMouseOut={(e) => e.currentTarget.style.background = '#dc3545'}
+            >
+              <i className="fas fa-trash-alt"></i>
+              🗑️ Delete All Conversations ({conversations.length})
+            </button>
+            <p style={{
+              margin: '0.5rem 0 0 0',
+              fontSize: '12px',
+              color: '#dc3545',
+              fontStyle: 'italic'
+            }}>
+              ⚠️ This will permanently delete ALL conversations for the selected widget
             </p>
           </div>
         )}
@@ -462,25 +568,46 @@ export default function ChatConversations() {
                     )}
                   </td>
                   <td style={{ padding: '1rem', textAlign: 'center' }}>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        fetchMessages(conv)
-                      }}
-                      style={{
-                        padding: '8px 16px',
-                        background: conv.handoff_requested ? '#ff9800' : '#4682B4',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '14px',
-                        fontWeight: '600',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <i className="fas fa-comments" style={{ marginRight: '6px' }}></i>
-                      {conv.handoff_requested ? 'Respond Now' : 'View'}
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          fetchMessages(conv)
+                        }}
+                        style={{
+                          padding: '8px 16px',
+                          background: conv.handoff_requested ? '#ff9800' : '#4682B4',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <i className="fas fa-comments" style={{ marginRight: '6px' }}></i>
+                        {conv.handoff_requested ? 'Respond Now' : 'View'}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deleteConversation(conv.id, conv.visitor_name || 'Anonymous Visitor')
+                        }}
+                        style={{
+                          padding: '8px 12px',
+                          background: '#dc3545',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                        title="Delete conversation"
+                      >
+                        <i className="fas fa-trash"></i>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )})}

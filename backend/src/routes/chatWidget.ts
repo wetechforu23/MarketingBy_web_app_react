@@ -2196,5 +2196,108 @@ router.post('/conversations/:conversationId/mark-read', async (req, res) => {
   }
 });
 
+/**
+ * 🗑️ DELETE single conversation (Admin only)
+ */
+router.delete('/conversations/:conversationId', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    
+    console.log(`🗑️ Deleting conversation: ${conversationId}`);
+    
+    // Delete messages first (foreign key constraint)
+    await pool.query('DELETE FROM widget_messages WHERE conversation_id = $1', [conversationId]);
+    
+    // Delete the conversation
+    const result = await pool.query(
+      'DELETE FROM widget_conversations WHERE id = $1 RETURNING *',
+      [conversationId]
+    );
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+    
+    console.log(`✅ Conversation ${conversationId} deleted successfully`);
+    res.json({ success: true, message: 'Conversation deleted successfully' });
+  } catch (error) {
+    console.error('Delete conversation error:', error);
+    res.status(500).json({ error: 'Failed to delete conversation' });
+  }
+});
+
+/**
+ * 🗑️ BULK DELETE conversations (Admin only)
+ */
+router.post('/conversations/bulk-delete', async (req, res) => {
+  try {
+    const { widget_id, conversation_ids, delete_all } = req.body;
+    
+    console.log(`🗑️ Bulk delete request:`, { widget_id, conversation_ids, delete_all });
+    
+    let deletedCount = 0;
+    
+    if (delete_all && widget_id) {
+      // Delete ALL conversations for this widget
+      console.log(`🗑️ Deleting ALL conversations for widget ${widget_id}`);
+      
+      // Get all conversation IDs for this widget
+      const convResult = await pool.query(
+        'SELECT id FROM widget_conversations WHERE widget_id = $1',
+        [widget_id]
+      );
+      
+      const convIds = convResult.rows.map(r => r.id);
+      
+      // Delete all messages for these conversations
+      if (convIds.length > 0) {
+        await pool.query(
+          'DELETE FROM widget_messages WHERE conversation_id = ANY($1)',
+          [convIds]
+        );
+        
+        // Delete all conversations
+        const deleteResult = await pool.query(
+          'DELETE FROM widget_conversations WHERE widget_id = $1',
+          [widget_id]
+        );
+        
+        deletedCount = deleteResult.rowCount || 0;
+      }
+      
+      console.log(`✅ Deleted ${deletedCount} conversations for widget ${widget_id}`);
+    } else if (conversation_ids && conversation_ids.length > 0) {
+      // Delete specific conversations
+      console.log(`🗑️ Deleting ${conversation_ids.length} specific conversations`);
+      
+      // Delete messages
+      await pool.query(
+        'DELETE FROM widget_messages WHERE conversation_id = ANY($1)',
+        [conversation_ids]
+      );
+      
+      // Delete conversations
+      const deleteResult = await pool.query(
+        'DELETE FROM widget_conversations WHERE id = ANY($1)',
+        [conversation_ids]
+      );
+      
+      deletedCount = deleteResult.rowCount || 0;
+      console.log(`✅ Deleted ${deletedCount} conversations`);
+    } else {
+      return res.status(400).json({ error: 'Either widget_id with delete_all=true or conversation_ids array required' });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Successfully deleted ${deletedCount} conversation(s)`,
+      deleted_count: deletedCount 
+    });
+  } catch (error) {
+    console.error('Bulk delete conversations error:', error);
+    res.status(500).json({ error: 'Failed to delete conversations' });
+  }
+});
+
 export default router;
 
