@@ -62,7 +62,7 @@ async function getGeoLocation(ip: string): Promise<GeoIPData> {
       return emptyResult;
     }
 
-    const data = await response.json();
+    const data: any = await response.json();
     
     // Check for API errors (e.g., rate limit, invalid IP)
     if (data.error) {
