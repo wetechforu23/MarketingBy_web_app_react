@@ -375,20 +375,46 @@ const SuperAdminDashboard: React.FC = () => {
             <h2 className="card-title">Recent Activity</h2>
             <button className="btn btn-outline btn-sm">View All</button>
           </div>
-          <div className="activity-list">
-            {recentActivity.map(activity => (
-              <div key={activity.id} className="activity-item">
-                <div className={`activity-icon ${activity.status}`}>
-                  <i className={activity.icon}></i>
-                </div>
-                <div className="activity-content">
-                  <p className="activity-message">{activity.message}</p>
-                  <p className="activity-time text-muted">
-                    {new Date(activity.timestamp).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            ))}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #e0e0e0', background: '#f8f9fa' }}>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Event</th>
+                  <th style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: '#333' }}>Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentActivity.map(activity => (
+                  <tr key={activity.id} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                    <td style={{ padding: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '14px',
+                          background: activity.status === 'success' ? '#d4edda' : 
+                                     activity.status === 'info' ? '#d1ecf1' : 
+                                     activity.status === 'warning' ? '#fff3cd' : '#f8d7da',
+                          color: activity.status === 'success' ? '#155724' : 
+                                 activity.status === 'info' ? '#0c5460' : 
+                                 activity.status === 'warning' ? '#856404' : '#721c24'
+                        }}>
+                          <i className={activity.icon}></i>
+                        </div>
+                        <span style={{ color: '#333', fontSize: '14px' }}>{activity.message}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#666', fontSize: '13px', whiteSpace: 'nowrap' }}>
+                      {new Date(activity.timestamp).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 
