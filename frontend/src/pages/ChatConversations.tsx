@@ -224,6 +224,12 @@ export default function ChatConversations() {
 
   return (
     <div style={{ padding: '2rem' }}>
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.8; transform: scale(1.05); }
+        }
+      `}</style>
       {/* Header */}
       <div style={{ marginBottom: '2rem' }}>
         <h1 style={{ marginBottom: '0.5rem' }}>
@@ -349,19 +355,39 @@ export default function ChatConversations() {
               </tr>
             </thead>
             <tbody>
-              {conversations.map(conv => (
+              {conversations.map(conv => {
+                const hasUnread = (conv.unread_agent_messages || 0) > 0;
+                return (
                 <tr
                   key={conv.id}
                   style={{
                     borderTop: '1px solid #e0e0e0',
-                    background: conv.handoff_requested ? '#fff3cd' : 'white',
-                    cursor: 'pointer'
+                    background: hasUnread ? '#fff5f5' : (conv.handoff_requested ? '#fff3cd' : 'white'),
+                    cursor: 'pointer',
+                    borderLeft: hasUnread ? '4px solid #dc3545' : '4px solid transparent',
+                    transition: 'all 0.2s ease'
                   }}
                   onClick={() => fetchMessages(conv)}
                 >
-                  <td style={{ padding: '1rem' }}>
-                    <div style={{ fontWeight: '600', marginBottom: '4px' }}>
+                  <td style={{ padding: '1rem', position: 'relative' }}>
+                    <div style={{ fontWeight: '600', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       {conv.visitor_name || 'Anonymous'}
+                      {hasUnread && (
+                        <span style={{
+                          background: '#dc3545',
+                          color: 'white',
+                          borderRadius: '10px',
+                          padding: '2px 8px',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          minWidth: '20px',
+                          textAlign: 'center',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                          animation: 'pulse 2s infinite'
+                        }}>
+                          {conv.unread_agent_messages}
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: '12px', color: '#888' }}>
                       ID: {conv.id}
@@ -457,7 +483,7 @@ export default function ChatConversations() {
                     </button>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
