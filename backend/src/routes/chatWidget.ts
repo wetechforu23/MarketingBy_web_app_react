@@ -622,8 +622,9 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       [conversation_id]
     );
 
-    // 📧 SEND EMAIL NOTIFICATION TO AGENT (if agent handoff is active)
-    if (isAgentHandoff) {
+    // 📧 SEND EMAIL NOTIFICATION TO AGENT (for EVERY new message)
+    // This ensures agents are notified in real-time for all customer messages
+    {
       try {
         const widgetInfo = await pool.query(
           `SELECT wc.widget_name, wc.notification_email, wc.enable_email_notifications,
@@ -638,10 +639,11 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
           const info = widgetInfo.rows[0];
           if (info.enable_email_notifications && info.notification_email) {
             const clientBrandedName = info.widget_name || 'Your Website';
+            const subjectPrefix = isAgentHandoff ? '🔴 URGENT' : '💬 NEW MESSAGE';
             emailService.sendEmail({
               to: info.notification_email,
               from: `"💬 ${clientBrandedName} - Chat Alert" <info@wetechforu.com>`, // ✅ Branded with client name
-              subject: `💬 New Message from ${info.visitor_name || 'Visitor'} on ${clientBrandedName}`,
+              subject: `${subjectPrefix}: ${info.visitor_name || 'Visitor'} on ${clientBrandedName}`,
               html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                   <h2 style="color: #4682B4;">💬 Customer Sent You a Message!</h2>
@@ -1224,6 +1226,9 @@ router.post('/conversations/:conversationId/reply', async (req, res) => {
       [conversationId, 'human', message.trim(), username, userId]
     );
 
+    // 🔔 Check if this is the FIRST time agent is taking over
+    const wasAgentHandoff = conversation.agent_handoff;
+    
     // Update conversation - SET AGENT HANDOFF FLAG
     await pool.query(
       `UPDATE widget_conversations SET
@@ -1235,10 +1240,25 @@ router.post('/conversations/:conversationId/reply', async (req, res) => {
         handoff_requested = false,
         agent_handoff = true,
         status = 'active',
-        updated_at = NOW()
+        updated_at = NOW(),
+        last_activity_at = CURRENT_TIMESTAMP
       WHERE id = $2`,
       [message.trim(), conversationId]
     );
+
+    // 🔔 If this is the FIRST agent takeover, send a system notification to visitor
+    if (!wasAgentHandoff) {
+      await pool.query(
+        `INSERT INTO widget_messages (conversation_id, message_type, message_text)
+         VALUES ($1, $2, $3)`,
+        [
+          conversationId,
+          'system',
+          `🤝 You are now connected with ${username}. They will assist you personally!`
+        ]
+      );
+      console.log(`🔔 System notification sent: Agent ${username} has taken over conversation`);
+    }
 
     console.log('✅ Human reply sent successfully');
     console.log(`📊 Message ID: ${messageResult.rows[0].id}`);
@@ -1246,7 +1266,8 @@ router.post('/conversations/:conversationId/reply', async (req, res) => {
     res.json({
       success: true,
       message_id: messageResult.rows[0].id,
-      message: messageResult.rows[0]
+      message: messageResult.rows[0],
+      agent_name: username
     });
   } catch (error) {
     console.error('❌ Send reply error:', error);
