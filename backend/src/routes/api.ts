@@ -708,6 +708,7 @@ router.get('/leads', async (req, res) => {
         l.contact_last_name, 
         l.compliance_status, 
         l.client_id,
+        l.converted_to_client_id,
         l.created_at,
         l.assigned_to,
         l.assigned_at,
@@ -715,11 +716,13 @@ router.get('/leads', async (req, res) => {
         l.assignment_notes,
         u1.username as assigned_to_name,
         u2.username as assigned_by_name,
-        c.client_name
+        c.client_name as patient_client_name,
+        cc.client_name as converted_client_name
       FROM leads l
       LEFT JOIN users u1 ON l.assigned_to = u1.id
       LEFT JOIN users u2 ON l.assigned_by = u2.id
       LEFT JOIN clients c ON l.client_id = c.id
+      LEFT JOIN clients cc ON l.converted_to_client_id = cc.id
       ${whereSql}
       ORDER BY l.created_at DESC`,
       params
@@ -2799,9 +2802,11 @@ router.post('/leads/convert-to-client', async (req, res) => {
       clientId = clientResult.rows[0].id;
     }
 
-    // Update the lead with client_id and status
+    // Update the lead with converted_to_client_id (NOT client_id)
+    // client_id is for patient leads (belongs TO a client)
+    // converted_to_client_id is for business leads (converted FROM lead TO client)
     await pool.query(
-      'UPDATE leads SET client_id = $1, status = $2, updated_at = NOW() WHERE id = $3',
+      'UPDATE leads SET converted_to_client_id = $1, status = $2, updated_at = NOW() WHERE id = $3',
       [clientId, 'converted', leadId]
     );
 
@@ -3173,16 +3178,16 @@ router.post('/clients/convert-to-lead', async (req, res) => {
       return res.status(400).json({ error: 'Client ID is required' });
     }
 
-    // Find the lead associated with this client
+    // Find the lead associated with this client (using converted_to_client_id)
     const leadResult = await pool.query(
-      'SELECT id FROM leads WHERE client_id = $1',
+      'SELECT id FROM leads WHERE converted_to_client_id = $1',
       [clientId]
     );
 
     if (leadResult.rows.length > 0) {
-      // Update the lead to remove client_id and change status
+      // Update the lead to remove converted_to_client_id and change status
       await pool.query(
-        'UPDATE leads SET client_id = NULL, status = $1, updated_at = NOW() WHERE client_id = $2',
+        'UPDATE leads SET converted_to_client_id = NULL, status = $1, updated_at = NOW() WHERE converted_to_client_id = $2',
         ['new', clientId]
       );
     }

@@ -29,6 +29,9 @@ interface Lead {
   assigned_by_name?: string;
   assigned_at?: string;
   assignment_notes?: string;
+  // Conversion tracking
+  converted_to_client_id?: number | null;
+  client_name?: string | null;
 }
 
 interface User {
