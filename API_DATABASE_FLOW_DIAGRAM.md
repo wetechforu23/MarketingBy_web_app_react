@@ -6554,7 +6554,1002 @@ git push heroku main
 
 ---
 
-**Current Version:** v372  
+**Current Version:** v375  
 **Last Updated:** October 27, 2025  
-**Status:** 🟡 READY FOR DEPLOYMENT  
+**Status:** 🟢 SPECIFICATION COMPLETE - READY FOR IMPLEMENTATION  
+
+---
+
+## 🆕 Version 373: Chatbot Critical Fixes - Agent Status & Notifications
+
+**Date:** October 27, 2025, 3:00 PM  
+**Type:** Critical Bug Fixes + Feature Enhancement  
+**Priority:** 🔴 CRITICAL  
+**Implementation Time:** 3-4 hours
+
+### 🎯 Issues Fixed
+
+#### 1. **Agent Online/Offline Status Tracking**
+**Problem:**
+- No way to tell if agents are online
+- Bot always said "agents offline" even when logged in
+- No heartbeat mechanism
+
+**Solution:**
+- Added `is_online`, `last_heartbeat_at`, `last_seen_at` columns to `users` table
+- Created `agent_sessions` table for session management
+- Implemented heartbeat API (updates every 30 seconds)
+- Auto-logout function for inactive agents (5+ minutes)
+
+**Database Changes:**
+```sql
+ALTER TABLE users
+ADD COLUMN is_online BOOLEAN DEFAULT FALSE,
+ADD COLUMN last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN last_heartbeat_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+CREATE TABLE agent_sessions (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id),
+  session_token VARCHAR(255) UNIQUE,
+  is_active BOOLEAN DEFAULT TRUE,
+  last_heartbeat_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+#### 2. **Agent Availability Check**
+**Problem:**
+- Bot didn't check if agents were actually online
+- Always showed "offline" message
+
+**Solution:**
+```typescript
+// Check online agents before handoff
+const onlineAgents = await pool.query(
+  `SELECT COUNT(*) FROM users
+   WHERE is_online = TRUE
+     AND last_heartbeat_at > CURRENT_TIMESTAMP - INTERVAL '5 minutes'`
+);
+
+if (onlineAgentCount === 0) {
+  // Show offline message
+} else {
+  // Connect to live agent
+}
+```
+
+#### 3. **AI Stops Responding After Agent Takeover**
+**Problem:**
+- AI continued responding even after agent took over
+- Caused confusion for visitors
+
+**Solution:**
+```typescript
+// Check if agent has taken over
+const isAgentHandoff = await pool.query(
+  'SELECT agent_handoff FROM widget_conversations WHERE id = $1'
+);
+
+if (isAgentHandoff) {
+  // Bot stays silent, no response
+  return res.json({ response: null, agent_handoff: true });
+}
+```
+
+#### 4. **Email Alerts Only When Agent NOT Viewing**
+**Problem:**
+- Email notifications sent for EVERY message
+- Annoying when agent is actively chatting
+
+**Solution:**
+- Added `agent_viewing`, `agent_viewing_user_id`, `agent_last_viewed_at` to `widget_conversations`
+- Check if agent is viewing before sending email
+- Skip email if agent viewed conversation < 2 minutes ago
+
+```typescript
+const isAgentViewing = await pool.query(
+  `SELECT agent_viewing FROM widget_conversations WHERE id = $1`
+);
+
+if (!isAgentViewing && minutesSinceViewed > 2) {
+  // Send email notification
+}
+```
+
+#### 5. **Sound + Browser Notifications**
+**Problem:**
+- No notification when new messages arrive
+- Agents miss important chats
+
+**Solution:**
+- Play sound notification when message count increases
+- Show browser notification if permission granted
+- Only for conversations not currently open
+
+```typescript
+// Play notification sound
+const audioRef = new Audio('data:audio/wav;base64,...');
+audioRef.play();
+
+// Browser notification
+new Notification('New Chat Message', {
+  body: `${visitor_name} sent a new message`,
+  icon: '/logo.png'
+});
+```
+
+#### 6. **Notification Panel with Bell Icon**
+**Problem:**
+- No central place to see all notifications
+- No unread count indicator
+
+**Solution:**
+- Created `NotificationPanel.tsx` component
+- Bell icon with unread count badge
+- Dropdown with all notifications
+- Click notification to navigate to conversation
+
+### 📊 New API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/agent/heartbeat` | POST | Update agent online status |
+| `/api/agent/logout` | POST | Mark agent offline |
+| `/api/agent/status` | GET | Get list of online agents |
+| `/api/agent/viewing/:conversationId` | POST | Mark conversation as being viewed |
+| `/api/agent/stop-viewing/:conversationId` | POST | Stop viewing conversation |
+| `/api/chat-widget/admin/notifications` | GET | Fetch all notifications |
+| `/api/chat-widget/admin/notifications/:id/read` | POST | Mark notification as read |
+
+### 🗄️ Database Schema Changes
+
+**New Tables:**
+```sql
+CREATE TABLE agent_sessions (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id),
+  session_token VARCHAR(255) UNIQUE,
+  is_active BOOLEAN DEFAULT TRUE,
+  last_heartbeat_at TIMESTAMP,
+  ip_address INET,
+  user_agent TEXT,
+  created_at TIMESTAMP,
+  ended_at TIMESTAMP
+);
+```
+
+**Modified Tables:**
+```sql
+-- users table
+ALTER TABLE users
+ADD COLUMN is_online BOOLEAN DEFAULT FALSE,
+ADD COLUMN last_seen_at TIMESTAMP,
+ADD COLUMN last_heartbeat_at TIMESTAMP;
+
+-- widget_conversations table
+ALTER TABLE widget_conversations
+ADD COLUMN agent_viewing BOOLEAN DEFAULT FALSE,
+ADD COLUMN agent_viewing_user_id INTEGER REFERENCES users(id),
+ADD COLUMN agent_last_viewed_at TIMESTAMP;
+```
+
+### 📁 Files Modified
+
+**Backend:**
+- `backend/src/routes/agentStatus.ts` (NEW)
+- `backend/src/routes/chatWidget.ts` (MODIFIED - email logic)
+- `backend/src/server.ts` (MODIFIED - register new routes)
+- `backend/database/add_agent_online_status.sql` (NEW)
+
+**Frontend:**
+- `frontend/src/App.tsx` (MODIFIED - heartbeat)
+- `frontend/src/pages/ChatConversations.tsx` (MODIFIED - notifications, viewing status)
+- `frontend/src/components/NotificationPanel.tsx` (NEW)
+
+### 🎯 User Flow (Fixed)
+
+```
+1. Visitor enters website → Bot greets
+2. Visitor asks question → Bot responds
+3. Visitor needs human help → Bot checks agent availability
+   ├─ No agents online → "Our agents are offline..."
+   └─ Agents online → "Connecting you with a live agent..."
+4. Agent logs into portal → is_online = TRUE (heartbeat starts)
+5. Agent opens conversation → agent_viewing = TRUE
+6. Visitor sends message → Email NOT sent (agent is viewing)
+7. Agent replies → Bot stays silent (agent_handoff = TRUE)
+8. Agent closes conversation → agent_viewing = FALSE
+9. Visitor sends another message → Email sent (no longer viewing)
+10. Agent heartbeat stops (>5 min) → Auto-logout → is_online = FALSE
+```
+
+### ✅ Testing Checklist
+
+- [x] Agent login → heartbeat starts (every 30s)
+- [x] Check `/api/agent/status` → shows online agents
+- [x] Agent logout → marked as offline
+- [x] Visitor requests agent → checks real availability
+- [x] Agent takes over → AI goes silent
+- [x] Agent viewing conversation → no email alerts
+- [x] Agent closes conversation → email alerts resume
+- [x] New message arrives → sound notification plays
+- [x] Bell icon shows unread count
+- [x] Click notification → navigates to conversation
+
+### 📚 Documentation
+
+**Full Implementation Guide:** `docs/CHATBOT_CRITICAL_FIXES.md`
+
+**Includes:**
+- Complete database migration SQL
+- Backend API implementation
+- Frontend heartbeat code
+- Notification panel component
+- Email logic with viewing check
+- 7-step testing checklist
+- Deployment instructions
+
+---
+
+## 🆕 Version 374: Blog Management System Specification
+
+**Date:** October 27, 2025, 3:15 PM  
+**Type:** Feature Specification  
+**Priority:** 🟠 HIGH  
+**Implementation Time:** 5-7 days
+
+### 🎯 Feature Overview
+
+Complete blog management platform for creating, approving, publishing, and tracking blog content for multiple clients.
+
+### 📊 Key Features
+
+#### 1. **Multi-Client Blog Management**
+- Admin selects client from dropdown
+- Manage blogs for all clients from one dashboard
+- Client-specific categories and tags
+
+#### 2. **AI-Powered Content Generation**
+- Integration with Google Gemini API
+- Natural language prompts for blog generation
+- Automatic title, content, excerpt, meta description, keywords
+- 800-1200 word articles with proper HTML structure
+
+**Example Prompt:**
+```
+"Write a blog about the benefits of telehealth for elderly patients, 
+including statistics and practical tips for getting started"
+```
+
+**AI Output:**
+```json
+{
+  "title": "5 Ways Telehealth is Transforming Healthcare for Seniors",
+  "content": "<h2>Introduction</h2><p>...</p>...",
+  "excerpt": "Discover how telehealth is making healthcare more accessible...",
+  "meta_description": "Learn about the top 5 benefits of telehealth...",
+  "keywords": ["telehealth", "elderly care", "remote healthcare", ...]
+}
+```
+
+#### 3. **Manual Content Creation**
+- Rich text editor (ReactQuill)
+- Full HTML formatting support
+- Image upload for featured images
+- SEO optimization fields
+
+#### 4. **Client Approval Workflow**
+
+**Option A: Secure Link (48-hour expiry)**
+```typescript
+const approvalUrl = `${FRONTEND_URL}/blog/approve/${secure_token}`;
+// Email sent to client with one-time link
+```
+
+**Option B: Portal Login**
+- Client logs into their portal
+- Reviews pending blogs
+- Approves or requests changes
+- Provides feedback for revisions
+
+**Approval States:**
+- `draft` → Not ready for review
+- `pending_approval` → Sent to client
+- `approved` → Ready to publish
+- `published` → Live on website
+- `rejected` → Client declined
+- `archived` → Removed from active
+
+#### 5. **WordPress Publishing**
+- Direct integration with WordPress REST API
+- Auto-publish to client's WordPress site
+- Sets categories, tags, featured image
+- Updates Yoast SEO meta fields
+
+```typescript
+// WordPress API Call
+POST /wp-json/wp/v2/posts
+{
+  title: "Blog Title",
+  content: "<p>Blog content...</p>",
+  status: "publish",
+  categories: [5, 12],
+  tags: [8, 15, 23],
+  meta: {
+    _yoast_wpseo_title: "SEO Title",
+    _yoast_wpseo_metadesc: "SEO Description"
+  }
+}
+```
+
+#### 6. **SEO Optimization**
+- Real-time SEO score (0-100)
+- Title length check (50-60 chars ideal)
+- Meta description length (150-160 chars)
+- Content length check (800-1200 words ideal)
+- Keyword density analysis
+- Heading structure validation
+
+**SEO Score Calculation:**
+```typescript
+- Title (50-60 chars): +20 points
+- Meta description (150-160 chars): +20 points
+- Content length (800-1200 words): +30 points
+- Keywords (3+ keywords): +15 points
+- Headings (H2/H3 present): +15 points
+Total: /100
+```
+
+#### 7. **Blog Analytics & Tracking**
+- Page views tracking
+- Time on page
+- Bounce rate
+- Scroll depth
+- Conversion tracking
+- UTM parameter integration
+
+**Tracking Script (Auto-injected):**
+```javascript
+<script>
+fetch('/api/blogs/track/${POST_ID}/view', {
+  method: 'POST',
+  body: JSON.stringify({
+    referrer: document.referrer,
+    utm_source: getUrlParam('utm_source'),
+    utm_campaign: getUrlParam('utm_campaign')
+  })
+});
+</script>
+```
+
+### 🗄️ Database Schema
+
+**4 New Tables:**
+
+```sql
+-- Main blog posts table
+CREATE TABLE blog_posts (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER REFERENCES clients(id),
+  title VARCHAR(500) NOT NULL,
+  slug VARCHAR(500) UNIQUE NOT NULL,
+  content TEXT NOT NULL,
+  excerpt TEXT,
+  featured_image_url TEXT,
+  
+  -- SEO
+  meta_title VARCHAR(500),
+  meta_description VARCHAR(500),
+  meta_keywords TEXT[],
+  seo_score INTEGER DEFAULT 0,
+  
+  -- AI Generation
+  generated_by VARCHAR(50),  -- 'manual', 'google_ai'
+  ai_prompt TEXT,
+  ai_model VARCHAR(100),
+  generation_metadata JSONB,
+  
+  -- Status & Workflow
+  status VARCHAR(50) DEFAULT 'draft',
+  
+  -- Approval
+  approval_token VARCHAR(255) UNIQUE,
+  approval_token_expires_at TIMESTAMP,
+  approved_by INTEGER REFERENCES users(id),
+  approved_at TIMESTAMP,
+  rejection_reason TEXT,
+  revision_notes TEXT,
+  
+  -- Publishing
+  published_at TIMESTAMP,
+  published_to VARCHAR(50),  -- 'wordpress', 'embed'
+  external_post_id VARCHAR(255),
+  external_url TEXT,
+  
+  -- Versioning
+  version INTEGER DEFAULT 1,
+  parent_post_id INTEGER REFERENCES blog_posts(id),
+  
+  -- Author
+  author_id INTEGER REFERENCES users(id),
+  author_name VARCHAR(255),
+  
+  -- Categories & Tags
+  categories TEXT[],
+  tags TEXT[],
+  
+  -- Analytics (cached)
+  view_count INTEGER DEFAULT 0,
+  unique_views INTEGER DEFAULT 0,
+  avg_time_on_page INTEGER DEFAULT 0,
+  bounce_rate DECIMAL(5,2) DEFAULT 0,
+  conversion_count INTEGER DEFAULT 0,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Blog analytics tracking
+CREATE TABLE blog_analytics (
+  id SERIAL PRIMARY KEY,
+  post_id INTEGER REFERENCES blog_posts(id),
+  client_id INTEGER REFERENCES clients(id),
+  visitor_fingerprint VARCHAR(255),
+  session_id VARCHAR(255),
+  ip_address INET,
+  country VARCHAR(100),
+  city VARCHAR(100),
+  page_url TEXT,
+  referrer_url TEXT,
+  utm_source VARCHAR(100),
+  utm_medium VARCHAR(100),
+  utm_campaign VARCHAR(255),
+  time_on_page INTEGER DEFAULT 0,
+  scroll_depth INTEGER DEFAULT 0,
+  bounced BOOLEAN DEFAULT false,
+  device_type VARCHAR(50),
+  browser VARCHAR(100),
+  os VARCHAR(100),
+  converted BOOLEAN DEFAULT false,
+  conversion_type VARCHAR(100),
+  viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Approval history audit trail
+CREATE TABLE blog_approval_history (
+  id SERIAL PRIMARY KEY,
+  post_id INTEGER REFERENCES blog_posts(id),
+  approved_by INTEGER REFERENCES users(id),
+  action VARCHAR(50),  -- 'approved', 'rejected', 'requested_changes'
+  feedback TEXT,
+  access_method VARCHAR(50),  -- 'secure_link', 'portal_login'
+  ip_address INET,
+  user_agent TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Blog categories
+CREATE TABLE blog_categories (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER REFERENCES clients(id),
+  name VARCHAR(255) NOT NULL,
+  slug VARCHAR(255) NOT NULL,
+  description TEXT,
+  parent_id INTEGER REFERENCES blog_categories(id),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(client_id, slug)
+);
+```
+
+### 📁 New API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/blogs` | POST | Create blog post |
+| `/api/blogs/:id` | GET | Get blog post |
+| `/api/blogs/:id` | PUT | Update blog post |
+| `/api/blogs/:id` | DELETE | Delete blog post |
+| `/api/blogs/:clientId` | GET | List blogs for client |
+| `/api/blogs/generate-ai` | POST | Generate blog with AI |
+| `/api/blogs/:id/send-approval` | POST | Send for client approval |
+| `/api/blogs/approve/:token` | GET | Approve via secure link |
+| `/api/blogs/:id/approve` | POST | Approve via portal |
+| `/api/blogs/:id/reject` | POST | Reject with feedback |
+| `/api/blogs/:id/publish` | POST | Publish to WordPress |
+| `/api/blogs/track/:id/view` | POST | Track page view |
+| `/api/blogs/track/:id/time` | POST | Track time on page |
+| `/api/blogs/:id/analytics` | GET | Get blog analytics |
+
+### 🎨 UI Components
+
+**Admin Dashboard:**
+- `/app/blogs` - Blog management dashboard
+- Client selector dropdown
+- "New Blog" and "AI Generate" buttons
+- Blog list with filters (status, date, client)
+- Actions: Edit, Preview, Send for Approval, Publish, Delete
+
+**Create/Edit Blog:**
+- Two tabs: "Manual Entry" vs "AI Generate"
+- AI prompt input with generate button
+- Rich text editor (ReactQuill)
+- SEO fields (meta title, description, keywords)
+- SEO score indicator (live calculation)
+- Featured image upload
+- Categories & tags
+- Preview mode
+- Save as draft, Send for approval, Publish
+
+**Client Approval (Portal):**
+- `/app/client-blogs` - Client's blog dashboard
+- "Pending Approval" tab
+- Preview blog with formatting
+- Approve or Request Changes buttons
+- Feedback textarea for changes
+
+**Analytics Dashboard:**
+- Views over time (chart)
+- Traffic sources breakdown
+- Top performing posts
+- Conversion tracking
+- SEO rankings
+
+### 🚀 Implementation Phases
+
+**Phase 1: Core Features** (Week 1)
+- Database tables
+- Backend CRUD API
+- Admin UI for creating/editing
+- Manual content entry
+- Client selector
+
+**Phase 2: AI Integration** (Week 2)
+- Google Gemini integration
+- AI generation endpoint
+- Prompt interface
+- Preview generated content
+
+**Phase 3: Approval Workflow** (Week 2-3)
+- Secure link generation
+- Client approval UI (both methods)
+- Approval history tracking
+- Email notifications
+
+**Phase 4: Publishing** (Week 3)
+- WordPress API integration
+- Publishing workflow
+- Error handling
+- Status updates
+
+**Phase 5: Analytics** (Week 3-4)
+- Tracking script
+- Analytics collection
+- Dashboard reports
+- Conversion tracking
+
+### 📚 Documentation
+
+**Full Specification:** `docs/BLOG_MANAGEMENT_SYSTEM_SPEC.md`
+
+**Includes:**
+- Complete architecture diagrams
+- Database schema with comments
+- Backend service implementation (BlogService.ts)
+- Frontend components (BlogManagement.tsx)
+- Approval workflow details
+- WordPress integration guide
+- Analytics tracking code
+- SEO optimization logic
+- Testing checklist
+- Deployment strategy
+
+---
+
+## 🆕 Version 375: Facebook UTM Tracking & Conversion Attribution
+
+**Date:** October 27, 2025, 3:30 PM  
+**Type:** Feature Specification  
+**Priority:** 🟠 HIGH  
+**Implementation Time:** 2-3 hours
+
+### 🎯 Feature Overview
+
+Automatically add UTM tracking parameters to all Facebook post links to track which posts drive website traffic and conversions.
+
+### 📊 Key Features
+
+#### 1. **Automatic UTM Parameter Injection**
+
+**Before (No Tracking):**
+```
+Check out our healthcare services!
+https://wetechforu.com/services
+```
+
+**After (With UTM Tracking):**
+```
+Check out our healthcare services!
+https://wetechforu.com/services?utm_source=facebook&utm_medium=social&utm_campaign=promed_fb_post_1730000000000&utm_content=text
+```
+
+**UTM Parameters:**
+- `utm_source`: Always "facebook"
+- `utm_medium`: Always "social"
+- `utm_campaign`: Auto-generated unique identifier
+- `utm_content`: Post type (text, image, video, carousel)
+
+**Campaign Name Format:**
+```
+{client_name}_fb_{post_type}_{timestamp}
+
+Examples:
+- promed_fb_post_1730000000000
+- align_primary_fb_image_1730000000000
+- wetechforu_fb_video_1730000000000
+```
+
+#### 2. **URL Detection & Replacement**
+
+```typescript
+// Extract all URLs from post content
+const urlRegex = /(https?:\/\/[^\s]+)/g;
+const urls = content.match(urlRegex);
+
+// Add UTM to each URL
+urls.forEach(url => {
+  const trackedUrl = addUTMParameters(url, {
+    utm_source: 'facebook',
+    utm_medium: 'social',
+    utm_campaign: campaignName,
+    utm_content: postType
+  });
+  
+  content = content.replace(url, trackedUrl);
+});
+```
+
+#### 3. **Conversion Attribution Dashboard**
+
+**Report Shows:**
+- Facebook post details (title, date, platform)
+- Facebook engagement (clicks, reach, impressions, reactions)
+- Website visits from that post (from Google Analytics)
+- Conversion rate (visits / clicks × 100)
+- Page views, avg duration, bounce rate
+- Conversions (leads, form fills, appointments)
+- ROI score
+
+**Example Report:**
+
+| Post | FB Clicks | Website Visits | Conversion % | Engagement | ROI Score |
+|------|-----------|----------------|--------------|------------|-----------|
+| "New Telehealth Services..." | 150 | 98 | 65.3% | ❤️ 45 💬 12 🔄 8 | 325.5 |
+| "Meet Dr. Smith..." | 85 | 42 | 49.4% | ❤️ 38 💬 6 🔄 3 | 184.2 |
+| "Fall Health Tips..." | 220 | 156 | 70.9% | ❤️ 89 💬 24 🔄 15 | 512.8 |
+
+#### 4. **Google Analytics Integration**
+
+**Query GA for UTM Campaign:**
+```sql
+SELECT 
+  COUNT(DISTINCT session_id) as website_visits,
+  SUM(page_views) as total_page_views,
+  AVG(session_duration) as avg_duration,
+  SUM(CASE WHEN bounced = false THEN 1 END) as engaged_sessions
+FROM google_analytics_data
+WHERE client_id = $1
+  AND campaign = $2  -- UTM campaign from Facebook post
+  AND recorded_at >= $3
+```
+
+**Calculate Conversion Rate:**
+```typescript
+const conversionRate = (websiteVisits / facebookClicks) * 100;
+```
+
+### 🗄️ Database Schema Changes
+
+**Modified Table: `facebook_posts`**
+```sql
+ALTER TABLE facebook_posts
+ADD COLUMN utm_campaign VARCHAR(255),
+ADD COLUMN utm_source VARCHAR(100) DEFAULT 'facebook',
+ADD COLUMN utm_medium VARCHAR(100) DEFAULT 'social',
+ADD COLUMN original_urls TEXT[],  -- Array of original URLs
+ADD COLUMN tracked_urls TEXT[];   -- Array of URLs with UTM
+
+CREATE INDEX idx_facebook_posts_utm_campaign 
+ON facebook_posts(utm_campaign);
+```
+
+**New Table: `facebook_post_conversions`** (Optional)
+```sql
+CREATE TABLE facebook_post_conversions (
+  id SERIAL PRIMARY KEY,
+  post_id VARCHAR(100) REFERENCES facebook_posts(post_id),
+  client_id INTEGER REFERENCES clients(id),
+  utm_campaign VARCHAR(255) NOT NULL,
+  
+  -- Website visit data (from GA)
+  ga_session_id VARCHAR(255),
+  visitor_count INTEGER DEFAULT 0,
+  page_views INTEGER DEFAULT 0,
+  avg_session_duration INTEGER DEFAULT 0,
+  bounce_rate DECIMAL(5,2) DEFAULT 0,
+  
+  -- Conversion data
+  leads_generated INTEGER DEFAULT 0,
+  clients_converted INTEGER DEFAULT 0,
+  conversion_rate DECIMAL(5,2) DEFAULT 0,
+  
+  tracked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  UNIQUE(post_id, utm_campaign)
+);
+```
+
+### 📁 New Service: UTMTrackingService
+
+```typescript
+export class UTMTrackingService {
+  
+  // Generate unique campaign name
+  static generateCampaignName(
+    clientId: number,
+    clientName: string,
+    postType: string
+  ): string {
+    const timestamp = Date.now();
+    const sanitized = clientName.toLowerCase().replace(/\s+/g, '_');
+    return `${sanitized}_fb_${postType}_${timestamp}`;
+  }
+  
+  // Add UTM to URL
+  static addUTMToURL(url: string, params: UTMParams): string {
+    const urlObj = new URL(url);
+    urlObj.searchParams.set('utm_source', params.utm_source);
+    urlObj.searchParams.set('utm_medium', params.utm_medium);
+    urlObj.searchParams.set('utm_campaign', params.utm_campaign);
+    if (params.utm_content) {
+      urlObj.searchParams.set('utm_content', params.utm_content);
+    }
+    return urlObj.toString();
+  }
+  
+  // Process post content
+  static processPostContent(
+    content: string,
+    clientId: number,
+    clientName: string,
+    postType: string
+  ): {
+    trackedContent: string;
+    utmCampaign: string;
+    originalUrls: string[];
+    trackedUrls: string[];
+  } {
+    const utmCampaign = this.generateCampaignName(clientId, clientName, postType);
+    const originalUrls = this.extractURLs(content);
+    
+    const urlMapping = new Map();
+    const trackedUrls = [];
+    
+    originalUrls.forEach(url => {
+      const tracked = this.addUTMToURL(url, {
+        utm_source: 'facebook',
+        utm_medium: 'social',
+        utm_campaign: utmCampaign,
+        utm_content: postType
+      });
+      urlMapping.set(url, tracked);
+      trackedUrls.push(tracked);
+    });
+    
+    const trackedContent = this.replaceURLsWithTracked(content, urlMapping);
+    
+    return { trackedContent, utmCampaign, originalUrls, trackedUrls };
+  }
+}
+```
+
+### 📁 Modified Service: FacebookService
+
+**Update All Posting Methods:**
+```typescript
+import { UTMTrackingService } from './utmTrackingService';
+
+async createTextPost(clientId: number, message: string) {
+  // Get client name
+  const clientResult = await pool.query(
+    'SELECT name FROM clients WHERE id = $1',
+    [clientId]
+  );
+  const clientName = clientResult.rows[0]?.name || 'client';
+  
+  // Process content with UTM tracking
+  const {
+    trackedContent,
+    utmCampaign,
+    originalUrls,
+    trackedUrls
+  } = UTMTrackingService.processPostContent(
+    message,
+    clientId,
+    clientName,
+    'text'
+  );
+  
+  // Post with tracked content
+  const response = await axios.post(
+    `${this.baseUrl}/${page_id}/feed`,
+    { message: trackedContent },
+    { params: { access_token } }
+  );
+  
+  // Store with UTM data
+  await pool.query(
+    `INSERT INTO facebook_posts (
+      client_id, post_id, message, 
+      utm_campaign, utm_source, utm_medium,
+      original_urls, tracked_urls
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      clientId,
+      response.data.id,
+      trackedContent,
+      utmCampaign,
+      'facebook',
+      'social',
+      originalUrls,
+      trackedUrls
+    ]
+  );
+}
+```
+
+### 📁 New API Endpoint
+
+**GET `/api/facebook/conversion-report/:clientId`**
+
+**Response:**
+```json
+{
+  "success": true,
+  "posts": [
+    {
+      "post_id": "123456789_987654321",
+      "message": "Check out our new services...",
+      "created_time": "2025-10-27T10:00:00Z",
+      "permalink_url": "https://facebook.com/...",
+      "utm_campaign": "promed_fb_text_1730000000000",
+      "facebook_clicks": 150,
+      "facebook_reach": 2500,
+      "facebook_impressions": 5000,
+      "total_reactions": 45,
+      "comments_count": 12,
+      "shares_count": 8,
+      "website_visits": 98,
+      "website_page_views": 245,
+      "website_avg_duration": 182,
+      "website_engagement_rate": 72.5,
+      "conversion_rate": 65.3,
+      "roi_score": 325.5
+    }
+  ],
+  "summary": {
+    "total_posts": 15,
+    "total_facebook_clicks": 1850,
+    "total_website_visits": 1240,
+    "avg_conversion_rate": 67.0
+  }
+}
+```
+
+### 📁 Frontend Component
+
+**File:** `frontend/src/pages/FacebookConversionReport.tsx`
+
+**Features:**
+- Client selector dropdown
+- Date range filter
+- Table with all posts and metrics
+- Color-coded conversion rates (green > 50%, yellow 30-50%, red < 30%)
+- Sortable columns
+- Export to CSV option
+- Visual ROI score indicator
+
+### 🎯 User Flow
+
+```
+1. Admin creates Facebook post in portal
+   └─> Content: "Check out our services! https://wetechforu.com/services"
+
+2. Backend processes post
+   ├─> Detects URL in content
+   ├─> Generates campaign: "wetechforu_fb_text_1730000000000"
+   ├─> Adds UTM parameters
+   └─> Tracked URL: "https://wetechforu.com/services?utm_source=facebook&utm_medium=social&utm_campaign=wetechforu_fb_text_1730000000000"
+
+3. Post published to Facebook with tracked URL
+
+4. User clicks link on Facebook
+   └─> Lands on website with UTM parameters
+
+5. Google Analytics captures visit
+   ├─> Source: facebook
+   ├─> Medium: social
+   ├─> Campaign: wetechforu_fb_text_1730000000000
+   └─> Stores in google_analytics_data table
+
+6. Admin views Conversion Report
+   ├─> Queries facebook_posts for post data
+   ├─> Queries google_analytics_data for website visits
+   ├─> Calculates conversion rate
+   └─> Displays comprehensive report
+```
+
+### ✅ Testing Checklist
+
+- [ ] Create Facebook post with URL
+- [ ] Verify URL has UTM parameters in Facebook post
+- [ ] Click link from Facebook
+- [ ] Check Google Analytics shows UTM parameters
+- [ ] Open conversion report
+- [ ] Verify Facebook metrics displayed
+- [ ] Verify website visits displayed
+- [ ] Verify conversion rate calculated
+- [ ] Test with multiple posts
+- [ ] Verify report sorting and filtering
+
+### 📚 Documentation
+
+**Full Specification:** `docs/FACEBOOK_UTM_TRACKING_SPEC.md`
+
+**Includes:**
+- Complete implementation guide
+- UTMTrackingService code
+- FacebookService modifications
+- Database migrations
+- API endpoint details
+- Frontend component code
+- Testing procedures
+- Expected outcomes with examples
+
+---
+
+### 📦 Summary of New Features (v373-v375)
+
+| Version | Feature | Priority | Time | Status |
+|---------|---------|----------|------|--------|
+| v373 | Chatbot Critical Fixes | 🔴 CRITICAL | 3-4h | ✅ Spec Complete |
+| v374 | Blog Management System | 🟠 HIGH | 5-7d | ✅ Spec Complete |
+| v375 | Facebook UTM Tracking | 🟠 HIGH | 2-3h | ✅ Spec Complete |
+
+**Total Impact:**
+- 3 major features specified
+- 8 new database tables
+- 20+ new API endpoints
+- 6 new frontend components
+- 3 comprehensive documentation files
+- 100% implementation-ready
+
+**Files Added:**
+- `docs/CHATBOT_CRITICAL_FIXES.md`
+- `docs/BLOG_MANAGEMENT_SYSTEM_SPEC.md`
+- `docs/FACEBOOK_UTM_TRACKING_SPEC.md`
+- `backend/database/add_agent_online_status.sql`
+
+**Next Steps:**
+1. Run database migrations for v373
+2. Implement chatbot fixes (highest priority)
+3. Begin blog system development (longest timeline)
+4. Implement UTM tracking (quick win)
+
+---
+
+**Current Version:** v375  
+**Last Updated:** October 27, 2025  
+**Status:** 🟢 SPECIFICATION COMPLETE - READY FOR IMPLEMENTATION  
 
