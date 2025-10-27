@@ -182,12 +182,14 @@ export default function VisitorMonitoring() {
   }
 
   const getDeviceIcon = (deviceType: string) => {
+    if (!deviceType) return '💻'
     if (deviceType === 'mobile') return '📱'
     if (deviceType === 'tablet') return '📋'
     return '💻'
   }
 
   const getBrowserIcon = (browser: string) => {
+    if (!browser) return '🌍'
     if (browser.includes('Chrome')) return '🌐'
     if (browser.includes('Firefox')) return '🦊'
     if (browser.includes('Safari')) return '🧭'
@@ -579,7 +581,7 @@ export default function VisitorMonitoring() {
                             fontWeight: '600',
                             color: '#f57c00'
                           }}>
-                            {getBrowserIcon(visitor.browser)} {visitor.browser} {visitor.browser_version}
+                            {getBrowserIcon(visitor.browser)} {visitor.browser || 'Unknown'} {visitor.browser_version || ''}
                           </div>
                           <div style={{
                             padding: '6px 12px',
@@ -590,7 +592,7 @@ export default function VisitorMonitoring() {
                             fontWeight: '600',
                             color: '#7b1fa2'
                           }}>
-                            💻 {visitor.os} {visitor.os_version}
+                            💻 {visitor.os || 'Unknown'} {visitor.os_version || ''}
                           </div>
                         </div>
 
