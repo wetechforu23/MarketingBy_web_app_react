@@ -271,7 +271,7 @@ router.get('/admin/dashboard/overview', async (req, res) => {
   try {
     console.log('📊 Fetching comprehensive dashboard data...');
     
-    // Parallel fetch all data sources
+    // Parallel fetch all data sources with individual error handling
     const [
       clientsResult,
       usersResult,
@@ -284,44 +284,53 @@ router.get('/admin/dashboard/overview', async (req, res) => {
       gaSessionsResult
     ] = await Promise.all([
       // Clients
-      pool.query('SELECT COUNT(*) as count, COUNT(*) FILTER (WHERE is_active = true) as active_count FROM clients'),
+      pool.query('SELECT COUNT(*) as count, COUNT(*) FILTER (WHERE is_active = true) as active_count FROM clients')
+        .catch(() => ({ rows: [{ count: 0, active_count: 0 }] })),
       
       // Users
-      pool.query('SELECT COUNT(*) as count, COUNT(*) FILTER (WHERE is_active = true) as active_count FROM users'),
+      pool.query('SELECT COUNT(*) as count, COUNT(*) FILTER (WHERE is_active = true) as active_count FROM users')
+        .catch(() => ({ rows: [{ count: 0, active_count: 0 }] })),
       
       // All leads
-      pool.query('SELECT COUNT(*) as count FROM leads'),
+      pool.query('SELECT COUNT(*) as count FROM leads')
+        .catch(() => ({ rows: [{ count: 0 }] })),
       
       // Today's leads
-      pool.query(`SELECT COUNT(*) as count FROM leads WHERE created_at >= CURRENT_DATE`),
+      pool.query(`SELECT COUNT(*) as count FROM leads WHERE created_at >= CURRENT_DATE`)
+        .catch(() => ({ rows: [{ count: 0 }] })),
       
       // Widget conversations
       pool.query(`SELECT 
         COUNT(*) as total_conversations,
         COUNT(*) FILTER (WHERE status = 'active') as active_conversations,
         COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE) as conversations_today
-       FROM widget_conversations`),
+       FROM widget_conversations`)
+        .catch(() => ({ rows: [{ total_conversations: 0, active_conversations: 0, conversations_today: 0 }] })),
       
       // Widget messages
-      pool.query(`SELECT COUNT(*) as count FROM widget_messages WHERE created_at >= CURRENT_DATE`),
+      pool.query(`SELECT COUNT(*) as count FROM widget_messages WHERE created_at >= CURRENT_DATE`)
+        .catch(() => ({ rows: [{ count: 0 }] })),
       
       // Social media posts
       pool.query(`SELECT 
         COUNT(*) as total_posts,
         COUNT(*) FILTER (WHERE status = 'posted') as posted_count,
         COUNT(*) FILTER (WHERE posted_at >= CURRENT_DATE) as posts_today
-       FROM social_media_posts`),
+       FROM social_media_posts`)
+        .catch(() => ({ rows: [{ total_posts: 0, posted_count: 0, posts_today: 0 }] })),
       
       // Active widgets
-      pool.query('SELECT COUNT(*) as count FROM widget_configs WHERE is_active = true'),
+      pool.query('SELECT COUNT(*) as count FROM widget_configs WHERE is_active = true')
+        .catch(() => ({ rows: [{ count: 0 }] })),
       
-      // Google Analytics sessions (if available)
+      // Google Analytics sessions (if available) - table might not exist
       pool.query(`SELECT 
         COALESCE(SUM(sessions), 0) as total_sessions,
         COALESCE(SUM(users), 0) as total_users,
         COALESCE(SUM(page_views), 0) as total_pageviews
        FROM google_analytics_data 
        WHERE date >= CURRENT_DATE - INTERVAL '30 days'`)
+        .catch(() => ({ rows: [{ total_sessions: 0, total_users: 0, total_pageviews: 0 }] }))
     ]);
 
     const clients = clientsResult.rows[0];
