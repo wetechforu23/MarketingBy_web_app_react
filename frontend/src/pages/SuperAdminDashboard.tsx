@@ -398,24 +398,56 @@ const SuperAdminDashboard: React.FC = () => {
             <h2 className="card-title">Recent Clients</h2>
             <button className="btn btn-primary btn-sm">Add Client</button>
           </div>
-          <div className="clients-list">
-            {recentClients.map(client => (
-              <div key={client.id} className="client-item">
-                <div className="client-avatar">
-                  <i className="fas fa-building"></i>
-                </div>
-                <div className="client-info">
-                  <h4 className="client-name">{client.name}</h4>
-                  <p className="client-email text-muted">{client.email}</p>
-                  <span className={`badge ${client.status === 'Active' ? 'badge-success' : 'badge-danger'}`}>
-                    {client.status}
-                  </span>
-                </div>
-                <div className="client-actions">
-                  <button className="btn btn-outline btn-sm">View</button>
-                </div>
-              </div>
-            ))}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #e0e0e0', background: '#f8f9fa' }}>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Client</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Email</th>
+                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#333' }}>Status</th>
+                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#333' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentClients.map(client => (
+                  <tr key={client.id} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                    <td style={{ padding: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <i className="fas fa-building" style={{ color: '#4682B4', fontSize: '16px' }}></i>
+                        <span style={{ fontWeight: '600', color: '#333' }}>{client.name}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px', color: '#666' }}>{client.email}</td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      <span style={{
+                        padding: '4px 12px',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        background: client.status === 'Active' ? '#d4edda' : '#f8d7da',
+                        color: client.status === 'Active' ? '#155724' : '#721c24'
+                      }}>
+                        {client.status}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      <button style={{
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        borderRadius: '6px',
+                        border: '1px solid #4682B4',
+                        background: 'white',
+                        color: '#4682B4',
+                        cursor: 'pointer',
+                        fontWeight: '600'
+                      }}>
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -425,21 +457,47 @@ const SuperAdminDashboard: React.FC = () => {
             <h2 className="card-title">System Status</h2>
             <button className="btn btn-outline btn-sm">Refresh</button>
           </div>
-          <div className="system-status">
-            {systemStatus.map(item => (
-              <div key={item.id} className="status-item">
-                <div className="status-info">
-                  <span className="status-name">{item.name}</span>
-                  <span className="status-details">
-                    {item.uptime} uptime • {item.responseTime}
-                  </span>
-                </div>
-                <div className={`status-indicator ${item.status}`}>
-                  <i className={`fas fa-circle ${item.status}`}></i>
-                  <span className="status-text">{item.status}</span>
-                </div>
-              </div>
-            ))}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #e0e0e0', background: '#f8f9fa' }}>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Service</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#333' }}>Metrics</th>
+                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#333' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {systemStatus.map(item => (
+                  <tr key={item.id} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                    <td style={{ padding: '12px' }}>
+                      <span style={{ fontWeight: '600', color: '#333' }}>{item.name}</span>
+                    </td>
+                    <td style={{ padding: '12px', color: '#666', fontSize: '13px' }}>
+                      {item.uptime} uptime • {item.responseTime}
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <i className="fas fa-circle" style={{
+                          fontSize: '8px',
+                          color: item.status === 'online' ? '#28a745' : item.status === 'warning' ? '#ffc107' : '#dc3545'
+                        }}></i>
+                        <span style={{
+                          padding: '4px 12px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          background: item.status === 'online' ? '#d4edda' : item.status === 'warning' ? '#fff3cd' : '#f8d7da',
+                          color: item.status === 'online' ? '#155724' : item.status === 'warning' ? '#856404' : '#721c24',
+                          textTransform: 'capitalize'
+                        }}>
+                          {item.status}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
