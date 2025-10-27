@@ -498,5 +498,42 @@ router.post('/sessions/:sessionId/deactivate', async (req, res) => {
   }
 });
 
+// 🗑️ DELETE VISITOR SESSION (Admin only)
+router.delete('/sessions/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    console.log(`🗑️ Deleting visitor session: ${sessionId}`);
+
+    // Delete related page views first (foreign key constraint)
+    await pool.query(
+      'DELETE FROM widget_page_views WHERE session_id = $1',
+      [sessionId]
+    );
+
+    // Delete related events
+    await pool.query(
+      'DELETE FROM widget_visitor_events WHERE session_id = $1',
+      [sessionId]
+    );
+
+    // Delete the session
+    const result = await pool.query(
+      'DELETE FROM widget_visitor_sessions WHERE session_id = $1 RETURNING *',
+      [sessionId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Visitor session not found' });
+    }
+
+    console.log(`✅ Visitor session deleted: ${sessionId}`);
+    res.json({ success: true, message: 'Visitor session deleted successfully' });
+  } catch (error) {
+    console.error('Delete visitor session error:', error);
+    res.status(500).json({ error: 'Failed to delete visitor session' });
+  }
+});
+
 export default router;
 

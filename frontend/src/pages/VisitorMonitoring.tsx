@@ -145,6 +145,29 @@ export default function VisitorMonitoring() {
     }
   }
 
+  const deleteVisitor = async (sessionId: string, visitorName: string) => {
+    const confirmMessage = `Are you sure you want to delete visitor "${visitorName}"?\n\nThis will permanently remove:\n- Visitor session data\n- Page view history\n- All events\n\nType "DELETE" to confirm:`
+    const confirmation = prompt(confirmMessage)
+    
+    if (confirmation !== 'DELETE') {
+      if (confirmation !== null) {
+        alert('Deletion cancelled. You must type "DELETE" exactly to confirm.')
+      }
+      return
+    }
+
+    try {
+      await api.delete(`/visitor-tracking/sessions/${sessionId}`)
+      alert('✅ Visitor deleted successfully!')
+      // Refresh the visitor list
+      fetchActiveVisitors()
+      fetchStats()
+    } catch (err: any) {
+      alert('❌ Failed to delete visitor: ' + (err.response?.data?.error || err.message))
+      console.error(err)
+    }
+  }
+
   const formatTime = (seconds: number) => {
     if (seconds < 60) return `${seconds}s`
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
@@ -460,9 +483,15 @@ export default function VisitorMonitoring() {
                               {visitor.visitor_name || `Visitor ${visitor.session_id.substring(0, 12)}`}
                             </div>
                             <div style={{ fontSize: '13px', color: '#666', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                              <span>📍 {visitor.ip_address}</span>
-                              {visitor.country && <span>🌍 {visitor.country}</span>}
-                              {visitor.city && <span>📌 {visitor.city}</span>}
+                              {visitor.country ? (
+                                <>
+                                  <span style={{ fontWeight: '600', color: '#4682B4' }}>🌍 {visitor.country}</span>
+                                  {visitor.city && <span>📌 {visitor.city}</span>}
+                                  <span style={{ fontSize: '11px', opacity: 0.7 }}>IP: {visitor.ip_address}</span>
+                                </>
+                              ) : (
+                                <span>📍 {visitor.ip_address}</span>
+                              )}
                             </div>
                           </div>
                           <div style={{
@@ -565,24 +594,43 @@ export default function VisitorMonitoring() {
                           </div>
                         </div>
 
-                        {visitor.conversation_id && (
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                          {visitor.conversation_id && (
+                            <button
+                              onClick={() => window.location.href = `/app/chat-conversations?conversation_id=${visitor.conversation_id}`}
+                              style={{
+                                flex: 1,
+                                padding: '12px',
+                                background: '#4682B4',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontSize: '14px',
+                                fontWeight: '600',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              💬 View Conversation
+                            </button>
+                          )}
                           <button
-                            onClick={() => window.location.href = `/app/chat-conversations?conversation_id=${visitor.conversation_id}`}
+                            onClick={() => deleteVisitor(visitor.session_id, visitor.visitor_name || 'Anonymous Visitor')}
                             style={{
-                              width: '100%',
                               padding: '12px',
-                              background: '#4682B4',
+                              background: '#dc3545',
                               color: 'white',
                               border: 'none',
                               borderRadius: '8px',
                               fontSize: '14px',
                               fontWeight: '600',
-                              cursor: 'pointer'
+                              cursor: 'pointer',
+                              minWidth: visitor.conversation_id ? '50px' : '100%'
                             }}
+                            title="Delete visitor data"
                           >
-                            💬 View Conversation
+                            🗑️ Delete
                           </button>
-                        )}
+                        </div>
                       </div>
                     ))}
                   </div>
