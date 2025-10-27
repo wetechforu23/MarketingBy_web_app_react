@@ -74,11 +74,25 @@ export default function ChatWidgetEditor() {
         if (responseData.clients && Array.isArray(responseData.clients)) {
           setClients(responseData.clients) // ✅ Extract the clients array
           console.log('✅ Loaded', responseData.clients.length, 'clients')
+          console.log('📋 Client details:', responseData.clients.map((c: any) => ({
+            id: c.id,
+            name: c.name || c.client_name,
+            email: c.email,
+            status: c.status || c.is_active
+          })))
         } else if (Array.isArray(responseData)) {
           // Fallback: in case API returns array directly
           setClients(responseData)
+          console.log('✅ Loaded', responseData.length, 'clients (direct array)')
+          console.log('📋 Client details:', responseData.map((c: any) => ({
+            id: c.id,
+            name: c.name || c.client_name,
+            email: c.email
+          })))
         } else {
-          console.error('Clients API returned unexpected format:', responseData)
+          console.error('❌ Clients API returned unexpected format:', responseData)
+          console.error('❌ Response type:', typeof responseData)
+          console.error('❌ Response keys:', Object.keys(responseData || {}))
           setClients([]) // Fallback to empty array
         }
       } else {
