@@ -527,13 +527,13 @@ export async function getPendingApprovals(req: Request) {
   const query = `
     SELECT 
       c.*,
-      u.name as created_by_name,
+      COALESCE(u.username, u.email) as created_by_name,
       u.email as created_by_email,
-      cl.business_name as client_name,
+      cl.client_name as client_name,
       (
         SELECT json_agg(json_build_object(
           'approval_type', ah.approval_type,
-          'approved_by_name', u2.name,
+          'approved_by_name', COALESCE(u2.username, u2.email),
           'notes', ah.notes,
           'created_at', ah.created_at
         ))

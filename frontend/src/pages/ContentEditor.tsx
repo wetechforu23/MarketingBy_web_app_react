@@ -4,8 +4,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 interface ClientWithIntegrations {
   id: number;
-  business_name: string;
-  name: string;
+  client_name?: string;
+  business_name?: string;
+  name?: string;
   integrations: {
     facebook: boolean;
     linkedin: boolean;
@@ -43,9 +44,11 @@ const ContentEditor: React.FC = () => {
   const [hashtagInput, setHashtagInput] = useState('');
   const [mediaUrlInput, setMediaUrlInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [validationResults, setValidationResults] = useState<{ [key: string]: ValidationResult }>({});
   const [showValidation, setShowValidation] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [contentStatus, setContentStatus] = useState<string>('draft');
 
   const platforms = [
     { id: 'facebook', name: 'Facebook', icon: '📘', color: '#1877f2', maxLength: 63206, recommended: 500 },
@@ -57,17 +60,27 @@ const ContentEditor: React.FC = () => {
 
   useEffect(() => {
     fetchClientsWithIntegrations();
-    if (isEditMode) {
-      fetchContent();
-    }
   }, []);
 
   useEffect(() => {
-    if (clients.length > 0 && !formData.clientId) {
+    if (isEditMode && id) {
+      // Fetch content immediately when in edit mode, don't wait for clients
+      fetchContent();
+    } else if (clients.length > 0 && !formData.clientId) {
+      // For new content, set first client as default
       setFormData(prev => ({ ...prev, clientId: clients[0].id }));
       setSelectedClient(clients[0]);
     }
-  }, [clients]);
+    
+    // Update selected client when clients load and we have content
+    if (clients.length > 0 && formData.clientId && !selectedClient) {
+      const client = clients.find(c => c.id === formData.clientId);
+      if (client) {
+        setSelectedClient(client);
+        console.log('✅ Client updated after clients loaded:', client);
+      }
+    }
+  }, [clients, isEditMode, id]);
 
   const fetchClientsWithIntegrations = async () => {
     try {
@@ -79,7 +92,8 @@ const ContentEditor: React.FC = () => {
       // Fetch Facebook integrations for each client
       const clientsWithIntegrations = await Promise.all(
         clientsData.map(async (client: any) => {
-          console.log(`🔍 Checking integrations for client ${client.id} (${client.client_name})...`);
+          const clientName = client.client_name || client.business_name || client.name || `Client ${client.id}`;
+          console.log(`🔍 Checking integrations for client ${client.id} (${clientName})...`);
           
           const integrations = {
             facebook: false,
@@ -93,14 +107,14 @@ const ContentEditor: React.FC = () => {
           try {
             const fbResponse = await http.get(`/facebook/test-credentials/${client.id}`);
             integrations.facebook = fbResponse.data.hasCredentials || false;
-            console.log(`✅ Facebook check for client ${client.id} (${client.client_name}):`, {
+            console.log(`✅ Facebook check for client ${client.id} (${clientName}):`, {
               hasCredentials: fbResponse.data.hasCredentials,
               success: fbResponse.data.success,
               tokenValid: fbResponse.data.tokenValid,
               pageName: fbResponse.data.pageName
             });
           } catch (error: any) {
-            console.log(`❌ Facebook check failed for client ${client.id} (${client.client_name}):`, {
+            console.log(`❌ Facebook check failed for client ${client.id} (${clientName}):`, {
               message: error.message,
               response: error.response?.data,
               status: error.response?.status
@@ -140,8 +154,20 @@ const ContentEditor: React.FC = () => {
 
   const fetchContent = async () => {
     try {
+      console.log('📥 Fetching content with ID:', id);
       const response = await http.get(`/content/${id}`);
+      console.log('📦 Content response:', response.data);
+      
       const content = response.data.content;
+      
+      if (!content) {
+        console.error('❌ No content in response');
+        alert('Content not found');
+        return;
+      }
+      
+      console.log('✅ Content data:', content);
+      
       setFormData({
         clientId: content.client_id,
         title: content.title,
@@ -153,11 +179,26 @@ const ContentEditor: React.FC = () => {
         targetPlatforms: content.target_platforms || [],
       });
       
-      const client = clients.find(c => c.id === content.client_id);
-      setSelectedClient(client || null);
-    } catch (error) {
-      console.error('Error fetching content:', error);
-      alert('Failed to load content');
+      setContentStatus(content.status || 'draft');
+      
+      // Set selected client (will update when clients are loaded if not found now)
+      if (clients.length > 0) {
+        const client = clients.find(c => c.id === content.client_id);
+        setSelectedClient(client || null);
+        console.log('✅ Client set:', client);
+      } else {
+        console.log('⏳ Clients not loaded yet, will set later');
+      }
+      
+      console.log('✅ Content loaded successfully');
+    } catch (error: any) {
+      console.error('❌ Error fetching content:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      alert(`Failed to load content: ${error.response?.data?.error || error.message}`);
     }
   };
 
@@ -202,6 +243,49 @@ const ContentEditor: React.FC = () => {
       }));
     }
     setMediaUrlInput('');
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    try {
+      const uploadedUrls: string[] = [];
+
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append('image', file);
+
+        const response = await http.post('/upload/image', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+
+        if (response.data.success) {
+          // Convert relative URL to full URL
+          const imageUrl = `${window.location.origin}${response.data.url}`;
+          uploadedUrls.push(imageUrl);
+        }
+      }
+
+      // Add all uploaded URLs to media
+      if (uploadedUrls.length > 0) {
+        setFormData(prev => ({
+          ...prev,
+          mediaUrls: [...prev.mediaUrls, ...uploadedUrls]
+        }));
+        alert(`✅ Successfully uploaded ${uploadedUrls.length} image(s)!`);
+      }
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      alert(`❌ Failed to upload image: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setUploading(false);
+      // Reset file input
+      e.target.value = '';
+    }
   };
 
   const handleRemoveMediaUrl = (url: string) => {
@@ -325,6 +409,75 @@ const ContentEditor: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleNextStatus = async () => {
+    if (!id) return;
+
+    let nextAction = '';
+    let confirmMessage = '';
+    let successMessage = '';
+
+    // Determine next action based on current status
+    switch (contentStatus) {
+      case 'draft':
+        nextAction = 'submit-approval';
+        confirmMessage = 'Submit this content for WeTechForU approval?';
+        successMessage = 'Content submitted for approval!';
+        break;
+      case 'pending_wtfu_approval':
+        nextAction = 'approve-wtfu';
+        confirmMessage = 'Approve this content?';
+        successMessage = 'Content approved!';
+        break;
+      case 'pending_client_approval':
+        nextAction = 'approve-client';
+        confirmMessage = 'Approve this content?';
+        successMessage = 'Content approved!';
+        break;
+      case 'approved':
+        nextAction = 'post-now';
+        confirmMessage = 'Post this content to social media now?';
+        successMessage = 'Content posted successfully!';
+        break;
+      default:
+        alert('No next action available for this status');
+        return;
+    }
+
+    if (!confirm(confirmMessage)) return;
+
+    setLoading(true);
+    try {
+      await http.post(`/content/${id}/${nextAction}`);
+      alert(successMessage);
+      navigate('/app/content-library');
+    } catch (error: any) {
+      alert(error.response?.data?.error || `Failed to ${nextAction}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusActionLabel = () => {
+    switch (contentStatus) {
+      case 'draft':
+        return '📤 Submit for Approval';
+      case 'pending_wtfu_approval':
+        return '✅ Approve Content';
+      case 'pending_client_approval':
+        return '✅ Approve Content';
+      case 'approved':
+        return '🚀 Post to Social Media';
+      case 'posted':
+        return '✓ Already Posted';
+      default:
+        return 'Next Step';
+    }
+  };
+
+  const canProgressStatus = () => {
+    return ['draft', 'pending_wtfu_approval', 'pending_client_approval', 'approved'].includes(contentStatus);
   };
 
   const getCharacterCount = (platformId: string) => {
@@ -495,7 +648,7 @@ const ContentEditor: React.FC = () => {
                   
                   return (
                     <option key={client.id} value={client.id}>
-                      {client.business_name || client.name} ({availablePlatforms.length} platform{availablePlatforms.length !== 1 ? 's' : ''})
+                      {(client as any).client_name || client.business_name || client.name || `Client ${client.id}`} ({availablePlatforms.length} platform{availablePlatforms.length !== 1 ? 's' : ''})
                     </option>
                   );
                 })}
@@ -663,6 +816,40 @@ const ContentEditor: React.FC = () => {
             }}>
               🎨 Media
             </h2>
+
+            {/* Upload from Computer */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{
+                display: 'inline-block',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                padding: '14px 28px',
+                borderRadius: '10px',
+                fontSize: '15px',
+                fontWeight: '600',
+                cursor: uploading ? 'not-allowed' : 'pointer',
+                opacity: uploading ? 0.6 : 1,
+                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+                transition: 'all 0.3s ease'
+              }}>
+                {uploading ? '⏳ Uploading...' : '📤 Upload from Computer'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                  style={{ display: 'none' }}
+                />
+              </label>
+              <div style={{ fontSize: '12px', color: '#718096', marginTop: '8px' }}>
+                Select images from your computer
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'center', color: '#a0aec0', fontSize: '13px', fontWeight: '600', marginBottom: '15px' }}>
+              — OR —
+            </div>
 
             <div style={{ marginBottom: '20px' }}>
               <label style={{ 
@@ -1111,43 +1298,96 @@ const ContentEditor: React.FC = () => {
                 👁️ Preview
               </button>
 
-              <button
-                onClick={handleSaveDraft}
-                disabled={loading || !formData.clientId}
-                style={{
-                  width: '100%',
-                  background: '#718096',
-                  color: 'white',
-                  padding: '14px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  fontSize: '15px',
-                  fontWeight: '600',
-                  cursor: loading || !formData.clientId ? 'not-allowed' : 'pointer',
-                  opacity: loading || !formData.clientId ? 0.5 : 1
-                }}
-              >
-                {loading ? 'Saving...' : '💾 Save as Draft'}
-              </button>
+              {/* Show status info when editing */}
+              {isEditMode && (
+                <div style={{
+                  background: '#f7fafc',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  marginBottom: '10px',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '13px', color: '#718096', marginBottom: '4px' }}>
+                    Current Status
+                  </div>
+                  <div style={{ fontSize: '15px', fontWeight: '600', color: '#2d3748' }}>
+                    {contentStatus === 'draft' && '📝 Draft'}
+                    {contentStatus === 'pending_wtfu_approval' && '⏳ Pending WeTechForU Approval'}
+                    {contentStatus === 'pending_client_approval' && '⏳ Pending Client Approval'}
+                    {contentStatus === 'approved' && '✅ Approved'}
+                    {contentStatus === 'posted' && '🚀 Posted'}
+                    {contentStatus === 'rejected' && '❌ Rejected'}
+                  </div>
+                </div>
+              )}
 
-              <button
-                onClick={handleSubmitForApproval}
-                disabled={loading || !formData.clientId}
-                style={{
-                  width: '100%',
-                  background: '#48bb78',
-                  color: 'white',
-                  padding: '14px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  fontSize: '15px',
-                  fontWeight: '600',
-                  cursor: loading || !formData.clientId ? 'not-allowed' : 'pointer',
-                  opacity: loading || !formData.clientId ? 0.5 : 1
-                }}
-              >
-                {loading ? 'Submitting...' : '✓ Submit for Approval'}
-              </button>
+              {/* Next Status Button (only in edit mode) */}
+              {isEditMode && canProgressStatus() && (
+                <button
+                  onClick={handleNextStatus}
+                  disabled={loading}
+                  style={{
+                    width: '100%',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    padding: '16px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    fontSize: '16px',
+                    fontWeight: '700',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    opacity: loading ? 0.5 : 1,
+                    boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+                    marginBottom: '10px'
+                  }}
+                >
+                  {loading ? 'Processing...' : getStatusActionLabel()}
+                </button>
+              )}
+
+              {/* Save as Draft (only for new content or draft status) */}
+              {(!isEditMode || contentStatus === 'draft') && (
+                <button
+                  onClick={handleSaveDraft}
+                  disabled={loading || !formData.clientId}
+                  style={{
+                    width: '100%',
+                    background: '#718096',
+                    color: 'white',
+                    padding: '14px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    cursor: loading || !formData.clientId ? 'not-allowed' : 'pointer',
+                    opacity: loading || !formData.clientId ? 0.5 : 1
+                  }}
+                >
+                  {loading ? 'Saving...' : isEditMode ? '💾 Save Changes' : '💾 Save as Draft'}
+                </button>
+              )}
+
+              {/* Submit for Approval (only for new content) */}
+              {!isEditMode && (
+                <button
+                  onClick={handleSubmitForApproval}
+                  disabled={loading || !formData.clientId}
+                  style={{
+                    width: '100%',
+                    background: '#48bb78',
+                    color: 'white',
+                    padding: '14px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    cursor: loading || !formData.clientId ? 'not-allowed' : 'pointer',
+                    opacity: loading || !formData.clientId ? 0.5 : 1
+                  }}
+                >
+                  {loading ? 'Submitting...' : '✓ Submit for Approval'}
+                </button>
+              )}
 
               <button
                 onClick={() => navigate('/app/content-library')}
@@ -1163,7 +1403,7 @@ const ContentEditor: React.FC = () => {
                   cursor: 'pointer'
                 }}
               >
-                Cancel
+                {isEditMode ? '← Back to Library' : 'Cancel'}
               </button>
             </div>
           </div>

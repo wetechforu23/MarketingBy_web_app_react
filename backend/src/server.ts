@@ -23,6 +23,7 @@ import usersRoutes from './routes/users';
 import contentRoutes from './routes/content';
 import approvalsRoutes from './routes/approvals';
 import postsRoutes from './routes/posts';
+import uploadRoutes from './routes/upload';
 // Email Preferences & Unsubscribe routes
 import emailPreferencesRoutes from './routes/emailPreferences';
 // SMS Preferences & Unsubscribe routes
@@ -61,6 +62,9 @@ app.use('/public', (req, res, next) => {
   
   next();
 }, express.static(path.join(__dirname, '../public')));
+
+// Serve uploaded images
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Middleware
 // Configure Helmet with relaxed CSP for production
@@ -178,6 +182,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/approvals', approvalsRoutes);
 app.use('/api/posts', postsRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // GENERIC API ROUTE (Catches all other /api/* routes) - MUST BE LAST
 app.use('/api', apiRoutes);

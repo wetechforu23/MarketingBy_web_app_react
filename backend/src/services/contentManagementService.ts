@@ -23,6 +23,7 @@ export interface ContentData {
 }
 
 export interface ContentFilters {
+  clientId?: number;
   status?: string;
   platform?: string;
   createdBy?: number;
@@ -110,16 +111,23 @@ export async function createContent(data: ContentData) {
 export async function getContentById(contentId: number, req: Request) {
   const clientFilter = getClientFilter(req, 'c');
   
+  // Build WHERE clause properly
+  const whereConditions = ['c.id = $1'];
+  if (clientFilter.whereClause && clientFilter.whereClause.trim()) {
+    whereConditions.push(clientFilter.whereClause);
+  }
+  const whereClause = whereConditions.join(' AND ');
+  
   const query = `
     SELECT 
       c.*,
-      u.name as created_by_name,
+      COALESCE(u.username, u.email) as created_by_name,
       u.email as created_by_email,
-      cl.business_name as client_name
+      cl.client_name as client_name
     FROM social_media_content c
     LEFT JOIN users u ON c.created_by = u.id
     LEFT JOIN clients cl ON c.client_id = cl.id
-    WHERE c.id = $1 AND ${clientFilter.whereClause}
+    WHERE ${whereClause}
   `;
 
   try {
@@ -142,9 +150,19 @@ export async function getContentById(contentId: number, req: Request) {
 export async function listContent(req: Request, filters: ContentFilters = {}) {
   const clientFilter = getClientFilter(req, 'c');
   
-  let whereConditions = [clientFilter.whereClause];
+  let whereConditions = [];
+  if (clientFilter.whereClause && clientFilter.whereClause.trim()) {
+    whereConditions.push(clientFilter.whereClause);
+  }
   let params: any[] = [...clientFilter.params];
   let paramIndex = params.length + 1;
+
+  // Add explicit client filter (if provided, overrides clientFilter)
+  if (filters.clientId) {
+    whereConditions.push(`c.client_id = $${paramIndex}`);
+    params.push(filters.clientId);
+    paramIndex++;
+  }
 
   // Add status filter
   if (filters.status) {
@@ -190,7 +208,7 @@ export async function listContent(req: Request, filters: ContentFilters = {}) {
     paramIndex++;
   }
 
-  const whereClause = whereConditions.join(' AND ');
+  const whereClause = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
   const limit = filters.limit || 50;
   const offset = filters.offset || 0;
 
@@ -205,9 +223,9 @@ export async function listContent(req: Request, filters: ContentFilters = {}) {
   const listQuery = `
     SELECT 
       c.*,
-      u.name as created_by_name,
+      COALESCE(u.username, u.email) as created_by_name,
       u.email as created_by_email,
-      cl.business_name as client_name,
+      cl.client_name as client_name,
       (
         SELECT COUNT(*) 
         FROM social_media_posts p 
@@ -458,6 +476,11 @@ export async function updateContentStatus(
 export async function getContentStats(req: Request) {
   const clientFilter = getClientFilter(req, 'c');
 
+  // Build WHERE clause properly
+  const whereClause = (clientFilter.whereClause && clientFilter.whereClause.trim()) 
+    ? `WHERE ${clientFilter.whereClause}` 
+    : '';
+
   const query = `
     SELECT 
       COUNT(*) FILTER (WHERE status = 'draft') as draft_count,
@@ -470,7 +493,7 @@ export async function getContentStats(req: Request) {
       COUNT(*) FILTER (WHERE status = 'rejected') as rejected_count,
       COUNT(*) as total_count
     FROM social_media_content c
-    WHERE ${clientFilter.whereClause}
+    ${whereClause}
   `;
 
   try {

@@ -66,6 +66,7 @@ router.post('/', async (req: Request, res: Response) => {
 router.get('/', async (req: Request, res: Response) => {
   try {
     const filters = {
+      clientId: req.query.client_id ? parseInt(req.query.client_id as string) : undefined,
       status: req.query.status as string,
       platform: req.query.platform as string,
       createdBy: req.query.createdBy ? parseInt(req.query.createdBy as string) : undefined,
@@ -76,6 +77,7 @@ router.get('/', async (req: Request, res: Response) => {
       offset: req.query.offset ? parseInt(req.query.offset as string) : 0
     };
 
+    console.log('📋 Content filters:', filters);
     const result = await contentService.listContent(req, filters);
 
     if (!result.success) {

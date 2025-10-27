@@ -1,5 +1,8 @@
 import { Pool } from 'pg';
 import axios from 'axios';
+import FormData from 'form-data';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Defines the structure for Facebook credentials retrieved from the database.
@@ -772,6 +775,28 @@ class FacebookService {
   }
 
   /**
+   * Helper: Check if URL is local and convert to file path
+   */
+  private getLocalFilePath(imageUrl: string): string | null {
+    // Check if URL is local
+    if (imageUrl.includes('localhost') || imageUrl.includes('127.0.0.1') || imageUrl.startsWith('/uploads/')) {
+      // Extract the file path from URL
+      const urlPath = imageUrl.includes('/uploads/') 
+        ? imageUrl.substring(imageUrl.indexOf('/uploads/'))
+        : imageUrl;
+      
+      // Convert to absolute file system path
+      const filePath = path.join(__dirname, '../../uploads', path.basename(urlPath));
+      
+      // Check if file exists
+      if (fs.existsSync(filePath)) {
+        return filePath;
+      }
+    }
+    return null;
+  }
+
+  /**
    * Create an image post on Facebook
    */
   async createImagePost(
@@ -787,26 +812,63 @@ class FacebookService {
       }
 
       console.log(`📘 Creating Facebook image post for page ${credentials.page_id}...`);
+      console.log(`📸 Image URL: ${imageUrl}`);
 
-      const response = await axios.post(
-        `${this.baseUrl}/${credentials.page_id}/photos`,
-        {
-          message: message,
-          url: imageUrl,
-          access_token: credentials.access_token
-        }
-      );
+      // Check if it's a local file
+      const localFilePath = this.getLocalFilePath(imageUrl);
+      
+      if (localFilePath) {
+        console.log(`📤 Uploading local file: ${localFilePath}`);
+        
+        // Upload file directly to Facebook
+        const form = new FormData();
+        form.append('message', message);
+        form.append('source', fs.createReadStream(localFilePath));
+        form.append('access_token', credentials.access_token);
 
-      const postId = response.data.post_id || response.data.id;
-      console.log(`✅ Facebook image post created: ${postId}`);
+        const response = await axios.post(
+          `${this.baseUrl}/${credentials.page_id}/photos`,
+          form,
+          {
+            headers: {
+              ...form.getHeaders(),
+            },
+          }
+        );
 
-      return {
-        success: true,
-        postId: postId,
-        postUrl: `https://www.facebook.com/${postId.replace('_', '/posts/')}`
-      };
+        const postId = response.data.post_id || response.data.id;
+        console.log(`✅ Facebook image post created: ${postId}`);
+
+        return {
+          success: true,
+          postId: postId,
+          postUrl: `https://www.facebook.com/${postId.replace('_', '/posts/')}`
+        };
+      } else {
+        // Use URL method for external images
+        console.log(`🔗 Using URL method for external image`);
+        
+        const response = await axios.post(
+          `${this.baseUrl}/${credentials.page_id}/photos`,
+          {
+            message: message,
+            url: imageUrl,
+            access_token: credentials.access_token
+          }
+        );
+
+        const postId = response.data.post_id || response.data.id;
+        console.log(`✅ Facebook image post created: ${postId}`);
+
+        return {
+          success: true,
+          postId: postId,
+          postUrl: `https://www.facebook.com/${postId.replace('_', '/posts/')}`
+        };
+      }
     } catch (error: any) {
       console.error('❌ Error creating Facebook image post:', error.response?.data || error.message);
+      
       return {
         success: false,
         error: error.response?.data?.error?.message || error.message
@@ -830,19 +892,57 @@ class FacebookService {
       }
 
       console.log(`📘 Creating Facebook multi-image post for page ${credentials.page_id}...`);
+      console.log(`📸 Number of images: ${imageUrls.length}`);
 
       // Upload each image and get media IDs
       const attached_media = [];
-      for (const imageUrl of imageUrls) {
-        const photoResponse = await axios.post(
-          `${this.baseUrl}/${credentials.page_id}/photos`,
-          {
-            url: imageUrl,
-            published: false, // Don't publish individual photos
-            access_token: credentials.access_token
+      for (let i = 0; i < imageUrls.length; i++) {
+        const imageUrl = imageUrls[i];
+        console.log(`📤 Uploading image ${i + 1}/${imageUrls.length}: ${imageUrl}`);
+        
+        try {
+          const localFilePath = this.getLocalFilePath(imageUrl);
+          
+          if (localFilePath) {
+            // Upload local file
+            console.log(`📂 Uploading local file: ${localFilePath}`);
+            
+            const form = new FormData();
+            form.append('source', fs.createReadStream(localFilePath));
+            form.append('published', 'false'); // Don't publish individual photos
+            form.append('access_token', credentials.access_token);
+
+            const photoResponse = await axios.post(
+              `${this.baseUrl}/${credentials.page_id}/photos`,
+              form,
+              {
+                headers: {
+                  ...form.getHeaders(),
+                },
+              }
+            );
+            
+            attached_media.push({ media_fbid: photoResponse.data.id });
+            console.log(`✅ Local image ${i + 1} uploaded successfully`);
+          } else {
+            // Use URL method for external images
+            console.log(`🔗 Using URL method for image ${i + 1}`);
+            
+            const photoResponse = await axios.post(
+              `${this.baseUrl}/${credentials.page_id}/photos`,
+              {
+                url: imageUrl,
+                published: false, // Don't publish individual photos
+                access_token: credentials.access_token
+              }
+            );
+            attached_media.push({ media_fbid: photoResponse.data.id });
+            console.log(`✅ External image ${i + 1} uploaded successfully`);
           }
-        );
-        attached_media.push({ media_fbid: photoResponse.data.id });
+        } catch (imgError: any) {
+          console.error(`❌ Failed to upload image ${i + 1}:`, imgError.response?.data || imgError.message);
+          throw new Error(`Failed to upload image ${i + 1}: ${imgError.response?.data?.error?.message || imgError.message}`);
+        }
       }
 
       // Create the multi-photo post
@@ -865,6 +965,7 @@ class FacebookService {
       };
     } catch (error: any) {
       console.error('❌ Error creating Facebook multi-image post:', error.response?.data || error.message);
+      
       return {
         success: false,
         error: error.response?.data?.error?.message || error.message
