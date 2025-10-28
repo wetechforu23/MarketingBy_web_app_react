@@ -301,6 +301,21 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
           </li>
         )}
 
+        {/* Blog Management - NEW SECTION */}
+        {hasPageAccess('clients') && (
+          <li className="nav-item">
+            <Link 
+              className={`nav-link ${isActive('/app/blogs') ? 'active' : ''}`} 
+              to="/app/blogs"
+              onClick={onNavigate}
+              title={isCollapsed ? 'Blog Management' : ''}
+            >
+              <i className="fas fa-blog"></i>
+              {!isCollapsed && 'Blog Management'}
+            </Link>
+          </li>
+        )}
+
         {/* Leads - Own Section */}
         {hasPageAccess('leads') && (
           <li className="nav-item">
@@ -342,115 +357,6 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
                     to="/app/campaigns"
                   >
                     Campaigns
-                  </Link>
-                </li>
-              )}
-            </ul>
-          </li>
-        )}
-
-        {/* SEO & Marketing Section */}
-        {hasPageAccess('seo') && (
-          <li className="nav-item">
-            <a className="nav-link sub-btn">
-              <i className="fas fa-search"></i>
-              SEO & Marketing
-              <i className="fas fa-angle-right dropdown"></i>
-            </a>
-            <ul className="sub-menu">
-              {hasPageAccess('seo-analysis') && (
-                <li>
-                  <Link 
-                    className={`nav-link ${isActive('/app/seo-analysis') ? 'active' : ''}`} 
-                    to="/app/seo-analysis"
-                  >
-                    SEO Analysis
-                  </Link>
-                </li>
-              )}
-              {hasPageAccess('seo-audit') && (
-                <li>
-                  <Link 
-                    className={`nav-link ${isActive('/app/seo-audit') ? 'active' : ''}`} 
-                    to="/app/seo-audit"
-                  >
-                    SEO Audit Tasks
-                  </Link>
-                </li>
-              )}
-              {hasPageAccess('ai-seo') && (
-                <li>
-                  <Link 
-                    className={`nav-link ${isActive('/app/ai-seo') ? 'active' : ''}`} 
-                    to="/app/ai-seo"
-                  >
-                    AI-Based SEO
-                  </Link>
-                </li>
-              )}
-            </ul>
-          </li>
-        )}
-
-        {/* Analytics & Reports Section */}
-        {hasPageAccess('analytics') && (
-          <li className="nav-item">
-            <a className="nav-link sub-btn">
-              <i className="fas fa-chart-bar"></i>
-              Analytics & Reports
-              <i className="fas fa-angle-right dropdown"></i>
-            </a>
-            <ul className="sub-menu">
-              {hasPageAccess('analytics') && (
-                <li>
-                  <Link 
-                    className={`nav-link ${isActive('/app/analytics') ? 'active' : ''}`} 
-                    to="/app/analytics"
-                  >
-                    Analytics
-                  </Link>
-                </li>
-              )}
-              {hasPageAccess('reports') && (
-                <li>
-                  <Link 
-                    className={`nav-link ${isActive('/app/reports') ? 'active' : ''}`} 
-                    to="/app/reports"
-                  >
-                    Reports
-                  </Link>
-                </li>
-              )}
-            </ul>
-          </li>
-        )}
-
-        {/* Tools & Utilities Section */}
-        {hasPageAccess('calendar') && (
-          <li className="nav-item">
-            <a className="nav-link sub-btn">
-              <i className="fas fa-tools"></i>
-              Tools & Utilities
-              <i className="fas fa-angle-right dropdown"></i>
-            </a>
-            <ul className="sub-menu">
-              {hasPageAccess('calendar') && (
-                <li>
-                  <Link 
-                    className={`nav-link ${isActive('/app/calendar') ? 'active' : ''}`} 
-                    to="/app/calendar"
-                  >
-                    Calendar
-                  </Link>
-                </li>
-              )}
-              {hasPageAccess('compliance') && (
-                <li>
-                  <Link 
-                    className={`nav-link ${isActive('/app/compliance') ? 'active' : ''}`} 
-                    to="/app/compliance"
-                  >
-                    Compliance
                   </Link>
                 </li>
               )}

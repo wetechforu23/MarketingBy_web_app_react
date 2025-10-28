@@ -36,6 +36,8 @@ import visitorTrackingRoutes from './routes/visitorTracking';
 import testEmailRoutes from './routes/testEmail';
 // Duplicate Management routes
 import duplicateManagementRoutes from './routes/duplicateManagement';
+// Blog Management routes
+import blogRoutes from './routes/blogs';
 
 dotenv.config();
 
@@ -187,6 +189,8 @@ app.use('/api/content', contentRoutes);
 app.use('/api/approvals', approvalsRoutes);
 app.use('/api/posts', postsRoutes);
 app.use('/api/upload', uploadRoutes);
+// Blog Management routes
+app.use('/api/blogs', blogRoutes);
 
 // GENERIC API ROUTE (Catches all other /api/* routes) - MUST BE LAST
 app.use('/api', apiRoutes);
