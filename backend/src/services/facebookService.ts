@@ -3,6 +3,7 @@ import axios from 'axios';
 import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';
+import { UTMTrackingService } from './utmTrackingService';
 
 /**
  * Defines the structure for Facebook credentials retrieved from the database.
@@ -749,21 +750,101 @@ class FacebookService {
 
       console.log(`📘 Creating Facebook text post for page ${credentials.page_id}...`);
 
+      // NEW: Get client name for UTM campaign generation
+      let clientName = 'client';
+      let trackedMessage = message;
+      let utmCampaign = '';
+      let originalUrls: string[] = [];
+      let trackedUrls: string[] = [];
+
+      try {
+        const clientResult = await this.pool.query(
+          'SELECT name FROM clients WHERE id = $1',
+          [clientId]
+        );
+        
+        if (clientResult.rows.length > 0) {
+          clientName = clientResult.rows[0].name;
+        }
+
+        // NEW: Process message content with UTM tracking
+        console.log('🔗 Processing content with UTM tracking...');
+        const utmResult = UTMTrackingService.processPostContent(
+          message,
+          clientId,
+          clientName,
+          'text'
+        );
+
+        trackedMessage = utmResult.trackedContent;
+        utmCampaign = utmResult.utmCampaign;
+        originalUrls = utmResult.originalUrls;
+        trackedUrls = utmResult.trackedUrls;
+
+        if (originalUrls.length > 0) {
+          console.log(`✅ UTM tracking applied to ${originalUrls.length} URL(s)`);
+          console.log(`   Campaign: ${utmCampaign}`);
+        }
+      } catch (utmError: any) {
+        // Graceful fallback: if UTM tracking fails, post without tracking
+        console.warn('⚠️  UTM tracking failed, posting without tracking:', utmError.message);
+        trackedMessage = message; // Use original message
+      }
+
+      // Post to Facebook with tracked content
       const response = await axios.post(
         `${this.baseUrl}/${credentials.page_id}/feed`,
         {
-          message: message,
+          message: trackedMessage,
           access_token: credentials.access_token
         }
       );
 
       const postId = response.data.id;
+      const postUrl = `https://www.facebook.com/${postId.replace('_', '/posts/')}`;
       console.log(`✅ Facebook text post created: ${postId}`);
+
+      // NEW: Store UTM data in database (optional - graceful if migration not run)
+      if (utmCampaign && originalUrls.length > 0) {
+        try {
+          await this.pool.query(
+            `INSERT INTO facebook_posts (
+              client_id, post_id, message, created_time, permalink_url,
+              utm_campaign, utm_source, utm_medium, original_urls, tracked_urls,
+              synced_at
+            ) VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7, $8, $9, NOW())
+            ON CONFLICT (post_id) DO UPDATE SET
+              message = EXCLUDED.message,
+              utm_campaign = EXCLUDED.utm_campaign,
+              utm_source = EXCLUDED.utm_source,
+              utm_medium = EXCLUDED.utm_medium,
+              original_urls = EXCLUDED.original_urls,
+              tracked_urls = EXCLUDED.tracked_urls,
+              synced_at = NOW()`,
+            [
+              clientId,
+              postId,
+              trackedMessage,
+              postUrl,
+              utmCampaign,
+              'facebook',
+              'social',
+              originalUrls,
+              trackedUrls
+            ]
+          );
+          console.log(`📊 UTM tracking data stored in database`);
+        } catch (dbError: any) {
+          // Graceful: if DB storage fails (e.g., migration not run), just log it
+          console.warn('⚠️  Could not store UTM data in database:', dbError.message);
+          console.warn('   (This is OK if you haven\'t run the UTM migration yet)');
+        }
+      }
 
       return {
         success: true,
         postId: postId,
-        postUrl: `https://www.facebook.com/${postId.replace('_', '/posts/')}`
+        postUrl: postUrl
       };
     } catch (error: any) {
       console.error('❌ Error creating Facebook text post:', error.response?.data || error.message);
