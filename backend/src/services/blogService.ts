@@ -462,7 +462,7 @@ Requirements:
       
       // Get blog post and client details
       const postResult = await pool.query(
-        `SELECT bp.*, c.name as client_name, c.email as client_email
+        `SELECT bp.*, c.client_name, c.email as client_email
          FROM blog_posts bp
          JOIN clients c ON c.id = bp.client_id
          WHERE bp.id = $1`,
