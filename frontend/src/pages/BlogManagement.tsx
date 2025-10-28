@@ -5,7 +5,7 @@ import axios from 'axios';
 // Interfaces
 // =====================================================
 
-interface Blog Post {
+interface BlogPost {
   id: number;
   client_id: number;
   title: string;
