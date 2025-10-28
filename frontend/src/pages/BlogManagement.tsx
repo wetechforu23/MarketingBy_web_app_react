@@ -90,14 +90,22 @@ const BlogManagement: React.FC = () => {
     try {
       const response = await axios.get('/api/clients');
       
-      // Ensure we have an array
-      if (Array.isArray(response.data)) {
-        setClients(response.data);
-        if (response.data.length > 0) {
-          setSelectedClient(response.data[0].id);
+      // ✅ FIX: API returns {clients: [], pagination: {}} so extract the clients array
+      const responseData = response.data;
+      
+      if (responseData.clients && Array.isArray(responseData.clients)) {
+        setClients(responseData.clients);
+        if (responseData.clients.length > 0) {
+          setSelectedClient(responseData.clients[0].id);
+        }
+      } else if (Array.isArray(responseData)) {
+        // Fallback: in case API returns array directly
+        setClients(responseData);
+        if (responseData.length > 0) {
+          setSelectedClient(responseData[0].id);
         }
       } else {
-        console.warn('Unexpected clients API response:', response.data);
+        console.error('❌ Clients API returned unexpected format:', responseData);
         setClients([]);
       }
     } catch (error) {
