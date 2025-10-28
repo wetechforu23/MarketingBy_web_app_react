@@ -360,9 +360,9 @@ export class BlogService {
       
       // Get client-specific Google AI API key (uses same system as chat widget)
       const apiKey = await this.getClientGoogleAIKey(request.client_id);
-      const genAI = new GoogleGenerativeAI(apiKey);
-      // Use gemini-1.5-flash for v1beta API (stable model)
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      
+      // Use direct v1 API (same as widget) instead of SDK for better compatibility
+      const modelName = 'gemini-1.5-flash-latest';
       
       // Build the prompt
       const tone = request.tone || 'professional';
@@ -393,9 +393,32 @@ Requirements:
 - Make it engaging, informative, and actionable
 - Keywords should be relevant search terms`;
       
-      const result = await model.generateContent(systemPrompt);
-      const response = await result.response;
-      const text = response.text();
+      // Call Gemini API v1 directly (same as widget for compatibility)
+      const axios = require('axios');
+      const apiResponse = await axios.post(
+        `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          contents: [{
+            parts: [{
+              text: systemPrompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 8192,
+            topP: 0.8,
+            topK: 10
+          }
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          timeout: 30000 // 30 second timeout for blog generation
+        }
+      );
+      
+      const text = apiResponse.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
       console.log('🤖 AI Response received, length:', text.length);
       
@@ -435,7 +458,7 @@ Requirements:
         seo_score: seoScore,
         generated_by: 'google_ai',
         ai_prompt: request.prompt,
-        ai_model: 'gemini-1.5-flash',
+        ai_model: modelName,
         generation_metadata: {
           tone,
           target_word_count: wordCount,

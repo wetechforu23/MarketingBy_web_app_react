@@ -1067,211 +1067,210 @@ const BlogManagement: React.FC = () => {
       
       {/* Settings Tab */}
       {activeTab === 'settings' && (
-        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-          <h2 style={{ marginBottom: '1.5rem', fontSize: '24px', fontWeight: '700' }}>
-            ⚙️ Blog Settings for {clients.find(c => c.id === selectedClient)?.name || 'Client'}
-          </h2>
+        <div style={{ padding: '0' }}>
+          <div className="page-header" style={{ marginBottom: '1.5rem' }}>
+            <h1>⚙️ Blog Settings</h1>
+            <p className="text-muted">
+              Configure WordPress and AI credentials for {clients.find(c => c.id === selectedClient)?.name || 'selected client'}
+            </p>
+          </div>
           
           {!selectedClient ? (
-            <div style={{
-              padding: '2rem',
-              background: '#fff3cd',
-              borderRadius: '8px',
-              border: '1px solid #ffc107',
-              textAlign: 'center'
-            }}>
-              <p style={{ color: '#856404', marginBottom: 0 }}>
-                ⚠️ Please select a client first to manage their blog settings
-              </p>
+            <div className="card">
+              <div style={{
+                padding: '3rem',
+                textAlign: 'center'
+              }}>
+                <i className="fas fa-info-circle" style={{ fontSize: '48px', color: '#ffc107', marginBottom: '1rem' }}></i>
+                <p style={{ color: '#856404', marginBottom: 0, fontSize: '16px', fontWeight: '600' }}>
+                  ⚠️ Please select a client first to manage their blog settings
+                </p>
+              </div>
             </div>
           ) : (
-            <div style={{ display: 'grid', gap: '2rem' }}>
+            <div style={{ display: 'grid', gap: '1.5rem' }}>
               
               {/* WordPress Credentials Section */}
-              <div style={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                padding: '2rem',
-                borderRadius: '12px',
-                color: 'white',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-              }}>
-                <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>📝</span> WordPress Publishing Credentials
-                </h3>
-                <p style={{ fontSize: '14px', opacity: 0.9, marginBottom: '1.5rem' }}>
-                  Configure WordPress site details to enable one-click blog publishing
-                </p>
+              <div className="card">
+                <div className="card-header">
+                  <h2 className="card-title">
+                    <i className="fas fa-wordpress" style={{ marginRight: '8px', color: '#4682B4' }}></i>
+                    WordPress Publishing Credentials
+                  </h2>
+                  <span style={{ fontSize: '13px', color: '#666' }}>
+                    Configure WordPress for automated blog publishing
+                  </span>
+                </div>
                 
-                <div style={{ display: 'grid', gap: '1rem' }}>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '14px', fontWeight: '600' }}>
-                      WordPress Site URL *
-                    </label>
-                    <input
-                      type="url"
-                      value={wpSiteUrl}
-                      onChange={(e) => setWpSiteUrl(e.target.value)}
-                      placeholder="https://clientwebsite.com"
-                      style={{
-                        width: '100%',
-                        padding: '12px',
-                        borderRadius: '6px',
-                        border: '1px solid rgba(255,255,255,0.3)',
-                        fontSize: '14px',
-                        background: 'rgba(255,255,255,0.15)',
-                        color: 'white'
-                      }}
-                    />
-                    <small style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px', display: 'block' }}>
-                      Full URL including https://
-                    </small>
-                  </div>
-                  
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '14px', fontWeight: '600' }}>
-                      WordPress Username *
-                    </label>
-                    <input
-                      type="text"
-                      value={wpUsername}
-                      onChange={(e) => setWpUsername(e.target.value)}
-                      placeholder="admin or editor username"
-                      style={{
-                        width: '100%',
-                        padding: '12px',
-                        borderRadius: '6px',
-                        border: '1px solid rgba(255,255,255,0.3)',
-                        fontSize: '14px',
-                        background: 'rgba(255,255,255,0.15)',
-                        color: 'white'
-                      }}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '14px', fontWeight: '600' }}>
-                      WordPress Application Password *
-                    </label>
-                    <input
-                      type="password"
-                      value={wpAppPassword}
-                      onChange={(e) => setWpAppPassword(e.target.value)}
-                      placeholder="xxxx xxxx xxxx xxxx"
-                      style={{
-                        width: '100%',
-                        padding: '12px',
-                        borderRadius: '6px',
-                        border: '1px solid rgba(255,255,255,0.3)',
-                        fontSize: '14px',
-                        background: 'rgba(255,255,255,0.15)',
-                        color: 'white',
-                        fontFamily: 'monospace'
-                      }}
-                    />
-                    <small style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px', display: 'block' }}>
-                      NOT your WordPress password. Generate from Users → Profile → Application Passwords
-                    </small>
-                  </div>
-                  
-                  <div style={{
-                    background: 'rgba(255,255,255,0.1)',
-                    padding: '1rem',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    lineHeight: '1.6'
-                  }}>
-                    <strong style={{ display: 'block', marginBottom: '0.5rem' }}>📖 How to get Application Password:</strong>
-                    <ol style={{ paddingLeft: '1.2rem', margin: 0 }}>
-                      <li>Log into WordPress admin (/wp-admin)</li>
-                      <li>Go to: Users → Your Profile</li>
-                      <li>Scroll to "Application Passwords"</li>
-                      <li>Name: "MarketingBy Blog Publisher"</li>
-                      <li>Click "Add New" and copy the password</li>
-                    </ol>
+                <div style={{ padding: '1.5rem' }}>
+                  <div style={{ display: 'grid', gap: '1.25rem', maxWidth: '600px' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '14px', fontWeight: '600', color: '#333' }}>
+                        WordPress Site URL *
+                      </label>
+                      <input
+                        type="url"
+                        value={wpSiteUrl}
+                        onChange={(e) => setWpSiteUrl(e.target.value)}
+                        placeholder="https://clientwebsite.com"
+                        className="form-control"
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '14px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px'
+                        }}
+                      />
+                      <small style={{ fontSize: '12px', color: '#666', marginTop: '4px', display: 'block' }}>
+                        Full URL including https://
+                      </small>
+                    </div>
+                    
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '14px', fontWeight: '600', color: '#333' }}>
+                        WordPress Username *
+                      </label>
+                      <input
+                        type="text"
+                        value={wpUsername}
+                        onChange={(e) => setWpUsername(e.target.value)}
+                        placeholder="admin or editor username"
+                        className="form-control"
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '14px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px'
+                        }}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '14px', fontWeight: '600', color: '#333' }}>
+                        WordPress Application Password *
+                      </label>
+                      <input
+                        type="password"
+                        value={wpAppPassword}
+                        onChange={(e) => setWpAppPassword(e.target.value)}
+                        placeholder="xxxx xxxx xxxx xxxx"
+                        className="form-control"
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '14px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          fontFamily: 'monospace'
+                        }}
+                      />
+                      <small style={{ fontSize: '12px', color: '#666', marginTop: '4px', display: 'block' }}>
+                        NOT your WordPress password. Generate from Users → Profile → Application Passwords
+                      </small>
+                    </div>
+                    
+                    <div style={{
+                      background: '#f8f9fa',
+                      padding: '1rem',
+                      borderRadius: '6px',
+                      border: '1px solid #e9ecef',
+                      fontSize: '13px',
+                      lineHeight: '1.6'
+                    }}>
+                      <strong style={{ display: 'block', marginBottom: '0.5rem', color: '#4682B4' }}>
+                        <i className="fas fa-info-circle" style={{ marginRight: '6px' }}></i>
+                        How to get Application Password:
+                      </strong>
+                      <ol style={{ paddingLeft: '1.2rem', margin: 0, color: '#666' }}>
+                        <li>Log into WordPress admin (/wp-admin)</li>
+                        <li>Go to: Users → Your Profile</li>
+                        <li>Scroll to "Application Passwords"</li>
+                        <li>Name: "MarketingBy Blog Publisher"</li>
+                        <li>Click "Add New" and copy the password</li>
+                      </ol>
+                    </div>
                   </div>
                 </div>
               </div>
               
               {/* Google AI Credentials Section */}
-              <div style={{
-                background: 'linear-gradient(135deg, #56ab2f 0%, #a8e063 100%)',
-                padding: '2rem',
-                borderRadius: '12px',
-                color: 'white',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-              }}>
-                <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>🤖</span> AI Blog Generation Settings
-                </h3>
-                <p style={{ fontSize: '14px', opacity: 0.9, marginBottom: '1.5rem' }}>
-                  Configure Google Gemini AI for automated blog content generation
-                </p>
+              <div className="card">
+                <div className="card-header">
+                  <h2 className="card-title">
+                    <i className="fas fa-robot" style={{ marginRight: '8px', color: '#4682B4' }}></i>
+                    AI Blog Generation Settings
+                  </h2>
+                  <span style={{ fontSize: '13px', color: '#666' }}>
+                    Configure Google Gemini AI for content generation
+                  </span>
+                </div>
                 
-                <div style={{ display: 'grid', gap: '1rem' }}>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '14px', fontWeight: '600' }}>
-                      Google AI API Key *
-                    </label>
-                    <input
-                      type="password"
-                      value={aiApiKey}
-                      onChange={(e) => setAiApiKey(e.target.value)}
-                      placeholder="AIzaSy..."
-                      style={{
-                        width: '100%',
-                        padding: '12px',
-                        borderRadius: '6px',
-                        border: '1px solid rgba(255,255,255,0.3)',
-                        fontSize: '14px',
-                        background: 'rgba(255,255,255,0.15)',
-                        color: 'white',
-                        fontFamily: 'monospace'
-                      }}
-                    />
-                    <small style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px', display: 'block' }}>
-                      Get from: https://makersuite.google.com/app/apikey
-                    </small>
-                  </div>
-                  
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '14px', fontWeight: '600' }}>
-                      Maximum Free Credits (Tokens/Month)
-                    </label>
-                    <input
-                      type="number"
-                      value={aiMaxCredits}
-                      onChange={(e) => setAiMaxCredits(parseInt(e.target.value))}
-                      min="0"
-                      step="10000"
-                      style={{
-                        width: '100%',
-                        padding: '12px',
-                        borderRadius: '6px',
-                        border: '1px solid rgba(255,255,255,0.3)',
-                        fontSize: '14px',
-                        background: 'rgba(255,255,255,0.15)',
-                        color: 'white'
-                      }}
-                    />
-                    <small style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px', display: 'block' }}>
-                      Default: 100,000 tokens/month (~50 blog posts). Adjust based on client needs.
-                    </small>
-                  </div>
-                  
-                  <div style={{
-                    background: 'rgba(255,255,255,0.1)',
-                    padding: '1rem',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    lineHeight: '1.6'
-                  }}>
-                    <strong style={{ display: 'block', marginBottom: '0.5rem' }}>💡 Credit Usage Info:</strong>
-                    <ul style={{ paddingLeft: '1.2rem', margin: 0 }}>
-                      <li>Average blog post: ~2,000 tokens</li>
-                      <li>100K credits = ~50 blog posts</li>
-                      <li>Resets monthly automatically</li>
-                      <li>Client-specific tracking enabled</li>
-                    </ul>
+                <div style={{ padding: '1.5rem' }}>
+                  <div style={{ display: 'grid', gap: '1.25rem', maxWidth: '600px' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '14px', fontWeight: '600', color: '#333' }}>
+                        Google AI API Key *
+                      </label>
+                      <input
+                        type="password"
+                        value={aiApiKey}
+                        onChange={(e) => setAiApiKey(e.target.value)}
+                        placeholder="AIzaSy..."
+                        className="form-control"
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '14px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          fontFamily: 'monospace'
+                        }}
+                      />
+                      <small style={{ fontSize: '12px', color: '#666', marginTop: '4px', display: 'block' }}>
+                        Get from: https://makersuite.google.com/app/apikey
+                      </small>
+                    </div>
+                    
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '14px', fontWeight: '600', color: '#333' }}>
+                        Maximum Free Credits (Tokens/Month)
+                      </label>
+                      <input
+                        type="number"
+                        value={aiMaxCredits}
+                        onChange={(e) => setAiMaxCredits(parseInt(e.target.value))}
+                        min="0"
+                        step="10000"
+                        className="form-control"
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '14px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px'
+                        }}
+                      />
+                      <small style={{ fontSize: '12px', color: '#666', marginTop: '4px', display: 'block' }}>
+                        Default: 100,000 tokens/month (~50 blog posts). Adjust based on client needs.
+                      </small>
+                    </div>
+                    
+                    <div style={{
+                      background: '#f8f9fa',
+                      padding: '1rem',
+                      borderRadius: '6px',
+                      border: '1px solid #e9ecef',
+                      fontSize: '13px',
+                      lineHeight: '1.6'
+                    }}>
+                      <strong style={{ display: 'block', marginBottom: '0.5rem', color: '#4682B4' }}>
+                        <i className="fas fa-lightbulb" style={{ marginRight: '6px' }}></i>
+                        Credit Usage Info:
+                      </strong>
+                      <ul style={{ paddingLeft: '1.2rem', margin: 0, color: '#666' }}>
+                        <li>Average blog post: ~2,000 tokens</li>
+                        <li>100K credits = ~50 blog posts</li>
+                        <li>Resets monthly automatically</li>
+                        <li>Client-specific tracking enabled</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
               </div>
