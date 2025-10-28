@@ -5,7 +5,27 @@ import pool from '../config/database';
 
 const router = Router();
 
-// OAuth Flow - Step 1: Get OAuth URL
+// OAuth Flow - Step 1: Get OAuth URL (GET method for easy frontend integration)
+router.get('/facebook-connect/auth/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    console.log(`🔗 Generating OAuth URL for client ${clientId}`);
+
+    const tokenService = new FacebookTokenService(pool);
+    const oauthUrl = tokenService.generateOAuthUrl(parseInt(clientId));
+
+    // Redirect directly to Facebook OAuth
+    res.redirect(oauthUrl);
+  } catch (error: any) {
+    console.error('❌ Error generating OAuth URL:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// OAuth Flow - Step 1: Get OAuth URL (POST method - alternative)
 router.post('/facebook-connect/oauth/start/:clientId', requireAuth, async (req, res) => {
   try {
     const { clientId } = req.params;
@@ -194,8 +214,31 @@ router.get('/facebook-connect/status/:clientId', requireAuth, async (req, res) =
   }
 });
 
-// Disconnect Facebook
+// Disconnect Facebook (DELETE method)
 router.delete('/facebook-connect/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    console.log(`🗑️ Disconnecting Facebook for client ${clientId}`);
+
+    const tokenService = new FacebookTokenService(pool);
+    await tokenService.deleteCredentials(parseInt(clientId));
+
+    res.json({
+      success: true,
+      message: 'Facebook disconnected successfully'
+    });
+  } catch (error: any) {
+    console.error('❌ Error disconnecting Facebook:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Disconnect Facebook (POST method - for frontend compatibility)
+router.post('/facebook-connect/disconnect/:clientId', requireAuth, async (req, res) => {
   try {
     const { clientId } = req.params;
 

@@ -38,6 +38,8 @@ import testEmailRoutes from './routes/testEmail';
 import duplicateManagementRoutes from './routes/duplicateManagement';
 // Blog Management routes
 import blogRoutes from './routes/blogs';
+// Facebook Connect routes (2-Way Integration)
+import facebookConnectRoutes from './routes/facebookConnect';
 
 dotenv.config();
 
@@ -191,6 +193,8 @@ app.use('/api/posts', postsRoutes);
 app.use('/api/upload', uploadRoutes);
 // Blog Management routes
 app.use('/api/blogs', blogRoutes);
+// Facebook Connect routes (2-Way Integration)
+app.use('/api', facebookConnectRoutes);
 
 // GENERIC API ROUTE (Catches all other /api/* routes) - MUST BE LAST
 app.use('/api', apiRoutes);

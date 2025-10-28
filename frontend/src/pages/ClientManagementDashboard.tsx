@@ -119,6 +119,11 @@ const ClientManagementDashboard: React.FC = () => {
   const [localSearchQueries, setLocalSearchQueries] = useState<string>('');
   const [localSearchRadius, setLocalSearchRadius] = useState<number>(10000);
   const [analyticsReports, setAnalyticsReports] = useState<any[]>([]);
+  
+  // Facebook page selector state
+  const [facebookPages, setFacebookPages] = useState<any[]>([]);
+  const [showPageSelector, setShowPageSelector] = useState(false);
+  const [processingToken, setProcessingToken] = useState(false);
 
   useEffect(() => {
     fetchClients();
@@ -3425,6 +3430,413 @@ const ClientManagementDashboard: React.FC = () => {
                       >
                         Connect Business Manager
                       </button>
+                    </div>
+                  </div>
+
+                  {/* 2-Way Facebook Connection - New Integration */}
+                  <div className="integration-card" style={{ border: '2px solid #1877f2', background: 'linear-gradient(to right, #ffffff 0%, #f0f7ff 100%)' }}>
+                    <div className="integration-header">
+                      <h4 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '24px' }}>📘</span>
+                        2-Way Facebook Connection
+                        <span style={{ 
+                          fontSize: '11px', 
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+                          color: 'white', 
+                          padding: '4px 8px', 
+                          borderRadius: '12px',
+                          fontWeight: '700',
+                          letterSpacing: '0.5px'
+                        }}>
+                          NEW
+                        </span>
+                      </h4>
+                      <span className={`status ${clientSettings?.facebook?.connected ? 'connected' : 'disconnected'}`}>
+                        {clientSettings?.facebook?.connected ? '✅ Connected' : '⚠️ Not Connected'}
+                      </span>
+                    </div>
+                    
+                    <div className="integration-form">
+
+                      {/* Connection Methods */}
+                      {!clientSettings?.facebook?.connected ? (
+                        <div>
+                          {/* Method 1: Facebook OAuth Button */}
+                          <div style={{ marginBottom: '25px' }}>
+                            <h5 style={{ 
+                              margin: '0 0 12px 0', 
+                              color: '#495057', 
+                              fontSize: '15px', 
+                              fontWeight: '600',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px'
+                            }}>
+                              🔐 Method 1: Facebook OAuth (Direct)
+                            </h5>
+                            <button 
+                              onClick={() => {
+                                // Direct OAuth connection
+                                window.location.href = `/api/facebook-connect/auth/${selectedClient?.id}`;
+                              }}
+                              style={{
+                                padding: '16px 32px',
+                                background: 'linear-gradient(135deg, #1877f2 0%, #0c63d4 100%)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                                fontWeight: '700',
+                                fontSize: '16px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '12px',
+                                boxShadow: '0 6px 20px rgba(24, 119, 242, 0.4)',
+                                transition: 'all 0.3s ease',
+                                width: '100%'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = 'translateY(-3px)';
+                                e.currentTarget.style.boxShadow = '0 8px 25px rgba(24, 119, 242, 0.5)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = '0 6px 20px rgba(24, 119, 242, 0.4)';
+                              }}
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="24"
+                                height="24"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                              >
+                                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                              </svg>
+                              Connect with Facebook
+                            </button>
+                          </div>
+
+                          {/* Divider */}
+                          <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            margin: '25px 0',
+                            gap: '15px'
+                          }}>
+                            <div style={{ flex: 1, height: '1px', background: '#ddd' }}></div>
+                            <span style={{ color: '#666', fontSize: '14px', fontWeight: '600' }}>OR</span>
+                            <div style={{ flex: 1, height: '1px', background: '#ddd' }}></div>
+                          </div>
+
+                          {/* Method 2: Manual Token Input */}
+                          <div>
+                            <h5 style={{ 
+                              margin: '0 0 12px 0', 
+                              color: '#495057', 
+                              fontSize: '15px', 
+                              fontWeight: '600',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px'
+                            }}>
+                              🎯 Method 2: Manual Token Entry
+                            </h5>
+                            <div style={{ marginBottom: '12px' }}>
+                              <label style={{
+                                display: 'block',
+                                marginBottom: '8px',
+                                fontSize: '13px',
+                                color: '#666'
+                              }}>
+                                Facebook Access Token
+                              </label>
+                              <input
+                                type="text"
+                                id="facebook-manual-token"
+                                placeholder="Paste your Facebook User or Page Access Token here..."
+                                style={{
+                                  width: '100%',
+                                  padding: '12px 15px',
+                                  border: '2px solid #e0e0e0',
+                                  borderRadius: '8px',
+                                  fontSize: '14px',
+                                  fontFamily: 'monospace',
+                                  outline: 'none',
+                                  transition: 'border-color 0.2s'
+                                }}
+                                onFocus={(e) => e.currentTarget.style.borderColor = '#f093fb'}
+                                onBlur={(e) => e.currentTarget.style.borderColor = '#e0e0e0'}
+                              />
+                            </div>
+                            <button
+                              disabled={processingToken}
+                              onClick={async () => {
+                                const tokenInput = document.getElementById('facebook-manual-token') as HTMLInputElement;
+                                const token = tokenInput?.value?.trim();
+                                
+                                if (!token) {
+                                  alert('⚠️ Please enter a Facebook token');
+                                  return;
+                                }
+
+                                try {
+                                  setError('');
+                                  setProcessingToken(true);
+                                  
+                                  // Process manual token
+                                  const response = await http.post(`/facebook-connect/manual/${selectedClient?.id}`, { token });
+                                  
+                                  if (response.data.success && response.data.pages && response.data.pages.length > 0) {
+                                    // Show page selector
+                                    setFacebookPages(response.data.pages);
+                                    setShowPageSelector(true);
+                                  } else {
+                                    setError('❌ No pages found for this token');
+                                  }
+                                } catch (error: any) {
+                                  console.error('Manual token error:', error);
+                                  setError(error.response?.data?.error || '❌ Failed to process token. Please check if the token is valid.');
+                                } finally {
+                                  setProcessingToken(false);
+                                }
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '14px 28px',
+                                background: processingToken ? '#ccc' : 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '10px',
+                                cursor: processingToken ? 'not-allowed' : 'pointer',
+                                fontWeight: '700',
+                                fontSize: '16px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '10px',
+                                boxShadow: '0 6px 20px rgba(240, 147, 251, 0.4)',
+                                transition: 'all 0.3s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!processingToken) {
+                                  e.currentTarget.style.transform = 'translateY(-3px)';
+                                  e.currentTarget.style.boxShadow = '0 8px 25px rgba(240, 147, 251, 0.5)';
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!processingToken) {
+                                  e.currentTarget.style.transform = 'translateY(0)';
+                                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(240, 147, 251, 0.4)';
+                                }
+                              }}
+                            >
+                              {processingToken ? (
+                                <>
+                                  <span style={{ fontSize: '20px' }}>⏳</span>
+                                  Processing...
+                                </>
+                              ) : (
+                                <>
+                                  <span style={{ fontSize: '20px' }}>🎯</span>
+                                  Process Token & Connect
+                                </>
+                              )}
+                            </button>
+                            <p style={{ 
+                              margin: '10px 0 0 0', 
+                              fontSize: '12px', 
+                              color: '#666',
+                              fontStyle: 'italic'
+                            }}>
+                              💡 Get your token from Facebook Graph API Explorer
+                            </p>
+                          </div>
+
+                          {/* Page Selector UI */}
+                          {showPageSelector && facebookPages.length > 0 && (
+                            <div style={{
+                              marginTop: '25px',
+                              padding: '20px',
+                              background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+                              borderRadius: '12px',
+                              border: '2px solid #1877f2',
+                              boxShadow: '0 6px 20px rgba(24, 119, 242, 0.3)'
+                            }}>
+                              <h5 style={{
+                                margin: '0 0 15px 0',
+                                color: '#1877f2',
+                                fontSize: '18px',
+                                fontWeight: '700',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px'
+                              }}>
+                                📄 Select Your Facebook Page
+                              </h5>
+                              <p style={{
+                                margin: '0 0 20px 0',
+                                fontSize: '14px',
+                                color: '#666'
+                              }}>
+                                Found {facebookPages.length} page(s). Click to connect:
+                              </p>
+                              
+                              <div style={{
+                                display: 'grid',
+                                gap: '12px'
+                              }}>
+                                {facebookPages.map((page: any) => (
+                                  <div
+                                    key={page.id}
+                                    onClick={async () => {
+                                      try {
+                                        setProcessingToken(true);
+                                        const response = await http.post(
+                                          `/facebook-connect/manual/complete/${selectedClient?.id}`,
+                                          {
+                                            pageId: page.id,
+                                            pageToken: page.access_token,
+                                            pageName: page.name
+                                          }
+                                        );
+                                        
+                                        if (response.data.success) {
+                                          setSuccessMessage(`✅ Facebook page "${page.name}" connected successfully!`);
+                                          setShowPageSelector(false);
+                                          setFacebookPages([]);
+                                          const tokenInput = document.getElementById('facebook-manual-token') as HTMLInputElement;
+                                          if (tokenInput) tokenInput.value = '';
+                                          fetchClientData(selectedClient!.id);
+                                        }
+                                      } catch (error: any) {
+                                        console.error('Connect error:', error);
+                                        setError(error.response?.data?.error || '❌ Failed to connect page');
+                                      } finally {
+                                        setProcessingToken(false);
+                                      }
+                                    }}
+                                    style={{
+                                      padding: '15px 20px',
+                                      background: 'white',
+                                      borderRadius: '10px',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s ease',
+                                      border: '2px solid transparent',
+                                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.transform = 'translateY(-2px)';
+                                      e.currentTarget.style.borderColor = '#1877f2';
+                                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(24, 119, 242, 0.3)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.transform = 'translateY(0)';
+                                      e.currentTarget.style.borderColor = 'transparent';
+                                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                      <span style={{ fontSize: '32px' }}>📘</span>
+                                      <div style={{ flex: 1 }}>
+                                        <h6 style={{ margin: '0 0 5px 0', fontSize: '16px', fontWeight: '700', color: '#1877f2' }}>
+                                          {page.name}
+                                        </h6>
+                                        <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>
+                                          ID: {page.id}
+                                          {page.category && ` • ${page.category}`}
+                                          {page.followers_count && ` • ${page.followers_count.toLocaleString()} followers`}
+                                        </p>
+                                      </div>
+                                      <span style={{ fontSize: '24px' }}>→</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <button
+                                onClick={() => {
+                                  setShowPageSelector(false);
+                                  setFacebookPages([]);
+                                }}
+                                style={{
+                                  marginTop: '15px',
+                                  padding: '10px 20px',
+                                  background: '#6c757d',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '8px',
+                                  cursor: 'pointer',
+                                  fontSize: '14px',
+                                  fontWeight: '600'
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ 
+                          padding: '20px', 
+                          background: 'linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%)', 
+                          borderRadius: '10px',
+                          marginBottom: '15px',
+                          border: '2px solid #28a745'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                            <span style={{ fontSize: '48px' }}>✅</span>
+                            <div style={{ flex: 1 }}>
+                              <h5 style={{ margin: '0 0 5px 0', color: '#155724', fontSize: '18px', fontWeight: '700' }}>
+                                Facebook Page Connected!
+                              </h5>
+                              {clientSettings.facebook.pageId && (
+                                <p style={{ margin: '0', fontSize: '14px', color: '#155724' }}>
+                                  Page ID: <strong>{clientSettings.facebook.pageId}</strong>
+                                </p>
+                              )}
+                              <p style={{ margin: '5px 0 0 0', fontSize: '13px', color: '#666' }}>
+                                Your Facebook page is connected and ready to use.
+                              </p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={async () => {
+                              if (!confirm('⚠️ Are you sure you want to disconnect Facebook? This will remove all Facebook analytics and data access.')) return;
+                              
+                              try {
+                                await http.post(`/facebook-connect/disconnect/${selectedClient?.id}`);
+                                setSuccessMessage('✅ Facebook disconnected successfully!');
+                                fetchClientData(selectedClient!.id);
+                              } catch (error) {
+                                console.error('Disconnect Facebook error:', error);
+                                setError('❌ Failed to disconnect Facebook');
+                              }
+                            }}
+                            style={{
+                              marginTop: '15px',
+                              padding: '12px 24px',
+                              background: '#dc3545',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              fontWeight: '600',
+                              fontSize: '14px',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = '#c82333';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = '#dc3545';
+                            }}
+                          >
+                            🔌 Disconnect Facebook Page
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
