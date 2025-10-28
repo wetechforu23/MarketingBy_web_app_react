@@ -20,6 +20,7 @@ interface BlogPost {
   status: string;
   author_name?: string;
   created_at: string;
+  approval_token_expires_at?: string;
 }
 
 const BlogApproval: React.FC = () => {
@@ -236,6 +237,27 @@ const BlogApproval: React.FC = () => {
           <p style={{ fontSize: '16px', opacity: 0.9 }}>
             Please review and approve or reject this blog post
           </p>
+          
+          {/* Expiration Warning */}
+          {blog?.approval_token_expires_at && (
+            <div style={{
+              marginTop: '1rem',
+              padding: '0.75rem 1rem',
+              background: 'rgba(255, 255, 255, 0.2)',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              display: 'inline-block'
+            }}>
+              <i className="fas fa-clock" style={{ marginRight: '8px' }}></i>
+              <strong>Link Expires:</strong> {new Date(blog.approval_token_expires_at).toLocaleString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </div>
+          )}
         </div>
         
         {/* Content */}

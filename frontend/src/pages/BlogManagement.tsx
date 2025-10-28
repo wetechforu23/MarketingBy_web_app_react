@@ -25,6 +25,9 @@ interface BlogPost {
   view_count?: number;
   created_at: string;
   updated_at: string;
+  approved_at?: string;
+  approved_by?: number;
+  rejection_reason?: string;
 }
 
 interface Client {
