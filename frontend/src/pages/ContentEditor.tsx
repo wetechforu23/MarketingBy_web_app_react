@@ -798,6 +798,85 @@ const ContentEditor: React.FC = () => {
             </div>
           </div>
 
+          {/* Website URL for UTM Tracking */}
+          <div style={{
+            background: 'white',
+            borderRadius: '16px',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+            padding: '30px'
+          }}>
+            <h2 style={{ 
+              fontSize: '22px', 
+              fontWeight: '600', 
+              marginBottom: '20px',
+              color: '#2d3748',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              🔗 Website URL
+            </h2>
+
+            <div style={{ 
+              background: '#e7f3ff',
+              border: '2px solid #3b82f6',
+              borderRadius: '12px',
+              padding: '15px',
+              marginBottom: '20px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <span style={{ fontSize: '20px' }}>📊</span>
+                <strong style={{ color: '#1e40af' }}>Automatic UTM Tracking Enabled!</strong>
+              </div>
+              <p style={{ fontSize: '14px', color: '#1e40af', margin: 0, lineHeight: '1.6' }}>
+                Add your website URL here and we'll automatically add tracking parameters so you can see which Facebook posts drive traffic and conversions in Google Analytics!
+              </p>
+            </div>
+
+            <div style={{ marginBottom: '0' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '14px', 
+                fontWeight: '600', 
+                color: '#4a5568',
+                marginBottom: '8px'
+              }}>
+                Add Website URL (Optional)
+              </label>
+              <input
+                type="url"
+                value={formData.contentText.match(/(https?:\/\/[^\s]+)/)?.[0] || ''}
+                onChange={(e) => {
+                  const url = e.target.value.trim();
+                  if (url) {
+                    // Add URL to content if not already there
+                    if (!formData.contentText.includes(url)) {
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        contentText: prev.contentText + (prev.contentText ? '\n\n' : '') + url 
+                      }));
+                    }
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '10px',
+                  fontSize: '15px'
+                }}
+                placeholder="https://wetechforu.com/services"
+              />
+              <div style={{ fontSize: '12px', color: '#718096', marginTop: '8px', lineHeight: '1.6' }}>
+                💡 Example: https://wetechforu.com/services
+                <br/>
+                <span style={{ color: '#3b82f6', fontWeight: '600' }}>
+                  ✨ UTM tracking will be automatically added: ?utm_source=facebook&utm_medium=social&utm_campaign=...
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* Media URLs */}
           <div style={{
             background: 'white',
