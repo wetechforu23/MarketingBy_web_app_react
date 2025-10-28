@@ -41,6 +41,8 @@ const FacebookConnect: React.FC = () => {
 
     if (errorParam) {
       setError(`OAuth Error: ${searchParams.get('error_description') || errorParam}`);
+      // Clean up URL
+      window.history.replaceState({}, '', `/app/facebook-connect/${clientId}`);
     } else if (successParam && pagesParam && tokenParam) {
       try {
         const decodedPages = JSON.parse(decodeURIComponent(pagesParam));
@@ -50,6 +52,13 @@ const FacebookConnect: React.FC = () => {
           pagesCount: decodedPages.length,
           hasToken: !!decodedToken
         });
+
+        // Check if no pages found
+        if (!decodedPages || decodedPages.length === 0) {
+          setError('No pages found for this token. Please make sure:\n1. You manage at least one Facebook page\n2. You granted "pages_show_list" permission during OAuth\n3. Try reconnecting and ensure all permissions are approved');
+          window.history.replaceState({}, '', `/app/facebook-connect/${clientId}`);
+          return;
+        }
 
         // If only 1 page, auto-select it
         if (decodedPages.length === 1) {
@@ -91,6 +100,7 @@ const FacebookConnect: React.FC = () => {
       } catch (error) {
         console.error('Failed to parse OAuth callback data:', error);
         setError('Failed to process OAuth callback');
+        window.history.replaceState({}, '', `/app/facebook-connect/${clientId}`);
       }
     }
   }, [searchParams, clientId, navigate]);
@@ -209,7 +219,15 @@ const FacebookConnect: React.FC = () => {
             padding: '20px',
             marginBottom: '30px'
           }}>
-            <strong style={{ color: '#856404' }}>⚠️ {error}</strong>
+            <div style={{ 
+              color: '#856404',
+              fontSize: '15px',
+              lineHeight: '1.6',
+              whiteSpace: 'pre-line'
+            }}>
+              <strong>⚠️ Error:</strong>
+              <div style={{ marginTop: '8px' }}>{error}</div>
+            </div>
           </div>
         )}
 
@@ -287,7 +305,7 @@ const FacebookConnect: React.FC = () => {
                 boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
                 border: '3px solid #667eea'
               }}>
-                <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+                <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                   <div style={{ fontSize: '64px', marginBottom: '15px' }}>🔐</div>
                   <h2 style={{ margin: '0 0 10px 0', color: '#667eea', fontSize: '28px' }}>
                     Method 1: OAuth
@@ -296,6 +314,25 @@ const FacebookConnect: React.FC = () => {
                     Secure automatic connection via Facebook OAuth. Recommended for ease of use.
                   </p>
                 </div>
+                
+                {/* Important Note */}
+                <div style={{
+                  background: '#e7f3ff',
+                  border: '2px solid #1877f2',
+                  borderRadius: '12px',
+                  padding: '15px',
+                  marginBottom: '20px',
+                  fontSize: '14px',
+                  color: '#0c63d4',
+                  lineHeight: '1.6'
+                }}>
+                  <strong>📌 Important:</strong> When Facebook asks for permissions, make sure to:
+                  <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
+                    <li>Approve <strong>all requested permissions</strong></li>
+                    <li>Select the page you want to connect</li>
+                  </ul>
+                </div>
+                
                 <FacebookOAuthButton clientId={clientId || ''} />
               </div>
 

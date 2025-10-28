@@ -68,22 +68,60 @@ router.get('/facebook-connect/callback', async (req, res) => {
     
     // Exchange code for token
     const userToken = await tokenService.exchangeCodeForToken(code as string);
+    console.log('✅ User token obtained');
     
     // Get user's pages
     const pages = await tokenService.getUserPages(userToken);
+    console.log(`📄 Found ${pages.length} pages`);
 
     // Extract client ID from state
     const clientId = (state as string).match(/client_(\d+)_/)?.[1];
 
-    // Store in session or redirect with data
-    // For now, redirect to page selector with pages data
+    if (!clientId) {
+      return res.redirect('/app/client-management?error=invalid_state');
+    }
+
+    // Check if we have pages
+    if (!pages || pages.length === 0) {
+      console.log('⚠️ No pages found, redirecting with error');
+      return res.redirect(`/app/facebook-connect/${clientId}?error=no_pages_found&error_description=No+pages+found.+Please+ensure+you+manage+at+least+one+Facebook+page+and+approved+all+permissions.`);
+    }
+
+    // AUTOMATIC: If only 1 page, auto-connect it
+    if (pages.length === 1) {
+      const page = pages[0];
+      console.log(`🎯 Auto-connecting single page: ${page.name}`);
+      
+      try {
+        // Automatically store the page with token conversion
+        await tokenService.storePageCredentials(
+          parseInt(clientId),
+          page.id,
+          page.access_token,
+          page.name
+        );
+        
+        console.log('✅ Page automatically connected!');
+        return res.redirect(`/app/client-management?success=facebook_connected&page=${encodeURIComponent(page.name)}`);
+      } catch (storeError: any) {
+        console.error('❌ Error auto-storing page:', storeError.message);
+        return res.redirect(`/app/facebook-connect/${clientId}?error=storage_failed&error_description=${encodeURIComponent(storeError.message)}`);
+      }
+    }
+
+    // Multiple pages - redirect to page selector
+    console.log('📋 Multiple pages found, showing selector');
     const pagesData = encodeURIComponent(JSON.stringify(pages));
     const tokenData = encodeURIComponent(userToken);
     
-    res.redirect(`/app/facebook-connect?clientId=${clientId}&pages=${pagesData}&token=${tokenData}&success=true`);
+    res.redirect(`/app/facebook-connect/${clientId}?pages=${pagesData}&token=${tokenData}&success=true`);
   } catch (error: any) {
     console.error('❌ OAuth callback error:', error.message);
-    res.redirect(`/app/facebook-connect?error=token_exchange_failed&error_description=${encodeURIComponent(error.message)}`);
+    const clientId = (req.query.state as string)?.match(/client_(\d+)_/)?.[1];
+    const redirectUrl = clientId 
+      ? `/app/facebook-connect/${clientId}`
+      : '/app/client-management';
+    res.redirect(`${redirectUrl}?error=token_exchange_failed&error_description=${encodeURIComponent(error.message)}`);
   }
 });
 

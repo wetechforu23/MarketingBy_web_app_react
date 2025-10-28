@@ -133,6 +133,8 @@ const ClientManagementDashboard: React.FC = () => {
     // Handle OAuth success/error messages from URL parameters (no refetch here)
     const urlParams = new URLSearchParams(window.location.search);
     const connected = urlParams.get('connected');
+    const success = urlParams.get('success');
+    const page = urlParams.get('page');
     const clientId = urlParams.get('clientId');
     const error = urlParams.get('error');
 
@@ -152,11 +154,23 @@ const ClientManagementDashboard: React.FC = () => {
 
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (success === 'facebook_connected' && page) {
+      // Handle Facebook OAuth auto-connect success
+      setSuccessMessage(`✅ Successfully connected Facebook Page: ${decodeURIComponent(page)}!`);
+      setActiveTab('settings'); // Switch to settings tab to show connection
+      
+      // Clear URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Refresh client data if a client is selected
+      if (selectedClient) {
+        fetchClientData(selectedClient.id);
+      }
     } else if (error) {
       setError(`❌ Connection failed: ${error}`);
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [clients]);
+  }, [clients, selectedClient]);
 
   // Add refresh key to force re-fetch of detailed Facebook insights after sync
   const [refreshKey, setRefreshKey] = useState(0);
