@@ -361,8 +361,8 @@ export class BlogService {
       // Get client-specific Google AI API key (uses same system as chat widget)
       const apiKey = await this.getClientGoogleAIKey(request.client_id);
       const genAI = new GoogleGenerativeAI(apiKey);
-      // Use gemini-pro for v1 API or gemini-1.5-flash-latest for v1beta
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+      // Use gemini-1.5-flash for v1beta API (stable model)
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
       
       // Build the prompt
       const tone = request.tone || 'professional';
@@ -435,7 +435,7 @@ Requirements:
         seo_score: seoScore,
         generated_by: 'google_ai',
         ai_prompt: request.prompt,
-        ai_model: 'gemini-1.5-flash-latest',
+        ai_model: 'gemini-1.5-flash',
         generation_metadata: {
           tone,
           target_word_count: wordCount,
