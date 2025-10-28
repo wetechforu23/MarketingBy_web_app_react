@@ -759,12 +759,12 @@ class FacebookService {
 
       try {
         const clientResult = await this.pool.query(
-          'SELECT name FROM clients WHERE id = $1',
+          'SELECT client_name FROM clients WHERE id = $1',
           [clientId]
         );
         
         if (clientResult.rows.length > 0) {
-          clientName = clientResult.rows[0].name;
+          clientName = clientResult.rows[0].client_name;
         }
 
         // NEW: Process message content with UTM tracking
