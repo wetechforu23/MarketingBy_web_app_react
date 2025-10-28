@@ -118,20 +118,16 @@ export class BlogService {
       
       // Fallback: Try encrypted_credentials (global key)
       const credResult = await pool.query(
-        `SELECT encrypted_value, decrypted_value 
+        `SELECT encrypted_value 
          FROM encrypted_credentials
-         WHERE (service = 'gemini' OR service_name = 'google_ai' OR service_name = 'gemini') 
-           AND (key_name = 'api_key' OR credential_key = 'api_key' OR credential_type = 'api_key')
+         WHERE service IN ('gemini', 'google_ai') 
+           AND key_name = 'api_key'
          LIMIT 1`
       );
       
       if (credResult.rows.length > 0) {
         console.log(`⚠️  Using global Google AI key (no client-specific key found for client ${clientId})`);
-        // Try decrypted_value first (if schema has it)
-        if (credResult.rows[0].decrypted_value) {
-          return credResult.rows[0].decrypted_value;
-        }
-        // Otherwise decrypt encrypted_value
+        // Decrypt the encrypted value
         return this.decrypt(credResult.rows[0].encrypted_value);
       }
       
