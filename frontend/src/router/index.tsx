@@ -39,6 +39,8 @@ import ChatConversations from "../pages/ChatConversations";
 import VisitorMonitoring from "../pages/VisitorMonitoring";
 // Blog Management
 import BlogManagement from "../pages/BlogManagement";
+import BlogApproval from "../pages/BlogApproval";
+import BlogAnalytics from "../pages/BlogAnalytics";
 // Email Preferences & Unsubscribe
 import Unsubscribe from "../pages/Unsubscribe";
 
@@ -48,6 +50,7 @@ export const router = createBrowserRouter([
   { path: "/terms-of-service", element: <TermsOfService /> }, // Terms of Service
   { path: "/privacy-policy", element: <PrivacyPolicy /> }, // Privacy Policy
   { path: "/unsubscribe", element: <Unsubscribe /> }, // Email unsubscribe (public)
+  { path: "/blog/approve/:token", element: <BlogApproval /> }, // Blog approval (public)
   {
     path: "/app",
     element: <AppLayout />,
@@ -86,6 +89,7 @@ export const router = createBrowserRouter([
       { path: "visitor-monitoring", element: <VisitorMonitoring /> },
       // Blog Management routes
       { path: "blogs", element: <BlogManagement /> },
+      { path: "blog-analytics", element: <BlogAnalytics /> },
       {
         path: "customer",
         element: <CustomerPortalPage />,

@@ -1,6 +1,7 @@
 import pool from '../config/database';
 import crypto from 'crypto';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { EmailService } from './emailService';
 
 // =====================================================
 // Interfaces
@@ -391,6 +392,21 @@ Requirements:
       const token = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
       
+      // Get blog post and client details
+      const postResult = await pool.query(
+        `SELECT bp.*, c.name as client_name, c.email as client_email
+         FROM blog_posts bp
+         JOIN clients c ON c.id = bp.client_id
+         WHERE bp.id = $1`,
+        [postId]
+      );
+      
+      if (postResult.rows.length === 0) {
+        throw new Error('Blog post not found');
+      }
+      
+      const post = postResult.rows[0];
+      
       await pool.query(
         `UPDATE blog_posts
          SET status = 'pending_approval',
@@ -409,10 +425,107 @@ Requirements:
       
       console.log('✅ Blog post sent for approval:', postId);
       
-      // TODO: Send email notification to client
-      if (sendEmail) {
-        // Email sending logic here
-        console.log('📧 Approval email would be sent with token:', token);
+      // Send email notification to client
+      if (sendEmail && post.client_email) {
+        try {
+          const approvalUrl = `${process.env.FRONTEND_URL}/blog/approve/${token}`;
+          const expiryDate = new Date(expiresAt).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          
+          await EmailService.sendEmail({
+            to: post.client_email,
+            subject: `📝 Blog Post Ready for Your Review: ${post.title}`,
+            html: `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              </head>
+              <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                  <h1 style="color: white; margin: 0; font-size: 28px;">📝 Blog Post Ready for Review</h1>
+                </div>
+                
+                <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px;">
+                  <p style="font-size: 16px; margin-bottom: 20px;">Hello <strong>${post.client_name}</strong>,</p>
+                  
+                  <p style="font-size: 16px; margin-bottom: 20px;">
+                    We've completed a new blog post for your review and approval. The content is ready for your feedback!
+                  </p>
+                  
+                  <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4682B4;">
+                    <h2 style="margin-top: 0; color: #333; font-size: 20px;">${post.title}</h2>
+                    ${post.excerpt ? `<p style="color: #666; font-style: italic;">${post.excerpt}</p>` : ''}
+                    <div style="display: flex; gap: 20px; margin-top: 15px; font-size: 14px;">
+                      <div>
+                        <strong>Author:</strong> ${post.author_name || 'Admin'}
+                      </div>
+                      <div>
+                        <strong>SEO Score:</strong> <span style="color: ${post.seo_score >= 80 ? '#28a745' : post.seo_score >= 60 ? '#ffc107' : '#dc3545'}; font-weight: bold;">${post.seo_score}/100</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div style="text-align: center; margin: 30px 0;">
+                    <a href="${approvalUrl}" style="display: inline-block; background: linear-gradient(135deg, #4682B4, #5a9fd4); color: white; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">
+                      📖 Review Blog Post
+                    </a>
+                  </div>
+                  
+                  <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+                    <p style="margin: 0; font-size: 14px; color: #856404;">
+                      <strong>⏰ Important:</strong> This approval link will expire on <strong>${expiryDate}</strong> (48 hours from now).
+                    </p>
+                  </div>
+                  
+                  <p style="font-size: 14px; color: #666; margin-top: 20px;">
+                    If you have any questions or need changes, you can provide feedback directly through the approval page.
+                  </p>
+                  
+                  <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
+                  
+                  <p style="font-size: 12px; color: #999; text-align: center; margin: 0;">
+                    If you're unable to click the button above, copy and paste this link into your browser:<br>
+                    <a href="${approvalUrl}" style="color: #4682B4; word-break: break-all;">${approvalUrl}</a>
+                  </p>
+                </div>
+              </body>
+              </html>
+            `,
+            text: `
+Hello ${post.client_name},
+
+We've completed a new blog post for your review and approval.
+
+Blog Title: ${post.title}
+${post.excerpt ? `Excerpt: ${post.excerpt}` : ''}
+Author: ${post.author_name || 'Admin'}
+SEO Score: ${post.seo_score}/100
+
+To review and approve this blog post, please visit:
+${approvalUrl}
+
+⏰ Important: This approval link will expire on ${expiryDate} (48 hours from now).
+
+If you have any questions or need changes, you can provide feedback directly through the approval page.
+
+---
+If the link above doesn't work, copy and paste this URL into your browser:
+${approvalUrl}
+            `.trim()
+          });
+          
+          console.log('📧 Approval email sent to:', post.client_email);
+        } catch (emailError: any) {
+          console.error('❌ Failed to send approval email:', emailError);
+          // Don't throw error - approval token is still valid
+        }
       }
       
       return token;
@@ -543,25 +656,117 @@ Requirements:
         throw new Error('Blog post must be approved before publishing');
       }
       
-      // Get WordPress credentials
-      const wpCreds = await pool.query(
-        `SELECT decrypted_value, metadata FROM encrypted_credentials
+      // Get WordPress credentials from encrypted_credentials
+      const wpCredsResult = await pool.query(
+        `SELECT credential_key, decrypted_value, metadata 
+         FROM encrypted_credentials
          WHERE client_id = $1
          AND service_name = 'wordpress'
-         AND credential_key IN ('site_url', 'username', 'password')`,
+         AND credential_key IN ('site_url', 'username', 'app_password')
+         ORDER BY credential_key`,
         [post.client_id]
       );
       
-      if (wpCreds.rows.length < 3) {
-        throw new Error('WordPress credentials not configured for this client');
+      if (wpCredsResult.rows.length < 3) {
+        throw new Error('WordPress credentials not configured for this client. Please configure WordPress site URL, username, and application password in Credentials settings.');
       }
       
-      // TODO: Implement actual WordPress REST API publishing
-      // This is a placeholder for the WordPress integration
+      // Parse WordPress credentials
+      const creds: any = {};
+      wpCredsResult.rows.forEach(row => {
+        creds[row.credential_key] = row.decrypted_value;
+      });
       
-      console.log('📝 Publishing to WordPress (placeholder)');
+      if (!creds.site_url || !creds.username || !creds.app_password) {
+        throw new Error('Incomplete WordPress credentials');
+      }
       
-      // Update post status
+      // Ensure site_url ends without trailing slash
+      const siteUrl = creds.site_url.replace(/\/$/, '');
+      const wpApiUrl = `${siteUrl}/wp-json/wp/v2/posts`;
+      
+      // Prepare WordPress post data
+      const wpPostData: any = {
+        title: post.meta_title || post.title,
+        content: post.content,
+        excerpt: post.excerpt || '',
+        status: 'publish', // or 'draft' if you want review in WP
+        slug: post.slug
+      };
+      
+      // Add categories if exists
+      if (post.categories && post.categories.length > 0) {
+        // Note: WordPress needs category IDs, not names
+        // In production, you'd need to map category names to WP category IDs
+        // For now, we'll skip categories
+        console.log('⚠️ Categories not mapped to WordPress:', post.categories);
+      }
+      
+      // Add tags if exists
+      if (post.tags && post.tags.length > 0) {
+        // Note: WordPress needs tag IDs, not names
+        // In production, you'd need to create tags first or map to existing IDs
+        console.log('⚠️ Tags not mapped to WordPress:', post.tags);
+      }
+      
+      // Create authorization header (Basic Auth with username:app_password)
+      const authString = Buffer.from(`${creds.username}:${creds.app_password}`).toString('base64');
+      
+      console.log('📝 Publishing to WordPress:', {
+        site: siteUrl,
+        username: creds.username,
+        title: post.title
+      });
+      
+      // Make WordPress REST API request
+      const axios = require('axios');
+      const wpResponse = await axios.post(wpApiUrl, wpPostData, {
+        headers: {
+          'Authorization': `Basic ${authString}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 30000 // 30 second timeout
+      });
+      
+      if (!wpResponse.data || !wpResponse.data.id) {
+        throw new Error('WordPress API returned invalid response');
+      }
+      
+      const wpPostId = wpResponse.data.id;
+      const wpPostUrl = wpResponse.data.link || `${siteUrl}/?p=${wpPostId}`;
+      
+      console.log('✅ WordPress post created:', {
+        wp_post_id: wpPostId,
+        url: wpPostUrl
+      });
+      
+      // Update Yoast SEO meta if post has meta fields
+      if (post.meta_description || post.meta_keywords) {
+        try {
+          await axios.post(
+            `${siteUrl}/wp-json/wp/v2/posts/${wpPostId}`,
+            {
+              meta: {
+                _yoast_wpseo_title: post.meta_title || post.title,
+                _yoast_wpseo_metadesc: post.meta_description || post.excerpt,
+                _yoast_wpseo_focuskw: post.meta_keywords ? post.meta_keywords[0] : ''
+              }
+            },
+            {
+              headers: {
+                'Authorization': `Basic ${authString}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          console.log('✅ Yoast SEO meta updated');
+        } catch (yoastError: any) {
+          console.warn('⚠️ Failed to update Yoast SEO meta (plugin may not be installed):', yoastError.message);
+          // Don't fail the whole publishing if Yoast update fails
+        }
+      }
+      
+      // Update blog post in database
       await pool.query(
         `UPDATE blog_posts
          SET status = 'published',
@@ -570,10 +775,10 @@ Requirements:
              external_post_id = $1,
              external_url = $2
          WHERE id = $3`,
-        ['wp_' + Date.now(), 'https://example.com/blog/' + post.slug, postId]
+        [`wp_${wpPostId}`, wpPostUrl, postId]
       );
       
-      // Log publishing
+      // Log publishing action
       await pool.query(
         `INSERT INTO blog_approval_history (post_id, action, access_method)
          VALUES ($1, 'published', 'api')`,
@@ -581,11 +786,29 @@ Requirements:
       );
       
       console.log('✅ Blog post published to WordPress:', postId);
-      return 'https://example.com/blog/' + post.slug;
+      return wpPostUrl;
       
     } catch (error: any) {
-      console.error('❌ Error publishing to WordPress:', error);
-      throw new Error(`Failed to publish to WordPress: ${error.message}`);
+      console.error('❌ Error publishing to WordPress:', error.response?.data || error.message);
+      
+      // Provide more helpful error messages
+      let errorMessage = 'Failed to publish to WordPress';
+      
+      if (error.code === 'ECONNREFUSED') {
+        errorMessage = 'Could not connect to WordPress site. Please check the site URL.';
+      } else if (error.response?.status === 401) {
+        errorMessage = 'WordPress authentication failed. Please check username and application password.';
+      } else if (error.response?.status === 403) {
+        errorMessage = 'WordPress permission denied. User may not have publish_posts capability.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'WordPress REST API not found. Ensure WordPress is up to date and REST API is enabled.';
+      } else if (error.response?.data?.message) {
+        errorMessage = `WordPress error: ${error.response.data.message}`;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      throw new Error(errorMessage);
     }
   }
   

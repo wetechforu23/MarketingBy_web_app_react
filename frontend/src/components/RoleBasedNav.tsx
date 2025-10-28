@@ -304,15 +304,31 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
         {/* Blog Management - NEW SECTION */}
         {hasPageAccess('clients') && (
           <li className="nav-item">
-            <Link 
-              className={`nav-link ${isActive('/app/blogs') ? 'active' : ''}`} 
-              to="/app/blogs"
-              onClick={onNavigate}
-              title={isCollapsed ? 'Blog Management' : ''}
-            >
+            <a className="nav-link sub-btn" title={isCollapsed ? 'Blog Management' : ''}>
               <i className="fas fa-blog"></i>
               {!isCollapsed && 'Blog Management'}
-            </Link>
+              <i className="fas fa-angle-right dropdown"></i>
+            </a>
+            <ul className="sub-menu">
+              <li>
+                <Link 
+                  className={`nav-link ${isActive('/app/blogs') ? 'active' : ''}`} 
+                  to="/app/blogs"
+                  onClick={onNavigate}
+                >
+                  <i className="fas fa-edit"></i> Manage Blogs
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  className={`nav-link ${isActive('/app/blog-analytics') ? 'active' : ''}`} 
+                  to="/app/blog-analytics"
+                  onClick={onNavigate}
+                >
+                  <i className="fas fa-chart-line"></i> Analytics
+                </Link>
+              </li>
+            </ul>
           </li>
         )}
 
