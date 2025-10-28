@@ -71,6 +71,10 @@ const BlogManagement: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Help panels
+  const [showSEOGuide, setShowSEOGuide] = useState(false);
+  const [showPublishGuide, setShowPublishGuide] = useState(false);
+  
   // ===================================================
   // Effects
   // ===================================================
@@ -314,13 +318,162 @@ const BlogManagement: React.FC = () => {
     <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: '700', marginBottom: '0.5rem' }}>
-          📝 Blog Management
-        </h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: '700' }}>
+            📝 Blog Management
+          </h1>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setShowSEOGuide(!showSEOGuide)}
+              style={{
+                padding: '8px 16px',
+                background: '#4682B4',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                fontWeight: '600'
+              }}
+            >
+              {showSEOGuide ? '✕' : '💡'} SEO Guide
+            </button>
+            <button
+              onClick={() => setShowPublishGuide(!showPublishGuide)}
+              style={{
+                padding: '8px 16px',
+                background: '#28a745',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                fontWeight: '600'
+              }}
+            >
+              {showPublishGuide ? '✕' : '🚀'} Publishing Guide
+            </button>
+          </div>
+        </div>
         <p style={{ color: '#666', fontSize: '14px' }}>
           Create, manage, and publish blog posts with AI-powered content generation
         </p>
       </div>
+      
+      {/* SEO Guide Panel */}
+      {showSEOGuide && (
+        <div style={{
+          marginBottom: '2rem',
+          padding: '1.5rem',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          borderRadius: '12px',
+          color: 'white',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+        }}>
+          <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>🎯</span> Understanding SEO Score
+          </h2>
+          
+          <div style={{ background: 'rgba(255,255,255,0.15)', padding: '1rem', borderRadius: '8px', marginBottom: '1rem' }}>
+            <p style={{ marginBottom: '0.5rem', fontSize: '14px' }}><strong>What is SEO Score?</strong></p>
+            <p style={{ fontSize: '13px', lineHeight: '1.6', opacity: 0.95 }}>
+              SEO Score is a 0-100 rating that measures how well your blog post is optimized for search engines like Google. 
+              Higher scores mean better chances of ranking in search results and getting organic traffic.
+            </p>
+          </div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
+            <div style={{ background: 'rgba(255,255,255,0.15)', padding: '1rem', borderRadius: '8px' }}>
+              <div style={{ fontSize: '16px', fontWeight: '700', marginBottom: '0.5rem' }}>
+                🎯 Score Breakdown
+              </div>
+              <ul style={{ fontSize: '13px', lineHeight: '1.8', paddingLeft: '1.2rem', margin: 0 }}>
+                <li><strong>80-100:</strong> Excellent - Ready to rank!</li>
+                <li><strong>60-79:</strong> Good - Minor improvements needed</li>
+                <li><strong>0-59:</strong> Needs work - Follow tips below</li>
+              </ul>
+            </div>
+            
+            <div style={{ background: 'rgba(255,255,255,0.15)', padding: '1rem', borderRadius: '8px' }}>
+              <div style={{ fontSize: '16px', fontWeight: '700', marginBottom: '0.5rem' }}>
+                ✅ How to Improve
+              </div>
+              <ul style={{ fontSize: '13px', lineHeight: '1.8', paddingLeft: '1.2rem', margin: 0 }}>
+                <li>Use focus keyword in title</li>
+                <li>Write 150-160 char meta description</li>
+                <li>Add 3-5 relevant keywords</li>
+                <li>Use H2/H3 headings in content</li>
+                <li>Aim for 1000+ words</li>
+                <li>Include internal/external links</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Publishing Guide Panel */}
+      {showPublishGuide && (
+        <div style={{
+          marginBottom: '2rem',
+          padding: '1.5rem',
+          background: 'linear-gradient(135deg, #56ab2f 0%, #a8e063 100%)',
+          borderRadius: '12px',
+          color: 'white',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+        }}>
+          <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>🚀</span> Publishing & Tracking Guide
+          </h2>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
+            <div style={{ background: 'rgba(255,255,255,0.15)', padding: '1rem', borderRadius: '8px' }}>
+              <div style={{ fontSize: '16px', fontWeight: '700', marginBottom: '0.5rem' }}>
+                📝 WordPress Publishing
+              </div>
+              <ol style={{ fontSize: '13px', lineHeight: '1.8', paddingLeft: '1.2rem', margin: 0 }}>
+                <li>Approve blog post first</li>
+                <li>Click "Publish to WordPress" button</li>
+                <li>Enter WordPress credentials in Settings</li>
+                <li>Post auto-publishes with SEO meta</li>
+                <li>External URL will be saved</li>
+              </ol>
+            </div>
+            
+            <div style={{ background: 'rgba(255,255,255,0.15)', padding: '1rem', borderRadius: '8px' }}>
+              <div style={{ fontSize: '16px', fontWeight: '700', marginBottom: '0.5rem' }}>
+                🌐 Custom Website (Embed Code)
+              </div>
+              <ol style={{ fontSize: '13px', lineHeight: '1.8', paddingLeft: '1.2rem', margin: 0 }}>
+                <li>Copy blog HTML content</li>
+                <li>Add to your website's HTML</li>
+                <li>Include meta tags in &lt;head&gt;</li>
+                <li>Add canonical URL tag</li>
+                <li>Test on mobile & desktop</li>
+              </ol>
+            </div>
+            
+            <div style={{ background: 'rgba(255,255,255,0.15)', padding: '1rem', borderRadius: '8px' }}>
+              <div style={{ fontSize: '16px', fontWeight: '700', marginBottom: '0.5rem' }}>
+                📊 Google Analytics Setup
+              </div>
+              <ol style={{ fontSize: '13px', lineHeight: '1.8', paddingLeft: '1.2rem', margin: 0 }}>
+                <li>Get GA4 tracking code from Google</li>
+                <li>Add to website &lt;head&gt; section</li>
+                <li>Set up custom events (page views, scroll, clicks)</li>
+                <li>Monitor in Analytics dashboard</li>
+                <li>Track conversions & goals</li>
+              </ol>
+            </div>
+          </div>
+          
+          <div style={{ marginTop: '1rem', background: 'rgba(255,255,255,0.15)', padding: '1rem', borderRadius: '8px' }}>
+            <p style={{ fontSize: '13px', lineHeight: '1.6', margin: 0 }}>
+              <strong>💡 Pro Tip:</strong> Use UTM parameters in your blog links to track traffic sources in Google Analytics. 
+              Add ?utm_source=blog&utm_medium=content&utm_campaign=blog_name to your blog URLs when sharing on social media or email.
+            </p>
+          </div>
+        </div>
+      )}
       
       {/* Client Selector */}
       <div style={{ marginBottom: '2rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -491,24 +644,54 @@ const BlogManagement: React.FC = () => {
                         </div>
                       </td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <span style={{
-                          padding: '4px 12px',
-                          borderRadius: '12px',
-                          background: getStatusColor(blog.status) + '20',
-                          color: getStatusColor(blog.status),
-                          fontWeight: '600',
-                          fontSize: '12px'
-                        }}>
-                          {getStatusIcon(blog.status)} {blog.status.replace('_', ' ')}
-                        </span>
+                        <div>
+                          <span style={{
+                            padding: '4px 12px',
+                            borderRadius: '12px',
+                            background: getStatusColor(blog.status) + '20',
+                            color: getStatusColor(blog.status),
+                            fontWeight: '600',
+                            fontSize: '12px',
+                            display: 'inline-block'
+                          }}>
+                            {getStatusIcon(blog.status)} {blog.status.replace('_', ' ')}
+                          </span>
+                          
+                          {/* Show approval/rejection details */}
+                          {blog.status === 'approved' && blog.approved_at && (
+                            <div style={{ fontSize: '11px', color: '#28a745', marginTop: '4px' }}>
+                              ✓ Approved {new Date(blog.approved_at).toLocaleDateString()}
+                            </div>
+                          )}
+                          
+                          {blog.status === 'rejected' && blog.rejection_reason && (
+                            <div style={{ 
+                              fontSize: '11px', 
+                              color: '#dc3545', 
+                              marginTop: '4px',
+                              maxWidth: '200px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }} title={blog.rejection_reason}>
+                              ✗ Reason: {blog.rejection_reason}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <span style={{
-                          fontWeight: '700',
-                          color: (blog.seo_score || 0) >= 80 ? '#28a745' : (blog.seo_score || 0) >= 60 ? '#ffc107' : '#dc3545'
-                        }}>
-                          {blog.seo_score || 0}/100
-                        </span>
+                        <div>
+                          <span style={{
+                            fontWeight: '700',
+                            color: (blog.seo_score || 0) >= 80 ? '#28a745' : (blog.seo_score || 0) >= 60 ? '#ffc107' : '#dc3545'
+                          }}>
+                            {blog.seo_score || 0}/100
+                          </span>
+                          <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                            {(blog.seo_score || 0) >= 80 ? '🎯 Excellent' : 
+                             (blog.seo_score || 0) >= 60 ? '⚠️ Good' : '❌ Needs Work'}
+                          </div>
+                        </div>
                       </td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         {blog.view_count || 0}
