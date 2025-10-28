@@ -1,110 +1,56 @@
-import React, { useState } from 'react';
-import { http } from '../api/http';
+import React from 'react';
 
 interface FacebookOAuthButtonProps {
   clientId: string;
 }
 
 const FacebookOAuthButton: React.FC<FacebookOAuthButtonProps> = ({ clientId }) => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleOAuthConnect = async () => {
-    setLoading(true);
-    setError('');
-
-    try {
-      // Get OAuth URL from backend
-      const response = await http.post(`/facebook-connect/oauth/start/${clientId}`);
-      
-      if (response.data.success && response.data.oauthUrl) {
-        // Redirect to Facebook OAuth
-        window.location.href = response.data.oauthUrl;
-      } else {
-        setError('Failed to generate OAuth URL');
-      }
-    } catch (error: any) {
-      console.error('Error starting OAuth:', error);
-      setError(error.response?.data?.error || 'Failed to start OAuth flow');
-      setLoading(false);
-    }
+  const handleOAuthConnect = () => {
+    // Redirect to backend OAuth endpoint
+    window.location.href = `/api/facebook-connect/auth/${clientId}`;
   };
 
   return (
-    <div>
-      <button
-        onClick={handleOAuthConnect}
-        disabled={loading}
-        style={{
-          background: loading ? '#9ca3af' : 'linear-gradient(135deg, #1877f2 0%, #0c63d4 100%)',
-          color: 'white',
-          padding: '14px 28px',
-          borderRadius: '10px',
-          border: 'none',
-          fontSize: '16px',
-          fontWeight: '600',
-          cursor: loading ? 'not-allowed' : 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          boxShadow: '0 4px 15px rgba(24, 119, 242, 0.3)',
-          transition: 'all 0.3s ease',
-          width: '100%',
-          justifyContent: 'center'
-        }}
-        onMouseEnter={(e) => {
-          if (!loading) {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 6px 20px rgba(24, 119, 242, 0.4)';
-          }
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'translateY(0)';
-          e.currentTarget.style.boxShadow = '0 4px 15px rgba(24, 119, 242, 0.3)';
-        }}
+    <button
+      onClick={handleOAuthConnect}
+      style={{
+        width: '100%',
+        padding: '16px 32px',
+        background: 'linear-gradient(135deg, #1877f2 0%, #0c63d4 100%)',
+        color: 'white',
+        border: 'none',
+        borderRadius: '12px',
+        fontSize: '18px',
+        fontWeight: '700',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '12px',
+        boxShadow: '0 6px 20px rgba(24, 119, 242, 0.4)',
+        transition: 'all 0.3s ease'
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'translateY(-3px)';
+        e.currentTarget.style.boxShadow = '0 8px 25px rgba(24, 119, 242, 0.5)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = '0 6px 20px rgba(24, 119, 242, 0.4)';
+      }}
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="currentColor"
       >
-        {loading ? (
-          <>
-            <div style={{
-              width: '20px',
-              height: '20px',
-              border: '3px solid rgba(255,255,255,0.3)',
-              borderTop: '3px solid white',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite'
-            }}></div>
-            Redirecting to Facebook...
-          </>
-        ) : (
-          <>
-            <span style={{ fontSize: '24px' }}>📘</span>
-            Connect with Facebook
-          </>
-        )}
-      </button>
-
-      {error && (
-        <div style={{
-          marginTop: '15px',
-          padding: '12px 16px',
-          background: '#fee2e2',
-          color: '#991b1b',
-          borderRadius: '8px',
-          fontSize: '14px'
-        }}>
-          ⚠️ {error}
-        </div>
-      )}
-
-      <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
-    </div>
+        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+      </svg>
+      Connect with Facebook OAuth
+    </button>
   );
 };
 
 export default FacebookOAuthButton;
-

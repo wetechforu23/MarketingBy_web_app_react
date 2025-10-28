@@ -27,6 +27,8 @@ import CalendarPage from "../pages/CalendarPage";
 import Credentials from "../pages/Credentials";
 import Settings from "../pages/Settings";
 import ClientManagementDashboard from "../pages/ClientManagementDashboard";
+// Facebook Connect Integration
+import FacebookConnect from "../pages/FacebookConnect";
 // Social Media Content Management
 import ContentLibrary from "../pages/ContentLibrary";
 import ContentEditor from "../pages/ContentEditor";
@@ -63,6 +65,7 @@ export const router = createBrowserRouter([
       { path: "users", element: <Users /> },
       { path: "client-dashboard", element: <ClientAdminDashboard /> }, // Client dashboard route
       { path: "client-management", element: <ClientManagementDashboard /> }, // New client management dashboard
+      { path: "facebook-connect/:clientId", element: <FacebookConnect /> }, // Facebook 2-way connection
       { path: "leads", element: <Leads /> },
       { path: "leads/:id", element: <LeadDetail /> }, // Lead detail page
       { path: "campaigns", element: <CampaignsPage /> },
