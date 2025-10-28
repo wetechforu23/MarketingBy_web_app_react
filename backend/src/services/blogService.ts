@@ -3,6 +3,9 @@ import crypto from 'crypto';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { EmailService } from './emailService';
 
+// Initialize services
+const emailService = new EmailService();
+
 // =====================================================
 // Interfaces
 // =====================================================
@@ -66,6 +69,84 @@ export interface ApprovalRequest {
 // =====================================================
 
 export class BlogService {
+  
+  // ===================================================
+  // Helper Methods - Encryption & Client API Keys
+  // ===================================================
+  
+  /**
+   * Decrypt an encrypted value using AES-256-CBC
+   */
+  private static decrypt(encryptedValue: string): string {
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key!!';
+    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+    
+    try {
+      const parts = encryptedValue.split(':');
+      const iv = Buffer.from(parts[0], 'hex');
+      const encrypted = parts[1];
+      const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+      let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return decrypted;
+    } catch (error) {
+      console.error('❌ Decryption error:', error);
+      throw new Error('Failed to decrypt API key');
+    }
+  }
+  
+  /**
+   * Get client-specific Google AI API key from widget_configs
+   * Uses same credential system as chat widget
+   */
+  private static async getClientGoogleAIKey(clientId: number): Promise<string> {
+    try {
+      // First, try to get client-specific key from their widget config
+      const widgetResult = await pool.query(
+        `SELECT widget_specific_llm_key 
+         FROM widget_configs 
+         WHERE client_id = $1 
+           AND widget_specific_llm_key IS NOT NULL 
+         LIMIT 1`,
+        [clientId]
+      );
+      
+      if (widgetResult.rows.length > 0 && widgetResult.rows[0].widget_specific_llm_key) {
+        console.log(`✅ Using client-specific Google AI key for client ${clientId}`);
+        return this.decrypt(widgetResult.rows[0].widget_specific_llm_key);
+      }
+      
+      // Fallback: Try encrypted_credentials (global key)
+      const credResult = await pool.query(
+        `SELECT encrypted_value, decrypted_value 
+         FROM encrypted_credentials
+         WHERE (service = 'gemini' OR service_name = 'google_ai' OR service_name = 'gemini') 
+           AND (key_name = 'api_key' OR credential_key = 'api_key' OR credential_type = 'api_key')
+         LIMIT 1`
+      );
+      
+      if (credResult.rows.length > 0) {
+        console.log(`⚠️  Using global Google AI key (no client-specific key found for client ${clientId})`);
+        // Try decrypted_value first (if schema has it)
+        if (credResult.rows[0].decrypted_value) {
+          return credResult.rows[0].decrypted_value;
+        }
+        // Otherwise decrypt encrypted_value
+        return this.decrypt(credResult.rows[0].encrypted_value);
+      }
+      
+      // Last resort: check environment variable
+      if (process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY) {
+        console.log(`⚠️  Using Google AI key from environment variable`);
+        return process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || '';
+      }
+      
+      throw new Error('Google AI API key not found. Please configure it in widget settings or global credentials.');
+    } catch (error: any) {
+      console.error('❌ Error getting Google AI API key:', error);
+      throw new Error(`Failed to get Google AI API key: ${error.message}`);
+    }
+  }
   
   // ===================================================
   // CRUD Operations
@@ -268,21 +349,8 @@ export class BlogService {
     try {
       console.log('🤖 Generating blog with AI:', request.prompt);
       
-      // Get Google AI API key from encrypted_credentials
-      const credResult = await pool.query(
-        `SELECT decrypted_value FROM encrypted_credentials
-         WHERE service_name = 'google_ai' AND credential_key = 'api_key'
-         AND (client_id IS NULL OR client_id = $1)
-         ORDER BY client_id DESC NULLS LAST
-         LIMIT 1`,
-        [request.client_id]
-      );
-      
-      if (credResult.rows.length === 0) {
-        throw new Error('Google AI API key not found. Please configure it in settings.');
-      }
-      
-      const apiKey = credResult.rows[0].decrypted_value;
+      // Get client-specific Google AI API key (uses same system as chat widget)
+      const apiKey = await this.getClientGoogleAIKey(request.client_id);
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
       
@@ -437,7 +505,7 @@ Requirements:
             minute: '2-digit'
           });
           
-          await EmailService.sendEmail({
+          await emailService.sendEmail({
             to: post.client_email,
             subject: `📝 Blog Post Ready for Your Review: ${post.title}`,
             html: `
