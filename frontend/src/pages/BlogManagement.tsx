@@ -89,12 +89,20 @@ const BlogManagement: React.FC = () => {
   const fetchClients = async () => {
     try {
       const response = await axios.get('/api/clients');
-      setClients(response.data);
-      if (response.data.length > 0) {
-        setSelectedClient(response.data[0].id);
+      
+      // Ensure we have an array
+      if (Array.isArray(response.data)) {
+        setClients(response.data);
+        if (response.data.length > 0) {
+          setSelectedClient(response.data[0].id);
+        }
+      } else {
+        console.warn('Unexpected clients API response:', response.data);
+        setClients([]);
       }
     } catch (error) {
       console.error('Error fetching clients:', error);
+      setClients([]);
     }
   };
   
@@ -108,9 +116,20 @@ const BlogManagement: React.FC = () => {
       if (searchQuery) params.search = searchQuery;
       
       const response = await axios.get(`/api/blogs/${selectedClient}`, { params });
-      setBlogs(response.data.posts);
+      
+      // Ensure we have an array, fallback to empty array if not
+      if (response.data && Array.isArray(response.data.posts)) {
+        setBlogs(response.data.posts);
+      } else if (response.data && Array.isArray(response.data)) {
+        // In case backend returns array directly
+        setBlogs(response.data);
+      } else {
+        console.warn('Unexpected API response format:', response.data);
+        setBlogs([]);
+      }
     } catch (error) {
       console.error('Error fetching blogs:', error);
+      setBlogs([]); // Reset to empty array on error
     } finally {
       setLoading(false);
     }
@@ -426,7 +445,7 @@ const BlogManagement: React.FC = () => {
               <i className="fas fa-spinner fa-spin" style={{ fontSize: '48px', color: '#4682B4' }}></i>
               <div style={{ marginTop: '1rem', color: '#666' }}>Loading blogs...</div>
             </div>
-          ) : blogs.length === 0 ? (
+          ) : !Array.isArray(blogs) || blogs.length === 0 ? (
             <div style={{
               textAlign: 'center',
               padding: '4rem',
