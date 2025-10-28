@@ -46,8 +46,16 @@ const BlogManagement: React.FC = () => {
   const [selectedClient, setSelectedClient] = useState<number | null>(null);
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'list' | 'create' | 'ai'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'create' | 'ai' | 'settings'>('list');
   const [editingBlog, setEditingBlog] = useState<BlogPost | null>(null);
+  
+  // Settings state
+  const [wpSiteUrl, setWpSiteUrl] = useState('');
+  const [wpUsername, setWpUsername] = useState('');
+  const [wpAppPassword, setWpAppPassword] = useState('');
+  const [aiApiKey, setAiApiKey] = useState('');
+  const [aiMaxCredits, setAiMaxCredits] = useState(100000);
+  const [savingSettings, setSavingSettings] = useState(false);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -546,6 +554,21 @@ const BlogManagement: React.FC = () => {
           >
             🤖 AI Generate
           </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            style={{
+              padding: '12px 24px',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'settings' ? '3px solid #4682B4' : 'none',
+              color: activeTab === 'settings' ? '#4682B4' : '#666',
+              fontWeight: '600',
+              cursor: 'pointer',
+              fontSize: '15px'
+            }}
+          >
+            ⚙️ Settings
+          </button>
         </div>
       </div>
       
@@ -1039,6 +1062,276 @@ const BlogManagement: React.FC = () => {
               The AI will generate a complete blog post with proper HTML formatting, SEO meta tags, and keywords.
             </div>
           </div>
+        </div>
+      )}
+      
+      {/* Settings Tab */}
+      {activeTab === 'settings' && (
+        <div style={{ padding: '0' }}>
+          <div className="page-header" style={{ marginBottom: '1.5rem' }}>
+            <h1>⚙️ Blog Settings</h1>
+            <p className="text-muted">
+              Configure WordPress and AI credentials for {clients.find(c => c.id === selectedClient)?.name || 'selected client'}
+            </p>
+          </div>
+          
+          {!selectedClient ? (
+            <div className="card">
+              <div style={{
+                padding: '3rem',
+                textAlign: 'center'
+              }}>
+                <i className="fas fa-info-circle" style={{ fontSize: '48px', color: '#ffc107', marginBottom: '1rem' }}></i>
+                <p style={{ color: '#856404', marginBottom: 0, fontSize: '16px', fontWeight: '600' }}>
+                  ⚠️ Please select a client first to manage their blog settings
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: '1.5rem' }}>
+              
+              {/* WordPress Credentials Section */}
+              <div className="card">
+                <div className="card-header">
+                  <h2 className="card-title">
+                    <i className="fas fa-wordpress" style={{ marginRight: '8px', color: '#4682B4' }}></i>
+                    WordPress Publishing Credentials
+                  </h2>
+                  <span style={{ fontSize: '13px', color: '#666' }}>
+                    Configure WordPress for automated blog publishing
+                  </span>
+                </div>
+                
+                <div style={{ padding: '1.5rem' }}>
+                  <div style={{ display: 'grid', gap: '1.25rem', maxWidth: '600px' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '14px', fontWeight: '600', color: '#333' }}>
+                        WordPress Site URL *
+                      </label>
+                      <input
+                        type="url"
+                        value={wpSiteUrl}
+                        onChange={(e) => setWpSiteUrl(e.target.value)}
+                        placeholder="https://clientwebsite.com"
+                        className="form-control"
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '14px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px'
+                        }}
+                      />
+                      <small style={{ fontSize: '12px', color: '#666', marginTop: '4px', display: 'block' }}>
+                        Full URL including https://
+                      </small>
+                    </div>
+                    
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '14px', fontWeight: '600', color: '#333' }}>
+                        WordPress Username *
+                      </label>
+                      <input
+                        type="text"
+                        value={wpUsername}
+                        onChange={(e) => setWpUsername(e.target.value)}
+                        placeholder="admin or editor username"
+                        className="form-control"
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '14px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px'
+                        }}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '14px', fontWeight: '600', color: '#333' }}>
+                        WordPress Application Password *
+                      </label>
+                      <input
+                        type="password"
+                        value={wpAppPassword}
+                        onChange={(e) => setWpAppPassword(e.target.value)}
+                        placeholder="xxxx xxxx xxxx xxxx"
+                        className="form-control"
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '14px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          fontFamily: 'monospace'
+                        }}
+                      />
+                      <small style={{ fontSize: '12px', color: '#666', marginTop: '4px', display: 'block' }}>
+                        NOT your WordPress password. Generate from Users → Profile → Application Passwords
+                      </small>
+                    </div>
+                    
+                    <div style={{
+                      background: '#f8f9fa',
+                      padding: '1rem',
+                      borderRadius: '6px',
+                      border: '1px solid #e9ecef',
+                      fontSize: '13px',
+                      lineHeight: '1.6'
+                    }}>
+                      <strong style={{ display: 'block', marginBottom: '0.5rem', color: '#4682B4' }}>
+                        <i className="fas fa-info-circle" style={{ marginRight: '6px' }}></i>
+                        How to get Application Password:
+                      </strong>
+                      <ol style={{ paddingLeft: '1.2rem', margin: 0, color: '#666' }}>
+                        <li>Log into WordPress admin (/wp-admin)</li>
+                        <li>Go to: Users → Your Profile</li>
+                        <li>Scroll to "Application Passwords"</li>
+                        <li>Name: "MarketingBy Blog Publisher"</li>
+                        <li>Click "Add New" and copy the password</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Google AI Credentials Section */}
+              <div className="card">
+                <div className="card-header">
+                  <h2 className="card-title">
+                    <i className="fas fa-robot" style={{ marginRight: '8px', color: '#4682B4' }}></i>
+                    AI Blog Generation Settings
+                  </h2>
+                  <span style={{ fontSize: '13px', color: '#666' }}>
+                    Configure Google Gemini AI for content generation
+                  </span>
+                </div>
+                
+                <div style={{ padding: '1.5rem' }}>
+                  <div style={{ display: 'grid', gap: '1.25rem', maxWidth: '600px' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '14px', fontWeight: '600', color: '#333' }}>
+                        Google AI API Key *
+                      </label>
+                      <input
+                        type="password"
+                        value={aiApiKey}
+                        onChange={(e) => setAiApiKey(e.target.value)}
+                        placeholder="AIzaSy..."
+                        className="form-control"
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '14px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          fontFamily: 'monospace'
+                        }}
+                      />
+                      <small style={{ fontSize: '12px', color: '#666', marginTop: '4px', display: 'block' }}>
+                        Get from: https://makersuite.google.com/app/apikey
+                      </small>
+                    </div>
+                    
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '14px', fontWeight: '600', color: '#333' }}>
+                        Maximum Free Credits (Tokens/Month)
+                      </label>
+                      <input
+                        type="number"
+                        value={aiMaxCredits}
+                        onChange={(e) => setAiMaxCredits(parseInt(e.target.value))}
+                        min="0"
+                        step="10000"
+                        className="form-control"
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '14px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px'
+                        }}
+                      />
+                      <small style={{ fontSize: '12px', color: '#666', marginTop: '4px', display: 'block' }}>
+                        Default: 100,000 tokens/month (~50 blog posts). Adjust based on client needs.
+                      </small>
+                    </div>
+                    
+                    <div style={{
+                      background: '#f8f9fa',
+                      padding: '1rem',
+                      borderRadius: '6px',
+                      border: '1px solid #e9ecef',
+                      fontSize: '13px',
+                      lineHeight: '1.6'
+                    }}>
+                      <strong style={{ display: 'block', marginBottom: '0.5rem', color: '#4682B4' }}>
+                        <i className="fas fa-lightbulb" style={{ marginRight: '6px' }}></i>
+                        Credit Usage Info:
+                      </strong>
+                      <ul style={{ paddingLeft: '1.2rem', margin: 0, color: '#666' }}>
+                        <li>Average blog post: ~2,000 tokens</li>
+                        <li>100K credits = ~50 blog posts</li>
+                        <li>Resets monthly automatically</li>
+                        <li>Client-specific tracking enabled</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Save Button */}
+              <button
+                onClick={async () => {
+                  if (!selectedClient) return;
+                  setSavingSettings(true);
+                  try {
+                    // Save WordPress credentials
+                    if (wpSiteUrl && wpUsername && wpAppPassword) {
+                      await axios.post('/api/blogs/settings/wordpress', {
+                        client_id: selectedClient,
+                        site_url: wpSiteUrl,
+                        username: wpUsername,
+                        app_password: wpAppPassword
+                      });
+                    }
+                    
+                    // Save AI credentials
+                    if (aiApiKey) {
+                      await axios.post('/api/blogs/settings/ai', {
+                        client_id: selectedClient,
+                        api_key: aiApiKey,
+                        max_credits: aiMaxCredits
+                      });
+                    }
+                    
+                    alert('✅ Settings saved successfully!');
+                  } catch (error: any) {
+                    alert('❌ Error saving settings: ' + (error.response?.data?.error || error.message));
+                  } finally {
+                    setSavingSettings(false);
+                  }
+                }}
+                disabled={savingSettings || !selectedClient}
+                style={{
+                  padding: '16px 32px',
+                  background: savingSettings ? '#6c757d' : 'linear-gradient(135deg, #4682B4, #5a9fd4)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  fontWeight: '700',
+                  cursor: savingSettings ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {savingSettings ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin"></i>
+                    Saving Settings...
+                  </>
+                ) : (
+                  '💾 Save All Settings'
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -101,7 +101,21 @@ export class BlogService {
    */
   private static async getClientGoogleAIKey(clientId: number): Promise<string> {
     try {
-      // First, try to get client-specific key from their widget config
+      // Priority 1: Check blog-specific credentials (google_ai_client_X)
+      const serviceName = `google_ai_client_${clientId}`;
+      const blogCredResult = await pool.query(
+        `SELECT encrypted_value 
+         FROM encrypted_credentials 
+         WHERE service = $1 AND key_name = 'api_key'`,
+        [serviceName]
+      );
+      
+      if (blogCredResult.rows.length > 0 && blogCredResult.rows[0].encrypted_value) {
+        console.log(`✅ Using blog-specific Google AI key for client ${clientId}`);
+        return this.decrypt(blogCredResult.rows[0].encrypted_value);
+      }
+      
+      // Priority 2: Try to get client-specific key from their widget config
       const widgetResult = await pool.query(
         `SELECT widget_specific_llm_key 
          FROM widget_configs 
@@ -112,11 +126,11 @@ export class BlogService {
       );
       
       if (widgetResult.rows.length > 0 && widgetResult.rows[0].widget_specific_llm_key) {
-        console.log(`✅ Using client-specific Google AI key for client ${clientId}`);
+        console.log(`✅ Using widget-specific Google AI key for client ${clientId}`);
         return this.decrypt(widgetResult.rows[0].widget_specific_llm_key);
       }
       
-      // Fallback: Try encrypted_credentials (global key)
+      // Priority 3: Try encrypted_credentials (global key)
       const credResult = await pool.query(
         `SELECT encrypted_value 
          FROM encrypted_credentials
@@ -127,17 +141,16 @@ export class BlogService {
       
       if (credResult.rows.length > 0) {
         console.log(`⚠️  Using global Google AI key (no client-specific key found for client ${clientId})`);
-        // Decrypt the encrypted value
         return this.decrypt(credResult.rows[0].encrypted_value);
       }
       
-      // Last resort: check environment variable
+      // Priority 4: check environment variable
       if (process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY) {
         console.log(`⚠️  Using Google AI key from environment variable`);
         return process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || '';
       }
       
-      throw new Error('Google AI API key not found. Please configure it in widget settings or global credentials.');
+      throw new Error('Google AI API key not found. Please configure it in Blog Settings.');
     } catch (error: any) {
       console.error('❌ Error getting Google AI API key:', error);
       throw new Error(`Failed to get Google AI API key: ${error.message}`);
@@ -347,8 +360,9 @@ export class BlogService {
       
       // Get client-specific Google AI API key (uses same system as chat widget)
       const apiKey = await this.getClientGoogleAIKey(request.client_id);
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      
+      // Use direct v1 API (same as widget) instead of SDK for better compatibility
+      const modelName = 'gemini-1.5-flash-latest';
       
       // Build the prompt
       const tone = request.tone || 'professional';
@@ -379,9 +393,32 @@ Requirements:
 - Make it engaging, informative, and actionable
 - Keywords should be relevant search terms`;
       
-      const result = await model.generateContent(systemPrompt);
-      const response = await result.response;
-      const text = response.text();
+      // Call Gemini API v1 directly (same as widget for compatibility)
+      const axios = require('axios');
+      const apiResponse = await axios.post(
+        `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          contents: [{
+            parts: [{
+              text: systemPrompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 8192,
+            topP: 0.8,
+            topK: 10
+          }
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          timeout: 30000 // 30 second timeout for blog generation
+        }
+      );
+      
+      const text = apiResponse.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
       console.log('🤖 AI Response received, length:', text.length);
       
@@ -421,7 +458,7 @@ Requirements:
         seo_score: seoScore,
         generated_by: 'google_ai',
         ai_prompt: request.prompt,
-        ai_model: 'gemini-1.5-flash',
+        ai_model: modelName,
         generation_metadata: {
           tone,
           target_word_count: wordCount,
@@ -721,28 +758,28 @@ ${approvalUrl}
       }
       
       // Get WordPress credentials from encrypted_credentials
+      const serviceName = `wordpress_client_${post.client_id}`;
       const wpCredsResult = await pool.query(
-        `SELECT credential_key, decrypted_value, metadata 
+        `SELECT key_name, encrypted_value 
          FROM encrypted_credentials
-         WHERE client_id = $1
-         AND service_name = 'wordpress'
-         AND credential_key IN ('site_url', 'username', 'app_password')
-         ORDER BY credential_key`,
-        [post.client_id]
+         WHERE service = $1
+         AND key_name IN ('site_url', 'username', 'app_password')
+         ORDER BY key_name`,
+        [serviceName]
       );
       
       if (wpCredsResult.rows.length < 3) {
-        throw new Error('WordPress credentials not configured for this client. Please configure WordPress site URL, username, and application password in Credentials settings.');
+        throw new Error('WordPress credentials not configured for this client. Please configure in Blog Settings → ⚙️ Settings tab.');
       }
       
-      // Parse WordPress credentials
+      // Parse and decrypt WordPress credentials
       const creds: any = {};
       wpCredsResult.rows.forEach(row => {
-        creds[row.credential_key] = row.decrypted_value;
+        creds[row.key_name] = this.decrypt(row.encrypted_value);
       });
       
       if (!creds.site_url || !creds.username || !creds.app_password) {
-        throw new Error('Incomplete WordPress credentials');
+        throw new Error('Incomplete WordPress credentials. Please configure all fields in Blog Settings.');
       }
       
       // Ensure site_url ends without trailing slash

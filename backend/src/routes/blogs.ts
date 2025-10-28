@@ -435,5 +435,189 @@ router.post('/categories', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+// =====================================================
+// Blog Settings Endpoints
+// =====================================================
+
+/**
+ * POST /api/blogs/settings/wordpress
+ * Save WordPress credentials for a client
+ */
+router.post('/settings/wordpress', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { client_id, site_url, username, app_password } = req.body;
+    
+    if (!client_id || !site_url || !username || !app_password) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    // Import pool
+    const pool = require('../config/database').default;
+    const crypto = require('crypto');
+    
+    // Get encryption key
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-encryption-key-change-this';
+    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+    
+    // Function to encrypt
+    const encrypt = (text: string): string => {
+      const iv = crypto.randomBytes(16);
+      const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+      let encrypted = cipher.update(text, 'utf8', 'hex');
+      encrypted += cipher.final('hex');
+      return iv.toString('hex') + ':' + encrypted;
+    };
+    
+    // Save or update credentials (using old schema without client_id)
+    // We'll use service name like 'wordpress_client_123'
+    const serviceName = `wordpress_client_${client_id}`;
+    
+    // Save site_url
+    await pool.query(
+      `INSERT INTO encrypted_credentials (service, key_name, encrypted_value, description)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (service, key_name) 
+       DO UPDATE SET encrypted_value = EXCLUDED.encrypted_value, updated_at = CURRENT_TIMESTAMP`,
+      [serviceName, 'site_url', encrypt(site_url), `WordPress site URL for client ${client_id}`]
+    );
+    
+    // Save username
+    await pool.query(
+      `INSERT INTO encrypted_credentials (service, key_name, encrypted_value, description)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (service, key_name) 
+       DO UPDATE SET encrypted_value = EXCLUDED.encrypted_value, updated_at = CURRENT_TIMESTAMP`,
+      [serviceName, 'username', encrypt(username), `WordPress username for client ${client_id}`]
+    );
+    
+    // Save app_password
+    await pool.query(
+      `INSERT INTO encrypted_credentials (service, key_name, encrypted_value, description)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (service, key_name) 
+       DO UPDATE SET encrypted_value = EXCLUDED.encrypted_value, updated_at = CURRENT_TIMESTAMP`,
+      [serviceName, 'app_password', encrypt(app_password), `WordPress app password for client ${client_id}`]
+    );
+    
+    console.log(`✅ WordPress credentials saved for client ${client_id}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'WordPress credentials saved successfully' 
+    });
+  } catch (error: any) {
+    console.error('❌ Error saving WordPress credentials:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/blogs/settings/ai
+ * Save Google AI credentials for a client
+ */
+router.post('/settings/ai', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { client_id, api_key, max_credits } = req.body;
+    
+    if (!client_id || !api_key) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    // Import pool
+    const pool = require('../config/database').default;
+    const crypto = require('crypto');
+    
+    // Get encryption key
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-encryption-key-change-this';
+    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+    
+    // Function to encrypt
+    const encrypt = (text: string): string => {
+      const iv = crypto.randomBytes(16);
+      const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+      let encrypted = cipher.update(text, 'utf8', 'hex');
+      encrypted += cipher.final('hex');
+      return iv.toString('hex') + ':' + encrypted;
+    };
+    
+    // Save or update credentials
+    const serviceName = `google_ai_client_${client_id}`;
+    
+    // Save API key
+    await pool.query(
+      `INSERT INTO encrypted_credentials (service, key_name, encrypted_value, description)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (service, key_name) 
+       DO UPDATE SET encrypted_value = EXCLUDED.encrypted_value, updated_at = CURRENT_TIMESTAMP`,
+      [serviceName, 'api_key', encrypt(api_key), `Google AI API key for client ${client_id}`]
+    );
+    
+    // Save max credits (not encrypted, just metadata)
+    await pool.query(
+      `INSERT INTO encrypted_credentials (service, key_name, encrypted_value, description)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (service, key_name) 
+       DO UPDATE SET encrypted_value = EXCLUDED.encrypted_value, updated_at = CURRENT_TIMESTAMP`,
+      [serviceName, 'max_credits', String(max_credits || 100000), `Monthly token limit for client ${client_id}`]
+    );
+    
+    console.log(`✅ Google AI credentials saved for client ${client_id}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Google AI credentials saved successfully' 
+    });
+  } catch (error: any) {
+    console.error('❌ Error saving Google AI credentials:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/blogs/settings/:clientId
+ * Get blog settings for a client (without sensitive data)
+ */
+router.get('/settings/:clientId', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const clientId = parseInt(req.params.clientId);
+    const pool = require('../config/database').default;
+    
+    // Get WordPress settings (without passwords)
+    const wpService = `wordpress_client_${clientId}`;
+    const wpResult = await pool.query(
+      `SELECT key_name, description 
+       FROM encrypted_credentials 
+       WHERE service = $1 AND key_name IN ('site_url', 'username')`,
+      [wpService]
+    );
+    
+    // Get AI settings
+    const aiService = `google_ai_client_${clientId}`;
+    const aiResult = await pool.query(
+      `SELECT key_name, encrypted_value 
+       FROM encrypted_credentials 
+       WHERE service = $1 AND key_name = 'max_credits'`,
+      [aiService]
+    );
+    
+    const settings: any = {
+      wordpress: {
+        configured: wpResult.rows.length >= 2,
+        site_url_set: wpResult.rows.some(r => r.key_name === 'site_url'),
+        username_set: wpResult.rows.some(r => r.key_name === 'username')
+      },
+      ai: {
+        configured: aiResult.rows.length > 0,
+        max_credits: aiResult.rows.find(r => r.key_name === 'max_credits')?.encrypted_value || '100000'
+      }
+    };
+    
+    res.json({ success: true, settings });
+  } catch (error: any) {
+    console.error('❌ Error fetching blog settings:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
 
