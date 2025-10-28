@@ -46,10 +46,45 @@ const FacebookConnect: React.FC = () => {
         const decodedPages = JSON.parse(decodeURIComponent(pagesParam));
         const decodedToken = decodeURIComponent(tokenParam);
         
-        setPages(decodedPages);
-        setProcessedToken(decodedToken);
-        setShowPageSelector(true);
-        setConnectionMethod('oauth');
+        console.log('✅ OAuth callback received:', {
+          pagesCount: decodedPages.length,
+          hasToken: !!decodedToken
+        });
+
+        // If only 1 page, auto-select it
+        if (decodedPages.length === 1) {
+          const page = decodedPages[0];
+          console.log('🎯 Auto-selecting single page:', page.name);
+          setConnectionMethod('oauth');
+          
+          // Auto-submit the single page
+          const autoSelectPage = async () => {
+            try {
+              const response = await http.post(`/facebook-connect/oauth/complete/${clientId}`, {
+                pageId: page.id,
+                pageToken: page.access_token,
+                pageName: page.name
+              });
+
+              if (response.data.success) {
+                alert('✅ Facebook page connected successfully!');
+                setTimeout(() => {
+                  navigate(`/app/client-management?highlight=${clientId}`);
+                }, 1000);
+              }
+            } catch (error: any) {
+              console.error('Error auto-selecting page:', error);
+              setError(`Failed to connect: ${error.response?.data?.error || error.message}`);
+            }
+          };
+          autoSelectPage();
+        } else {
+          // Multiple pages - show selector
+          setPages(decodedPages);
+          setProcessedToken(decodedToken);
+          setShowPageSelector(true);
+          setConnectionMethod('oauth');
+        }
         
         // Clean up URL
         window.history.replaceState({}, '', `/app/facebook-connect/${clientId}`);
@@ -58,7 +93,7 @@ const FacebookConnect: React.FC = () => {
         setError('Failed to process OAuth callback');
       }
     }
-  }, [searchParams, clientId]);
+  }, [searchParams, clientId, navigate]);
 
   const checkConnectionStatus = async () => {
     try {
@@ -99,7 +134,14 @@ const FacebookConnect: React.FC = () => {
         setConnectedPageName(pageName);
         setShowPageSelector(false);
         setPages([]);
+        
+        // Show success message and redirect back to client management
         alert('✅ Facebook page connected successfully!');
+        
+        // Redirect back to client management after 1 second
+        setTimeout(() => {
+          navigate(`/app/client-management?highlight=${clientId}`);
+        }, 1000);
       }
     } catch (error: any) {
       console.error('Error connecting page:', error);
