@@ -1,0 +1,33 @@
+# Basic gitleaks config with allowlist for placeholders and docs
+
+[allowlist]
+description = "Allow common placeholders and sample credentials in docs"
+paths = [
+  "README.md",
+  "README_DEVELOPER.md",
+  "DEVELOPER_.*\\.md",
+  "COMPLETE_SOLUTION_DOCUMENTATION.md",
+  "NEXT_STEPS.md",
+  "PENDING_FEATURES_STATUS.md",
+  "docs/",
+  "heroku_env_template.txt",
+  "config/env.example",
+  "docker-compose.yml"
+]
+
+regexes = [
+  "(?i)your[-_ ]?(secret|key|token|password)",
+  "postgres(?:ql)?:\/\/\w+:\w+@localhost:\d+\/\w+",
+  "secret[_-]?key=your[-_ ]?secret[-_ ]?key",
+  "AZURE_CLIENT_SECRET=your[-_ ]?azure[-_ ]?client[-_ ]?secret",
+  "FACEBOOK_APP_SECRET=your[-_ ]?facebook[-_ ]?app[-_ ]?secret",
+  "GODADDY_API_SECRET=your[-_ ]?godaddy[-_ ]?api[-_ ]?secret",
+  "STRIPE_SECRET_KEY=your[-_ ]?secret[-_ ]?key",
+  "SMTP_SERVER=smtp\\.(gmail|mail\\.outlook)\\.com",
+  "POSTGRES_PASSWORD=password",
+  "SMTP_SENDER_PASSWORD=your_smtp_password_here"
+]
+
+[rules]
+# Use default rules from gitleaks action; local file kept minimal
+
