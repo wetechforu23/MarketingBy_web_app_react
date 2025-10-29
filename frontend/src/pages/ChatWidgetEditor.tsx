@@ -81,6 +81,26 @@ export default function ChatWidgetEditor() {
   const [testingWebhook, setTestingWebhook] = useState(false)
   const [webhookTestResult, setWebhookTestResult] = useState<string | null>(null)
 
+  // 🤖 AI/LLM Configuration State
+  const [enableAI, setEnableAI] = useState(false)
+  const [aiApiKey, setAiApiKey] = useState('')
+  const [aiMaxTokens, setAiMaxTokens] = useState(1000)
+  const [aiConfigured, setAiConfigured] = useState(false)
+  const [testingAI, setTestingAI] = useState(false)
+  const [aiTestResult, setAiTestResult] = useState<string | null>(null)
+  const [savingAI, setSavingAI] = useState(false)
+
+  // 🏥 Industry & HIPAA State
+  const [industryType, setIndustryType] = useState('general')
+  const [enableHipaa, setEnableHipaa] = useState(false)
+  const [hipaaDisclaimer, setHipaaDisclaimer] = useState('')
+  const [detectSensitiveData, setDetectSensitiveData] = useState(false)
+  const [emergencyKeywords, setEmergencyKeywords] = useState(true)
+  const [emergencyContact, setEmergencyContact] = useState('Call 911 or visit nearest ER')
+
+  // 📚 Knowledge Base Quick Setup
+  const [quickKbEntries, setQuickKbEntries] = useState([{ question: '', answer: '', category: 'General' }])
+
   useEffect(() => {
     fetchUserAndClients()
     if (isEditMode) {
@@ -1019,6 +1039,150 @@ export default function ChatWidgetEditor() {
           </label>
         </div>
 
+        {/* 🤖 AI/LLM Configuration */}
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '2rem',
+          marginBottom: '1.5rem',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }}>
+          <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            🤖 AI Smart Responses (Google Gemini)
+            {aiConfigured && (
+              <span style={{
+                background: '#28a745',
+                color: 'white',
+                padding: '4px 12px',
+                borderRadius: '12px',
+                fontSize: '12px',
+                fontWeight: '600'
+              }}>
+                ✓ Configured
+              </span>
+            )}
+          </h3>
+          <p style={{ fontSize: '14px', color: '#666', marginBottom: '1.5rem' }}>
+            Enable AI-powered responses using Google Gemini. AI will answer questions the Knowledge Base can't handle.
+          </p>
+
+          <label style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={enableAI}
+              onChange={(e) => setEnableAI(e.target.checked)}
+              style={{ marginRight: '10px', width: '20px', height: '20px', cursor: 'pointer' }}
+            />
+            <span style={{ fontWeight: '700', fontSize: '16px' }}>Enable AI-powered responses</span>
+          </label>
+
+          {enableAI && (
+            <>
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
+                  Google AI API Key *
+                </label>
+                <input
+                  type="password"
+                  value={aiApiKey}
+                  onChange={(e) => setAiApiKey(e.target.value)}
+                  placeholder="AIzaSy..."
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '2px solid #e0e0e0',
+                    borderRadius: '8px',
+                    fontSize: '14px'
+                  }}
+                />
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '6px' }}>
+                  Get your free API key from{' '}
+                  <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{ color: '#4682B4' }}>
+                    Google AI Studio
+                  </a>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
+                  Free Credits per Month (tokens)
+                </label>
+                <input
+                  type="number"
+                  min="100"
+                  max="100000"
+                  value={aiMaxTokens}
+                  onChange={(e) => setAiMaxTokens(parseInt(e.target.value))}
+                  style={{
+                    width: '200px',
+                    padding: '12px',
+                    border: '2px solid #e0e0e0',
+                    borderRadius: '8px',
+                    fontSize: '14px'
+                  }}
+                />
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '6px' }}>
+                  Monthly token limit for AI responses. Resets automatically.
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!aiApiKey.trim()) {
+                      setAiTestResult('❌ Please enter API key first')
+                      return
+                    }
+                    setTestingAI(true)
+                    setAiTestResult(null)
+                    try {
+                      // Test AI connection (you'll need to implement this endpoint)
+                      const response = await api.post('/chat-widget/test-ai', {
+                        api_key: aiApiKey
+                      })
+                      setAiTestResult('✅ ' + response.data.message)
+                      setAiConfigured(true)
+                    } catch (error: any) {
+                      setAiTestResult('❌ ' + (error.response?.data?.error || 'Test failed'))
+                      setAiConfigured(false)
+                    } finally {
+                      setTestingAI(false)
+                    }
+                  }}
+                  disabled={testingAI}
+                  style={{
+                    padding: '10px 20px',
+                    background: testingAI ? '#6c757d' : '#17a2b8',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: testingAI ? 'not-allowed' : 'pointer',
+                    fontWeight: '600',
+                    fontSize: '14px'
+                  }}
+                >
+                  {testingAI ? 'Testing...' : '🧪 Test AI Connection'}
+                </button>
+              </div>
+
+              {aiTestResult && (
+                <div style={{
+                  marginTop: '10px',
+                  padding: '12px',
+                  background: aiTestResult.startsWith('✅') ? '#d4edda' : '#f8d7da',
+                  border: `1px solid ${aiTestResult.startsWith('✅') ? '#c3e6cb' : '#f5c6cb'}`,
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  color: aiTestResult.startsWith('✅') ? '#155724' : '#721c24'
+                }}>
+                  {aiTestResult}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
         {/* 📧 Email Notification Settings */}
         <div style={{
           background: 'white',
@@ -1725,6 +1889,186 @@ export default function ChatWidgetEditor() {
                 All agent requests will use the default portal chat method.
               </div>
             )}
+          </div>
+        )}
+
+        {/* 🏥 Industry & HIPAA Compliance */}
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '2rem',
+          marginBottom: '1.5rem',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }}>
+          <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            🏥 Industry & Compliance Settings
+          </h3>
+          <p style={{ fontSize: '14px', color: '#666', marginBottom: '1.5rem' }}>
+            Configure industry-specific settings and compliance requirements
+          </p>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
+              Industry Type
+            </label>
+            <select
+              value={industryType}
+              onChange={(e) => setIndustryType(e.target.value)}
+              style={{
+                width: '100%',
+                maxWidth: '300px',
+                padding: '12px',
+                border: '2px solid #e0e0e0',
+                borderRadius: '8px',
+                fontSize: '14px'
+              }}
+            >
+              <option value="general">General / Business</option>
+              <option value="healthcare">Healthcare / Medical</option>
+              <option value="finance">Finance / Banking</option>
+              <option value="legal">Legal Services</option>
+              <option value="education">Education</option>
+              <option value="real_estate">Real Estate</option>
+              <option value="ecommerce">E-commerce / Retail</option>
+            </select>
+          </div>
+
+          {industryType === 'healthcare' && (
+            <div style={{
+              background: '#f0f9ff',
+              padding: '1.5rem',
+              borderRadius: '8px',
+              border: '2px solid #0ea5e9',
+              marginBottom: '1.5rem'
+            }}>
+              <h4 style={{ marginTop: 0, fontSize: '15px', fontWeight: '600', color: '#0369a1' }}>
+                🏥 Healthcare-Specific Settings
+              </h4>
+              
+              <label style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '1rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={enableHipaa}
+                  onChange={(e) => setEnableHipaa(e.target.checked)}
+                  style={{ marginRight: '10px', marginTop: '3px', width: '18px', height: '18px' }}
+                />
+                <div>
+                  <span style={{ fontWeight: '600' }}>Display HIPAA Disclaimer</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#666' }}>
+                    Show disclaimer before chatting (required for HIPAA compliance)
+                  </p>
+                </div>
+              </label>
+
+              {enableHipaa && (
+                <div style={{ marginLeft: '28px', marginBottom: '1rem' }}>
+                  <textarea
+                    value={hipaaDisclaimer}
+                    onChange={(e) => setHipaaDisclaimer(e.target.value)}
+                    placeholder="Enter custom HIPAA disclaimer or leave empty for default message..."
+                    rows={3}
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      fontFamily: 'inherit'
+                    }}
+                  />
+                </div>
+              )}
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '1rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={detectSensitiveData}
+                  onChange={(e) => setDetectSensitiveData(e.target.checked)}
+                  style={{ marginRight: '10px', marginTop: '3px', width: '18px', height: '18px' }}
+                />
+                <div>
+                  <span style={{ fontWeight: '600' }}>Block Sensitive Information</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#666' }}>
+                    Detect and block SSN, credit cards, medical records from chat
+                  </p>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '1rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={emergencyKeywords}
+                  onChange={(e) => setEmergencyKeywords(e.target.checked)}
+                  style={{ marginRight: '10px', marginTop: '3px', width: '18px', height: '18px' }}
+                />
+                <div>
+                  <span style={{ fontWeight: '600' }}>Emergency Keyword Detection</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#666' }}>
+                    Detect emergency keywords and display emergency contact info
+                  </p>
+                </div>
+              </label>
+
+              {emergencyKeywords && (
+                <div style={{ marginLeft: '28px' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '13px' }}>
+                    Emergency Contact Message
+                  </label>
+                  <input
+                    type="text"
+                    value={emergencyContact}
+                    onChange={(e) => setEmergencyContact(e.target.value)}
+                    placeholder="e.g., Call 911 or visit nearest ER"
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontSize: '13px'
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 🔀 Conversation Flow Configuration */}
+        {isEditMode && (
+          <div style={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            borderRadius: '12px',
+            padding: '2rem',
+            marginBottom: '1.5rem',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            color: 'white'
+          }}>
+            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🔀 Conversation Flow Configuration
+            </h3>
+            <p style={{ fontSize: '14px', marginBottom: '1.5rem', opacity: 0.9 }}>
+              Define how the bot handles conversations: Greeting → Knowledge Base → AI → Agent Handoff
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate(`/app/chat-widgets/${id}/flow`)}
+              style={{
+                padding: '12px 24px',
+                background: 'white',
+                color: '#667eea',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '15px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <i className="fas fa-route"></i>
+              Configure Conversation Flow
+            </button>
           </div>
         )}
 
