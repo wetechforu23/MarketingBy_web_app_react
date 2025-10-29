@@ -40,8 +40,6 @@ import duplicateManagementRoutes from './routes/duplicateManagement';
 import blogRoutes from './routes/blogs';
 // Facebook Connect routes (2-Way Integration)
 import facebookConnectRoutes from './routes/facebookConnect';
-// Client Dashboard routes (Real Data Only)
-import clientDashboardRoutes from './routes/clientDashboard';
 
 dotenv.config();
 
@@ -197,8 +195,6 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/blogs', blogRoutes);
 // Facebook Connect routes (2-Way Integration)
 app.use('/api', facebookConnectRoutes);
-// Client Dashboard routes (Real Data Only)
-app.use('/api/client-dashboard', clientDashboardRoutes);
 
 // GENERIC API ROUTE (Catches all other /api/* routes) - MUST BE LAST
 app.use('/api', apiRoutes);
