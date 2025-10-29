@@ -224,6 +224,44 @@ router.post('/widgets', async (req, res) => {
   }
 });
 
+// Get single widget by ID
+router.get('/widgets/:id', async (req, res) => {
+  try {
+    const widgetId = parseInt(req.params.id);
+    const user = (req as any).user;
+
+    if (!widgetId || isNaN(widgetId)) {
+      return res.status(400).json({ error: 'Invalid widget ID' });
+    }
+
+    // Fetch widget
+    const result = await pool.query(
+      `SELECT w.*, c.client_name, c.email as client_email
+       FROM widget_configs w
+       JOIN clients c ON w.client_id = c.id
+       WHERE w.id = $1`,
+      [widgetId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+
+    const widget = result.rows[0];
+
+    // Check permissions (super admin or widget owner)
+    if (user && !user.is_admin && user.client_id !== widget.client_id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    res.json(widget);
+
+  } catch (error) {
+    console.error('Error fetching widget:', error);
+    res.status(500).json({ error: 'Failed to fetch widget' });
+  }
+});
+
 // Update widget configuration
 router.put('/widgets/:id', async (req, res) => {
   try {
