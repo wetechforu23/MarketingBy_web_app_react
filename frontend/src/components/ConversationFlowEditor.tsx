@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api } from '../api/http';
 import './ConversationFlowEditor.css';
 
 // ==========================================
@@ -61,7 +61,7 @@ export const ConversationFlowEditor: React.FC<ConversationFlowEditorProps> = ({ 
     try {
       setLoading(true);
       setError(null);
-      const response = await axios.get(`/api/widgets/${widgetId}/flow`);
+      const response = await api.get(`/widgets/${widgetId}/flow`);
       setSteps(response.data.conversation_flow || []);
     } catch (err: any) {
       console.error('Error fetching flow:', err);
@@ -77,7 +77,7 @@ export const ConversationFlowEditor: React.FC<ConversationFlowEditorProps> = ({ 
       setError(null);
       setSuccess(null);
 
-      await axios.put(`/api/widgets/${widgetId}/flow`, {
+      await api.put(`/widgets/${widgetId}/flow`, {
         conversation_flow: steps
       });
 
@@ -105,7 +105,7 @@ export const ConversationFlowEditor: React.FC<ConversationFlowEditorProps> = ({ 
       setError(null);
       setSuccess(null);
 
-      const response = await axios.post(`/api/widgets/${widgetId}/flow/reset`);
+      const response = await api.post(`/widgets/${widgetId}/flow/reset`);
       setSteps(response.data.conversation_flow);
       setSuccess('Flow reset to default successfully!');
 
