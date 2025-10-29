@@ -1,8 +1,10 @@
 import { createBrowserRouter } from "react-router-dom";
 import SmartDashboard from "../components/SmartDashboard";
+import ProtectedRoute from "../components/ProtectedRoute";
 import SuperAdminDashboard from "../pages/SuperAdminDashboard";
 import ClientAdminDashboard from "../pages/ClientAdminDashboard";
 import ClientUserDashboard from "../pages/ClientUserDashboard";
+import ClientDashboard from "../pages/ClientDashboard";
 import LoginPage from "../pages/LoginPage";
 import HomePage from "../pages/home/HomePage";
 import TermsOfService from "../pages/TermsOfService";
@@ -59,15 +61,17 @@ export const router = createBrowserRouter([
     children: [
       { path: "dashboard", element: <SmartDashboard /> }, // Smart dashboard that routes based on user type
       { path: "admin", element: <SuperAdminDashboard /> }, // Super Admin Dashboard
-      { path: "client-admin", element: <ClientAdminDashboard /> }, // Client Admin Dashboard
-      { path: "client-user", element: <ClientUserDashboard /> }, // Client User Dashboard
+      { path: "client-admin", element: <ClientDashboard /> }, // Client Admin Dashboard
+      { path: "client-user", element: <ClientDashboard /> }, // Client User Dashboard
+      { path: "client-admin-old", element: <ClientAdminDashboard /> }, // Old Client Admin Dashboard (backup)
+      { path: "client-user-old", element: <ClientUserDashboard /> }, // Old Client User Dashboard (backup)
       { path: "profile", element: <Profile /> }, // User Profile page
       { path: "users", element: <Users /> },
       { path: "client-dashboard", element: <ClientAdminDashboard /> }, // Client dashboard route
-      { path: "client-management", element: <ClientManagementDashboard /> }, // New client management dashboard
+      { path: "client-management", element: <ProtectedRoute requireWeTechForU={true}><ClientManagementDashboard /></ProtectedRoute> }, // Protected: Only WeTechForU team
       { path: "facebook-connect/:clientId", element: <FacebookConnect /> }, // Facebook 2-way connection
-      { path: "leads", element: <Leads /> },
-      { path: "leads/:id", element: <LeadDetail /> }, // Lead detail page
+      { path: "leads", element: <ProtectedRoute requireWeTechForU={true}><Leads /></ProtectedRoute> }, // Protected: Only WeTechForU team
+      { path: "leads/:id", element: <ProtectedRoute requireWeTechForU={true}><LeadDetail /></ProtectedRoute> }, // Protected: Only WeTechForU team
       { path: "campaigns", element: <CampaignsPage /> },
       { path: "analytics", element: <AnalyticsPage /> },
       { path: "seo", element: <SEOPage /> },
@@ -77,7 +81,7 @@ export const router = createBrowserRouter([
       { path: "compliance", element: <CalendarPage /> }, // Compliance route (using Calendar page for now)
       { path: "credentials", element: <Credentials /> }, // Credentials management page
       { path: "settings", element: <Settings /> }, // System settings page
-      { path: "settings/clients", element: <Clients /> }, // Clients management in settings
+      { path: "settings/clients", element: <ProtectedRoute requireWeTechForU={true}><Clients /></ProtectedRoute> }, // Protected: Only WeTechForU team
       // Social Media Content Management routes
       { path: "content-library", element: <ContentLibrary /> },
       { path: "content-library/create", element: <ContentEditor /> },

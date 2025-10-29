@@ -167,8 +167,13 @@ const ClientManagementDashboard: React.FC = () => {
         fetchClientData(selectedClient.id);
       }
     } else if (error) {
-      setError(`❌ Connection failed: ${error}`);
+      console.warn('⚠️ URL contains error parameter:', error);
+      // Clear URL parameters FIRST
       window.history.replaceState({}, document.title, window.location.pathname);
+      // Show as a warning message instead of blocking error
+      setSuccessMessage(`⚠️ Previous action had an issue: ${error}. Please try again.`);
+      // Auto-clear after 5 seconds
+      setTimeout(() => setSuccessMessage(null), 5000);
     }
   }, [clients, selectedClient]);
 

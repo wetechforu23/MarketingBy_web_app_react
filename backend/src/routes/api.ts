@@ -1010,27 +1010,8 @@ router.get('/analytics', async (req, res) => {
 });
 
 // Client Dashboard endpoints
-router.get('/client-dashboard/overview', async (req, res) => {
-  try {
-    // Get client-specific overview data
-    const { view_only } = req.query;
-    
-    // Mock data for now - replace with actual client-specific queries
-    const overview = {
-      seoScore: 85,
-      leadsThisMonth: 23,
-      websiteTraffic: 1247,
-      trafficGrowth: 12,
-      newLeadsThisWeek: 5,
-      seoScoreStatus: 'good'
-    };
-
-    res.json(overview);
-  } catch (error) {
-    console.error('Get client overview error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+// NOTE: Moved to dedicated clientDashboard.ts route file for real data
+// router.get('/client-dashboard/overview', ...) - NOW HANDLED BY clientDashboard.ts
 
 router.get('/client-dashboard/analytics', async (req, res) => {
   try {
@@ -5133,15 +5114,26 @@ router.post('/facebook/sync/:clientId', requireAuth, async (req, res) => {
   try {
     const { clientId } = req.params;
     
-    console.log(`🔄 Syncing Facebook data for client ${clientId}`);
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`🔄 SYNC FACEBOOK DATA REQUEST - Client ${clientId}`);
+    console.log(`${'='.repeat(80)}`);
 
     const FacebookService = (await import('../services/facebookService')).default;
     const facebookService = new FacebookService(pool);
 
+    console.log(`📞 Calling fetchAndStoreData()...`);
+    
     // Fetch and store data (single method call like GA)
     const data = await facebookService.fetchAndStoreData(parseInt(clientId));
 
     console.log(`✅ Facebook sync completed for client ${clientId}`);
+    console.log(`📊 Synced data:`, {
+      pageViews: data.pageViews,
+      followers: data.followers,
+      engagement: data.engagement,
+      reach: data.reach,
+      posts: data.posts?.length || 0
+    });
 
     res.json({
       success: true,
@@ -5151,11 +5143,18 @@ router.post('/facebook/sync/:clientId', requireAuth, async (req, res) => {
         followers: data.followers,
         engagement: data.engagement,
         reach: data.reach,
-        posts: data.posts.length
+        posts: data.posts?.length || 0
       }
     });
   } catch (error: any) {
-    console.error('❌ Sync Facebook error:', error);
+    console.error('\n❌ ===========================================');
+    console.error('❌ SYNC FACEBOOK ERROR');
+    console.error('❌ ===========================================');
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', error);
+    console.error('❌ ===========================================\n');
+    
     res.status(500).json({ 
       success: false,
       error: 'Failed to sync Facebook data',

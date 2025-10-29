@@ -476,10 +476,11 @@ class FacebookService {
       const reach = overviewMetrics.reach || 0;
       const impressions = overviewMetrics.impressions || 0;
 
-      // Calculate engagement rate
+      // Calculate engagement rate (cap at 100% to prevent database overflow)
       let engagementRate = 0;
       if (followers > 0 && engagement > 0) {
-        engagementRate = Number(((engagement / followers) * 100).toFixed(2));
+        const rawRate = (engagement / followers) * 100;
+        engagementRate = Number(Math.min(rawRate, 100).toFixed(2)); // Cap at 100% max
       }
 
       console.log(`✅ Page-level metrics fetched:`);
@@ -518,12 +519,12 @@ class FacebookService {
         
         const analyticsResult = await dbClient.query(
           `INSERT INTO facebook_analytics (
-            client_id, page_views, followers, engagement, reach, impressions, engagement_rate, metric_date, synced_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_DATE, NOW())
-          ON CONFLICT (client_id, metric_date) 
+            client_id, page_views, followers, engagement, reach, impressions, engagement_rate, synced_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+          ON CONFLICT (client_id) 
           DO UPDATE SET 
             page_views = $2, followers = $3, engagement = $4, reach = $5, impressions = $6, 
-            engagement_rate = $7, synced_at = NOW()`,
+            engagement_rate = $7, synced_at = NOW(), updated_at = NOW()`,
           [clientId, pageViews, followers, engagement, reach, impressions, engagementRate]
         );
         console.log(`   ✅ Page-level metrics stored (${analyticsResult.rowCount} row affected)`);
@@ -642,27 +643,17 @@ class FacebookService {
    */
     async getStoredData(clientId: number): Promise<FacebookData | null> {
         try {
-          // Get page-level metrics (latest date)
-          const analyticsResult = await this.pool.query(
-            `SELECT page_views, followers, engagement, reach, impressions, engagement_rate, metric_date
-             FROM facebook_analytics 
-             WHERE client_id = $1 
-             ORDER BY metric_date DESC, synced_at DESC 
-             LIMIT 1`,
+        // Get page-level metrics (latest sync)
+        const analyticsResult = await this.pool.query(
+          `SELECT page_views, followers, engagement, reach, impressions, engagement_rate, synced_at, created_at FROM facebook_analytics WHERE client_id = $1 ORDER BY synced_at DESC, created_at DESC LIMIT 1`,
+          [clientId]
+        );
+    
+          // Get posts
+          const postsResult = await this.pool.query(
+            `SELECT post_id, message, created_time, post_impressions, post_reach, comments_count, shares_count, reactions_like, reactions_love, reactions_haha, reactions_wow, reactions_sad, reactions_angry FROM facebook_posts WHERE client_id = $1 ORDER BY created_time DESC LIMIT 50`,
             [clientId]
           );
-    
-          // Get posts
-          const postsResult = await this.pool.query(
-            `SELECT post_id, message, created_time, post_impressions, post_reach,
-                    comments_count, shares_count, reactions_like, reactions_love, 
-                    reactions_haha, reactions_wow, reactions_sad, reactions_angry
-             FROM facebook_posts 
-             WHERE client_id = $1 
-             ORDER BY created_time DESC 
-             LIMIT 50`,
-            [clientId]
-          );
     
           if (analyticsResult.rows.length === 0) {
             return null;
@@ -696,10 +687,15 @@ class FacebookService {
               };
             })
           };
-        } catch (error: any) {
-          console.error(`❌ Error getting stored data: ${error.message}`);
-          return null;
-        }
+      } catch (error: any) {
+        console.error(`❌ Error getting stored data: ${error.message}`);
+        console.error(`❌ Error details:`, error);
+        console.error(`❌ Error stack:`, error.stack);
+        if (error.position) {
+          console.error(`❌ Error position in query:`, error.position);
+        }
+        return null;
+      }
       }
 
   /**
@@ -1247,9 +1243,10 @@ class FacebookService {
       console.log(`   Client ID: ${clientId}, Limit: ${limit}`);
       
       const result = await this.pool.query(
-        `SELECT post_id, message, created_time, post_impressions, post_reach, post_engaged_users,
+        `SELECT post_id, message, created_time, permalink_url, post_impressions, post_reach, post_engaged_users,
                 post_clicks, post_video_views, comments_count, shares_count,
                 reactions_like, reactions_love, reactions_haha, reactions_wow, reactions_sad, reactions_angry,
+                likes, comments, shares,
                 (post_engaged_users + comments_count + shares_count) as engagement_score
          FROM facebook_posts 
          WHERE client_id = $1 
