@@ -538,13 +538,15 @@ router.post('/:id/repost', async (req: Request, res: Response) => {
 
     for (const platform of platformList) {
       console.log(`🔄 Reposting to ${platform}...`);
-      const result = await postingService.schedulePost({
-        contentId,
-        clientId: content.client_id,
+      
+      // REPOST FIX: Directly call postToPlatform to bypass approval check
+      // since reposting already-posted content should not require re-approval
+      const result = await postingService.postToPlatform(
+        null, // No post ID needed for direct posting
         platform,
-        message: content.content_text,
-        mediaUrls: content.media_urls
-      });
+        content, // Pass the full content object
+        content.client_id
+      );
 
       results.push({ platform, ...result });
     }
