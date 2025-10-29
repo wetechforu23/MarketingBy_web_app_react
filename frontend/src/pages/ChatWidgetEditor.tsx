@@ -1319,7 +1319,7 @@ export default function ChatWidgetEditor() {
         </div>
 
         {/* 💬 WhatsApp / Twilio Integration */}
-        {isEditMode && selectedClientId && (
+        {selectedClientId && (
           <div style={{
             background: 'white',
             borderRadius: '12px',
@@ -1592,7 +1592,7 @@ export default function ChatWidgetEditor() {
         )}
 
         {/* 🎯 Agent Handover Choice System */}
-        {isEditMode && (
+        {selectedClientId && (
           <div style={{
             background: 'white',
             borderRadius: '12px',
