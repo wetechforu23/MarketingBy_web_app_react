@@ -19,7 +19,8 @@ const whatsappService = WhatsAppService.getInstance();
 
 router.post('/settings', requireAuth, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const userRole = req.session.role;
+    const userClientId = req.session.clientId;
     const { client_id, account_sid, auth_token, from_number } = req.body;
 
     // Validate input
@@ -28,7 +29,8 @@ router.post('/settings', requireAuth, async (req: Request, res: Response) => {
     }
 
     // Check permissions (super admin or client owner)
-    if (!user.is_admin && user.client_id !== client_id) {
+    const isAdmin = userRole === 'super_admin';
+    if (!isAdmin && userClientId !== client_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -58,11 +60,13 @@ router.post('/settings', requireAuth, async (req: Request, res: Response) => {
 
 router.get('/settings/:clientId', requireAuth, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const userRole = req.session.role;
+    const userClientId = req.session.clientId;
     const clientId = parseInt(req.params.clientId);
 
     // Check permissions
-    if (!user.is_admin && user.client_id !== clientId) {
+    const isAdmin = userRole === 'super_admin';
+    if (!isAdmin && userClientId !== clientId) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -107,7 +111,8 @@ router.get('/settings/:clientId', requireAuth, async (req: Request, res: Respons
 
 router.post('/test-connection', requireAuth, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const userRole = req.session.role;
+    const userClientId = req.session.clientId;
     const { client_id } = req.body;
 
     if (!client_id) {
@@ -115,7 +120,8 @@ router.post('/test-connection', requireAuth, async (req: Request, res: Response)
     }
 
     // Check permissions
-    if (!user.is_admin && user.client_id !== client_id) {
+    const isAdmin = userRole === 'super_admin';
+    if (!isAdmin && userClientId !== client_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -146,7 +152,8 @@ router.post('/test-connection', requireAuth, async (req: Request, res: Response)
 
 router.post('/send', requireAuth, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const userRole = req.session.role;
+    const userClientId = req.session.clientId;
     const {
       client_id,
       widget_id,
@@ -163,7 +170,8 @@ router.post('/send', requireAuth, async (req: Request, res: Response) => {
     }
 
     // Check permissions
-    if (!user.is_admin && user.client_id !== client_id) {
+    const isAdmin = userRole === 'super_admin';
+    if (!isAdmin && userClientId !== client_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -206,7 +214,8 @@ router.post('/send', requireAuth, async (req: Request, res: Response) => {
 
 router.get('/messages/:conversationId', requireAuth, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const userRole = req.session.role;
+    const userClientId = req.session.clientId;
     const conversationId = parseInt(req.params.conversationId);
 
     // Get conversation to check permissions
@@ -224,7 +233,8 @@ router.get('/messages/:conversationId', requireAuth, async (req: Request, res: R
     const clientId = convResult.rows[0].client_id;
 
     // Check permissions
-    if (!user.is_admin && user.client_id !== clientId) {
+    const isAdmin = userRole === 'super_admin';
+    if (!isAdmin && userClientId !== clientId) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -268,11 +278,13 @@ router.get('/messages/:conversationId', requireAuth, async (req: Request, res: R
 
 router.get('/usage/:clientId', requireAuth, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const userRole = req.session.role;
+    const userClientId = req.session.clientId;
     const clientId = parseInt(req.params.clientId);
 
     // Check permissions
-    if (!user.is_admin && user.client_id !== clientId) {
+    const isAdmin = userRole === 'super_admin';
+    if (!isAdmin && userClientId !== clientId) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -293,11 +305,13 @@ router.get('/usage/:clientId', requireAuth, async (req: Request, res: Response) 
 
 router.delete('/settings/:clientId', requireAuth, async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
+    const userRole = req.session.role;
+    const userClientId = req.session.clientId;
     const clientId = parseInt(req.params.clientId);
 
     // Check permissions
-    if (!user.is_admin && user.client_id !== clientId) {
+    const isAdmin = userRole === 'super_admin';
+    if (!isAdmin && userClientId !== clientId) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
