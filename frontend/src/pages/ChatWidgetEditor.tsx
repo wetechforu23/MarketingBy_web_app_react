@@ -1506,7 +1506,7 @@ export default function ChatWidgetEditor() {
                   <div style={{ gridColumn: '1 / -1' }}>
                     <span style={{ color: '#666' }}>Estimated Cost:</span>
                     <strong style={{ marginLeft: '8px', color: '#4682B4' }}>
-                      ${(whatsappUsage.estimated_cost_this_month || 0).toFixed(2)} USD
+                      ${(Number(whatsappUsage.estimated_cost_this_month) || 0).toFixed(2)} USD
                     </strong>
                     <p style={{ fontSize: '12px', color: '#666', margin: '4px 0 0 0' }}>
                       Resets on: {new Date(whatsappUsage.next_reset_date).toLocaleDateString()}
