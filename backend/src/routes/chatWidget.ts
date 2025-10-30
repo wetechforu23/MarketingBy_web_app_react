@@ -2,6 +2,7 @@ import express from 'express';
 import pool from '../config/database';
 import crypto from 'crypto';
 import archiver from 'archiver';
+import axios from 'axios';
 import { EmailService } from '../services/emailService';
 import llmService from '../services/llmService';
 
@@ -2368,11 +2369,10 @@ router.post('/test-ai', async (req, res) => {
       return res.status(400).json({ error: 'API key is required' });
     }
 
-    // Test with Google Gemini (most common)
-    const testResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${api_key}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    // Test with Google Gemini (using axios)
+    const testResponse = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${api_key}`,
+      {
         contents: [{
           parts: [{ text: 'Say "Hello World" to test the connection.' }]
         }],
@@ -2380,16 +2380,19 @@ router.post('/test-ai', async (req, res) => {
           temperature: 0.7,
           maxOutputTokens: 50
         }
-      })
-    });
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
+        validateStatus: () => true // Don't throw on non-2xx status
+      }
+    );
 
-    if (!testResponse.ok) {
-      const errorData: any = await testResponse.json();
-      throw new Error(errorData.error?.message || 'API test failed');
+    if (testResponse.status !== 200) {
+      const errorMessage = testResponse.data?.error?.message || 'API test failed';
+      throw new Error(errorMessage);
     }
 
-    const result: any = await testResponse.json();
-    const responseText = result.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
+    const responseText = testResponse.data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
 
     res.json({
       success: true,
