@@ -208,7 +208,7 @@ export default function ChatWidgetEditor() {
           setEnableAI(widget.llm_enabled)
         }
         // Check if AI key exists and show configured badge (but don't load the actual key for security)
-        if (widget.widget_specific_llm_key && String(widget.widget_specific_llm_key).trim().length > 0) {
+        if ((widget.widget_specific_llm_key && String(widget.widget_specific_llm_key).trim().length > 0) || widget.ai_configured) {
           console.log('✅ AI API key found - showing configured badge')
           setAiConfigured(true)
           // Don't set the actual key - keep it empty and show placeholder

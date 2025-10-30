@@ -229,6 +229,8 @@ router.post('/widgets', async (req, res) => {
 router.get('/widgets/:id', async (req, res) => {
   try {
     const widgetId = parseInt(req.params.id);
+    // Prefer session-based auth; fall back to legacy user object if present
+    const session: any = (req as any).session || {};
     const user = (req as any).user;
 
     if (!widgetId || isNaN(widgetId)) {
@@ -250,12 +252,32 @@ router.get('/widgets/:id', async (req, res) => {
 
     const widget = result.rows[0];
 
+    // Compute AI configured flag without exposing secrets
+    let aiConfigured = false;
+    try {
+      // If widget-specific key column has value, consider configured
+      if (widget.widget_specific_llm_key && String(widget.widget_specific_llm_key).trim().length > 0) {
+        aiConfigured = true;
+      } else {
+        // Otherwise, check encrypted_credentials for a Gemini API key using either old or new schema
+        let credCheck = await pool.query(
+          `SELECT 1 FROM encrypted_credentials 
+           WHERE (service = 'gemini' AND key_name = 'api_key')
+              OR (service_name = 'gemini' AND credential_type = 'api_key' AND is_active = true)
+           LIMIT 1`
+        );
+        aiConfigured = credCheck.rows.length > 0;
+      }
+    } catch (e) {
+      aiConfigured = false;
+    }
+
     // Check permissions (super admin or widget owner)
     if (user && !user.is_admin && user.client_id !== widget.client_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    res.json(widget);
+    res.json({ ...widget, ai_configured: aiConfigured });
 
   } catch (error) {
     console.error('Error fetching widget:', error);
