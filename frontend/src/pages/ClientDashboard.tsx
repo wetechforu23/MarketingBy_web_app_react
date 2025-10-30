@@ -1197,7 +1197,11 @@ const ClientDashboard: React.FC = () => {
                       // Redirect to Facebook OAuth
                       const clientId = user?.client_id;
                       if (clientId) {
-                        const oauthUrl = `http://localhost:3001/api/facebook-connect/auth/${clientId}`;
+                        // Use production backend URL (Heroku) instead of localhost
+                        const backendUrl = window.location.hostname === 'localhost' 
+                          ? 'http://localhost:3001' 
+                          : 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com';
+                        const oauthUrl = `${backendUrl}/api/facebook-connect/auth/${clientId}`;
                         console.log('✅ Redirecting to:', oauthUrl);
                         window.location.href = oauthUrl;
                       } else {
