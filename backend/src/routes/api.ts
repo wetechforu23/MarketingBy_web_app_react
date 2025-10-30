@@ -5128,6 +5128,45 @@ router.get('/facebook/test-credentials/:clientId', requireAuth, async (req, res)
   }
 });
 
+/**
+ * @swagger
+ * /facebook/sync/{clientId}:
+ *   post:
+ *     summary: Sync Facebook data from Facebook API to database
+ *     description: Fetches latest Facebook page metrics and posts from Facebook Graph API and stores them in the database
+ *     tags: [Facebook]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: clientId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Client ID to sync Facebook data for
+ *     responses:
+ *       200:
+ *         description: Successful sync
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: 'Facebook data synced successfully'
+ *                 data:
+ *                   $ref: '#/components/schemas/FacebookData'
+ *       401:
+ *         description: Unauthorized - Authentication required
+ *       404:
+ *         description: No Facebook credentials found for this client
+ *       500:
+ *         description: Failed to sync Facebook data
+ */
 // Sync Facebook data - Simple pattern like Google Analytics
 router.post('/facebook/sync/:clientId', requireAuth, async (req, res) => {
   try {
@@ -5188,6 +5227,42 @@ router.get('/facebook/core-page-metrics/:clientId', requireAuth, async (req, res
   }
 });
 
+/**
+ * @swagger
+ * /facebook/overview/{clientId}:
+ *   get:
+ *     summary: Get Facebook page overview metrics from database
+ *     description: Returns stored Facebook page metrics including followers, reach, engagement, and impressions
+ *     tags: [Facebook]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: clientId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Client ID to fetch Facebook metrics for
+ *     responses:
+ *       200:
+ *         description: Successful response with Facebook metrics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/FacebookData'
+ *       401:
+ *         description: Unauthorized - Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Get Facebook overview metrics - Simple pattern like Google Analytics
 router.get('/facebook/overview/:clientId', requireAuth, async (req, res) => {
   try {
@@ -5244,6 +5319,49 @@ router.get('/facebook/overview/:clientId', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /facebook/posts/{clientId}:
+ *   get:
+ *     summary: Get Facebook posts with metrics from database
+ *     description: Returns stored Facebook posts with impressions, reach, engagement, reactions, comments, and shares
+ *     tags: [Facebook]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: clientId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Client ID to fetch posts for
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Maximum number of posts to return
+ *     responses:
+ *       200:
+ *         description: Successful response with Facebook posts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/FacebookPost'
+ *                 count:
+ *                   type: integer
+ *       401:
+ *         description: Unauthorized - Authentication required
+ *       500:
+ *         description: Server error
+ */
 // Get Facebook posts (recent posts with all metrics including views, clicks, reach)
 router.get('/facebook/posts/:clientId', requireAuth, async (req, res) => {
   try {

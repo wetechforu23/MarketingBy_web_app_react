@@ -6,6 +6,8 @@ import session from 'express-session';
 import dotenv from 'dotenv';
 import path from 'path';
 import pool from './config/database';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './config/swagger';
 
 // Import session types
 import './types/session';
@@ -169,6 +171,29 @@ app.get('/api/health', (req, res) => {
 // ==========================================
 // Routes (Order Matters! Specific routes BEFORE generic routes)
 // ==========================================
+
+// ==========================================
+// SWAGGER API DOCUMENTATION (Public - no auth required)
+// ==========================================
+// Swagger UI - Interactive API documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'MarketingBy API Docs',
+  customfavIcon: '/logo.png',
+  explorer: true,
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayRequestDuration: true,
+    filter: true,
+    tryItOutEnabled: true
+  }
+}));
+
+// Swagger JSON endpoint
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
 
 // PUBLIC ROUTES (No authentication required) - MUST BE FIRST
 // AI Chat Widget (includes public routes for website embedding)
