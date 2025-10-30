@@ -22,9 +22,8 @@ router.get('/widgets/:id/flow', requireAuth, async (req: Request, res: Response)
     const userRole = req.session.role;
     const userClientId = req.session.clientId;
 
-    // Fetch user to check admin status
-    const userResult = await pool.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
-    const isAdmin = userResult.rows[0]?.is_admin || false;
+    // Check if user is super admin (can access all widgets)
+    const isAdmin = userRole === 'super_admin';
 
     // Check if user has access to this widget
     const widgetCheck = await pool.query(
@@ -78,6 +77,7 @@ router.put('/widgets/:id/flow', requireAuth, async (req: Request, res: Response)
   try {
     const widgetId = parseInt(req.params.id);
     const userId = req.session.userId;
+    const userRole = req.session.role;
     const userClientId = req.session.clientId;
     const { conversation_flow } = req.body;
 
@@ -85,9 +85,8 @@ router.put('/widgets/:id/flow', requireAuth, async (req: Request, res: Response)
       return res.status(400).json({ error: 'conversation_flow must be an array' });
     }
 
-    // Fetch user to check admin status
-    const userResult = await pool.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
-    const isAdmin = userResult.rows[0]?.is_admin || false;
+    // Check if user is super admin (can access all widgets)
+    const isAdmin = userRole === 'super_admin';
 
     // Check if user has access to this widget
     const widgetCheck = await pool.query(
@@ -145,12 +144,12 @@ router.get('/widgets/:id/flow/analytics', requireAuth, async (req: Request, res:
   try {
     const widgetId = parseInt(req.params.id);
     const userId = req.session.userId;
+    const userRole = req.session.role;
     const userClientId = req.session.clientId;
     const { period = '7d' } = req.query;
 
-    // Fetch user to check admin status
-    const userResult = await pool.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
-    const isAdmin = userResult.rows[0]?.is_admin || false;
+    // Check if user is super admin (can access all widgets)
+    const isAdmin = userRole === 'super_admin';
 
     // Calculate date range
     let dateFilter = "created_at > NOW() - INTERVAL '7 days'";
@@ -253,11 +252,11 @@ router.post('/widgets/:id/flow/reset', requireAuth, async (req: Request, res: Re
   try {
     const widgetId = parseInt(req.params.id);
     const userId = req.session.userId;
+    const userRole = req.session.role;
     const userClientId = req.session.clientId;
 
-    // Fetch user to check admin status
-    const userResult = await pool.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
-    const isAdmin = userResult.rows[0]?.is_admin || false;
+    // Check if user is super admin (can access all widgets)
+    const isAdmin = userRole === 'super_admin';
 
     // Check if user has access to this widget
     const widgetCheck = await pool.query(
