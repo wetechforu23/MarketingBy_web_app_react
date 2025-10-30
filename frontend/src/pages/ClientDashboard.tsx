@@ -485,9 +485,34 @@ const ClientDashboard: React.FC = () => {
                     <p style={{ color: '#666', marginBottom: '1.5rem', maxWidth: '600px', margin: '0 auto 1.5rem' }}>
                       Your Facebook page is connected, but data hasn't been synced yet. Please contact your administrator to sync your Facebook data.
                     </p>
-                    <button
-                      onClick={() => {
-                        alert('📊 Sync Facebook Data\n\nTo sync your Facebook page data, please contact:\n\nEmail: info@wetechforu.com\n\nThey will sync your latest Facebook metrics including followers, reach, engagement, and post performance.');
+                    <button 
+                      onClick={async () => {
+                        if (!confirm('🔄 Sync Facebook Data?\n\nThis will fetch the latest data from Facebook API. It may take 10-30 seconds.\n\nContinue?')) {
+                          return;
+                        }
+                        
+                        const btn = event?.currentTarget as HTMLButtonElement;
+                        if (btn) {
+                          btn.disabled = true;
+                          btn.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right: 0.5rem;"></i> Syncing...';
+                        }
+                        
+                        try {
+                          console.log('🔄 Triggering Facebook data sync...');
+                          const response = await api.post(`/facebook/sync/${user?.client_id}`);
+                          console.log('✅ Sync response:', response.data);
+                          
+                          alert('✅ Success!\n\nFacebook data has been synced from Facebook API.\n\nRefreshing page to show updated data...');
+                          window.location.reload();
+                        } catch (error: any) {
+                          console.error('❌ Sync error:', error);
+                          alert('❌ Sync Failed\n\nError: ' + (error.response?.data?.error || error.message) + '\n\nPlease try again or contact support.');
+                          
+                          if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = '<i class="fas fa-sync-alt" style="margin-right: 0.5rem;"></i> Request Data Sync';
+                          }
+                        }
                       }}
                       style={{
                         padding: '0.75rem 2rem',
