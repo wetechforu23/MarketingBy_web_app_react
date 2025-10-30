@@ -134,6 +134,10 @@
         if (config.secondary_color) this.config.secondaryColor = config.secondary_color;
         if (config.position) this.config.position = config.position;
         
+        // Store IDs for handover requests
+        if (config.id) this.config.widgetId = config.id;
+        if (config.client_id) this.config.clientId = config.client_id;
+
         // Store intro flow settings
         if (config.intro_flow_enabled !== undefined) {
           this.config.enableIntroFlow = config.intro_flow_enabled;
@@ -1174,22 +1178,158 @@
       }, 1500);
     },
 
-    // Request live agent - Collect contact info
-    requestLiveAgent() {
-      this.addBotMessage("Let me connect you with a live agent. To get started, I need a few details:");
-      
-      // 📊 Track live agent request event
+    // Request live agent - Show handover choice modal (WhatsApp, Email, etc.)
+    async requestLiveAgent() {
+      // Track event
       this.trackEvent('live_agent_requested', {
         page_url: window.location.href,
         timestamp: new Date().toISOString()
       });
-      
-      // Start contact info collection
-      setTimeout(() => {
-        this.state.contactInfoStep = 0;
-        this.state.contactInfo = {};
-        this.askContactInfo();
-      }, 1000);
+
+      // Load handover configuration
+      try {
+        const widgetId = this.config.widgetId;
+        if (!widgetId) {
+          console.warn('Missing widgetId in config; falling back to portal handover');
+          this.startHandoverFlow('portal', {});
+          return;
+        }
+
+        const configResponse = await fetch(`${this.config.backendUrl}/api/handover/config/${widgetId}`);
+        const handoverConfig = await configResponse.json();
+
+        if (!handoverConfig.enable_handover_choice) {
+          this.startHandoverFlow(handoverConfig.default_handover_method || 'portal', handoverConfig);
+          return;
+        }
+
+        this.showHandoverChoiceModal(handoverConfig);
+      } catch (error) {
+        console.error('Failed to load handover config:', error);
+        this.startHandoverFlow('portal', {});
+      }
+    },
+
+    showHandoverChoiceModal(config) {
+      const options = config.handover_options || { portal: true, whatsapp: false, email: true, phone: false, webhook: false };
+      const availableOptions = Object.entries(options).filter(([, enabled]) => enabled);
+      if (availableOptions.length === 1) {
+        this.startHandoverFlow(availableOptions[0][0], config);
+        return;
+      }
+
+      let modalHTML = `
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1.25rem; border-radius: 12px 12px 0 0; text-align: center;">
+          <h3 style="margin: 0 0 6px 0; font-size: 1.2rem; font-weight: 700;">🎯 How Would You Like Us to Contact You?</h3>
+          <p style="margin: 0; font-size: 0.9rem; opacity: 0.9;">Choose your preferred method below</p>
+        </div>
+        <div style="padding: 1rem; background: white;">
+      `;
+
+      const methodDetails = {
+        portal: { icon: '💬', label: 'Chat Here', desc: 'Continue in this chat window', color: '#28a745' },
+        whatsapp: { icon: '📱', label: 'WhatsApp', desc: 'Get a message on WhatsApp', color: '#25D366' },
+        email: { icon: '📧', label: 'Email', desc: 'Receive an email response', color: '#dc3545' },
+        phone: { icon: '📞', label: 'Phone/SMS', desc: 'Get a call or text message', color: '#007bff' },
+        webhook:{ icon: '🔗', label: 'My System', desc: 'Connect to your CRM', color: '#6f42c1' }
+      };
+
+      availableOptions.forEach(([method]) => {
+        const d = methodDetails[method];
+        modalHTML += `
+          <button onclick="WeTechForUWidget.selectHandoverMethod('${method}')" style="width: 100%; padding: 0.9rem; margin-bottom: 0.6rem; background: white; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 1.6rem;">${d.icon}</span>
+            <div style="flex:1;">
+              <div style="font-weight: 700; font-size: 1rem; color: #333; margin-bottom: 4px;">${d.label}</div>
+              <div style="font-size: 0.85rem; color: #666;">${d.desc}</div>
+            </div>
+            <i class="fas fa-chevron-right" style="color: #999;"></i>
+          </button>`;
+      });
+
+      modalHTML += `
+        <button onclick="WeTechForUWidget.closeHandoverModal()" style="width: 100%; padding: 0.6rem; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; cursor: pointer; color: #666; font-size: 0.9rem;">❌ Cancel</button>
+        </div>`;
+
+      this.addBotMessage(modalHTML, true);
+      this.state.handoverConfig = config;
+    },
+
+    closeHandoverModal() {
+      const messages = document.getElementById('wetechforu-messages');
+      if (messages && messages.lastChild) messages.removeChild(messages.lastChild);
+    },
+
+    selectHandoverMethod(method) {
+      this.closeHandoverModal();
+      this.startHandoverFlow(method, this.state.handoverConfig || {});
+    },
+
+    async startHandoverFlow(method, config) {
+      const labels = { portal: 'Portal Chat', whatsapp: 'WhatsApp', email: 'Email', phone: 'Phone/SMS', webhook: 'Your System' };
+      this.addUserMessage(`💬 Contact via: ${labels[method]}`);
+      this.addBotMessage(`Great! Let me collect your information for ${labels[method]} contact.`);
+      this.state.selectedHandoverMethod = method;
+      this.state.requiredFields = ['name', 'message'];
+      if (method === 'email') this.state.requiredFields.push('email');
+      if (method === 'whatsapp' || method === 'phone') this.state.requiredFields.push('phone');
+      setTimeout(() => { this.state.contactInfoStep = 0; this.state.contactInfo = {}; this.askHandoverInfo(); }, 800);
+    },
+
+    askHandoverInfo() {
+      const fields = this.state.requiredFields || [];
+      if (!this.state.contactInfoStep) this.state.contactInfoStep = 0;
+      if (this.state.contactInfoStep < fields.length) {
+        const field = fields[this.state.contactInfoStep];
+        const questions = {
+          name: "What's your full name?",
+          email: "What's your email address?",
+          phone: "What's your phone number? (with country code, e.g., +1234567890)",
+          message: "Briefly, what can we help you with?"
+        };
+        this.addBotMessage(questions[field]);
+        this.state.currentContactField = field;
+      } else {
+        this.submitHandoverRequest();
+      }
+    },
+
+    async submitHandoverRequest() {
+      const method = this.state.selectedHandoverMethod;
+      const info = this.state.contactInfo || {};
+      try {
+        this.addBotMessage('⏳ Processing your request...');
+        const response = await fetch(`${this.config.backendUrl}/api/handover/request`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conversation_id: this.state.conversationId,
+            widget_id: this.config.widgetId,
+            client_id: this.config.clientId,
+            requested_method: method,
+            visitor_name: info.name,
+            visitor_email: info.email || null,
+            visitor_phone: info.phone || null,
+            visitor_message: info.message
+          })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Failed to submit');
+
+        const successCopy = {
+          portal: '✅ An agent will respond here shortly.',
+          whatsapp: '✅ You\'ll receive a WhatsApp message soon. Please check your phone!',
+          email: '✅ We\'ve sent you a confirmation email. Expect a response within 24 hours.',
+          phone: '✅ We\'ll call or text you soon at the number you provided.',
+          webhook: '✅ Your request has been sent to our system.'
+        };
+        this.addBotMessage(successCopy[method] || '✅ Your request has been submitted!');
+        this.state.agentTookOver = true;
+        setTimeout(() => this.showSessionEndOptions(), 1500);
+      } catch (e) {
+        console.error('Handover request failed:', e);
+        this.addBotMessage('❌ Sorry, there was an error submitting your request. Please try again.');
+      }
     },
 
     // Ask contact info step by step
@@ -1319,7 +1459,11 @@
         this.state.currentContactField = null;
         
         setTimeout(() => {
-          this.askContactInfo();
+          if (this.state.requiredFields) {
+            this.askHandoverInfo();
+          } else {
+            this.askContactInfo();
+          }
         }, 500);
         return;
       }
