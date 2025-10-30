@@ -1198,6 +1198,7 @@ export default function ChatWidgetEditor() {
                   type="password"
                   value={aiApiKey}
                   onChange={(e) => setAiApiKey(e.target.value)}
+                  autoComplete="current-password"
                   placeholder={aiConfigured ? "AIzaSy••••••••••••••••••••••••" : "AIzaSy..."}
                   style={{
                     width: '100%',
@@ -1405,15 +1406,7 @@ export default function ChatWidgetEditor() {
                   <span>🔴 Agent Handoff Requested (Urgent)</span>
                 </label>
 
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={formData.notify_daily_summary}
-                    onChange={(e) => handleChange('notify_daily_summary', e.target.checked)}
-                    style={{ marginRight: '0.5rem', width: '18px', height: '18px' }}
-                  />
-                  <span>📊 Daily Summary Report (Coming Soon)</span>
-                </label>
+                {/* Daily Summary Report temporarily hidden until implemented */}
               </div>
 
               <div style={{ 

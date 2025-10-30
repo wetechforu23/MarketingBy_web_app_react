@@ -259,12 +259,17 @@ router.get('/widgets/:id', async (req, res) => {
       if (widget.widget_specific_llm_key && String(widget.widget_specific_llm_key).trim().length > 0) {
         aiConfigured = true;
       } else {
-        // Otherwise, check encrypted_credentials for a Gemini API key using either old or new schema
+        // Otherwise, check encrypted_credentials for any Gemini API key using flexible matching (old/new schema)
         let credCheck = await pool.query(
           `SELECT 1 FROM encrypted_credentials 
-           WHERE (service = 'gemini' AND key_name = 'api_key')
-              OR (service_name = 'gemini' AND credential_type = 'api_key' AND is_active = true)
-           LIMIT 1`
+             WHERE (
+               (service IS NOT NULL AND LOWER(service) LIKE '%gemini%' AND (key_name = 'api_key' OR credential_type = 'api_key'))
+               OR (service_name IS NOT NULL AND LOWER(service_name) LIKE '%gemini%' AND credential_type = 'api_key')
+             )
+             AND (environment IS NULL OR environment = $1)
+             AND (is_active IS NULL OR is_active = true)
+           LIMIT 1`,
+          [process.env.NODE_ENV || 'production']
         );
         aiConfigured = credCheck.rows.length > 0;
       }
