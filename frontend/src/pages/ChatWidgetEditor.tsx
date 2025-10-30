@@ -1509,7 +1509,7 @@ export default function ChatWidgetEditor() {
                       ${(Number(whatsappUsage.estimated_cost_this_month) || 0).toFixed(2)} USD
                     </strong>
                     <p style={{ fontSize: '12px', color: '#666', margin: '4px 0 0 0' }}>
-                      Resets on: {new Date(whatsappUsage.next_reset_date).toLocaleDateString()}
+                      Resets on: {whatsappUsage.next_reset_date ? new Date(whatsappUsage.next_reset_date).toLocaleDateString() : 'Not available'}
                     </p>
                   </div>
                 </div>
@@ -1671,29 +1671,28 @@ export default function ChatWidgetEditor() {
                       )}
                     </button>
 
-                    {whatsappConfigured && (
-                      <button
-                        type="button"
-                        onClick={handleTestWhatsApp}
-                        disabled={testingWhatsApp}
-                        style={{
-                          padding: '12px 20px',
-                          background: '#28a745',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '8px',
-                          fontWeight: '600',
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        {testingWhatsApp ? (
-                          <><i className="fas fa-spinner fa-spin"></i> Testing...</>
-                        ) : (
-                          <><i className="fas fa-vial"></i> Test Connection</>
-                        )}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={handleTestWhatsApp}
+                      disabled={testingWhatsApp}
+                      style={{
+                        padding: '12px 20px',
+                        background: '#28a745',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        opacity: testingWhatsApp ? 0.7 : 1
+                      }}
+                    >
+                      {testingWhatsApp ? (
+                        <><i className="fas fa-spinner fa-spin"></i> Testing...</>
+                      ) : (
+                        <><i className="fas fa-vial"></i> Test Connection</>
+                      )}
+                    </button>
                   </div>
 
                   {/* Test Result */}
