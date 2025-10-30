@@ -183,8 +183,8 @@ router.post('/send', requireAuth, async (req: Request, res: Response) => {
       toNumber: to_number,
       message,
       mediaUrl: media_url,
-      sentByUserId: user.id,
-      sentByAgentName: user.name || user.email,
+      sentByUserId: req.session.userId!,
+      sentByAgentName: req.session.username || 'Agent',
       visitorName: visitor_name
     });
 
