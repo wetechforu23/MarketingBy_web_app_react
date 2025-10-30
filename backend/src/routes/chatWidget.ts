@@ -274,7 +274,22 @@ router.put('/widgets/:id', async (req, res) => {
       'enable_appointment_booking', 'enable_email_capture', 'enable_phone_capture',
       'enable_ai_handoff', 'ai_handoff_url', 'business_hours', 'offline_message',
       'is_active', 'rate_limit_messages', 'rate_limit_window', 'require_captcha',
-      'intro_flow_enabled', 'intro_questions' // ✅ FIXED: Allow intro flow fields to be saved
+      'intro_flow_enabled', 'intro_questions',
+      // AI Smart Responses
+      'llm_enabled', 'llm_provider', 'llm_model', 'llm_temperature', 'llm_max_tokens',
+      'widget_specific_llm_key', 'fallback_to_knowledge_base',
+      // Email Notifications
+      'enable_email_notifications', 'notification_email', 'visitor_engagement_minutes',
+      'notify_new_conversation', 'notify_agent_handoff', 'notify_daily_summary',
+      // WhatsApp Integration
+      'enable_whatsapp', 'whatsapp_configured',
+      // Agent Handover Options
+      'enable_handover_choice', 'handover_options', 'default_handover_method',
+      'webhook_url', 'webhook_secret',
+      // Industry & HIPAA
+      'industry', 'enable_hipaa', 'hipaa_disclaimer', 'detect_sensitive_data',
+      'emergency_keywords', 'emergency_contact', 'require_disclaimer', 'disclaimer_text',
+      'show_emergency_warning', 'auto_detect_emergency'
     ];
 
     const setClause = [];
@@ -2337,6 +2352,57 @@ router.post('/conversations/bulk-delete', async (req, res) => {
   } catch (error) {
     console.error('Bulk delete conversations error:', error);
     res.status(500).json({ error: 'Failed to delete conversations' });
+  }
+});
+
+// ==========================================
+// POST /chat-widget/test-ai
+// Test AI/LLM connection
+// ==========================================
+
+router.post('/test-ai', async (req, res) => {
+  try {
+    const { api_key } = req.body;
+
+    if (!api_key) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+
+    // Test with Google Gemini (most common)
+    const testResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${api_key}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: 'Say "Hello World" to test the connection.' }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 50
+        }
+      })
+    });
+
+    if (!testResponse.ok) {
+      const errorData = await testResponse.json();
+      throw new Error(errorData.error?.message || 'API test failed');
+    }
+
+    const result = await testResponse.json();
+    const responseText = result.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
+
+    res.json({
+      success: true,
+      message: '✅ AI connection successful!',
+      test_response: responseText.substring(0, 100) // First 100 chars
+    });
+
+  } catch (error: any) {
+    console.error('AI test error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to test AI connection'
+    });
   }
 });
 

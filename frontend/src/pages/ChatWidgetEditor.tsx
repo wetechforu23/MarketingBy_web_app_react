@@ -202,6 +202,67 @@ export default function ChatWidgetEditor() {
           }
         }
         
+        // Load AI settings
+        if (widget.llm_enabled !== undefined) {
+          setEnableAI(widget.llm_enabled)
+        }
+        if (widget.widget_specific_llm_key) {
+          setAiApiKey(widget.widget_specific_llm_key)
+          setAiConfigured(true)
+        }
+        if (widget.llm_max_tokens) {
+          setAiMaxTokens(widget.llm_max_tokens)
+        }
+
+        // Load Industry & HIPAA settings
+        if (widget.industry) {
+          setIndustryType(widget.industry)
+        }
+        if (widget.enable_hipaa !== undefined) {
+          setEnableHipaa(widget.enable_hipaa)
+        }
+        if (widget.hipaa_disclaimer) {
+          setHipaaDisclaimer(widget.hipaa_disclaimer)
+        }
+        if (widget.detect_sensitive_data !== undefined) {
+          setDetectSensitiveData(widget.detect_sensitive_data)
+        }
+        if (widget.emergency_keywords !== undefined) {
+          setEmergencyKeywords(widget.emergency_keywords)
+        }
+        if (widget.emergency_contact) {
+          setEmergencyContact(widget.emergency_contact)
+        }
+
+        // Load WhatsApp settings
+        if (widget.enable_whatsapp !== undefined) {
+          setWhatsappEnabled(widget.enable_whatsapp)
+        }
+
+        // Load Handover Options
+        if (widget.enable_handover_choice !== undefined) {
+          setEnableHandoverChoice(widget.enable_handover_choice)
+        }
+        if (widget.handover_options) {
+          try {
+            const options = typeof widget.handover_options === 'string'
+              ? JSON.parse(widget.handover_options)
+              : widget.handover_options
+            setHandoverOptions(options)
+          } catch (e) {
+            console.error('Failed to parse handover_options:', e)
+          }
+        }
+        if (widget.default_handover_method) {
+          setDefaultHandoverMethod(widget.default_handover_method)
+        }
+        if (widget.webhook_url) {
+          setWebhookUrl(widget.webhook_url)
+        }
+        if (widget.webhook_secret) {
+          setWebhookSecret(widget.webhook_secret)
+        }
+
         // Set client_id for edit mode
         if (widget.client_id) {
           setSelectedClientId(widget.client_id)
@@ -383,6 +444,25 @@ export default function ChatWidgetEditor() {
         ...formData,
         intro_flow_enabled: introFlowEnabled,
         intro_questions: JSON.stringify(introQuestions),
+        // AI Smart Responses
+        llm_enabled: enableAI,
+        widget_specific_llm_key: aiApiKey,
+        llm_max_tokens: aiMaxTokens,
+        // Industry & HIPAA
+        industry: industryType,
+        enable_hipaa: enableHipaa,
+        hipaa_disclaimer: hipaaDisclaimer,
+        detect_sensitive_data: detectSensitiveData,
+        emergency_keywords: emergencyKeywords,
+        emergency_contact: emergencyContact,
+        // WhatsApp
+        enable_whatsapp: whatsappEnabled,
+        // Handover Options
+        enable_handover_choice: enableHandoverChoice,
+        handover_options: JSON.stringify(handoverOptions),
+        default_handover_method: defaultHandoverMethod,
+        webhook_url: webhookUrl,
+        webhook_secret: webhookSecret,
         ...(isEditMode ? {} : { client_id: selectedClientId })
       }
 
