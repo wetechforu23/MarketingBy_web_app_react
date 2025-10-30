@@ -1159,20 +1159,46 @@ export default function ChatWidgetEditor() {
           {enableAI && (
             <>
               <div style={{ marginBottom: '1.5rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   Google AI API Key *
+                  {aiConfigured && (
+                    <span style={{
+                      background: '#28a745',
+                      color: 'white',
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      fontWeight: '600'
+                    }}>
+                      ✓ Configured
+                    </span>
+                  )}
                 </label>
+                {aiConfigured && (
+                  <div style={{
+                    padding: '8px 12px',
+                    background: '#d4edda',
+                    border: '1px solid #c3e6cb',
+                    borderRadius: '6px',
+                    marginBottom: '8px',
+                    fontSize: '12px',
+                    color: '#155724'
+                  }}>
+                    <i className="fas fa-lock"></i> API key is saved and encrypted. Enter new key below to update.
+                  </div>
+                )}
                 <input
                   type="password"
                   value={aiApiKey}
                   onChange={(e) => setAiApiKey(e.target.value)}
-                  placeholder="AIzaSy..."
+                  placeholder={aiConfigured ? "AIzaSy••••••••••••••••••••••••" : "AIzaSy..."}
                   style={{
                     width: '100%',
                     padding: '12px',
                     border: '2px solid #e0e0e0',
                     borderRadius: '8px',
-                    fontSize: '14px'
+                    fontSize: '14px',
+                    fontFamily: 'monospace'
                   }}
                 />
                 <div style={{ fontSize: '12px', color: '#666', marginTop: '6px' }}>
@@ -1513,9 +1539,35 @@ export default function ChatWidgetEditor() {
                   borderRadius: '8px',
                   border: '1px solid #e1e4e8'
                 }}>
-                  <h4 style={{ marginTop: 0, fontSize: '15px', fontWeight: '600' }}>
+                  <h4 style={{ marginTop: 0, fontSize: '15px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '10px' }}>
                     🔐 Twilio WhatsApp Credentials
+                    {whatsappConfigured && (
+                      <span style={{
+                        background: '#28a745',
+                        color: 'white',
+                        padding: '4px 12px',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: '600'
+                      }}>
+                        ✓ Configured
+                      </span>
+                    )}
                   </h4>
+                  
+                  {whatsappConfigured && (
+                    <div style={{
+                      padding: '10px 15px',
+                      background: '#d4edda',
+                      border: '1px solid #c3e6cb',
+                      borderRadius: '6px',
+                      marginBottom: '1rem',
+                      fontSize: '13px',
+                      color: '#155724'
+                    }}>
+                      <i className="fas fa-check-circle"></i> WhatsApp credentials are saved and encrypted. Enter new values below to update them.
+                    </div>
+                  )}
                   
                   <div style={{ marginBottom: '1rem' }}>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '14px' }}>
@@ -1525,7 +1577,7 @@ export default function ChatWidgetEditor() {
                       type="text"
                       value={whatsappSettings.account_sid}
                       onChange={(e) => setWhatsappSettings({ ...whatsappSettings, account_sid: e.target.value })}
-                      placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      placeholder={whatsappConfigured ? "AC•••••••••••••••••••••••••••••" : "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
                       style={{
                         width: '100%',
                         padding: '10px',
@@ -1545,7 +1597,7 @@ export default function ChatWidgetEditor() {
                       type="password"
                       value={whatsappSettings.auth_token}
                       onChange={(e) => setWhatsappSettings({ ...whatsappSettings, auth_token: e.target.value })}
-                      placeholder="Your Twilio Auth Token"
+                      placeholder={whatsappConfigured ? "••••••••••••••••••••••••••••••" : "Your Twilio Auth Token"}
                       style={{
                         width: '100%',
                         padding: '10px',
@@ -1565,7 +1617,7 @@ export default function ChatWidgetEditor() {
                       type="text"
                       value={whatsappSettings.from_number}
                       onChange={(e) => setWhatsappSettings({ ...whatsappSettings, from_number: e.target.value })}
-                      placeholder="whatsapp:+14155238886"
+                      placeholder={whatsappConfigured ? "whatsapp:+1••••••••••" : "whatsapp:+14155238886"}
                       style={{
                         width: '100%',
                         padding: '10px',
