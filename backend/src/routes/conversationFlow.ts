@@ -20,6 +20,11 @@ router.get('/widgets/:id/flow', requireAuth, async (req: Request, res: Response)
     const widgetId = parseInt(req.params.id);
     const user = (req as any).user;
 
+    // Check if user is authenticated
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
     // Check if user has access to this widget
     const widgetCheck = await pool.query(
       `SELECT w.*, c.id as client_id
@@ -73,6 +78,11 @@ router.put('/widgets/:id/flow', requireAuth, async (req: Request, res: Response)
     const widgetId = parseInt(req.params.id);
     const user = (req as any).user;
     const { conversation_flow } = req.body;
+
+    // Check if user is authenticated
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
 
     if (!conversation_flow || !Array.isArray(conversation_flow)) {
       return res.status(400).json({ error: 'conversation_flow must be an array' });
@@ -135,6 +145,11 @@ router.get('/widgets/:id/flow/analytics', requireAuth, async (req: Request, res:
     const widgetId = parseInt(req.params.id);
     const user = (req as any).user;
     const { period = '7d' } = req.query;
+
+    // Check if user is authenticated
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
 
     // Calculate date range
     let dateFilter = "created_at > NOW() - INTERVAL '7 days'";
@@ -237,6 +252,11 @@ router.post('/widgets/:id/flow/reset', requireAuth, async (req: Request, res: Re
   try {
     const widgetId = parseInt(req.params.id);
     const user = (req as any).user;
+
+    // Check if user is authenticated
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
 
     // Check if user has access to this widget
     const widgetCheck = await pool.query(
