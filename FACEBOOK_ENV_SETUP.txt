@@ -1,0 +1,33 @@
+================================================================
+🔧 ADD THESE LINES TO YOUR backend/.env FILE
+================================================================
+
+Copy and paste these exact lines at the end of your backend/.env file:
+
+# Facebook App Credentials
+FACEBOOK_APP_ID=1518539219154610
+FACEBOOK_APP_SECRET=6b4924d4db16f9715c6c460f14fe208c
+FACEBOOK_REDIRECT_URI=https://marketingby.wetechforu.com/auth/callback
+
+================================================================
+✅ AFTER ADDING, RESTART YOUR BACKEND SERVER
+================================================================
+
+To restart:
+1. Stop current backend (Ctrl+C in the terminal running backend)
+2. Run: cd backend && npm run dev
+
+================================================================
+📝 NEXT STEPS
+================================================================
+
+1. ✅ Add lines above to backend/.env
+2. ⏳ Restart backend server
+3. ⏳ Get Facebook User Access Token from Graph API Explorer
+4. ⏳ Run: node backend/get_facebook_page_token.js YOUR_TOKEN
+5. ⏳ Save Page Access Token to database
+
+Full instructions: See FACEBOOK_TOKEN_SETUP_GUIDE.md
+
+================================================================
+

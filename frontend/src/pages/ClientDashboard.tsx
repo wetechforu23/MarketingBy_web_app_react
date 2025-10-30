@@ -454,14 +454,40 @@ const ClientDashboard: React.FC = () => {
                 </p>
               </div>
               {facebookData?.connected && (
-                <div style={{
-                  backgroundColor: 'rgba(255,255,255,0.2)',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '8px',
-                  fontSize: '0.9rem',
-                  fontWeight: '600'
-                }}>
-                  ✅ Connected
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '8px',
+                    fontSize: '0.9rem',
+                    fontWeight: '600'
+                  }}>
+                    ✅ Connected
+                  </div>
+                  <button
+                    onClick={() => { window.location.href = '/app/content-library/create'; }}
+                    style={{
+                      backgroundColor: '#fff', color: '#2d4373', border: 'none',
+                      padding: '0.5rem 0.9rem', borderRadius: '8px', cursor: 'pointer',
+                      fontWeight: 700
+                    }}
+                    onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.9'; }}
+                    onMouseOut={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}
+                  >
+                    ➕ Create Post
+                  </button>
+                  <button
+                    onClick={() => { window.location.href = '/app/chat-widgets'; }}
+                    style={{
+                      backgroundColor: '#fff', color: '#155e75', border: 'none',
+                      padding: '0.5rem 0.9rem', borderRadius: '8px', cursor: 'pointer',
+                      fontWeight: 700
+                    }}
+                    onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.9'; }}
+                    onMouseOut={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}
+                  >
+                    💬 Chat Widgets
+                  </button>
                 </div>
               )}
             </div>

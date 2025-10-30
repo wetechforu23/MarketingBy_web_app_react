@@ -129,11 +129,18 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
     // Super Admin can access everything
     if (isSuperAdmin) return true
     
-    // Client users (client_admin, client_user) can only access dashboard
+    // Client users (client_admin, client_user) can access limited items
     if (isClientAdmin || isClientUser) {
       switch (page) {
         case 'dashboard':
           return true; // Dashboard only
+        case 'chat-widgets':
+        case 'chat-widgets/create':
+        case 'chat-conversations':
+        case 'visitor-monitoring':
+          return true; // Allow chat widgets area
+        case 'customer/plan':
+          return true; // Upgrade page
         default:
           return false; // Everything else hidden
       }
@@ -239,6 +246,19 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
               >
                 <i className="fas fa-search"></i>
                 {!isCollapsed && 'SEO Analysis'}
+              </Link>
+            </li>
+
+            {/* Chat Widgets - placed right below SEO Analysis for clients */}
+            <li className="nav-item">
+              <Link 
+                className={`nav-link ${isActive('/app/chat-widgets') ? 'active' : ''}`} 
+                to="/app/chat-widgets"
+                onClick={onNavigate}
+                title={isCollapsed ? 'Chat Widgets' : ''}
+              >
+                <i className="fas fa-comments"></i>
+                {!isCollapsed && 'Chat Widgets'}
               </Link>
             </li>
 

@@ -5401,6 +5401,32 @@ router.get('/facebook/posts/:clientId', requireAuth, async (req, res) => {
   }
 });
 
+// Create a Facebook post (text and optional media URL(s))
+router.post('/facebook/posts/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { message, mediaUrls } = req.body || {};
+
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ success: false, error: 'message is required' });
+    }
+
+    const FacebookService = (await import('../services/facebookService')).default;
+    const facebookService = new FacebookService(pool);
+
+    const result = await facebookService.createPost(parseInt(clientId), message, Array.isArray(mediaUrls) ? mediaUrls : undefined);
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error || 'Failed to create post' });
+    }
+
+    res.json({ success: true, data: { postId: result.postId, postUrl: result.postUrl } });
+  } catch (error: any) {
+    console.error('❌ Create Facebook post error:', error);
+    res.status(500).json({ success: false, error: 'Failed to create Facebook post' });
+  }
+});
+
 // Get Facebook follower statistics
 router.get('/facebook/followers/:clientId', requireAuth, async (req, res) => {
   try {

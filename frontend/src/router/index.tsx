@@ -33,6 +33,7 @@ import FacebookConnect from "../pages/FacebookConnect";
 // Social Media Content Management
 import ContentLibrary from "../pages/ContentLibrary";
 import ContentEditor from "../pages/ContentEditor";
+import ContentCreateRoute from "../pages/ContentCreateRoute";
 import ApprovalQueue from "../pages/ApprovalQueue";
 // AI Chat Widget
 import ChatWidgets from "../pages/ChatWidgets";
@@ -41,6 +42,7 @@ import ChatWidgetKnowledge from "../pages/ChatWidgetKnowledge";
 import ChatWidgetFlow from "../pages/ChatWidgetFlow";
 import ChatConversations from "../pages/ChatConversations";
 import VisitorMonitoring from "../pages/VisitorMonitoring";
+import ClientCreatePost from "../pages/ClientCreatePost";
 // Blog Management
 import BlogManagement from "../pages/BlogManagement";
 import BlogApproval from "../pages/BlogApproval";
@@ -70,6 +72,7 @@ export const router = createBrowserRouter([
       { path: "client-dashboard", element: <ClientAdminDashboard /> }, // Client dashboard route
       { path: "client-management", element: <ClientManagementDashboard /> }, // New client management dashboard
       { path: "facebook-connect/:clientId", element: <FacebookConnect /> }, // Facebook 2-way connection
+      { path: "content-library/create", element: <ClientCreatePost /> }, // Client self-post to Facebook
       { path: "leads", element: <Leads /> },
       { path: "leads/:id", element: <LeadDetail /> }, // Lead detail page
       { path: "campaigns", element: <CampaignsPage /> },
@@ -84,7 +87,7 @@ export const router = createBrowserRouter([
       { path: "settings/clients", element: <Clients /> }, // Clients management in settings
       // Social Media Content Management routes
       { path: "content-library", element: <ContentLibrary /> },
-      { path: "content-library/create", element: <ContentEditor /> },
+      { path: "content-library/create", element: <ContentCreateRoute /> },
       { path: "content-library/:id/edit", element: <ContentEditor /> },
       { path: "approvals", element: <ApprovalQueue /> },
       // AI Chat Widget routes

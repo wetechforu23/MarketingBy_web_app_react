@@ -24,6 +24,8 @@ export default function ChatWidgets() {
   const [selectedWidget, setSelectedWidget] = useState<Widget | null>(null)
   const [showEmbedCode, setShowEmbedCode] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
+  const [isClientUser, setIsClientUser] = useState(false)
+  const [clientActive, setClientActive] = useState(true)
 
   useEffect(() => {
     fetchWidgets()
@@ -32,6 +34,35 @@ export default function ChatWidgets() {
   const fetchWidgets = async () => {
     try {
       setLoading(true)
+      // Determine user and client activation first
+      const me = await api.get('/auth/me')
+      const role = me.data?.role
+      const clientId = me.data?.client_id
+      const isClient = role === 'client_admin' || role === 'client_user'
+      setIsClientUser(isClient)
+
+      if (isClient && clientId) {
+        try {
+          const clientsRes = await api.get('/clients')
+          const match = (clientsRes.data?.clients || []).find((c: any) => c.id === clientId)
+          const active = Boolean(match?.is_active ?? match?.status)
+          setClientActive(active)
+          if (!active) {
+            setWidgets([])
+            setLoading(false)
+            return
+          }
+        } catch (e) {
+          // If we cannot verify, treat as inactive to be safe
+          setClientActive(false)
+          setWidgets([])
+          setLoading(false)
+          return
+        }
+      } else {
+        setClientActive(true)
+      }
+
       const response = await api.get('/chat-widget/widgets')
       setWidgets(response.data)
     } catch (err: any) {
@@ -100,23 +131,50 @@ export default function ChatWidgets() {
             Manage your embeddable chat widgets for customer websites
           </p>
         </div>
-        <Link 
-          to="/app/chat-widgets/create"
-          style={{
-            padding: '12px 24px',
-            background: 'linear-gradient(135deg, #4682B4, #2E86AB)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            textDecoration: 'none',
-            fontWeight: '600',
-            cursor: 'pointer'
-          }}
-        >
-          <i className="fas fa-plus-circle" style={{ marginRight: '8px' }}></i>
-          Create New Widget
-        </Link>
+        {!(isClientUser && !clientActive) && (
+          <Link 
+            to="/app/chat-widgets/create"
+            style={{
+              padding: '12px 24px',
+              background: 'linear-gradient(135deg, #4682B4, #2E86AB)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              textDecoration: 'none',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            <i className="fas fa-plus-circle" style={{ marginRight: '8px' }}></i>
+            Create New Widget
+          </Link>
+        )}
       </div>
+
+      {(isClientUser && !clientActive) && (
+        <div style={{
+          background: '#fff',
+          borderRadius: '12px',
+          padding: '1.5rem',
+          border: '1px solid #fde68a',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+          marginBottom: '1.5rem'
+        }}>
+          <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 6 }}>Upgrade required to use Chat Widgets</div>
+          <div style={{ color: '#6b7280', marginBottom: 12 }}>
+            Your account is not yet activated. Please upgrade your plan to enable chat widgets.
+          </div>
+          <Link to="/app/customer/plan" style={{
+            display: 'inline-block',
+            padding: '10px 16px',
+            background: '#2563eb',
+            color: 'white',
+            borderRadius: 8,
+            textDecoration: 'none',
+            fontWeight: 700
+          }}>Go to Upgrade</Link>
+        </div>
+      )}
 
       {error && (
         <div style={{ 
@@ -130,7 +188,7 @@ export default function ChatWidgets() {
         </div>
       )}
 
-      {widgets.length === 0 ? (
+      {(widgets.length === 0 && !(isClientUser && !clientActive)) ? (
         <div style={{
           textAlign: 'center',
           padding: '4rem',
@@ -157,7 +215,7 @@ export default function ChatWidgets() {
             Create Your First Widget
           </Link>
         </div>
-      ) : (
+      ) : (!isClientUser || clientActive) ? (
         <div style={{ 
           display: 'grid', 
           gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
@@ -476,7 +534,7 @@ export default function ChatWidgets() {
             </div>
           ))}
         </div>
-      )}
+      ) : null}
 
       {/* Embed Code Modal */}
       {showEmbedCode && selectedWidget && (
