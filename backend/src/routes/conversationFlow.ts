@@ -18,12 +18,13 @@ const router = express.Router();
 router.get('/widgets/:id/flow', requireAuth, async (req: Request, res: Response) => {
   try {
     const widgetId = parseInt(req.params.id);
-    const user = (req as any).user;
+    const userId = req.session.userId;
+    const userRole = req.session.role;
+    const userClientId = req.session.clientId;
 
-    // Check if user is authenticated
-    if (!user) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
+    // Fetch user to check admin status
+    const userResult = await pool.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
+    const isAdmin = userResult.rows[0]?.is_admin || false;
 
     // Check if user has access to this widget
     const widgetCheck = await pool.query(
@@ -41,7 +42,7 @@ router.get('/widgets/:id/flow', requireAuth, async (req: Request, res: Response)
     const widget = widgetCheck.rows[0];
 
     // Check permissions (super admin or widget owner)
-    if (!user.is_admin && user.client_id !== widget.client_id) {
+    if (!isAdmin && userClientId !== widget.client_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -76,17 +77,17 @@ router.get('/widgets/:id/flow', requireAuth, async (req: Request, res: Response)
 router.put('/widgets/:id/flow', requireAuth, async (req: Request, res: Response) => {
   try {
     const widgetId = parseInt(req.params.id);
-    const user = (req as any).user;
+    const userId = req.session.userId;
+    const userClientId = req.session.clientId;
     const { conversation_flow } = req.body;
-
-    // Check if user is authenticated
-    if (!user) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
 
     if (!conversation_flow || !Array.isArray(conversation_flow)) {
       return res.status(400).json({ error: 'conversation_flow must be an array' });
     }
+
+    // Fetch user to check admin status
+    const userResult = await pool.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
+    const isAdmin = userResult.rows[0]?.is_admin || false;
 
     // Check if user has access to this widget
     const widgetCheck = await pool.query(
@@ -104,7 +105,7 @@ router.put('/widgets/:id/flow', requireAuth, async (req: Request, res: Response)
     const widget = widgetCheck.rows[0];
 
     // Check permissions (super admin or widget owner)
-    if (!user.is_admin && user.client_id !== widget.client_id) {
+    if (!isAdmin && userClientId !== widget.client_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -143,13 +144,13 @@ router.put('/widgets/:id/flow', requireAuth, async (req: Request, res: Response)
 router.get('/widgets/:id/flow/analytics', requireAuth, async (req: Request, res: Response) => {
   try {
     const widgetId = parseInt(req.params.id);
-    const user = (req as any).user;
+    const userId = req.session.userId;
+    const userClientId = req.session.clientId;
     const { period = '7d' } = req.query;
 
-    // Check if user is authenticated
-    if (!user) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
+    // Fetch user to check admin status
+    const userResult = await pool.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
+    const isAdmin = userResult.rows[0]?.is_admin || false;
 
     // Calculate date range
     let dateFilter = "created_at > NOW() - INTERVAL '7 days'";
@@ -172,7 +173,7 @@ router.get('/widgets/:id/flow/analytics', requireAuth, async (req: Request, res:
     const widget = widgetCheck.rows[0];
 
     // Check permissions
-    if (!user.is_admin && user.client_id !== widget.client_id) {
+    if (!isAdmin && userClientId !== widget.client_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -251,12 +252,12 @@ router.get('/widgets/:id/flow/analytics', requireAuth, async (req: Request, res:
 router.post('/widgets/:id/flow/reset', requireAuth, async (req: Request, res: Response) => {
   try {
     const widgetId = parseInt(req.params.id);
-    const user = (req as any).user;
+    const userId = req.session.userId;
+    const userClientId = req.session.clientId;
 
-    // Check if user is authenticated
-    if (!user) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
+    // Fetch user to check admin status
+    const userResult = await pool.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
+    const isAdmin = userResult.rows[0]?.is_admin || false;
 
     // Check if user has access to this widget
     const widgetCheck = await pool.query(
@@ -274,7 +275,7 @@ router.post('/widgets/:id/flow/reset', requireAuth, async (req: Request, res: Re
     const widget = widgetCheck.rows[0];
 
     // Check permissions
-    if (!user.is_admin && user.client_id !== widget.client_id) {
+    if (!isAdmin && userClientId !== widget.client_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
