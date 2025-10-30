@@ -2384,11 +2384,11 @@ router.post('/test-ai', async (req, res) => {
     });
 
     if (!testResponse.ok) {
-      const errorData = await testResponse.json();
+      const errorData: any = await testResponse.json();
       throw new Error(errorData.error?.message || 'API test failed');
     }
 
-    const result = await testResponse.json();
+    const result: any = await testResponse.json();
     const responseText = result.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
 
     res.json({
