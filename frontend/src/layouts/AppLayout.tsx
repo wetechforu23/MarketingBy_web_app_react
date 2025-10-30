@@ -21,6 +21,7 @@ export default function AppLayout() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const profileRef = useRef<HTMLDivElement>(null)
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -39,6 +40,27 @@ export default function AppLayout() {
   // Debug: Log user state changes
   useEffect(() => {
     console.log('👤 User state updated:', user)
+  }, [user])
+
+  // 🔔 Poll unread counts for top-right bell (hide for client users)
+  useEffect(() => {
+    if (!user) return
+    const isClientRole = user.role === 'client_admin' || user.role === 'client_user'
+    if (isClientRole) return
+
+    let aborted = false
+    const fetchUnread = async () => {
+      try {
+        const res = await http.get('/chat-widget/admin/unread-counts')
+        if (!aborted) setUnreadCount(res.data?.total_unread || 0)
+      } catch (e) {
+        // non-blocking
+      }
+    }
+
+    fetchUnread()
+    const id = setInterval(fetchUnread, 10000)
+    return () => { aborted = true; clearInterval(id) }
   }, [user])
 
   const handleLogout = async () => {
@@ -157,13 +179,61 @@ export default function AppLayout() {
       </aside>
       
       <main className="content">
-        {/* User Profile in Top-Right Corner */}
+        {/* Top-Right Controls: Notifications + Profile */}
         <div style={{
           position: 'fixed',
           top: '20px',
           right: '20px',
           zIndex: 1000
         }}>
+          {/* Notification Bell */}
+          {user && user.role !== 'client_admin' && user.role !== 'client_user' && (
+            <div 
+              onClick={() => navigate('/app/chat-conversations')}
+              title={unreadCount > 0 ? `${unreadCount} unread conversations` : 'Conversations'}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '50px',
+                height: '50px',
+                borderRadius: '12px',
+                background: 'white',
+                border: '2px solid rgba(70,130,180,0.3)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                color: '#2C5F77',
+                marginRight: '12px',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+              }}
+            >
+              <i className="fas fa-bell"></i>
+              {unreadCount > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  transform: 'translate(16px, -16px)',
+                  background: '#dc3545',
+                  color: 'white',
+                  borderRadius: '10px',
+                  padding: '2px 6px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  minWidth: '20px',
+                  textAlign: 'center'
+                }}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </div>
+          )}
+
           {user && (
             <div 
               className="profile-avatar" 
