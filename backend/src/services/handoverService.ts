@@ -266,19 +266,46 @@ export class HandoverService {
       throw new Error('Phone number required for WhatsApp handover');
     }
 
-    // Use existing WhatsAppService
-    const { WhatsAppService } = await import('./whatsappService');
-    const whatsappService = WhatsAppService.getInstance();
-    
-    await whatsappService.sendMessage({
-      clientId: handoverRequest.client_id,
-      widgetId: handoverRequest.widget_id,
-      conversationId: handoverRequest.conversation_id,
-      toNumber: handoverRequest.visitor_phone,
-      message: `Hello ${handoverRequest.visitor_name || 'there'}! An agent will contact you shortly via WhatsApp. Your message: ${handoverRequest.visitor_message || 'You requested to speak with an agent.'}`
-    });
+    const client = await pool.connect();
+    try {
+      // 1) Mark conversation as handed off so AI stops replying immediately
+      await client.query(
+        `UPDATE widget_conversations SET 
+           agent_handoff = true,
+           handoff_requested = false,
+           updated_at = NOW(),
+           last_activity_at = NOW()
+         WHERE id = $1`,
+        [handoverRequest.conversation_id]
+      );
 
-    await this.updateHandoverStatus(handoverRequest.id, 'notified', null);
+      // 2) Add a system message in the portal timeline
+      await client.query(
+        `INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+         VALUES ($1, $2, $3, NOW())`,
+        [
+          handoverRequest.conversation_id,
+          'system',
+          `🤝 Conversation handed off to WhatsApp. We will contact ${handoverRequest.visitor_phone} shortly.`
+        ]
+      );
+
+      // 3) Send initial WhatsApp notification to the visitor
+      const { WhatsAppService } = await import('./whatsappService');
+      const whatsappService = WhatsAppService.getInstance();
+      await whatsappService.sendMessage({
+        clientId: handoverRequest.client_id,
+        widgetId: handoverRequest.widget_id,
+        conversationId: handoverRequest.conversation_id,
+        toNumber: handoverRequest.visitor_phone,
+        message: `Hello ${handoverRequest.visitor_name || 'there'}! An agent will contact you shortly via WhatsApp.\n\nYour request: ${handoverRequest.visitor_message || 'You requested to speak with an agent.'}`
+      });
+
+      // 4) Update handover status
+      await this.updateHandoverStatus(handoverRequest.id, 'notified', null);
+    } finally {
+      client.release();
+    }
   }
 
   /**
