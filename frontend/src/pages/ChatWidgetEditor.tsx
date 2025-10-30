@@ -158,8 +158,9 @@ export default function ChatWidgetEditor() {
 
   const fetchWidget = async () => {
     try {
-      const response = await api.get(`/chat-widget/widgets`)
-      const widget = response.data.find((w: any) => w.id === parseInt(id!))
+      // Use single-widget endpoint so we can determine configured flags without exposing secrets
+      const response = await api.get(`/chat-widget/widgets/${id}`)
+      const widget = response.data
       if (widget) {
         setFormData({
           widget_name: widget.widget_name,
@@ -207,7 +208,7 @@ export default function ChatWidgetEditor() {
           setEnableAI(widget.llm_enabled)
         }
         // Check if AI key exists and show configured badge (but don't load the actual key for security)
-        if (widget.widget_specific_llm_key && widget.widget_specific_llm_key.trim().length > 0) {
+        if (widget.widget_specific_llm_key && String(widget.widget_specific_llm_key).trim().length > 0) {
           console.log('✅ AI API key found - showing configured badge')
           setAiConfigured(true)
           // Don't set the actual key - keep it empty and show placeholder
@@ -1122,15 +1123,7 @@ export default function ChatWidgetEditor() {
             </div>
           </div>
 
-          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={formData.require_captcha}
-              onChange={(e) => handleChange('require_captcha', e.target.checked)}
-              style={{ marginRight: '0.5rem', width: '18px', height: '18px' }}
-            />
-            <span style={{ fontWeight: '600' }}>Require CAPTCHA (future feature)</span>
-          </label>
+          {/* CAPTCHA hidden until implemented */}
         </div>
 
         {/* 🤖 AI/LLM Configuration */}
