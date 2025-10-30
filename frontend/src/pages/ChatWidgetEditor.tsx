@@ -206,9 +206,13 @@ export default function ChatWidgetEditor() {
         if (widget.llm_enabled !== undefined) {
           setEnableAI(widget.llm_enabled)
         }
-        if (widget.widget_specific_llm_key) {
-          setAiApiKey(widget.widget_specific_llm_key)
+        // Check if AI key exists and show configured badge (but don't load the actual key for security)
+        if (widget.widget_specific_llm_key && widget.widget_specific_llm_key.trim().length > 0) {
+          console.log('✅ AI API key found - showing configured badge')
           setAiConfigured(true)
+          // Don't set the actual key - keep it empty and show placeholder
+        } else {
+          console.log('❌ No AI API key found')
         }
         if (widget.llm_max_tokens) {
           setAiMaxTokens(widget.llm_max_tokens)
@@ -283,12 +287,18 @@ export default function ChatWidgetEditor() {
   // 💬 Fetch WhatsApp Settings
   const fetchWhatsAppSettings = async (clientId: number) => {
     try {
+      console.log(`🔍 Checking WhatsApp configuration for client ${clientId}...`)
       const response = await api.get(`/whatsapp/settings/${clientId}`)
+      console.log('WhatsApp settings response:', response.data)
+      
       if (response.data.configured) {
+        console.log('✅ WhatsApp is configured - showing badge')
         setWhatsappConfigured(true)
         setWhatsappEnabled(response.data.enable_whatsapp || false)
         // Don't load sensitive credentials - they're on the server
         // Just show that it's configured
+      } else {
+        console.log('❌ WhatsApp is NOT configured')
       }
       
       // Fetch usage stats
@@ -440,13 +450,12 @@ export default function ChatWidgetEditor() {
     setError('')
 
     try {
-      const widgetData = {
+      const widgetData: any = {
         ...formData,
         intro_flow_enabled: introFlowEnabled,
         intro_questions: JSON.stringify(introQuestions),
         // AI Smart Responses
         llm_enabled: enableAI,
-        widget_specific_llm_key: aiApiKey,
         llm_max_tokens: aiMaxTokens,
         // Industry & HIPAA
         industry: industryType,
@@ -464,6 +473,11 @@ export default function ChatWidgetEditor() {
         webhook_url: webhookUrl,
         webhook_secret: webhookSecret,
         ...(isEditMode ? {} : { client_id: selectedClientId })
+      }
+
+      // Only include AI key if user has entered a new one (to update)
+      if (aiApiKey && aiApiKey.trim().length > 0) {
+        widgetData.widget_specific_llm_key = aiApiKey
       }
 
       if (isEditMode) {

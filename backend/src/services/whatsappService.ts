@@ -484,15 +484,16 @@ export class WhatsAppService {
 
   async isWhatsAppEnabled(clientId: number): Promise<boolean> {
     try {
+      // Check if there are active WhatsApp credentials in whatsapp_phone_numbers table
       const result = await pool.query(
-        `SELECT whatsapp_configured 
-         FROM widget_configs 
-         WHERE client_id = $1 
+        `SELECT id 
+         FROM whatsapp_phone_numbers 
+         WHERE client_id = $1 AND is_active = true
          LIMIT 1`,
         [clientId]
       );
 
-      return result.rows.length > 0 && result.rows[0].whatsapp_configured === true;
+      return result.rows.length > 0;
     } catch (error) {
       console.error('Error checking WhatsApp status:', error);
       return false;
