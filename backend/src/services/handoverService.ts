@@ -291,15 +291,48 @@ export class HandoverService {
       );
 
       // 3) Send initial WhatsApp notification to the visitor
+      const normalizeWhatsAppNumber = (raw: string): string => {
+        // Remove non-digits, keep leading + if present
+        let s = (raw || '').toString().trim();
+        // If it already starts with 'whatsapp:', assume caller knows what they're doing
+        if (s.startsWith('whatsapp:')) return s;
+        // Strip spaces and common separators
+        s = s.replace(/\s|\(|\)|-|\./g, '');
+        // Ensure leading +; default to US +1 if missing
+        if (!s.startsWith('+')) {
+          if (s.startsWith('00')) s = '+' + s.substring(2);
+          else s = '+1' + s; // Default country code
+        }
+        return `whatsapp:${s}`;
+      };
+
       const { WhatsAppService } = await import('./whatsappService');
       const whatsappService = WhatsAppService.getInstance();
-      await whatsappService.sendMessage({
-        clientId: handoverRequest.client_id,
-        widgetId: handoverRequest.widget_id,
-        conversationId: handoverRequest.conversation_id,
-        toNumber: handoverRequest.visitor_phone,
-        message: `Hello ${handoverRequest.visitor_name || 'there'}! An agent will contact you shortly via WhatsApp.\n\nYour request: ${handoverRequest.visitor_message || 'You requested to speak with an agent.'}`
-      });
+      const toNumber = normalizeWhatsAppNumber(handoverRequest.visitor_phone);
+
+      try {
+        await whatsappService.sendMessage({
+          clientId: handoverRequest.client_id,
+          widgetId: handoverRequest.widget_id,
+          conversationId: handoverRequest.conversation_id,
+          toNumber,
+          message: `Hello ${handoverRequest.visitor_name || 'there'}! An agent will contact you shortly via WhatsApp.\n\nYour request: ${handoverRequest.visitor_message || 'You requested to speak with an agent.'}`
+        });
+      } catch (sendErr: any) {
+        console.error('❌ WhatsApp sendMessage failed:', sendErr);
+        // Log a system message so the portal shows the error context
+        await client.query(
+          `INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+           VALUES ($1, 'system', $2, NOW())`,
+          [
+            handoverRequest.conversation_id,
+            `⚠️ Failed to initiate WhatsApp handover: ${sendErr?.message || 'Unknown error'}`
+          ]
+        );
+        // Mark request as failed
+        await this.updateHandoverStatus(handoverRequest.id, 'failed', sendErr?.message || 'send_error');
+        return;
+      }
 
       // 4) Update handover status
       await this.updateHandoverStatus(handoverRequest.id, 'notified', null);
