@@ -263,8 +263,20 @@ router.get('/widgets/:id', async (req, res) => {
         let credCheck = await pool.query(
           `SELECT 1 FROM encrypted_credentials 
              WHERE (
-               (service IS NOT NULL AND LOWER(service) LIKE '%gemini%' AND (key_name = 'api_key' OR credential_type = 'api_key'))
-               OR (service_name IS NOT NULL AND LOWER(service_name) LIKE '%gemini%' AND credential_type = 'api_key')
+               (
+                 service IS NOT NULL 
+                 AND (
+                   LOWER(service) LIKE '%gemini%' OR LOWER(service) LIKE '%google%'
+                 )
+                 AND (key_name = 'api_key' OR credential_type = 'api_key' OR key_name IS NULL)
+               )
+               OR (
+                 service_name IS NOT NULL 
+                 AND (
+                   LOWER(service_name) LIKE '%gemini%' OR LOWER(service_name) LIKE '%google%'
+                 )
+                 AND (credential_type = 'api_key' OR key_name = 'api_key' OR credential_type IS NULL)
+               )
              )
              AND (environment IS NULL OR environment = $1)
              AND (is_active IS NULL OR is_active = true)

@@ -932,6 +932,7 @@ export default function ChatWidgetEditor() {
                   type="text"
                   value={formData.primary_color}
                   onChange={(e) => handleChange('primary_color', e.target.value)}
+                  autoComplete="off"
                   style={{
                     flex: 1,
                     padding: '8px 12px',
@@ -964,6 +965,7 @@ export default function ChatWidgetEditor() {
                   type="text"
                   value={formData.secondary_color}
                   onChange={(e) => handleChange('secondary_color', e.target.value)}
+                  autoComplete="off"
                   style={{
                     flex: 1,
                     padding: '8px 12px',
