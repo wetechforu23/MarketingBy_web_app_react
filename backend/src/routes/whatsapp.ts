@@ -364,5 +364,50 @@ router.post('/webhook', async (req: Request, res: Response) => {
   }
 });
 
+// ==========================================
+// POST /api/whatsapp/status-callback
+// Twilio status callback for delivery updates
+// (PUBLIC - No auth required)
+// ==========================================
+
+router.post('/status-callback', async (req: Request, res: Response) => {
+  try {
+    const {
+      MessageSid,
+      MessageStatus,
+      To,
+      From,
+      SmsStatus,
+      ErrorCode,
+      ErrorMessage
+    } = req.body;
+
+    console.log('📱 WhatsApp Status Callback:', {
+      MessageSid,
+      Status: MessageStatus || SmsStatus,
+      To,
+      From,
+      ErrorCode,
+      ErrorMessage
+    });
+
+    // Update message status in database
+    if (MessageSid && (MessageStatus || SmsStatus)) {
+      await whatsappService.updateMessageStatus(
+        MessageSid,
+        MessageStatus || SmsStatus,
+        ErrorCode,
+        ErrorMessage
+      );
+    }
+
+    res.sendStatus(200);
+
+  } catch (error) {
+    console.error('WhatsApp status callback error:', error);
+    res.sendStatus(500);
+  }
+});
+
 export default router;
 
