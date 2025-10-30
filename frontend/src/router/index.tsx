@@ -3,6 +3,7 @@ import SmartDashboard from "../components/SmartDashboard";
 import SuperAdminDashboard from "../pages/SuperAdminDashboard";
 import ClientAdminDashboard from "../pages/ClientAdminDashboard";
 import ClientUserDashboard from "../pages/ClientUserDashboard";
+import ClientDashboard from "../pages/ClientDashboard";
 import LoginPage from "../pages/LoginPage";
 import HomePage from "../pages/home/HomePage";
 import TermsOfService from "../pages/TermsOfService";
@@ -60,8 +61,10 @@ export const router = createBrowserRouter([
     children: [
       { path: "dashboard", element: <SmartDashboard /> }, // Smart dashboard that routes based on user type
       { path: "admin", element: <SuperAdminDashboard /> }, // Super Admin Dashboard
-      { path: "client-admin", element: <ClientAdminDashboard /> }, // Client Admin Dashboard
-      { path: "client-user", element: <ClientUserDashboard /> }, // Client User Dashboard
+      { path: "client-admin", element: <ClientDashboard /> }, // Client Admin Dashboard (NEW)
+      { path: "client-user", element: <ClientDashboard /> }, // Client User Dashboard (NEW)
+      { path: "client-admin-old", element: <ClientAdminDashboard /> }, // OLD Client Admin Dashboard (backup)
+      { path: "client-user-old", element: <ClientUserDashboard /> }, // OLD Client User Dashboard (backup)
       { path: "profile", element: <Profile /> }, // User Profile page
       { path: "users", element: <Users /> },
       { path: "client-dashboard", element: <ClientAdminDashboard /> }, // Client dashboard route

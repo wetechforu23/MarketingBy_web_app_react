@@ -44,26 +44,29 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
   const [unreadCount, setUnreadCount] = useState(0)
   const location = useLocation()
 
-  // ✅ Fetch unread message counts
+  // ✅ Fetch unread message counts (only for WeTechForU users, not client users)
   useEffect(() => {
-    const fetchUnreadCounts = async () => {
-      try {
-        const response = await http.get('/chat-widget/admin/unread-counts')
-        const totalUnread = response.data.total_unread || 0
-        setUnreadCount(totalUnread)
-      } catch (error) {
-        console.warn('Failed to fetch unread counts:', error)
+    // Only fetch unread counts if user is NOT a client user
+    if (user && user.role !== 'client_admin' && user.role !== 'client_user') {
+      const fetchUnreadCounts = async () => {
+        try {
+          const response = await http.get('/chat-widget/admin/unread-counts')
+          const totalUnread = response.data.total_unread || 0
+          setUnreadCount(totalUnread)
+        } catch (error) {
+          console.warn('Failed to fetch unread counts:', error)
+        }
       }
+      
+      // Fetch immediately
+      fetchUnreadCounts()
+      
+      // Poll every 10 seconds for updates
+      const interval = setInterval(fetchUnreadCounts, 10000)
+      
+      return () => clearInterval(interval)
     }
-    
-    // Fetch immediately
-    fetchUnreadCounts()
-    
-    // Poll every 10 seconds for updates
-    const interval = setInterval(fetchUnreadCounts, 10000)
-    
-    return () => clearInterval(interval)
-  }, [])
+  }, [user])
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -126,23 +129,33 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
     // Super Admin can access everything
     if (isSuperAdmin) return true
     
-    // Simple role-based access for now
+    // Client users (client_admin, client_user) can only access dashboard
+    if (isClientAdmin || isClientUser) {
+      switch (page) {
+        case 'dashboard':
+          return true; // Dashboard only
+        default:
+          return false; // Everything else hidden
+      }
+    }
+    
+    // WeTechForU team and other roles
     switch (page) {
       case 'dashboard':
-        return true; // All users can access dashboard
+        return true;
       case 'users':
         return isSuperAdmin || isWeTechForUUser;
       case 'clients':
         return isSuperAdmin || isWeTechForUUser;
       case 'leads':
-        return true; // All users can view leads (filtered by client)
+        return isSuperAdmin || isWeTechForUUser;
       case 'seo':
       case 'seo-analysis':
       case 'seo-audit':
         return isSuperAdmin || isWeTechForUUser;
       case 'analytics':
       case 'reports':
-        return true; // All users can view analytics (filtered by client)
+        return isSuperAdmin || isWeTechForUUser;
       case 'settings':
       case 'credentials':
         return isSuperAdmin || isWeTechForUUser;
@@ -176,6 +189,95 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
               {!isCollapsed && 'Dashboard'}
             </Link>
           </li>
+        )}
+
+        {/* Client User Navigation - Show only for client users */}
+        {(isClientAdmin || isClientUser) && (
+          <>
+            <li className="nav-item">
+              <Link 
+                className={`nav-link ${isActive('/app/dashboard?tab=google-analytics') ? 'active' : ''}`} 
+                to="/app/dashboard?tab=google-analytics"
+                onClick={onNavigate}
+                title={isCollapsed ? 'Google Analytics' : ''}
+              >
+                <i className="fas fa-chart-bar"></i>
+                {!isCollapsed && 'Google Analytics'}
+              </Link>
+            </li>
+
+            <li className="nav-item">
+              <Link 
+                className={`nav-link ${isActive('/app/dashboard?tab=social-media') ? 'active' : ''}`} 
+                to="/app/dashboard?tab=social-media"
+                onClick={onNavigate}
+                title={isCollapsed ? 'Social Media' : ''}
+              >
+                <i className="fas fa-share-alt"></i>
+                {!isCollapsed && 'Social Media'}
+              </Link>
+            </li>
+
+            <li className="nav-item">
+              <Link 
+                className={`nav-link ${isActive('/app/dashboard?tab=lead-tracking') ? 'active' : ''}`} 
+                to="/app/dashboard?tab=lead-tracking"
+                onClick={onNavigate}
+                title={isCollapsed ? 'Lead Tracking' : ''}
+              >
+                <i className="fas fa-briefcase"></i>
+                {!isCollapsed && 'Lead Tracking'}
+              </Link>
+            </li>
+
+            <li className="nav-item">
+              <Link 
+                className={`nav-link ${isActive('/app/dashboard?tab=seo-analysis') ? 'active' : ''}`} 
+                to="/app/dashboard?tab=seo-analysis"
+                onClick={onNavigate}
+                title={isCollapsed ? 'SEO Analysis' : ''}
+              >
+                <i className="fas fa-search"></i>
+                {!isCollapsed && 'SEO Analysis'}
+              </Link>
+            </li>
+
+            <li className="nav-item">
+              <Link 
+                className={`nav-link ${isActive('/app/dashboard?tab=reports') ? 'active' : ''}`} 
+                to="/app/dashboard?tab=reports"
+                onClick={onNavigate}
+                title={isCollapsed ? 'Reports' : ''}
+              >
+                <i className="fas fa-file-alt"></i>
+                {!isCollapsed && 'Reports'}
+              </Link>
+            </li>
+
+            <li className="nav-item">
+              <Link 
+                className={`nav-link ${isActive('/app/dashboard?tab=local-search') ? 'active' : ''}`} 
+                to="/app/dashboard?tab=local-search"
+                onClick={onNavigate}
+                title={isCollapsed ? 'Local Search' : ''}
+              >
+                <i className="fas fa-map-marker-alt"></i>
+                {!isCollapsed && 'Local Search'}
+              </Link>
+            </li>
+
+            <li className="nav-item">
+              <Link 
+                className={`nav-link ${isActive('/app/dashboard?tab=settings') ? 'active' : ''}`} 
+                to="/app/dashboard?tab=settings"
+                onClick={onNavigate}
+                title={isCollapsed ? 'Settings' : ''}
+              >
+                <i className="fas fa-cog"></i>
+                {!isCollapsed && 'Settings'}
+              </Link>
+            </li>
+          </>
         )}
 
                {/* Client Management - New Dashboard */}
@@ -347,8 +449,8 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
           </li>
         )}
 
-        {/* Client Management Section */}
-        {(isClientAdmin || isClientUser) && (
+        {/* Client Management Section - HIDDEN FOR CLIENT USERS */}
+        {false && (isClientAdmin || isClientUser) && (
           <li className="nav-item">
             <a className="nav-link sub-btn">
               <i className="fas fa-chart-line"></i>

@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/http';
 import SuperAdminDashboard from '../pages/SuperAdminDashboard';
-import ClientAdminDashboard from '../pages/ClientAdminDashboard';
-import ClientUserDashboard from '../pages/ClientUserDashboard';
+import ClientDashboard from '../pages/ClientDashboard';
 
 interface UserInfo {
   id: number;
@@ -77,9 +76,9 @@ const SmartDashboard: React.FC = () => {
   if (isSuperAdmin) {
     return <SuperAdminDashboard />;
   } else if (isClientAdmin) {
-    return <ClientAdminDashboard />;
+    return <ClientDashboard />;
   } else if (isClientUser) {
-    return <ClientUserDashboard />;
+    return <ClientDashboard />;
   } else {
     return (
       <div className="alert alert-warning">

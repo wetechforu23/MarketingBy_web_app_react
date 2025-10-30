@@ -3,6 +3,7 @@ import axios from 'axios';
 import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';
+import { UTMTrackingService } from './utmTrackingService';
 
 /**
  * Defines the structure for Facebook credentials retrieved from the database.
@@ -475,10 +476,11 @@ class FacebookService {
       const reach = overviewMetrics.reach || 0;
       const impressions = overviewMetrics.impressions || 0;
 
-      // Calculate engagement rate
+      // Calculate engagement rate (cap at 100% to prevent database overflow)
       let engagementRate = 0;
       if (followers > 0 && engagement > 0) {
-        engagementRate = Number(((engagement / followers) * 100).toFixed(2));
+        const rawRate = (engagement / followers) * 100;
+        engagementRate = Number(Math.min(rawRate, 100).toFixed(2)); // Cap at 100% max
       }
 
       console.log(`✅ Page-level metrics fetched:`);
@@ -517,12 +519,12 @@ class FacebookService {
         
         const analyticsResult = await dbClient.query(
           `INSERT INTO facebook_analytics (
-            client_id, page_views, followers, engagement, reach, impressions, engagement_rate, metric_date, synced_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_DATE, NOW())
-          ON CONFLICT (client_id, metric_date) 
+            client_id, page_views, followers, engagement, reach, impressions, engagement_rate, synced_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+          ON CONFLICT (client_id) 
           DO UPDATE SET 
             page_views = $2, followers = $3, engagement = $4, reach = $5, impressions = $6, 
-            engagement_rate = $7, synced_at = NOW()`,
+            engagement_rate = $7, synced_at = NOW(), updated_at = NOW()`,
           [clientId, pageViews, followers, engagement, reach, impressions, engagementRate]
         );
         console.log(`   ✅ Page-level metrics stored (${analyticsResult.rowCount} row affected)`);
@@ -641,27 +643,17 @@ class FacebookService {
    */
     async getStoredData(clientId: number): Promise<FacebookData | null> {
         try {
-          // Get page-level metrics (latest date)
-          const analyticsResult = await this.pool.query(
-            `SELECT page_views, followers, engagement, reach, impressions, engagement_rate, metric_date
-             FROM facebook_analytics 
-             WHERE client_id = $1 
-             ORDER BY metric_date DESC, synced_at DESC 
-             LIMIT 1`,
+        // Get page-level metrics (latest sync)
+        const analyticsResult = await this.pool.query(
+          `SELECT page_views, followers, engagement, reach, impressions, engagement_rate, synced_at, created_at FROM facebook_analytics WHERE client_id = $1 ORDER BY synced_at DESC, created_at DESC LIMIT 1`,
+          [clientId]
+        );
+    
+          // Get posts
+          const postsResult = await this.pool.query(
+            `SELECT post_id, message, created_time, post_impressions, post_reach, comments_count, shares_count, reactions_like, reactions_love, reactions_haha, reactions_wow, reactions_sad, reactions_angry FROM facebook_posts WHERE client_id = $1 ORDER BY created_time DESC LIMIT 50`,
             [clientId]
           );
-    
-          // Get posts
-          const postsResult = await this.pool.query(
-            `SELECT post_id, message, created_time, post_impressions, post_reach,
-                    comments_count, shares_count, reactions_like, reactions_love, 
-                    reactions_haha, reactions_wow, reactions_sad, reactions_angry
-             FROM facebook_posts 
-             WHERE client_id = $1 
-             ORDER BY created_time DESC 
-             LIMIT 50`,
-            [clientId]
-          );
     
           if (analyticsResult.rows.length === 0) {
             return null;
@@ -695,10 +687,15 @@ class FacebookService {
               };
             })
           };
-        } catch (error: any) {
-          console.error(`❌ Error getting stored data: ${error.message}`);
-          return null;
-        }
+      } catch (error: any) {
+        console.error(`❌ Error getting stored data: ${error.message}`);
+        console.error(`❌ Error details:`, error);
+        console.error(`❌ Error stack:`, error.stack);
+        if (error.position) {
+          console.error(`❌ Error position in query:`, error.position);
+        }
+        return null;
+      }
       }
 
   /**
@@ -749,21 +746,101 @@ class FacebookService {
 
       console.log(`📘 Creating Facebook text post for page ${credentials.page_id}...`);
 
+      // NEW: Get client name for UTM campaign generation
+      let clientName = 'client';
+      let trackedMessage = message;
+      let utmCampaign = '';
+      let originalUrls: string[] = [];
+      let trackedUrls: string[] = [];
+
+      try {
+        const clientResult = await this.pool.query(
+          'SELECT client_name FROM clients WHERE id = $1',
+          [clientId]
+        );
+        
+        if (clientResult.rows.length > 0) {
+          clientName = clientResult.rows[0].client_name;
+        }
+
+        // NEW: Process message content with UTM tracking
+        console.log('🔗 Processing content with UTM tracking...');
+        const utmResult = UTMTrackingService.processPostContent(
+          message,
+          clientId,
+          clientName,
+          'text'
+        );
+
+        trackedMessage = utmResult.trackedContent;
+        utmCampaign = utmResult.utmCampaign;
+        originalUrls = utmResult.originalUrls;
+        trackedUrls = utmResult.trackedUrls;
+
+        if (originalUrls.length > 0) {
+          console.log(`✅ UTM tracking applied to ${originalUrls.length} URL(s)`);
+          console.log(`   Campaign: ${utmCampaign}`);
+        }
+      } catch (utmError: any) {
+        // Graceful fallback: if UTM tracking fails, post without tracking
+        console.warn('⚠️  UTM tracking failed, posting without tracking:', utmError.message);
+        trackedMessage = message; // Use original message
+      }
+
+      // Post to Facebook with tracked content
       const response = await axios.post(
         `${this.baseUrl}/${credentials.page_id}/feed`,
         {
-          message: message,
+          message: trackedMessage,
           access_token: credentials.access_token
         }
       );
 
       const postId = response.data.id;
+      const postUrl = `https://www.facebook.com/${postId.replace('_', '/posts/')}`;
       console.log(`✅ Facebook text post created: ${postId}`);
+
+      // NEW: Store UTM data in database (optional - graceful if migration not run)
+      if (utmCampaign && originalUrls.length > 0) {
+        try {
+          await this.pool.query(
+            `INSERT INTO facebook_posts (
+              client_id, post_id, message, created_time, permalink_url,
+              utm_campaign, utm_source, utm_medium, original_urls, tracked_urls,
+              synced_at
+            ) VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7, $8, $9, NOW())
+            ON CONFLICT (post_id) DO UPDATE SET
+              message = EXCLUDED.message,
+              utm_campaign = EXCLUDED.utm_campaign,
+              utm_source = EXCLUDED.utm_source,
+              utm_medium = EXCLUDED.utm_medium,
+              original_urls = EXCLUDED.original_urls,
+              tracked_urls = EXCLUDED.tracked_urls,
+              synced_at = NOW()`,
+            [
+              clientId,
+              postId,
+              trackedMessage,
+              postUrl,
+              utmCampaign,
+              'facebook',
+              'social',
+              originalUrls,
+              trackedUrls
+            ]
+          );
+          console.log(`📊 UTM tracking data stored in database`);
+        } catch (dbError: any) {
+          // Graceful: if DB storage fails (e.g., migration not run), just log it
+          console.warn('⚠️  Could not store UTM data in database:', dbError.message);
+          console.warn('   (This is OK if you haven\'t run the UTM migration yet)');
+        }
+      }
 
       return {
         success: true,
         postId: postId,
-        postUrl: `https://www.facebook.com/${postId.replace('_', '/posts/')}`
+        postUrl: postUrl
       };
     } catch (error: any) {
       console.error('❌ Error creating Facebook text post:', error.response?.data || error.message);
@@ -1166,9 +1243,10 @@ class FacebookService {
       console.log(`   Client ID: ${clientId}, Limit: ${limit}`);
       
       const result = await this.pool.query(
-        `SELECT post_id, message, created_time, post_impressions, post_reach, post_engaged_users,
+        `SELECT post_id, message, created_time, permalink_url, post_impressions, post_reach, post_engaged_users,
                 post_clicks, post_video_views, comments_count, shares_count,
                 reactions_like, reactions_love, reactions_haha, reactions_wow, reactions_sad, reactions_angry,
+                likes, comments, shares,
                 (post_engaged_users + comments_count + shares_count) as engagement_score
          FROM facebook_posts 
          WHERE client_id = $1 
