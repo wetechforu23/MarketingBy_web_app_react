@@ -150,17 +150,27 @@ export class HandoverService {
           visitor_phone,
           visitor_message,
           status
-        ) VALUES ($1::integer, $2::integer, $3::integer, $4::text, $5::text, $6::text, $7::text, $8::text, 'pending')
+        ) VALUES (
+          $1::integer,
+          $2::integer,
+          $3::integer,
+          $4::varchar,
+          $5::varchar,
+          $6::varchar,
+          $7::varchar,
+          $8::varchar,
+          'pending'
+        )
         RETURNING *
       `, [
         data.conversation_id ? parseInt(String(data.conversation_id)) : null,
         data.widget_id ? parseInt(String(data.widget_id)) : null,
         data.client_id ? parseInt(String(data.client_id)) : null,
-        data.requested_method || 'portal',
-        data.visitor_name || null,
-        data.visitor_email || null,
-        data.visitor_phone || null,
-        data.visitor_message || null
+        (data.requested_method || 'portal'),
+        (data.visitor_name || null),
+        (data.visitor_email || null),
+        (data.visitor_phone || null),
+        (data.visitor_message || null)
       ]);
 
       const handoverRequest = result.rows[0];
@@ -169,20 +179,20 @@ export class HandoverService {
       await client.query(`
         UPDATE widget_conversations
         SET 
-          preferred_contact_method = $1,
-          contact_method_details = $2,
+          preferred_contact_method = $1::varchar,
+          contact_method_details = $2::text,
           handoff_requested = true,
           handoff_requested_at = CURRENT_TIMESTAMP
-        WHERE id = $3
+        WHERE id = $3::integer
       `, [
-        data.requested_method,
+        (data.requested_method || 'portal'),
         JSON.stringify({
           name: data.visitor_name,
           email: data.visitor_email,
           phone: data.visitor_phone,
           message: data.visitor_message
         }),
-        data.conversation_id
+        data.conversation_id ? parseInt(String(data.conversation_id)) : null
       ]);
 
       // Process the handover based on method
