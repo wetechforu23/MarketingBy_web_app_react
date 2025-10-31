@@ -75,6 +75,8 @@ router.get('/settings/:clientId', requireAuth, async (req: Request, res: Respons
 
     // Get phone number if configured
     let phoneNumber = null;
+    let credentialsPartial = null; // Partial credentials for display (last 4 digits)
+    
     if (isConfigured) {
       const phoneResult = await pool.query(
         `SELECT phone_number, display_name, is_sandbox
@@ -87,6 +89,53 @@ router.get('/settings/:clientId', requireAuth, async (req: Request, res: Respons
       if (phoneResult.rows.length > 0) {
         phoneNumber = phoneResult.rows[0];
       }
+
+      // ✅ Get partial credentials for display (last 4 digits only)
+      try {
+        const crypto = require('crypto');
+        const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key!!';
+        const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+        
+        const decrypt = (encrypted: string): string => {
+          try {
+            const parts = encrypted.split(':');
+            const iv = Buffer.from(parts[0], 'hex');
+            const encryptedText = parts[1];
+            const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+            let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+            decrypted += decipher.final('utf8');
+            return decrypted;
+          } catch (e) {
+            console.error('Decrypt error:', e);
+            return '';
+          }
+        };
+
+        const credResult = await pool.query(
+          `SELECT key_name, encrypted_value 
+           FROM encrypted_credentials 
+           WHERE service = $1`,
+          [`whatsapp_client_${clientId}`]
+        );
+
+        if (credResult.rows.length > 0) {
+          const partials: any = {};
+          credResult.rows.forEach((row: any) => {
+            try {
+              const decrypted = decrypt(row.encrypted_value);
+              if (decrypted && decrypted.length >= 4) {
+                // Show last 4 characters
+                partials[row.key_name] = `••••${decrypted.substring(decrypted.length - 4)}`;
+              }
+            } catch (e) {
+              console.error(`Error decrypting ${row.key_name}:`, e);
+            }
+          });
+          credentialsPartial = partials;
+        }
+      } catch (e) {
+        console.error('Error getting partial credentials:', e);
+      }
     }
 
     // Get usage stats
@@ -95,6 +144,7 @@ router.get('/settings/:clientId', requireAuth, async (req: Request, res: Respons
     res.json({
       configured: isConfigured,
       phone_number: phoneNumber,
+      credentials_partial: credentialsPartial, // Last 4 digits for display
       usage
     });
 

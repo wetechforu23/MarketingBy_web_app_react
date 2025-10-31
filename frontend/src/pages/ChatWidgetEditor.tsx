@@ -13,6 +13,7 @@ export default function ChatWidgetEditor() {
   const [clients, setClients] = useState<any[]>([])
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null)
   const [userRole, setUserRole] = useState('')
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   const [formData, setFormData] = useState({
     widget_name: '',
@@ -40,7 +41,11 @@ export default function ChatWidgetEditor() {
   })
 
   // 🤖 NEW: Intro Questions State
-  const [introFlowEnabled, setIntroFlowEnabled] = useState(true)
+  const [introFlowEnabled, setIntroFlowEnabledState] = useState(true)
+  const setIntroFlowEnabled = (value: boolean) => {
+    setIntroFlowEnabledState(value)
+    setHasUnsavedChanges(true)
+  }
   const [introQuestions, setIntroQuestions] = useState([
     { id: 'first_name', question: 'What is your first name?', type: 'text', required: true, order: 1 },
     { id: 'last_name', question: 'What is your last name?', type: 'text', required: true, order: 2 },
@@ -53,7 +58,11 @@ export default function ChatWidgetEditor() {
   const [showQuestionForm, setShowQuestionForm] = useState(false)
 
   // 💬 WhatsApp / Twilio Integration State
-  const [whatsappEnabled, setWhatsappEnabled] = useState(false)
+  const [whatsappEnabled, setWhatsappEnabledState] = useState(false)
+  const setWhatsappEnabled = (value: boolean) => {
+    setWhatsappEnabledState(value)
+    setHasUnsavedChanges(true)
+  }
   const [whatsappSettings, setWhatsappSettings] = useState({
     account_sid: '',
     auth_token: '',
@@ -61,6 +70,7 @@ export default function ChatWidgetEditor() {
   })
   const [whatsappConfigured, setWhatsappConfigured] = useState(false)
   const [whatsappUsage, setWhatsappUsage] = useState<any>(null)
+  const [whatsappCredentialsPartial, setWhatsappCredentialsPartial] = useState<any>(null) // Last 4 digits for display
   const [testingWhatsApp, setTestingWhatsApp] = useState(false)
   const [whatsappTestResult, setWhatsappTestResult] = useState<string | null>(null)
   const [savingWhatsApp, setSavingWhatsApp] = useState(false)
@@ -85,13 +95,24 @@ export default function ChatWidgetEditor() {
   const [testingHandoverWhatsApp, setTestingHandoverWhatsApp] = useState(false)
 
   // 🤖 AI/LLM Configuration State
-  const [enableAI, setEnableAI] = useState(false)
+  const [enableAI, setEnableAIState] = useState(false)
+  const setEnableAI = (value: boolean) => {
+    setEnableAIState(value)
+    setHasUnsavedChanges(true)
+  }
   const [aiApiKey, setAiApiKey] = useState('')
   const [aiMaxTokens, setAiMaxTokens] = useState(1000)
   const [aiConfigured, setAiConfigured] = useState(false)
   const [testingAI, setTestingAI] = useState(false)
   const [aiTestResult, setAiTestResult] = useState<string | null>(null)
   const [savingAI, setSavingAI] = useState(false)
+  // 🤖 LLM Usage Stats
+  const [llmUsage, setLlmUsage] = useState<any>(null)
+  const [llmProvider, setLlmProvider] = useState('')
+  const [llmModel, setLlmModel] = useState('')
+  const [loadingLlmUsage, setLoadingLlmUsage] = useState(false)
+  const [apiKeyPartial, setApiKeyPartial] = useState('') // Partial API key for display
+  const [apiKeySource, setApiKeySource] = useState<'widget' | 'client' | 'global' | null>(null) // Where the key is stored
 
   // 🏥 Industry & HIPAA State
   const [industryType, setIndustryType] = useState('general')
@@ -110,6 +131,20 @@ export default function ChatWidgetEditor() {
       fetchWidget()
     }
   }, [id])
+
+  // Track unsaved changes and warn before leaving
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?'
+        return e.returnValue
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges])
 
   const fetchUserAndClients = async () => {
     try {
@@ -192,7 +227,7 @@ export default function ChatWidgetEditor() {
         
         // ✅ FIX: Load intro flow settings
         if (widget.intro_flow_enabled !== undefined) {
-          setIntroFlowEnabled(widget.intro_flow_enabled)
+          setIntroFlowEnabledState(widget.intro_flow_enabled)
         }
         
         if (widget.intro_questions) {
@@ -208,18 +243,49 @@ export default function ChatWidgetEditor() {
         
         // Load AI settings
         if (widget.llm_enabled !== undefined) {
-          setEnableAI(widget.llm_enabled)
+          setEnableAIState(widget.llm_enabled)
         }
-        // Check if AI key exists and show configured badge (but don't load the actual key for security)
-        if ((widget.widget_specific_llm_key && String(widget.widget_specific_llm_key).trim().length > 0) || widget.ai_configured) {
-          console.log('✅ AI API key found - showing configured badge')
-          setAiConfigured(true)
-          // Don't set the actual key - keep it empty and show placeholder
+        // ✅ FIX: Check if AI is configured from backend response (checks encrypted_credentials)
+        if (widget.ai_configured !== undefined) {
+          setAiConfigured(widget.ai_configured)
+          console.log(`✅ AI configuration status: ${widget.ai_configured ? 'CONFIGURED' : 'NOT CONFIGURED'}`)
+          
+          // ✅ Store API key partial and source for display
+          if (widget.ai_api_key_partial) {
+            setApiKeyPartial(widget.ai_api_key_partial)
+          }
+          if (widget.ai_api_key_source) {
+            setApiKeySource(widget.ai_api_key_source)
+            console.log(`📦 API Key Source: ${widget.ai_api_key_source}`)
+          }
         } else {
-          console.log('❌ No AI API key found')
+          // Fallback: Check if widget_specific_llm_key exists
+          if (widget.widget_specific_llm_key && String(widget.widget_specific_llm_key).trim().length > 0) {
+            setAiConfigured(true)
+            setApiKeySource('widget')
+            console.log('✅ AI API key found in widget_specific_llm_key')
+          } else {
+            setAiConfigured(false)
+            console.log('❌ No AI API key found')
+          }
         }
         if (widget.llm_max_tokens) {
           setAiMaxTokens(widget.llm_max_tokens)
+        }
+        if (widget.llm_provider) {
+          setLlmProvider(widget.llm_provider)
+        }
+        if (widget.llm_model) {
+          setLlmModel(widget.llm_model)
+        }
+        
+        // ✅ Load LLM usage stats from widget response (already fetched by backend)
+        if (widget.llm_usage_stats) {
+          setLlmUsage(widget.llm_usage_stats)
+          console.log('✅ LLM usage stats loaded:', widget.llm_usage_stats)
+        } else if (widget.llm_enabled && widget.client_id) {
+          // Fallback: Fetch if not in response
+          fetchLlmUsage(widget.client_id, widget.id)
         }
 
         // Load Industry & HIPAA settings
@@ -242,10 +308,12 @@ export default function ChatWidgetEditor() {
           setEmergencyContact(widget.emergency_contact)
         }
 
-        // Load WhatsApp settings
+        // ✅ FIX: Load WhatsApp settings - check both enable_whatsapp flag and configured status
         if (widget.enable_whatsapp !== undefined) {
-          setWhatsappEnabled(widget.enable_whatsapp)
+          setWhatsappEnabledState(widget.enable_whatsapp)
+          console.log(`✅ WhatsApp enabled status from widget: ${widget.enable_whatsapp}`)
         }
+        // Note: whatsappConfigured is set by fetchWhatsAppSettings() which checks /whatsapp/settings/{clientId}
 
         // Load Handover Options
         if (widget.enable_handover_choice !== undefined) {
@@ -288,6 +356,42 @@ export default function ChatWidgetEditor() {
     }
   }
 
+  // 🤖 Fetch LLM Usage Stats
+  const fetchLlmUsage = async (clientId: number, widgetId: number) => {
+    try {
+      setLoadingLlmUsage(true)
+      const response = await api.get(`/chat-widget/clients/${clientId}/llm-usage`)
+      // Find usage for this specific widget
+      const widgetUsage = response.data.find((usage: any) => usage.widget_id === widgetId)
+      if (widgetUsage) {
+        setLlmUsage(widgetUsage)
+      } else {
+        // No usage record yet - create defaults
+        setLlmUsage({
+          tokens_used_this_month: 0,
+          monthly_token_limit: 100000, // Default 100K
+          tokens_used_today: 0,
+          daily_token_limit: 5000, // Default 5K
+          requests_made_this_month: 0,
+          monthly_request_limit: 1000,
+          requests_made_today: 0,
+          daily_request_limit: 100
+        })
+      }
+    } catch (err) {
+      console.error('Failed to fetch LLM usage:', err)
+      // Set defaults on error
+      setLlmUsage({
+        tokens_used_this_month: 0,
+        monthly_token_limit: 100000,
+        tokens_used_today: 0,
+        daily_token_limit: 5000
+      })
+    } finally {
+      setLoadingLlmUsage(false)
+    }
+  }
+
   // 💬 Fetch WhatsApp Settings
   const fetchWhatsAppSettings = async (clientId: number) => {
     try {
@@ -299,10 +403,15 @@ export default function ChatWidgetEditor() {
         console.log('✅ WhatsApp is configured - showing badge')
         setWhatsappConfigured(true)
         setWhatsappEnabled(response.data.enable_whatsapp || false)
-        // Don't load sensitive credentials - they're on the server
-        // Just show that it's configured
+        
+        // ✅ Store partial credentials (last 4 digits) for display
+        if (response.data.credentials_partial) {
+          setWhatsappCredentialsPartial(response.data.credentials_partial)
+          console.log('✅ WhatsApp partial credentials loaded:', response.data.credentials_partial)
+        }
       } else {
         console.log('❌ WhatsApp is NOT configured')
+        setWhatsappCredentialsPartial(null)
       }
       
       // Fetch usage stats
@@ -372,6 +481,52 @@ export default function ChatWidgetEditor() {
       setWhatsappTestResult(`✅ ${response.data.message}`)
     } catch (err: any) {
       setWhatsappTestResult(`❌ ${err.response?.data?.error || 'Connection test failed'}`)
+    } finally {
+      setTestingWhatsApp(false)
+    }
+  }
+
+  // 💬 Combined Test: Connection + Test Message
+  const handleTestWhatsAppComplete = async () => {
+    if (!selectedClientId) {
+      alert('❌ Please select a client first')
+      return
+    }
+
+    if (!handoverWhatsAppNumber.trim()) {
+      alert('❌ Please enter WhatsApp handover phone number first')
+      return
+    }
+
+    setTestingWhatsApp(true)
+    setWhatsappTestResult(null)
+
+    try {
+      // Step 1: Test Connection
+      setWhatsappTestResult('🔄 Testing connection...')
+      const connectionResponse = await api.post('/whatsapp/test-connection', {
+        client_id: selectedClientId
+      })
+
+      if (!connectionResponse.data.success) {
+        setWhatsappTestResult(`❌ Connection failed: ${connectionResponse.data.message}`)
+        return
+      }
+
+      // Step 2: Send Test Message
+      setWhatsappTestResult('🔄 Connection OK! Sending test message...')
+      const messageResponse = await api.post('/handover/test-whatsapp', {
+        client_id: selectedClientId,
+        phone_number: handoverWhatsAppNumber.trim()
+      })
+
+      if (messageResponse.data.success) {
+        setWhatsappTestResult(`✅ Connection & Message Test Complete!\n\n✅ Connection: OK\n✅ Test message sent to ${handoverWhatsAppNumber}\n\nCheck your WhatsApp to confirm receipt.`)
+      } else {
+        setWhatsappTestResult(`⚠️ Connection OK, but message failed: ${messageResponse.data.error || 'Unknown error'}`)
+      }
+    } catch (err: any) {
+      setWhatsappTestResult(`❌ Test failed: ${err.response?.data?.error || err.message}`)
     } finally {
       setTestingWhatsApp(false)
     }
@@ -527,8 +682,10 @@ export default function ChatWidgetEditor() {
 
       if (isEditMode) {
         await api.put(`/chat-widget/widgets/${id}`, widgetData)
+        setHasUnsavedChanges(false) // Clear unsaved changes flag after successful save
       } else {
         await api.post('/chat-widget/widgets', widgetData)
+        setHasUnsavedChanges(false) // Clear unsaved changes flag after successful save
       }
       navigate('/app/chat-widgets')
     } catch (err: any) {
@@ -540,6 +697,7 @@ export default function ChatWidgetEditor() {
 
   const handleChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+    setHasUnsavedChanges(true) // Track unsaved changes
   }
 
   // 🤖 Question Management Functions
@@ -598,8 +756,69 @@ export default function ChatWidgetEditor() {
     return <div style={{ padding: '2rem' }}>Loading widget...</div>
   }
 
+  // ✅ Handle navigation with unsaved changes warning
+  const handleNavigateAway = (targetPath: string) => {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to leave?')
+      if (!confirmed) return
+    }
+    navigate(targetPath)
+  }
+
   return (
     <div style={{ padding: '2rem', maxWidth: '900px', margin: '0 auto' }}>
+      {/* Back Button */}
+      <button
+        type="button"
+        onClick={() => handleNavigateAway('/app/chat-widgets')}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          marginBottom: '1.5rem',
+          padding: '10px 16px',
+          background: '#f8f9fa',
+          border: '2px solid #dee2e6',
+          borderRadius: '8px',
+          fontSize: '14px',
+          fontWeight: '600',
+          cursor: 'pointer',
+          color: '#495057',
+          transition: 'all 0.2s'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = '#e9ecef'
+          e.currentTarget.style.borderColor = '#adb5bd'
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = '#f8f9fa'
+          e.currentTarget.style.borderColor = '#dee2e6'
+        }}
+      >
+        <i className="fas fa-arrow-left"></i>
+        Back to Chat Widgets
+      </button>
+
+      {/* Unsaved Changes Warning */}
+      {hasUnsavedChanges && (
+        <div style={{
+          marginBottom: '1rem',
+          padding: '12px 16px',
+          background: '#fff3cd',
+          border: '2px solid #ffc107',
+          borderRadius: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          fontSize: '14px',
+          fontWeight: '600',
+          color: '#856404'
+        }}>
+          <i className="fas fa-exclamation-triangle"></i>
+          You have unsaved changes. Don't forget to click "Save Changes" before leaving!
+        </div>
+      )}
+
       <div style={{ marginBottom: '2rem' }}>
         <h1 style={{ margin: 0, marginBottom: '0.5rem' }}>
           {isEditMode ? 'Edit Widget' : 'Create New Widget'}
@@ -1182,7 +1401,7 @@ export default function ChatWidgetEditor() {
         }}>
           <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             🤖 AI Smart Responses (Google Gemini)
-            {aiConfigured && (
+            {enableAI && aiConfigured && (
               <span style={{
                 background: '#28a745',
                 color: 'white',
@@ -1191,13 +1410,132 @@ export default function ChatWidgetEditor() {
                 fontSize: '12px',
                 fontWeight: '600'
               }}>
-                ✓ Configured
+                ✓ Active
+              </span>
+            )}
+            {aiConfigured && !enableAI && (
+              <span style={{
+                background: '#ffc107',
+                color: '#856404',
+                padding: '4px 12px',
+                borderRadius: '12px',
+                fontSize: '12px',
+                fontWeight: '600'
+              }}>
+                ⚙️ Configured (Disabled)
               </span>
             )}
           </h3>
           <p style={{ fontSize: '14px', color: '#666', marginBottom: '1.5rem' }}>
             Enable AI-powered responses using Google Gemini. AI will answer questions the Knowledge Base can't handle.
           </p>
+
+          {/* ✅ Current Configuration Status */}
+          {enableAI && (
+            <div style={{
+              padding: '1rem',
+              background: '#e8f5e9',
+              borderRadius: '8px',
+              border: '2px solid #4caf50',
+              marginBottom: '1.5rem'
+            }}>
+              <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#2e7d32' }}>
+                📊 Current Configuration Status
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
+                <div>
+                  <span style={{ color: '#666' }}>Provider:</span>
+                  <strong style={{ marginLeft: '8px', color: '#2e7d32' }}>
+                    {llmProvider || 'gemini'} {aiConfigured ? '✅' : '❌'}
+                  </strong>
+                </div>
+                <div>
+                  <span style={{ color: '#666' }}>Model:</span>
+                  <strong style={{ marginLeft: '8px', color: '#2e7d32' }}>
+                    {llmModel || 'gemini-2.0-flash'}
+                  </strong>
+                </div>
+                <div>
+                  <span style={{ color: '#666' }}>API Key Status:</span>
+                  <strong style={{ marginLeft: '8px', color: aiConfigured ? '#2e7d32' : '#d32f2f' }}>
+                    {aiConfigured ? '✅ Configured' : '❌ Not Configured'}
+                  </strong>
+                </div>
+                <div>
+                  <span style={{ color: '#666' }}>Monthly Limit:</span>
+                  <strong style={{ marginLeft: '8px', color: '#2e7d32' }}>
+                    {aiMaxTokens.toLocaleString()} tokens
+                  </strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ✅ Usage Statistics */}
+          {enableAI && llmUsage && (
+            <div style={{
+              padding: '1rem',
+              background: '#f8f9fa',
+              borderRadius: '8px',
+              border: '1px solid #dee2e6',
+              marginBottom: '1.5rem'
+            }}>
+              <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600' }}>
+                📈 Current Usage (This Month)
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
+                <div>
+                  <span style={{ color: '#666' }}>Tokens Used:</span>
+                  <strong style={{ 
+                    marginLeft: '8px', 
+                    color: (llmUsage.tokens_used_this_month / (llmUsage.monthly_token_limit || 100000) > 0.9) ? '#dc3545' : '#28a745'
+                  }}>
+                    {llmUsage.tokens_used_this_month?.toLocaleString() || 0} / {llmUsage.monthly_token_limit?.toLocaleString() || '100,000'}
+                  </strong>
+                  <div style={{ 
+                    marginTop: '4px',
+                    height: '6px',
+                    background: '#e0e0e0',
+                    borderRadius: '3px',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${Math.min(100, ((llmUsage.tokens_used_this_month || 0) / (llmUsage.monthly_token_limit || 100000)) * 100)}%`,
+                      background: (llmUsage.tokens_used_this_month / (llmUsage.monthly_token_limit || 100000) > 0.9) ? '#dc3545' : '#28a745',
+                      transition: 'width 0.3s'
+                    }}></div>
+                  </div>
+                </div>
+                <div>
+                  <span style={{ color: '#666' }}>Tokens Remaining:</span>
+                  <strong style={{ 
+                    marginLeft: '8px',
+                    color: (llmUsage.tokens_used_this_month / (llmUsage.monthly_token_limit || 100000) > 0.9) ? '#dc3545' : '#28a745'
+                  }}>
+                    {((llmUsage.monthly_token_limit || 100000) - (llmUsage.tokens_used_this_month || 0)).toLocaleString()}
+                  </strong>
+                </div>
+                <div>
+                  <span style={{ color: '#666' }}>Today's Usage:</span>
+                  <strong style={{ marginLeft: '8px' }}>
+                    {llmUsage.tokens_used_today?.toLocaleString() || 0} / {llmUsage.daily_token_limit?.toLocaleString() || '5,000'}
+                  </strong>
+                </div>
+                <div>
+                  <span style={{ color: '#666' }}>Requests This Month:</span>
+                  <strong style={{ marginLeft: '8px' }}>
+                    {llmUsage.requests_made_this_month || 0} / {llmUsage.monthly_request_limit || 1000}
+                  </strong>
+                </div>
+              </div>
+              {loadingLlmUsage && (
+                <div style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>
+                  <i className="fas fa-spinner fa-spin"></i> Loading usage stats...
+                </div>
+              )}
+            </div>
+          )}
 
           <label style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem', cursor: 'pointer' }}>
             <input
@@ -1229,7 +1567,7 @@ export default function ChatWidgetEditor() {
                 </label>
                 {aiConfigured && (
                   <div style={{
-                    padding: '8px 12px',
+                    padding: '10px 12px',
                     background: '#d4edda',
                     border: '1px solid #c3e6cb',
                     borderRadius: '6px',
@@ -1237,7 +1575,23 @@ export default function ChatWidgetEditor() {
                     fontSize: '12px',
                     color: '#155724'
                   }}>
-                    <i className="fas fa-lock"></i> API key is saved and encrypted. Enter new key below to update.
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <i className="fas fa-lock"></i>
+                      <strong>API key is saved and encrypted.</strong>
+                    </div>
+                    {apiKeyPartial && (
+                      <div style={{ marginTop: '6px', fontFamily: 'monospace', fontSize: '11px', opacity: 0.8 }}>
+                        Current Key: <strong>{apiKeyPartial}</strong>
+                        {apiKeySource && (
+                          <span style={{ marginLeft: '8px', fontSize: '10px' }}>
+                            ({apiKeySource === 'widget' ? 'Widget-Specific' : apiKeySource === 'client' ? 'Client-Specific' : 'Global'})
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <div style={{ marginTop: '6px', fontSize: '11px', opacity: 0.8 }}>
+                      Enter new key below to update.
+                    </div>
                   </div>
                 )}
                 <input
@@ -1245,7 +1599,7 @@ export default function ChatWidgetEditor() {
                   value={aiApiKey}
                   onChange={(e) => setAiApiKey(e.target.value)}
                   autoComplete="current-password"
-                  placeholder={aiConfigured ? "AIzaSy••••••••••••••••••••••••" : "AIzaSy..."}
+                  placeholder={aiConfigured ? (apiKeyPartial || "AIzaSy••••••••••••••••••••••••") : "AIzaSy..."}
                   style={{
                     width: '100%',
                     padding: '12px',
@@ -1507,6 +1861,49 @@ export default function ChatWidgetEditor() {
               </div>
             )}
 
+            {/* ✅ Configuration Status Display */}
+            <div style={{
+              padding: '1rem',
+              background: whatsappConfigured ? '#e8f5e9' : '#fff3cd',
+              borderRadius: '8px',
+              border: `2px solid ${whatsappConfigured ? '#4caf50' : '#ffc107'}`,
+              marginBottom: '1.5rem'
+            }}>
+              <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: whatsappConfigured ? '#2e7d32' : '#856404' }}>
+                📊 Configuration Status
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
+                <div>
+                  <span style={{ color: '#666' }}>WhatsApp Status:</span>
+                  <strong style={{ marginLeft: '8px', color: whatsappConfigured ? '#2e7d32' : '#d32f2f' }}>
+                    {whatsappConfigured ? '✅ Configured' : '❌ Not Configured'}
+                  </strong>
+                </div>
+                <div>
+                  <span style={{ color: '#666' }}>Enabled for Handoff:</span>
+                  <strong style={{ marginLeft: '8px', color: whatsappEnabled ? '#2e7d32' : '#666' }}>
+                    {whatsappEnabled ? '✅ Yes' : '❌ No'}
+                  </strong>
+                </div>
+                {handoverWhatsAppNumber && (
+                  <div>
+                    <span style={{ color: '#666' }}>Handover Number:</span>
+                    <strong style={{ marginLeft: '8px', color: '#2e7d32' }}>
+                      {handoverWhatsAppNumber}
+                    </strong>
+                  </div>
+                )}
+                {handoverTemplateSid && (
+                  <div>
+                    <span style={{ color: '#666' }}>Template SID:</span>
+                    <strong style={{ marginLeft: '8px', color: '#2e7d32', fontSize: '11px', fontFamily: 'monospace' }}>
+                      {handoverTemplateSid.substring(0, 20)}...
+                    </strong>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Usage Stats */}
             {whatsappUsage && (
               <div style={{
@@ -1523,26 +1920,47 @@ export default function ChatWidgetEditor() {
                   <div>
                     <span style={{ color: '#666' }}>Conversations:</span>
                     <strong style={{ marginLeft: '8px', color: whatsappUsage.conversations_this_month >= 1000 ? '#dc3545' : '#28a745' }}>
-                      {whatsappUsage.conversations_this_month} / 1,000
+                      {whatsappUsage.conversations_this_month || 0} / 1,000
                     </strong>
+                    <div style={{ 
+                      marginTop: '4px',
+                      height: '6px',
+                      background: '#e0e0e0',
+                      borderRadius: '3px',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${Math.min(100, ((whatsappUsage.conversations_this_month || 0) / 1000) * 100)}%`,
+                        background: whatsappUsage.conversations_this_month >= 1000 ? '#dc3545' : '#28a745',
+                        transition: 'width 0.3s'
+                      }}></div>
+                    </div>
                     {whatsappUsage.conversations_this_month >= 1000 && (
-                      <span style={{ color: '#dc3545', fontSize: '12px', display: 'block' }}>
+                      <span style={{ color: '#dc3545', fontSize: '12px', display: 'block', marginTop: '4px' }}>
                         ⚠️ Free tier exceeded! Additional costs apply.
                       </span>
                     )}
                   </div>
                   <div>
                     <span style={{ color: '#666' }}>Messages Sent:</span>
-                    <strong style={{ marginLeft: '8px' }}>{whatsappUsage.messages_this_month}</strong>
+                    <strong style={{ marginLeft: '8px' }}>{whatsappUsage.messages_this_month || 0}</strong>
                   </div>
-                  <div style={{ gridColumn: '1 / -1' }}>
+                  <div>
+                    <span style={{ color: '#666' }}>Remaining (Free):</span>
+                    <strong style={{ marginLeft: '8px', color: '#28a745' }}>
+                      {Math.max(0, 1000 - (whatsappUsage.conversations_this_month || 0))}
+                    </strong>
+                  </div>
+                  <div>
                     <span style={{ color: '#666' }}>Estimated Cost:</span>
                     <strong style={{ marginLeft: '8px', color: '#4682B4' }}>
                       ${(Number(whatsappUsage.estimated_cost_this_month) || 0).toFixed(2)} USD
                     </strong>
-                    <p style={{ fontSize: '12px', color: '#666', margin: '4px 0 0 0' }}>
-                      Resets on: {whatsappUsage.next_reset_date ? new Date(whatsappUsage.next_reset_date).toLocaleDateString() : 'Not available'}
-                    </p>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1', fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                    <i className="fas fa-calendar-alt" style={{ marginRight: '6px' }}></i>
+                    Resets on: {whatsappUsage.next_reset_date ? new Date(whatsappUsage.next_reset_date).toLocaleDateString() : 'Not available'}
                   </div>
                 </div>
               </div>
@@ -1552,11 +1970,26 @@ export default function ChatWidgetEditor() {
             <label style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem', cursor: 'pointer' }}>
               <input
                 type="checkbox"
-                checked={whatsappEnabled}
+                checked={whatsappEnabled || whatsappConfigured}
                 onChange={(e) => setWhatsappEnabled(e.target.checked)}
                 style={{ marginRight: '0.5rem', width: '20px', height: '20px' }}
               />
-              <span style={{ fontWeight: '700', fontSize: '16px' }}>Enable WhatsApp for Agent Handoff</span>
+              <span style={{ fontWeight: '700', fontSize: '16px' }}>
+                Enable WhatsApp for Agent Handoff
+                {whatsappConfigured && (
+                  <span style={{
+                    marginLeft: '10px',
+                    padding: '3px 8px',
+                    background: '#28a745',
+                    color: 'white',
+                    borderRadius: '12px',
+                    fontSize: '11px',
+                    fontWeight: '600'
+                  }}>
+                    ✓ Configured
+                  </span>
+                )}
+              </span>
             </label>
 
             {whatsappEnabled && (
@@ -1611,7 +2044,32 @@ export default function ChatWidgetEditor() {
                       fontSize: '13px',
                       color: '#155724'
                     }}>
-                      <i className="fas fa-check-circle"></i> WhatsApp credentials are saved and encrypted. Enter new values below to update them.
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                        <i className="fas fa-check-circle"></i>
+                        <strong>WhatsApp credentials are saved and encrypted.</strong>
+                      </div>
+                      {whatsappCredentialsPartial && (
+                        <div style={{ marginTop: '6px', fontFamily: 'monospace', fontSize: '11px', opacity: 0.8 }}>
+                          {whatsappCredentialsPartial.account_sid && (
+                            <div style={{ marginBottom: '4px' }}>
+                              Account SID: <strong>{whatsappCredentialsPartial.account_sid}</strong>
+                            </div>
+                          )}
+                          {whatsappCredentialsPartial.auth_token && (
+                            <div style={{ marginBottom: '4px' }}>
+                              Auth Token: <strong>{whatsappCredentialsPartial.auth_token}</strong>
+                            </div>
+                          )}
+                          {whatsappCredentialsPartial.from_number && (
+                            <div>
+                              From Number: <strong>{whatsappCredentialsPartial.from_number}</strong>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div style={{ marginTop: '6px', fontSize: '11px', opacity: 0.8 }}>
+                        Enter new values below to update them.
+                      </div>
                     </div>
                   )}
                   
@@ -1623,7 +2081,7 @@ export default function ChatWidgetEditor() {
                       type="text"
                       value={whatsappSettings.account_sid}
                       onChange={(e) => setWhatsappSettings({ ...whatsappSettings, account_sid: e.target.value })}
-                      placeholder={whatsappConfigured ? "AC•••••••••••••••••••••••••••••" : "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+                      placeholder={whatsappConfigured ? (whatsappCredentialsPartial?.account_sid || "AC•••••••••••••••••••••••••••••") : "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
                       style={{
                         width: '100%',
                         padding: '10px',
@@ -1643,7 +2101,7 @@ export default function ChatWidgetEditor() {
                       type="password"
                       value={whatsappSettings.auth_token}
                       onChange={(e) => setWhatsappSettings({ ...whatsappSettings, auth_token: e.target.value })}
-                      placeholder={whatsappConfigured ? "••••••••••••••••••••••••••••••" : "Your Twilio Auth Token"}
+                      placeholder={whatsappConfigured ? (whatsappCredentialsPartial?.auth_token || "••••••••••••••••••••••••••••••") : "Your Twilio Auth Token"}
                       style={{
                         width: '100%',
                         padding: '10px',
@@ -1663,7 +2121,7 @@ export default function ChatWidgetEditor() {
                       type="text"
                       value={whatsappSettings.from_number}
                       onChange={(e) => setWhatsappSettings({ ...whatsappSettings, from_number: e.target.value })}
-                      placeholder={whatsappConfigured ? "whatsapp:+1••••••••••" : "whatsapp:+14155238886"}
+                      placeholder={whatsappConfigured ? (whatsappCredentialsPartial?.from_number || "whatsapp:+1••••••••••") : "whatsapp:+14155238886"}
                       style={{
                         width: '100%',
                         padding: '10px',
@@ -1679,13 +2137,14 @@ export default function ChatWidgetEditor() {
                   </div>
 
                   {/* Action Buttons */}
-                  <div style={{ display: 'flex', gap: '10px', marginTop: '1.5rem' }}>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '1.5rem', flexWrap: 'wrap' }}>
                     <button
                       type="button"
                       onClick={handleSaveWhatsAppSettings}
                       disabled={savingWhatsApp || !whatsappSettings.account_sid || !whatsappSettings.auth_token || !whatsappSettings.from_number}
                       style={{
                         flex: 1,
+                        minWidth: '150px',
                         padding: '12px',
                         background: '#4682B4',
                         color: 'white',
@@ -1706,7 +2165,32 @@ export default function ChatWidgetEditor() {
                     <button
                       type="button"
                       onClick={handleTestWhatsApp}
-                      disabled={testingWhatsApp}
+                      disabled={testingWhatsApp || !whatsappConfigured}
+                      style={{
+                        padding: '12px 20px',
+                        background: '#17a2b8',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        opacity: (testingWhatsApp || !whatsappConfigured) ? 0.5 : 1
+                      }}
+                      title={!whatsappConfigured ? 'Save settings first' : 'Test connection only'}
+                    >
+                      {testingWhatsApp ? (
+                        <><i className="fas fa-spinner fa-spin"></i> Testing...</>
+                      ) : (
+                        <><i className="fas fa-vial"></i> Test Connection</>
+                      )}
+                    </button>
+
+                    {/* ✅ Combined Test Button */}
+                    <button
+                      type="button"
+                      onClick={handleTestWhatsAppComplete}
+                      disabled={testingWhatsApp || !whatsappConfigured || !handoverWhatsAppNumber.trim()}
                       style={{
                         padding: '12px 20px',
                         background: '#28a745',
@@ -1716,13 +2200,23 @@ export default function ChatWidgetEditor() {
                         fontWeight: '600',
                         cursor: 'pointer',
                         whiteSpace: 'nowrap',
-                        opacity: testingWhatsApp ? 0.7 : 1
+                        opacity: (testingWhatsApp || !whatsappConfigured || !handoverWhatsAppNumber.trim()) ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
                       }}
+                      title={!whatsappConfigured ? 'Configure WhatsApp first' : !handoverWhatsAppNumber.trim() ? 'Enter handover phone number first' : 'Test connection and send test message'}
                     >
                       {testingWhatsApp ? (
-                        <><i className="fas fa-spinner fa-spin"></i> Testing...</>
+                        <>
+                          <i className="fas fa-spinner fa-spin"></i>
+                          Testing...
+                        </>
                       ) : (
-                        <><i className="fas fa-vial"></i> Test Connection</>
+                        <>
+                          <i className="fas fa-check-circle"></i>
+                          Test Connection & Message
+                        </>
                       )}
                     </button>
                   </div>
@@ -1735,47 +2229,16 @@ export default function ChatWidgetEditor() {
                       background: whatsappTestResult.startsWith('✅') ? '#d4edda' : '#f8d7da',
                       border: `2px solid ${whatsappTestResult.startsWith('✅') ? '#28a745' : '#dc3545'}`,
                       borderRadius: '6px',
-                      fontSize: '14px'
+                      fontSize: '14px',
+                      whiteSpace: 'pre-line' // ✅ Allow multi-line display
                     }}>
-                      {whatsappTestResult}
+                      {whatsappTestResult.split('\n').map((line: string, idx: number) => (
+                        <div key={idx} style={{ marginBottom: idx < whatsappTestResult.split('\n').length - 1 ? '6px' : 0 }}>
+                          {line}
+                        </div>
+                      ))}
                     </div>
                   )}
-                </div>
-
-                {/* Handover Settings (Phone + Template SID) */}
-                <div style={{ padding: '1.5rem', background: '#e8f5e9', borderRadius: '8px', border: '1px solid #c8e6c9', marginTop: '1rem' }}>
-                  <h4 style={{ marginTop: 0, fontSize: '15px', fontWeight: '600' }}>📱 WhatsApp Handover Settings</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '6px' }}>Handover Phone Number</label>
-                      <input type="text" value={handoverWhatsAppNumber} onChange={(e)=>setHandoverWhatsAppNumber(e.target.value)} placeholder="+14698880705" style={{ width:'100%', padding:'10px', borderRadius:'6px', border:'1px solid #ddd' }}/>
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '6px' }}>Template SID (Content SID)</label>
-                      <input type="text" value={handoverTemplateSid} onChange={(e)=>setHandoverTemplateSid(e.target.value)} placeholder="HX..." style={{ width:'100%', padding:'10px', borderRadius:'6px', border:'1px solid #ddd' }}/>
-                    </div>
-                  </div>
-                  <div style={{ display:'flex', gap:'10px', marginTop:'12px', flexWrap:'wrap' }}>
-                    <button className="connect-btn" style={{ backgroundColor:'#25d366' }} onClick={async ()=>{
-                      if(!selectedClientId){ alert('Select a client first'); return }
-                      try{
-                        await api.put(`/handover/config/client/${selectedClientId}`, { handover_whatsapp_number: handoverWhatsAppNumber, whatsapp_handover_content_sid: handoverTemplateSid })
-                        alert('✅ Handover settings saved')
-                      }catch(e:any){
-                        alert(`❌ Failed to save: ${e?.response?.data?.error || e.message}`)
-                      }
-                    }}>Save Handover Settings</button>
-                    <button className="connect-btn" style={{ backgroundColor:'#075e54', color:'#fff' }} onClick={async ()=>{
-                      if(!selectedClientId){ alert('Select a client first'); return }
-                      if(!handoverWhatsAppNumber.trim()){ alert('Enter phone number'); return }
-                      try{
-                        await api.post('/handover/test-whatsapp', { client_id: selectedClientId, phone_number: handoverWhatsAppNumber.trim() })
-                        alert('✅ Test message sent')
-                      }catch(e:any){
-                        alert(`❌ Test failed: ${e?.response?.data?.error || e.message}`)
-                      }
-                    }}>Send Test Message</button>
-                  </div>
                 </div>
 
                 {/* Setup Guide */}
@@ -1965,7 +2428,7 @@ export default function ChatWidgetEditor() {
                   </select>
                 </div>
 
-                {/* WhatsApp Handover Phone Number */}
+                {/* ✅ WhatsApp Handover Settings (Phone + Template SID) */}
                 {handoverOptions.whatsapp && (
                   <div style={{
                     padding: '1.5rem',
@@ -1976,84 +2439,105 @@ export default function ChatWidgetEditor() {
                   }}>
                     <h4 style={{ marginTop: 0, fontSize: '15px', fontWeight: '600', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <i className="fab fa-whatsapp" style={{ color: '#25d366' }}></i>
-                      📱 WhatsApp Handover Phone Number
+                      📱 WhatsApp Handover Settings
                     </h4>
                     <p style={{ fontSize: '13px', color: '#666', marginBottom: '1rem', lineHeight: '1.6' }}>
-                      When a visitor requests an agent via WhatsApp, notifications will be sent to this number.
-                      <br/>
-                      <strong>Format:</strong> Include country code (e.g., +14698880705)
+                      Configure where WhatsApp handover notifications are sent.
                     </p>
 
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                      <input
-                        type="text"
-                        placeholder="+14698880705"
-                        value={handoverWhatsAppNumber}
-                        onChange={(e) => setHandoverWhatsAppNumber(e.target.value)}
-                        style={{
-                          flex: 1,
-                          minWidth: '250px',
-                          padding: '10px',
-                          border: '2px solid #25d366',
-                          borderRadius: '6px',
-                          fontSize: '14px'
-                        }}
-                      />
-                      <button
-                        onClick={async () => {
-                          if (!handoverWhatsAppNumber.trim()) {
-                            alert('Please enter a WhatsApp number first');
-                            return;
-                          }
-                          if (!selectedClientId) {
-                            alert('Please select a client first');
-                            return;
-                          }
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '6px', fontWeight: '600' }}>Handover Phone Number</label>
+                        <input
+                          type="text"
+                          placeholder="+14698880705"
+                          value={handoverWhatsAppNumber}
+                          onChange={(e) => setHandoverWhatsAppNumber(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '10px',
+                            border: '2px solid #25d366',
+                            borderRadius: '6px',
+                            fontSize: '14px'
+                          }}
+                        />
+                        <p style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Format: Include country code</p>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '6px', fontWeight: '600' }}>Template SID (Content SID)</label>
+                        <input
+                          type="text"
+                          placeholder="HX..."
+                          value={handoverTemplateSid}
+                          onChange={(e) => setHandoverTemplateSid(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '10px',
+                            border: '2px solid #25d366',
+                            borderRadius: '6px',
+                            fontSize: '14px'
+                          }}
+                        />
+                        <p style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Twilio Content Template SID</p>
+                      </div>
+                    </div>
 
-                          setTestingHandoverWhatsApp(true);
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="connect-btn"
+                        style={{ backgroundColor: '#25d366', color: '#fff' }}
+                        onClick={async () => {
+                          if (!selectedClientId) {
+                            alert('Select a client first')
+                            return
+                          }
                           try {
-                            const response = await api.post('/handover/test-whatsapp', {
+                            await api.put(`/handover/config/client/${selectedClientId}`, {
+                              handover_whatsapp_number: handoverWhatsAppNumber,
+                              whatsapp_handover_content_sid: handoverTemplateSid
+                            })
+                            alert('✅ Handover settings saved')
+                            setHasUnsavedChanges(false)
+                          } catch (e: any) {
+                            alert(`❌ Failed to save: ${e?.response?.data?.error || e.message}`)
+                          }
+                        }}
+                      >
+                        <i className="fas fa-save" style={{ marginRight: '6px' }}></i>
+                        Save Handover Settings
+                      </button>
+                      <button
+                        type="button"
+                        className="connect-btn"
+                        style={{ backgroundColor: '#075e54', color: '#fff' }}
+                        onClick={async () => {
+                          if (!selectedClientId) {
+                            alert('Select a client first')
+                            return
+                          }
+                          if (!handoverWhatsAppNumber.trim()) {
+                            alert('Enter phone number')
+                            return
+                          }
+                          try {
+                            await api.post('/handover/test-whatsapp', {
                               client_id: selectedClientId,
                               phone_number: handoverWhatsAppNumber.trim()
-                            });
-
-                            if (response.data.success) {
-                              alert(`✅ Test message sent successfully to ${handoverWhatsAppNumber}! Check your WhatsApp.`);
-                            }
-                          } catch (error: any) {
-                            alert(`❌ Failed to send test message: ${error.response?.data?.error || error.message}`);
-                          } finally {
-                            setTestingHandoverWhatsApp(false);
+                            })
+                            alert('✅ Test message sent')
+                          } catch (e: any) {
+                            alert(`❌ Test failed: ${e?.response?.data?.error || e.message}`)
                           }
-                        }}
-                        disabled={testingHandoverWhatsApp || !handoverWhatsAppNumber.trim()}
-                        style={{
-                          padding: '10px 20px',
-                          backgroundColor: testingHandoverWhatsApp ? '#ccc' : '#075e54',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          cursor: testingHandoverWhatsApp ? 'not-allowed' : 'pointer',
-                          whiteSpace: 'nowrap'
                         }}
                       >
                         <i className="fas fa-paper-plane" style={{ marginRight: '6px' }}></i>
-                        {testingHandoverWhatsApp ? 'Sending...' : 'Send Test Message'}
+                        Send Test Message
                       </button>
                     </div>
-
                     {handoverWhatsAppNumber && (
-                      <div style={{
-                        marginTop: '12px',
-                        padding: '8px 12px',
-                        background: '#d4edda',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        color: '#155724'
-                      }}>
-                        <i className="fas fa-check-circle" style={{ marginRight: '6px', color: '#25d366' }}></i>
+                      <div style={{ marginTop: '12px', padding: '8px', background: '#fff', borderRadius: '6px', fontSize: '12px', color: '#666' }}>
+                        <i className="fas fa-info-circle" style={{ marginRight: '6px' }}></i>
                         Current number: <strong>{handoverWhatsAppNumber}</strong>
                       </div>
                     )}

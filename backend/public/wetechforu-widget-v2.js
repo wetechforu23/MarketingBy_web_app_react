@@ -1286,8 +1286,43 @@
       }, 1000);
     },
 
-    // Ask contact info step by step
+    // Ask contact info step by step (only if not already collected in intro flow)
     askContactInfo() {
+      // ✅ First, check if intro flow already collected this information
+      if (this.state.introFlow && this.state.introFlow.answers && Object.keys(this.state.introFlow.answers).length > 0) {
+        // Map intro flow answers to contact info
+        const introAnswers = this.state.introFlow.answers;
+        
+        // Build name from first_name and last_name, or use full name if available
+        let fullName = '';
+        if (introAnswers.first_name && introAnswers.last_name) {
+          fullName = `${introAnswers.first_name} ${introAnswers.last_name}`;
+        } else if (introAnswers.first_name) {
+          fullName = introAnswers.first_name;
+        } else if (introAnswers.name) {
+          fullName = introAnswers.name;
+        }
+        
+        // Map email and phone
+        const email = introAnswers.email || introAnswers.email_address || null;
+        const phone = introAnswers.phone || introAnswers.phone_number || introAnswers.mobile || null;
+        
+        // If we have name + (email or phone), use intro data directly
+        if (fullName && (email || phone)) {
+          this.state.contactInfo = {
+            name: fullName,
+            email: email,
+            phone: phone,
+            reason: introAnswers.reason || introAnswers.message || introAnswers.question || 'Visitor requested to speak with an agent'
+          };
+          console.log('✅ Using contact info from intro flow:', this.state.contactInfo);
+          // Skip asking - go directly to submit
+          this.submitToLiveAgent();
+          return;
+        }
+      }
+      
+      // ✅ Only ask for missing information (not already in intro flow)
       const steps = [
         { field: 'name', question: "What's your full name?" },
         { field: 'email', question: "What's your email address?" },
@@ -1297,6 +1332,24 @@
       
       if (!this.state.contactInfoStep) this.state.contactInfoStep = 0;
       if (!this.state.contactInfo) this.state.contactInfo = {};
+      
+      // Pre-populate from intro flow if available
+      if (this.state.introFlow && this.state.introFlow.answers) {
+        const introAnswers = this.state.introFlow.answers;
+        if (!this.state.contactInfo.name) {
+          if (introAnswers.first_name && introAnswers.last_name) {
+            this.state.contactInfo.name = `${introAnswers.first_name} ${introAnswers.last_name}`;
+          } else if (introAnswers.first_name) {
+            this.state.contactInfo.name = introAnswers.first_name;
+          }
+        }
+        if (!this.state.contactInfo.email) {
+          this.state.contactInfo.email = introAnswers.email || introAnswers.email_address || null;
+        }
+        if (!this.state.contactInfo.phone) {
+          this.state.contactInfo.phone = introAnswers.phone || introAnswers.phone_number || introAnswers.mobile || null;
+        }
+      }
       
       // Find next unanswered question
       let nextStepIndex = this.state.contactInfoStep;

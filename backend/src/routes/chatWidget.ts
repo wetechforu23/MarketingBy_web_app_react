@@ -252,41 +252,129 @@ router.get('/widgets/:id', async (req, res) => {
 
     const widget = result.rows[0];
 
-    // Compute AI configured flag without exposing secrets
+    // ✅ Compute AI configured flag and get partial API key info (priority: widget > client > global)
     let aiConfigured = false;
+    let apiKeySource: 'widget' | 'client' | 'global' | null = null;
+    let apiKeyPartial: string | null = null; // First 6 + last 6 chars for verification
+    
     try {
-      // If widget-specific key column has value, consider configured
+      const crypto = require('crypto');
+      const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key!!';
+      const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+      
+      const decrypt = (encrypted: string): string => {
+        try {
+          const parts = encrypted.split(':');
+          const iv = Buffer.from(parts[0], 'hex');
+          const encryptedText = parts[1];
+          const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+          let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+          decrypted += decipher.final('utf8');
+          return decrypted;
+        } catch (e) {
+          console.error('Decrypt error:', e);
+          return '';
+        }
+      };
+
+      // ✅ Priority 1: Check widget-specific key (widget_specific_llm_key)
       if (widget.widget_specific_llm_key && String(widget.widget_specific_llm_key).trim().length > 0) {
         aiConfigured = true;
-      } else {
-        // Otherwise, check encrypted_credentials for any Gemini API key using flexible matching (old/new schema)
-        let credCheck = await pool.query(
-          `SELECT 1 FROM encrypted_credentials 
+        apiKeySource = 'widget';
+        try {
+          const decrypted = decrypt(widget.widget_specific_llm_key);
+          if (decrypted && decrypted.length >= 12) {
+            apiKeyPartial = `${decrypted.substring(0, 6)}...${decrypted.substring(decrypted.length - 6)}`;
+          }
+        } catch (e) {
+          console.error('Error decrypting widget key for partial display:', e);
+        }
+      } 
+      // ✅ Priority 2: Check client-specific key (google_ai_client_{clientId})
+      else if (widget.client_id) {
+        const clientServiceName = `google_ai_client_${widget.client_id}`;
+        const clientCredCheck = await pool.query(
+          `SELECT encrypted_value 
+           FROM encrypted_credentials 
+           WHERE service = $1 AND key_name = 'api_key'
+           LIMIT 1`,
+          [clientServiceName]
+        );
+        
+        if (clientCredCheck.rows.length > 0 && clientCredCheck.rows[0].encrypted_value) {
+          aiConfigured = true;
+          apiKeySource = 'client';
+          try {
+            const decrypted = decrypt(clientCredCheck.rows[0].encrypted_value);
+            if (decrypted && decrypted.length >= 12) {
+              apiKeyPartial = `${decrypted.substring(0, 6)}...${decrypted.substring(decrypted.length - 6)}`;
+            }
+          } catch (e) {
+            console.error('Error decrypting client key for partial display:', e);
+          }
+        }
+        // ✅ Priority 3: Check global key
+        else {
+          const globalCredCheck = await pool.query(
+            `SELECT encrypted_value 
+             FROM encrypted_credentials 
              WHERE (
-               (
-                 service IS NOT NULL 
-                 AND (
-                   LOWER(service) LIKE '%gemini%' OR LOWER(service) LIKE '%google%'
-                 )
-                 AND (key_name = 'api_key' OR credential_type = 'api_key' OR key_name IS NULL)
-               )
-               OR (
-                 service_name IS NOT NULL 
-                 AND (
-                   LOWER(service_name) LIKE '%gemini%' OR LOWER(service_name) LIKE '%google%'
-                 )
-                 AND (credential_type = 'api_key' OR key_name = 'api_key' OR credential_type IS NULL)
-               )
+               (service IS NOT NULL AND (LOWER(service) LIKE '%gemini%' OR LOWER(service) LIKE '%google%') AND key_name = 'api_key')
+               OR (service_name IS NOT NULL AND (LOWER(service_name) LIKE '%gemini%' OR LOWER(service_name) LIKE '%google%') AND credential_type = 'api_key')
              )
              AND (environment IS NULL OR environment = $1)
              AND (is_active IS NULL OR is_active = true)
-           LIMIT 1`,
-          [process.env.NODE_ENV || 'production']
-        );
-        aiConfigured = credCheck.rows.length > 0;
+             LIMIT 1`,
+            [process.env.NODE_ENV || 'production']
+          );
+          
+          if (globalCredCheck.rows.length > 0 && globalCredCheck.rows[0].encrypted_value) {
+            aiConfigured = true;
+            apiKeySource = 'global';
+            try {
+              const decrypted = decrypt(globalCredCheck.rows[0].encrypted_value);
+              if (decrypted && decrypted.length >= 12) {
+                apiKeyPartial = `${decrypted.substring(0, 6)}...${decrypted.substring(decrypted.length - 6)}`;
+              }
+            } catch (e) {
+              console.error('Error decrypting global key for partial display:', e);
+            }
+          }
+        }
       }
     } catch (e) {
+      console.error('Error checking AI configuration:', e);
       aiConfigured = false;
+    }
+
+    // ✅ Fetch LLM usage stats for this widget
+    let llmUsageStats = null;
+    if (widget.llm_enabled && widget.client_id) {
+      try {
+        const usageResult = await pool.query(
+          `SELECT * FROM client_llm_usage 
+           WHERE client_id = $1 AND widget_id = $2`,
+          [widget.client_id, widget.id]
+        );
+        
+        if (usageResult.rows.length > 0) {
+          llmUsageStats = usageResult.rows[0];
+        } else {
+          // Defaults if no usage record yet
+          llmUsageStats = {
+            tokens_used_this_month: 0,
+            monthly_token_limit: 100000,
+            tokens_used_today: 0,
+            daily_token_limit: 5000,
+            requests_made_this_month: 0,
+            monthly_request_limit: 1000,
+            requests_made_today: 0,
+            daily_request_limit: 100
+          };
+        }
+      } catch (e) {
+        console.error('Error fetching LLM usage:', e);
+      }
     }
 
     // Check permissions (super admin or widget owner)
@@ -294,7 +382,13 @@ router.get('/widgets/:id', async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    res.json({ ...widget, ai_configured: aiConfigured });
+    res.json({ 
+      ...widget, 
+      ai_configured: aiConfigured,
+      ai_api_key_source: apiKeySource, // 'widget' | 'client' | 'global'
+      ai_api_key_partial: apiKeyPartial, // e.g., "AIzaSy...xyz123"
+      llm_usage_stats: llmUsageStats
+    });
 
   } catch (error) {
     console.error('Error fetching widget:', error);
