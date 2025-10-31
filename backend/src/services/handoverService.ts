@@ -43,7 +43,8 @@ export class HandoverService {
           whatsapp_configured,
           sms_twilio_configured,
           notification_email,
-          handover_whatsapp_number
+          handover_whatsapp_number,
+          whatsapp_handover_content_sid
         FROM widget_configs
         WHERE id = $1
       `, [widgetId]);
@@ -70,6 +71,7 @@ export class HandoverService {
       webhook_url?: string;
       webhook_secret?: string;
       handover_whatsapp_number?: string;
+      whatsapp_handover_content_sid?: string;
     }
   ) {
     const client = await pool.connect();
@@ -106,6 +108,11 @@ export class HandoverService {
       if (config.handover_whatsapp_number !== undefined) {
         updates.push(`handover_whatsapp_number = $${paramIndex++}`);
         values.push(config.handover_whatsapp_number || null);
+      }
+
+      if (config.whatsapp_handover_content_sid !== undefined) {
+        updates.push(`whatsapp_handover_content_sid = $${paramIndex++}`);
+        values.push(config.whatsapp_handover_content_sid || null);
       }
 
       if (updates.length === 0) {

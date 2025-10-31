@@ -27,7 +27,7 @@ router.get('/config/client/:clientId', async (req, res) => {
   try {
     const { clientId } = req.params;
     const result = await pool.query(
-      'SELECT id, client_id, handover_whatsapp_number, widget_name FROM widget_configs WHERE client_id = $1 LIMIT 1',
+      'SELECT id, client_id, handover_whatsapp_number, whatsapp_handover_content_sid, widget_name FROM widget_configs WHERE client_id = $1 LIMIT 1',
       [parseInt(clientId)]
     );
 
@@ -39,6 +39,7 @@ router.get('/config/client/:clientId', async (req, res) => {
       widget_id: result.rows[0].id,
       client_id: result.rows[0].client_id,
       handover_whatsapp_number: result.rows[0].handover_whatsapp_number || '',
+      whatsapp_handover_content_sid: result.rows[0].whatsapp_handover_content_sid || '',
       widget_name: result.rows[0].widget_name
     });
   } catch (error: any) {
@@ -54,11 +55,11 @@ router.get('/config/client/:clientId', async (req, res) => {
 router.put('/config/client/:clientId', async (req, res) => {
   try {
     const { clientId } = req.params;
-    const { handover_whatsapp_number } = req.body;
+    const { handover_whatsapp_number, whatsapp_handover_content_sid } = req.body;
 
     const result = await pool.query(
-      'UPDATE widget_configs SET handover_whatsapp_number = $1 WHERE client_id = $2 RETURNING id, client_id, handover_whatsapp_number, widget_name',
-      [handover_whatsapp_number || null, parseInt(clientId)]
+      'UPDATE widget_configs SET handover_whatsapp_number = $1, whatsapp_handover_content_sid = $2 WHERE client_id = $3 RETURNING id, client_id, handover_whatsapp_number, whatsapp_handover_content_sid, widget_name',
+      [handover_whatsapp_number || null, whatsapp_handover_content_sid || null, parseInt(clientId)]
     );
 
     if (result.rows.length === 0) {
@@ -70,6 +71,7 @@ router.put('/config/client/:clientId', async (req, res) => {
       widget_id: result.rows[0].id,
       client_id: result.rows[0].client_id,
       handover_whatsapp_number: result.rows[0].handover_whatsapp_number,
+      whatsapp_handover_content_sid: result.rows[0].whatsapp_handover_content_sid,
       widget_name: result.rows[0].widget_name
     });
   } catch (error: any) {

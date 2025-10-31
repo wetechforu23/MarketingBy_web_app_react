@@ -64,6 +64,8 @@ export default function ChatWidgetEditor() {
   const [testingWhatsApp, setTestingWhatsApp] = useState(false)
   const [whatsappTestResult, setWhatsappTestResult] = useState<string | null>(null)
   const [savingWhatsApp, setSavingWhatsApp] = useState(false)
+  const [handoverWhatsAppNumber, setHandoverWhatsAppNumber] = useState('')
+  const [handoverTemplateSid, setHandoverTemplateSid] = useState('')
 
   // 🎯 Agent Handover Choice State
   const [enableHandoverChoice, setEnableHandoverChoice] = useState(true)
@@ -307,6 +309,15 @@ export default function ChatWidgetEditor() {
       // Fetch usage stats
       const usageResponse = await api.get(`/whatsapp/usage/${clientId}`)
       setWhatsappUsage(usageResponse.data)
+
+      // Fetch per-client handover (phone + template SID)
+      try {
+        const handover = await api.get(`/handover/config/client/${clientId}`)
+        setHandoverWhatsAppNumber(handover.data.handover_whatsapp_number || '')
+        setHandoverTemplateSid(handover.data.whatsapp_handover_content_sid || '')
+      } catch (e) {
+        // ignore
+      }
     } catch (err) {
       console.error('Failed to load WhatsApp settings:', err)
       // Not an error - just means WhatsApp isn't configured yet
@@ -1729,6 +1740,42 @@ export default function ChatWidgetEditor() {
                       {whatsappTestResult}
                     </div>
                   )}
+                </div>
+
+                {/* Handover Settings (Phone + Template SID) */}
+                <div style={{ padding: '1.5rem', background: '#e8f5e9', borderRadius: '8px', border: '1px solid #c8e6c9', marginTop: '1rem' }}>
+                  <h4 style={{ marginTop: 0, fontSize: '15px', fontWeight: '600' }}>📱 WhatsApp Handover Settings</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '6px' }}>Handover Phone Number</label>
+                      <input type="text" value={handoverWhatsAppNumber} onChange={(e)=>setHandoverWhatsAppNumber(e.target.value)} placeholder="+14698880705" style={{ width:'100%', padding:'10px', borderRadius:'6px', border:'1px solid #ddd' }}/>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '6px' }}>Template SID (Content SID)</label>
+                      <input type="text" value={handoverTemplateSid} onChange={(e)=>setHandoverTemplateSid(e.target.value)} placeholder="HX..." style={{ width:'100%', padding:'10px', borderRadius:'6px', border:'1px solid #ddd' }}/>
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', gap:'10px', marginTop:'12px', flexWrap:'wrap' }}>
+                    <button className="connect-btn" style={{ backgroundColor:'#25d366' }} onClick={async ()=>{
+                      if(!selectedClientId){ alert('Select a client first'); return }
+                      try{
+                        await api.put(`/handover/config/client/${selectedClientId}`, { handover_whatsapp_number: handoverWhatsAppNumber, whatsapp_handover_content_sid: handoverTemplateSid })
+                        alert('✅ Handover settings saved')
+                      }catch(e:any){
+                        alert(`❌ Failed to save: ${e?.response?.data?.error || e.message}`)
+                      }
+                    }}>Save Handover Settings</button>
+                    <button className="connect-btn" style={{ backgroundColor:'#075e54', color:'#fff' }} onClick={async ()=>{
+                      if(!selectedClientId){ alert('Select a client first'); return }
+                      if(!handoverWhatsAppNumber.trim()){ alert('Enter phone number'); return }
+                      try{
+                        await api.post('/handover/test-whatsapp', { client_id: selectedClientId, phone_number: handoverWhatsAppNumber.trim() })
+                        alert('✅ Test message sent')
+                      }catch(e:any){
+                        alert(`❌ Test failed: ${e?.response?.data?.error || e.message}`)
+                      }
+                    }}>Send Test Message</button>
+                  </div>
                 </div>
 
                 {/* Setup Guide */}

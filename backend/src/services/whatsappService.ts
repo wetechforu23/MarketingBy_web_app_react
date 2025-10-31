@@ -235,9 +235,21 @@ export class WhatsAppService {
         return { success: false, error: 'WhatsApp not configured for this client' };
       }
 
-      const effectiveContentSid = contentSid || (templateType === 'handover'
-        ? process.env.TWILIO_CONTENT_SID_HANDOVER
-        : undefined);
+      // Prefer per-client Content SID from widget_configs; fallback to explicit contentSid; then env
+      let effectiveContentSid = contentSid as string | undefined;
+      if (!effectiveContentSid) {
+        try {
+          const sidResult = await pool.query(
+            `SELECT whatsapp_handover_content_sid FROM widget_configs WHERE client_id = $1 LIMIT 1`,
+            [clientId]
+          );
+          const dbSid = sidResult.rows?.[0]?.whatsapp_handover_content_sid;
+          effectiveContentSid = dbSid || effectiveContentSid;
+        } catch {}
+      }
+      if (!effectiveContentSid && templateType === 'handover') {
+        effectiveContentSid = process.env.TWILIO_CONTENT_SID_HANDOVER;
+      }
 
       if (!effectiveContentSid) {
         return { success: false, error: 'WhatsApp template not configured (missing Content SID)' };
