@@ -1202,6 +1202,33 @@
 
     // Request live agent - Collect contact info
     requestLiveAgent() {
+      // Check if we already have contact info from intro flow
+      if (this.state.introFlow && this.state.introFlow.isComplete && this.state.introFlow.answers) {
+        const answers = this.state.introFlow.answers;
+        if (answers.name && (answers.email || answers.phone)) {
+          // Use intro flow data
+          this.state.contactInfo = {
+            name: answers.name || answers.first_name || answers.full_name,
+            email: answers.email || answers.email_address,
+            phone: answers.phone || answers.phone_number || answers.mobile,
+            reason: answers.message || answers.question || answers.reason || 'Visitor requested to speak with an agent'
+          };
+          
+          setTimeout(() => {
+            this.submitToLiveAgent();
+          }, 500);
+          return;
+        }
+      }
+      
+      // If contact info already collected, skip questions
+      if (this.state.contactInfo && this.state.contactInfo.name && (this.state.contactInfo.email || this.state.contactInfo.phone)) {
+        setTimeout(() => {
+          this.submitToLiveAgent();
+        }, 500);
+        return;
+      }
+      
       this.addBotMessage("Let me connect you with a live agent. To get started, I need a few details:");
       
       // 📊 Track live agent request event
@@ -1212,8 +1239,11 @@
       
       // Start contact info collection
       setTimeout(() => {
-        this.state.contactInfoStep = 0;
-        this.state.contactInfo = {};
+        // Only reset if we don't have partial data
+        if (!this.state.contactInfo || !this.state.contactInfo.name) {
+          this.state.contactInfoStep = 0;
+          this.state.contactInfo = {};
+        }
         this.askContactInfo();
       }, 1000);
     },
@@ -1228,14 +1258,37 @@
       ];
       
       if (!this.state.contactInfoStep) this.state.contactInfoStep = 0;
+      if (!this.state.contactInfo) this.state.contactInfo = {};
       
-      if (this.state.contactInfoStep < steps.length) {
-        const step = steps[this.state.contactInfoStep];
-        this.addBotMessage(step.question);
-        this.state.currentContactField = step.field;
-      } else {
-        // All info collected - send to portal
+      // Find next unanswered question
+      let nextStepIndex = this.state.contactInfoStep;
+      while (nextStepIndex < steps.length) {
+        const step = steps[nextStepIndex];
+        if (!this.state.contactInfo[step.field]) {
+          // Found unanswered question
+          this.addBotMessage(step.question);
+          this.state.currentContactField = step.field;
+          this.state.contactInfoStep = nextStepIndex;
+          return;
+        }
+        nextStepIndex++;
+      }
+      
+      // All required info collected - submit
+      if (this.state.contactInfo.name && (this.state.contactInfo.email || this.state.contactInfo.phone)) {
         this.submitToLiveAgent();
+      } else {
+        // Missing required fields - ask for at least name + email or phone
+        if (!this.state.contactInfo.name) {
+          this.addBotMessage("What's your full name?");
+          this.state.currentContactField = 'name';
+          this.state.contactInfoStep = 0;
+        } else if (!this.state.contactInfo.email && !this.state.contactInfo.phone) {
+          this.addBotMessage("What's your email address or phone number?");
+          // Will handle in message handler
+        } else {
+          this.submitToLiveAgent();
+        }
       }
     },
 
@@ -1337,6 +1390,19 @@
         }
       }
       
+        // ✅ Detect agent requests in message
+      const agentKeywords = ['agent', 'human', 'person', 'live', 'real person', 'talk to someone', 'speak with', 'connect with agent'];
+      const messageLower = message.toLowerCase();
+      const wantsAgent = agentKeywords.some(keyword => messageLower.includes(keyword));
+      
+      if (wantsAgent && !this.state.currentContactField && !this.state.contactInfoStep) {
+        // User wants to talk to agent - start collection immediately
+        setTimeout(() => {
+          this.requestLiveAgent();
+        }, 500);
+        return;
+      }
+
       // ✅ If collecting contact info for live agent
       if (this.state.currentContactField) {
         if (!this.state.contactInfo) this.state.contactInfo = {};

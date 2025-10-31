@@ -136,17 +136,17 @@ export class HandoverService {
           visitor_phone,
           visitor_message,
           status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
+        ) VALUES ($1::integer, $2::integer, $3::integer, $4::text, $5::text, $6::text, $7::text, $8::text, 'pending')
         RETURNING *
       `, [
-        data.conversation_id,
-        data.widget_id,
-        data.client_id,
-        data.requested_method,
-        data.visitor_name,
-        data.visitor_email,
-        data.visitor_phone,
-        data.visitor_message
+        parseInt(data.conversation_id),
+        parseInt(data.widget_id),
+        parseInt(data.client_id),
+        data.requested_method || 'portal',
+        data.visitor_name || null,
+        data.visitor_email || null,
+        data.visitor_phone || null,
+        data.visitor_message || null
       ]);
 
       const handoverRequest = result.rows[0];
