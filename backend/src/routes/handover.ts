@@ -122,12 +122,22 @@ router.post('/request', async (req, res) => {
       });
     }
 
+    // Normalize numeric IDs
+    const convId = conversation_id !== undefined && conversation_id !== null && String(conversation_id).trim() !== ''
+      ? parseInt(String(conversation_id), 10)
+      : null;
+    const wid = widget_id !== undefined && widget_id !== null && String(widget_id).trim() !== ''
+      ? parseInt(String(widget_id), 10)
+      : null;
+
     // Get client_id from widget_id if not provided
-    let finalClientId = client_id;
+    let finalClientId = client_id !== undefined && client_id !== null && String(client_id).trim() !== ''
+      ? parseInt(String(client_id), 10)
+      : null;
     if (!finalClientId) {
       const widgetResult = await pool.query(
-        'SELECT client_id FROM widget_configs WHERE id = $1',
-        [parseInt(widget_id)]
+        'SELECT client_id FROM widget_configs WHERE id = $1::integer',
+        [wid]
       );
       if (widgetResult.rows.length > 0) {
         finalClientId = widgetResult.rows[0].client_id;
@@ -163,9 +173,9 @@ router.post('/request', async (req, res) => {
     // visitor_phone is optional but recommended to include in the notification message
 
     const result = await HandoverService.createHandoverRequest({
-      conversation_id: parseInt(conversation_id),
-      widget_id: parseInt(widget_id),
-      client_id: parseInt(finalClientId),
+      conversation_id: convId || 0,
+      widget_id: wid || 0,
+      client_id: finalClientId || 0,
       requested_method,
       visitor_name,
       visitor_email,
@@ -176,7 +186,9 @@ router.post('/request', async (req, res) => {
     res.json(result);
   } catch (error: any) {
     console.error('Error creating handover request:', error);
-    res.status(500).json({ error: error.message });
+    // Surface PG detail when available to diagnose type issues fast
+    const pgDetail = error?.detail || error?.hint || error?.message;
+    res.status(500).json({ error: pgDetail || 'Internal error' });
   }
 });
 
