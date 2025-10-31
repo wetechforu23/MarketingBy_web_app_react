@@ -80,7 +80,9 @@
         heartbeatInterval: null,
         lastPageUrl: null,
         pageStartTime: null,
-        visitorFingerprint: null
+        visitorFingerprint: null,
+        lastActivityTime: null,
+        lastVisibilityChange: null
       }
     },
 
@@ -849,7 +851,34 @@
 
     // Start intro flow (Enhanced with database questions)
     async startIntroFlow() {
-      if (this.state.hasShownIntro) return;
+      if (this.state.hasShownIntro) {
+        console.log('⚠️ Intro already shown - skipping');
+        return;
+      }
+      
+      // ✅ Check if intro was already completed for this conversation
+      const conversationId = await this.ensureConversation();
+      if (conversationId) {
+        try {
+          const statusResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/status`);
+          if (statusResponse.ok) {
+            const statusData = await statusResponse.json();
+            if (statusData.intro_completed) {
+              this.state.introFlow.isComplete = true;
+              this.state.hasShownIntro = true;
+              console.log('✅ Intro already completed - skipping intro questions');
+              // Show default welcome instead
+              setTimeout(() => {
+                this.startDefaultIntroFlow();
+              }, 500);
+              return;
+            }
+          }
+        } catch (error) {
+          console.warn('Could not check intro status, proceeding:', error);
+        }
+      }
+
       this.state.hasShownIntro = true;
 
       // Fetch widget config including intro questions
@@ -857,27 +886,35 @@
         const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/config`);
         const config = await response.json();
 
-        // Check if intro flow is enabled
-        if (config.intro_flow_enabled && config.intro_questions && config.intro_questions.length > 0) {
-          this.state.introFlow.enabled = true;
-          this.state.introFlow.questions = config.intro_questions;
-          this.state.introFlow.isActive = true;
+        // ✅ Only use questions from widget config (no hardcoded defaults)
+        // Check if intro flow is enabled AND has questions configured
+        if (config.intro_flow_enabled && config.intro_questions && Array.isArray(config.intro_questions) && config.intro_questions.length > 0) {
+          // ✅ Filter only enabled questions (only those in widget config)
+          const enabledQuestions = config.intro_questions.filter(q => q !== null && typeof q === 'object');
+          
+          if (enabledQuestions.length > 0) {
+            this.state.introFlow.enabled = true;
+            this.state.introFlow.questions = enabledQuestions; // ✅ Only use widget config questions
+            this.state.introFlow.isActive = true;
 
-          // Start with welcome message
-          setTimeout(() => {
-            this.addBotMessage(`👋 Welcome! I'm ${this.config.botName}.`);
-          }, 500);
+            // ✅ Use database welcome_message instead of hardcoded messages
+            const welcomeMsg = config.welcome_message || this.config.welcomeMessage || `👋 Welcome! I'm ${this.config.botName}.`;
+            
+            setTimeout(() => {
+              this.addBotMessage(welcomeMsg);
+            }, 500);
 
-          setTimeout(() => {
-            this.addBotMessage("Before we begin, I'd like to know a bit more about you.");
-          }, 1500);
-
-          setTimeout(() => {
-            this.askIntroQuestion();
-          }, 2500);
-
+            // Start asking intro questions immediately after welcome
+            setTimeout(() => {
+              this.askIntroQuestion();
+            }, 1500);
+          } else {
+            // No questions configured - use default intro
+            console.log('⚠️ Intro flow enabled but no questions configured - using default intro');
+            this.startDefaultIntroFlow();
+          }
         } else {
-          // Original intro flow (no questions)
+          // Intro flow disabled or no questions - use default intro
           this.startDefaultIntroFlow();
         }
       } catch (error) {
@@ -1248,8 +1285,43 @@
       }, 1000);
     },
 
-    // Ask contact info step by step
+    // Ask contact info step by step (only if not already collected in intro flow)
     askContactInfo() {
+      // ✅ First, check if intro flow already collected this information
+      if (this.state.introFlow && this.state.introFlow.answers && Object.keys(this.state.introFlow.answers).length > 0) {
+        // Map intro flow answers to contact info
+        const introAnswers = this.state.introFlow.answers;
+        
+        // Build name from first_name and last_name, or use full name if available
+        let fullName = '';
+        if (introAnswers.first_name && introAnswers.last_name) {
+          fullName = `${introAnswers.first_name} ${introAnswers.last_name}`;
+        } else if (introAnswers.first_name) {
+          fullName = introAnswers.first_name;
+        } else if (introAnswers.name) {
+          fullName = introAnswers.name;
+        }
+        
+        // Map email and phone
+        const email = introAnswers.email || introAnswers.email_address || null;
+        const phone = introAnswers.phone || introAnswers.phone_number || introAnswers.mobile || null;
+        
+        // If we have name + (email or phone), use intro data directly
+        if (fullName && (email || phone)) {
+          this.state.contactInfo = {
+            name: fullName,
+            email: email,
+            phone: phone,
+            reason: introAnswers.reason || introAnswers.message || introAnswers.question || 'Visitor requested to speak with an agent'
+          };
+          console.log('✅ Using contact info from intro flow:', this.state.contactInfo);
+          // Skip asking - go directly to submit
+          this.submitToLiveAgent();
+          return;
+        }
+      }
+      
+      // ✅ Only ask for missing information (not already in intro flow)
       const steps = [
         { field: 'name', question: "What's your full name?" },
         { field: 'email', question: "What's your email address?" },
@@ -1259,6 +1331,24 @@
       
       if (!this.state.contactInfoStep) this.state.contactInfoStep = 0;
       if (!this.state.contactInfo) this.state.contactInfo = {};
+      
+      // Pre-populate from intro flow if available
+      if (this.state.introFlow && this.state.introFlow.answers) {
+        const introAnswers = this.state.introFlow.answers;
+        if (!this.state.contactInfo.name) {
+          if (introAnswers.first_name && introAnswers.last_name) {
+            this.state.contactInfo.name = `${introAnswers.first_name} ${introAnswers.last_name}`;
+          } else if (introAnswers.first_name) {
+            this.state.contactInfo.name = introAnswers.first_name;
+          }
+        }
+        if (!this.state.contactInfo.email) {
+          this.state.contactInfo.email = introAnswers.email || introAnswers.email_address || null;
+        }
+        if (!this.state.contactInfo.phone) {
+          this.state.contactInfo.phone = introAnswers.phone || introAnswers.phone_number || introAnswers.mobile || null;
+        }
+      }
       
       // Find next unanswered question
       let nextStepIndex = this.state.contactInfoStep;
@@ -1783,7 +1873,35 @@
         return this.state.conversationId;
       }
       
-      // ✅ 2. Check localStorage for persisted conversation (not closed)
+      // ✅ 2. FIRST: Try to find active conversation by visitorSessionId (cross-tab persistence)
+      const visitorSessionId = this.getVisitorSessionId();
+      try {
+        const findConvResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversation/by-visitor/${visitorSessionId}`);
+        if (findConvResponse.ok) {
+          const convData = await findConvResponse.json();
+          if (convData.conversation_id && convData.status === 'active') {
+            this.state.conversationId = convData.conversation_id;
+            localStorage.setItem(`wetechforu_conversation_${this.config.widgetKey}`, convData.conversation_id);
+            console.log('✅ Restored active conversation by visitorSessionId:', convData.conversation_id);
+            
+            // ✅ Load previous messages
+            await this.loadPreviousMessages(convData.conversation_id);
+            
+            // ✅ Check if intro was completed
+            if (convData.intro_completed) {
+              this.state.introFlow.isComplete = true;
+              this.state.hasShownIntro = true;
+              console.log('✅ Intro already completed - skipping intro flow');
+            }
+            
+            return convData.conversation_id;
+          }
+        }
+      } catch (error) {
+        console.warn('Could not find conversation by visitorSessionId:', error);
+      }
+      
+      // ✅ 3. Check localStorage for persisted conversation (not closed)
       const persistedConvId = localStorage.getItem(`wetechforu_conversation_${this.config.widgetKey}`);
       const conversationClosed = sessionStorage.getItem(`wetechforu_conversation_closed_${this.config.widgetKey}`);
       
@@ -1799,6 +1917,13 @@
               
               // ✅ Load previous messages
               await this.loadPreviousMessages(persistedConvId);
+              
+              // ✅ Check if intro was completed
+              if (statusData.intro_completed) {
+                this.state.introFlow.isComplete = true;
+                this.state.hasShownIntro = true;
+                console.log('✅ Intro already completed - skipping intro flow');
+              }
               
               return persistedConvId;
             } else {
@@ -1848,7 +1973,7 @@
             visitor_name: visitorName,
             visitor_email: visitorEmail,
             visitor_phone: visitorPhone,
-            visitor_session_id: this.state.tracking.sessionId // Link to visitor tracking
+            visitor_session_id: visitorSessionId // ✅ Use persistent visitorSessionId
           })
         });
         
@@ -1916,7 +2041,7 @@
       return false;
     },
     
-    // Get or create session ID
+    // Get or create session ID (for current session only)
     getSessionId() {
       let sessionId = sessionStorage.getItem('wetechforu_session_id');
       if (!sessionId) {
@@ -1924,6 +2049,18 @@
         sessionStorage.setItem('wetechforu_session_id', sessionId);
       }
       return sessionId;
+    },
+    
+    // Get or create persistent visitor session ID (across tabs/devices)
+    getVisitorSessionId() {
+      const STORAGE_KEY = 'wetechforu_visitor_session_id';
+      let visitorSessionId = localStorage.getItem(STORAGE_KEY);
+      if (!visitorSessionId) {
+        visitorSessionId = 'visitor_' + Math.random().toString(36).substr(2, 12) + Date.now();
+        localStorage.setItem(STORAGE_KEY, visitorSessionId);
+        console.log('✅ Generated new visitorSessionId:', visitorSessionId);
+      }
+      return visitorSessionId;
     },
     
     // Send message to backend
@@ -2479,8 +2616,8 @@
         
         console.log('✅ Visitor tracking started:', this.state.tracking.sessionId);
         
-        // Start heartbeat (every 30 seconds)
-        this.startHeartbeat();
+        // ✅ Event-driven activity tracking with 120s visibility-gated heartbeat fallback
+        this.startEventDrivenTracking();
         
         // Track initial page view
         this.trackPageView();
@@ -2488,38 +2625,107 @@
         // Listen for page changes (single page apps)
         this.setupPageChangeListener();
         
-        // Track when page is about to close
+        // Track when page is about to close/unload
         window.addEventListener('beforeunload', () => this.stopTracking());
+        window.addEventListener('pagehide', () => this.stopTracking());
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) {
+            // Page is hidden - send final activity update via sendBeacon
+            this.sendActivityUpdate(true); // sendBeacon = true
+          } else {
+            // Page is visible - resume activity tracking
+            this.resetVisibilityHeartbeat();
+          }
+        });
         
       } catch (error) {
         console.error('Failed to start visitor tracking:', error);
       }
     },
     
-    // Send heartbeat to keep session active
-    startHeartbeat() {
+    // ✅ Event-driven activity tracking with visibility-gated heartbeat
+    startEventDrivenTracking() {
       // Clear any existing interval
       if (this.state.tracking.heartbeatInterval) {
         clearInterval(this.state.tracking.heartbeatInterval);
       }
       
-      // Send heartbeat every 30 seconds
-      this.state.tracking.heartbeatInterval = setInterval(async () => {
+      // Track last activity time
+      this.state.tracking.lastActivityTime = Date.now();
+      this.state.tracking.lastVisibilityChange = Date.now();
+      
+      // ✅ Start visibility-gated heartbeat (only when page is visible)
+      this.resetVisibilityHeartbeat();
+      
+      // ✅ Track user interactions (event-driven)
+      const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+      activityEvents.forEach(eventType => {
+        document.addEventListener(eventType, () => {
+          this.state.tracking.lastActivityTime = Date.now();
+          // Send activity update immediately on interaction
+          this.sendActivityUpdate(false);
+        }, { passive: true });
+      });
+      
+      console.log('✅ Event-driven activity tracking started');
+    },
+    
+    // ✅ Reset visibility-gated heartbeat (120s when visible, pause when hidden)
+    resetVisibilityHeartbeat() {
+      // Clear existing interval
+      if (this.state.tracking.heartbeatInterval) {
+        clearInterval(this.state.tracking.heartbeatInterval);
+        this.state.tracking.heartbeatInterval = null;
+      }
+      
+      // Only start heartbeat if page is visible
+      if (!document.hidden) {
+        this.state.tracking.lastVisibilityChange = Date.now();
+        
+        // Send heartbeat every 120 seconds (2 minutes) when visible
+        this.state.tracking.heartbeatInterval = setInterval(() => {
+          // Only send if page is still visible and has been visible for at least 2 minutes
+          if (!document.hidden) {
+            const timeSinceVisibilityChange = Date.now() - this.state.tracking.lastVisibilityChange;
+            if (timeSinceVisibilityChange >= 120000) { // 120 seconds
+              this.sendActivityUpdate(false);
+              console.log('💓 Visibility-gated heartbeat sent');
+            }
+          }
+        }, 120000); // Check every 120 seconds
+      }
+    },
+    
+    // ✅ Send activity update (with sendBeacon option for page unload)
+    async sendActivityUpdate(useSendBeacon = false) {
+      const activityData = {
+        session_id: this.state.tracking.sessionId,
+        current_page_url: window.location.href,
+        current_page_title: document.title,
+        timestamp: new Date().toISOString()
+      };
+      
+      if (useSendBeacon && navigator.sendBeacon) {
+        // Use sendBeacon for reliable delivery on page unload
+        const success = navigator.sendBeacon(
+          `${this.config.backendUrl}/api/visitor-tracking/public/widget/${this.config.widgetKey}/track-session`,
+          JSON.stringify(activityData)
+        );
+        if (success) {
+          console.log('✅ Activity update sent via sendBeacon');
+        }
+      } else {
+        // Use fetch for normal updates
         try {
           await fetch(`${this.config.backendUrl}/api/visitor-tracking/public/widget/${this.config.widgetKey}/track-session`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              session_id: this.state.tracking.sessionId,
-              current_page_url: window.location.href,
-              current_page_title: document.title
-            })
+            body: JSON.stringify(activityData)
           });
-          console.log('💓 Heartbeat sent');
         } catch (error) {
-          console.error('Heartbeat failed:', error);
+          console.error('Activity update failed:', error);
         }
-      }, 30000); // 30 seconds
+      }
     },
     
     // Track page view
@@ -2609,20 +2815,25 @@
         this.state.tracking.heartbeatInterval = null;
       }
       
+      // ✅ Send final activity update via sendBeacon on page unload
+      this.sendActivityUpdate(true); // sendBeacon = true
+      
       // Track final page time
       if (this.state.tracking.lastPageUrl && this.state.tracking.pageStartTime) {
         const timeOnPage = Math.floor((Date.now() - this.state.tracking.pageStartTime) / 1000);
         
         // Use sendBeacon for reliable delivery on page unload
-        navigator.sendBeacon(
-          `${this.config.backendUrl}/api/visitor-tracking/public/widget/${this.config.widgetKey}/track-pageview`,
-          JSON.stringify({
-            session_id: this.state.tracking.sessionId,
-            page_url: this.state.tracking.lastPageUrl,
-            page_title: document.title,
-            time_on_page: timeOnPage
-          })
-        );
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(
+            `${this.config.backendUrl}/api/visitor-tracking/public/widget/${this.config.widgetKey}/track-pageview`,
+            JSON.stringify({
+              session_id: this.state.tracking.sessionId,
+              page_url: this.state.tracking.lastPageUrl,
+              page_title: document.title,
+              time_on_page: timeOnPage
+            })
+          );
+        }
       }
       
       console.log('🛑 Visitor tracking stopped');

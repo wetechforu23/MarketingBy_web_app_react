@@ -7553,3 +7553,110 @@ async createTextPost(clientId: number, message: string) {
 **Last Updated:** October 27, 2025  
 **Status:** 🟢 SPECIFICATION COMPLETE - READY FOR IMPLEMENTATION  
 
+
+---
+
+## 📝 Versioned Change Log - WhatsApp Handover to Client Number
+
+**DATE:** 2025-10-30 23:02:24 CDT  
+**VERSION:** v376  
+**AUTHOR:** AI Assistant  
+
+**FEATURE / CHANGE TITLE:** WhatsApp Agent Handover - Send Notifications to Client Number Instead of Visitor Number
+
+**SUMMARY:**
+Modified WhatsApp handover functionality so that when a visitor requests an agent, the notification is sent to the CLIENT's configured WhatsApp number (for the client to respond to the visitor), rather than sending a message to the visitor's phone number.
+
+**IMPACTED SERVICES/TABLES/APIs:**
+- **Database**: `widget_configs` table (added `handover_whatsapp_number` column)
+- **Backend Service**: `handoverService.ts` - `handleWhatsAppHandover()` method (complete rewrite)
+- **Backend Route**: `handover.ts` - Updated validation to make `visitor_phone` optional for WhatsApp handover
+- **Migration**: `backend/database/add_handover_whatsapp_number.sql` (NEW)
+
+**DATABASE CHANGES:**
+- Added column: `widget_configs.handover_whatsapp_number` (VARCHAR(50), nullable)
+  - Stores client's WhatsApp number for receiving handover notifications
+  - Format: E.164 (e.g., `+14155551234` or `whatsapp:+14155551234`)
+  - Falls back to client's configured WhatsApp `fromNumber` if not set
+
+**BACKEND CHANGES:**
+1. **`handoverService.ts` - `handleWhatsAppHandover()`:**
+   - Now retrieves client's handover WhatsApp number from `widget_configs.handover_whatsapp_number`
+   - Falls back to client's WhatsApp credentials `fromNumber` if handover number not configured
+   - Sends notification TO client's number (not visitor's)
+   - Notification message includes:
+     - Visitor name, phone, email (if provided)
+     - Visitor's message/request
+     - Conversation ID and widget name
+     - Professional formatted message with WhatsApp formatting (bold text)
+
+2. **`handoverService.ts` - `getHandoverConfig()`:**
+   - Added `handover_whatsapp_number` to SELECT query
+
+3. **`handoverService.ts` - `updateHandoverConfig()`:**
+   - Added `handover_whatsapp_number` parameter support
+   - Allows updating/setting client's handover WhatsApp number
+
+4. **`handover.ts` - Route validation:**
+   - Removed requirement for `visitor_phone` when `requested_method === 'whatsapp'`
+   - Visitor phone is now optional (but recommended for inclusion in notification)
+
+**MESSAGE FORMAT (to Client):**
+```
+🔔 *New Agent Handover Request*
+
+A visitor has requested to speak with an agent.
+
+*Visitor Details:*
+Name: [Visitor Name]
+Phone: [Visitor Phone]
+Email: [Visitor Email]
+
+*Message:*
+[Visitor's message or "Visitor requested agent support"]
+
+*Conversation ID:* [ID]
+*Widget:* [Widget Name]
+
+Please respond to the visitor at your earliest convenience.
+```
+
+**FLOW:**
+1. Visitor requests agent via WhatsApp handover method
+2. System retrieves client's `handover_whatsapp_number` from widget config
+3. If not set, falls back to client's WhatsApp credentials `fromNumber`
+4. System sends WhatsApp notification TO client's number (not visitor's)
+5. Client receives notification with visitor details
+6. Client can then contact visitor directly via their own WhatsApp
+
+**MIGRATION REQUIRED:**
+```bash
+# Run migration to add handover_whatsapp_number column
+psql $DATABASE_URL < backend/database/add_handover_whatsapp_number.sql
+```
+
+**ROLLBACK PLAN:**
+- Remove `handover_whatsapp_number` column: `ALTER TABLE widget_configs DROP COLUMN handover_whatsapp_number;`
+- Revert `handleWhatsAppHandover()` to previous version
+- Restore route validation requiring `visitor_phone` for WhatsApp handover
+
+**TESTING:**
+- [ ] Test with `handover_whatsapp_number` set in widget config
+- [ ] Test fallback to WhatsApp credentials `fromNumber` when `handover_whatsapp_number` is null
+- [ ] Verify notification message format and content
+- [ ] Verify visitor phone is optional for WhatsApp handover request
+- [ ] Test error handling when client WhatsApp number not configured
+
+**DEPLOYMENT NOTES:**
+- Migration is backward compatible (new column is nullable)
+- Existing functionality preserved
+- Clients need to configure `handover_whatsapp_number` in widget settings for custom handover number
+- If not configured, system uses client's WhatsApp `fromNumber` as fallback
+
+**FEATURE FLAGS:**
+- None required (backward compatible change)
+
+**QUOTA TRACKING:**
+- Uses existing WhatsApp usage tracking per client/widget
+- No new quota tracking needed
+

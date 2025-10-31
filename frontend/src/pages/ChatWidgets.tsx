@@ -63,13 +63,16 @@ export default function ChatWidgets() {
   }
 
   const getEmbedCode = (widget: Widget) => {
-    return `<!-- WeTechForU AI Chat Widget -->
-<script src="${window.location.origin}/wetechforu-widget.js"></script>
+    const backendUrl = 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com';
+    return `<!-- WeTechForU AI Chat Widget V2 -->
+<script src="${backendUrl}/public/wetechforu-widget-v2.js?v=${Date.now()}"></script>
 <script>
-  WeTechForUWidget.init({
-    widgetKey: '${widget.widget_key}',
-    apiUrl: '${window.location.origin}/api/chat-widget'
-  });
+  if (window.WeTechForUWidget) {
+    WeTechForUWidget.init({
+      widgetKey: '${widget.widget_key}',
+      backendUrl: '${backendUrl}'
+    });
+  }
 </script>`
   }
 
