@@ -406,15 +406,36 @@ export class HandoverService {
           conversation_id: handoverRequest.conversation_id
         });
 
-        const result = await whatsappService.sendMessage({
+        // Prefer template first (avoids 24h window errors)
+        let result = await whatsappService.sendTemplateMessage({
           clientId: handoverRequest.client_id,
           widgetId: handoverRequest.widget_id,
           conversationId: handoverRequest.conversation_id,
-          toNumber: clientWhatsAppNumber,
-          message: notificationMessage,
-          sentByAgentName: 'System',
-          visitorName: handoverRequest.visitor_name || 'Anonymous Visitor'
+          toNumber: clientWhatsAppNumber.replace('whatsapp:', ''),
+          templateType: 'handover',
+          variables: {
+            client_name: clientName,
+            widget_name: widgetConfig.rows[0].widget_name || 'Widget',
+            conversation_id: handoverRequest.conversation_id,
+            visitor_name: handoverRequest.visitor_name || 'Visitor',
+            visitor_phone: handoverRequest.visitor_phone || 'N/A',
+            visitor_email: handoverRequest.visitor_email || 'N/A',
+            visitor_message: handoverRequest.visitor_message || 'Visitor requested agent support',
+          }
         });
+
+        // If template not configured, fallback to freeform
+        if (!result.success && /template/i.test(result.error || '')) {
+          result = await whatsappService.sendMessage({
+            clientId: handoverRequest.client_id,
+            widgetId: handoverRequest.widget_id,
+            conversationId: handoverRequest.conversation_id,
+            toNumber: clientWhatsAppNumber,
+            message: notificationMessage,
+            sentByAgentName: 'System',
+            visitorName: handoverRequest.visitor_name || 'Anonymous Visitor'
+          });
+        }
 
         console.log(`✅ WhatsApp handover notification sent to client:`, {
           messageSid: result.messageSid,
