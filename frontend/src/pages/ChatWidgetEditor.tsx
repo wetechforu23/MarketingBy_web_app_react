@@ -1970,7 +1970,7 @@ export default function ChatWidgetEditor() {
             <label style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem', cursor: 'pointer' }}>
               <input
                 type="checkbox"
-                checked={whatsappEnabled || whatsappConfigured}
+                checked={whatsappEnabled}
                 onChange={(e) => setWhatsappEnabled(e.target.checked)}
                 style={{ marginRight: '0.5rem', width: '20px', height: '20px' }}
               />
@@ -2469,7 +2469,18 @@ export default function ChatWidgetEditor() {
                       <input
                         type="checkbox"
                         checked={handoverOptions.portal}
-                        onChange={(e) => setHandoverOptions({ ...handoverOptions, portal: e.target.checked })}
+                        onChange={(e) => {
+                          const newValue = e.target.checked
+                          const newOptions = { ...handoverOptions, portal: newValue }
+                          // Check if this would be the last enabled option
+                          const enabledCount = Object.values(newOptions).filter(v => v === true).length
+                          if (!newValue && enabledCount === 0) {
+                            alert('⚠️ At least one contact method must be enabled. Please enable another option first.')
+                            return
+                          }
+                          setHandoverOptions(newOptions)
+                          setHasUnsavedChanges(true)
+                        }}
                         style={{ marginRight: '8px', width: '18px', height: '18px' }}
                       />
                       <span style={{ fontSize: '14px' }}>
@@ -2483,7 +2494,18 @@ export default function ChatWidgetEditor() {
                       <input
                         type="checkbox"
                         checked={handoverOptions.whatsapp}
-                        onChange={(e) => setHandoverOptions({ ...handoverOptions, whatsapp: e.target.checked })}
+                        onChange={(e) => {
+                          const newValue = e.target.checked
+                          const newOptions = { ...handoverOptions, whatsapp: newValue }
+                          // Check if this would be the last enabled option
+                          const enabledCount = Object.values(newOptions).filter(v => v === true).length
+                          if (!newValue && enabledCount === 0) {
+                            alert('⚠️ At least one contact method must be enabled. Please enable another option first.')
+                            return
+                          }
+                          setHandoverOptions(newOptions)
+                          setHasUnsavedChanges(true)
+                        }}
                         disabled={!whatsappConfigured}
                         style={{ marginRight: '8px', width: '18px', height: '18px' }}
                       />
@@ -2498,7 +2520,18 @@ export default function ChatWidgetEditor() {
                       <input
                         type="checkbox"
                         checked={handoverOptions.email}
-                        onChange={(e) => setHandoverOptions({ ...handoverOptions, email: e.target.checked })}
+                        onChange={(e) => {
+                          const newValue = e.target.checked
+                          const newOptions = { ...handoverOptions, email: newValue }
+                          // Check if this would be the last enabled option
+                          const enabledCount = Object.values(newOptions).filter(v => v === true).length
+                          if (!newValue && enabledCount === 0) {
+                            alert('⚠️ At least one contact method must be enabled. Please enable another option first.')
+                            return
+                          }
+                          setHandoverOptions(newOptions)
+                          setHasUnsavedChanges(true)
+                        }}
                         style={{ marginRight: '8px', width: '18px', height: '18px' }}
                       />
                       <span style={{ fontSize: '14px' }}>
@@ -2512,7 +2545,18 @@ export default function ChatWidgetEditor() {
                       <input
                         type="checkbox"
                         checked={handoverOptions.phone}
-                        onChange={(e) => setHandoverOptions({ ...handoverOptions, phone: e.target.checked })}
+                        onChange={(e) => {
+                          const newValue = e.target.checked
+                          const newOptions = { ...handoverOptions, phone: newValue }
+                          // Check if this would be the last enabled option
+                          const enabledCount = Object.values(newOptions).filter(v => v === true).length
+                          if (!newValue && enabledCount === 0) {
+                            alert('⚠️ At least one contact method must be enabled. Please enable another option first.')
+                            return
+                          }
+                          setHandoverOptions(newOptions)
+                          setHasUnsavedChanges(true)
+                        }}
                         disabled={!whatsappConfigured}
                         style={{ marginRight: '8px', width: '18px', height: '18px' }}
                       />
@@ -2527,7 +2571,18 @@ export default function ChatWidgetEditor() {
                       <input
                         type="checkbox"
                         checked={handoverOptions.webhook}
-                        onChange={(e) => setHandoverOptions({ ...handoverOptions, webhook: e.target.checked })}
+                        onChange={(e) => {
+                          const newValue = e.target.checked
+                          const newOptions = { ...handoverOptions, webhook: newValue }
+                          // Check if this would be the last enabled option
+                          const enabledCount = Object.values(newOptions).filter(v => v === true).length
+                          if (!newValue && enabledCount === 0) {
+                            alert('⚠️ At least one contact method must be enabled. Please enable another option first.')
+                            return
+                          }
+                          setHandoverOptions(newOptions)
+                          setHasUnsavedChanges(true)
+                        }}
                         style={{ marginRight: '8px', width: '18px', height: '18px' }}
                       />
                       <span style={{ fontSize: '14px' }}>
