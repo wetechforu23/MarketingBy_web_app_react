@@ -2011,6 +2011,140 @@ export default function ChatWidgetEditor() {
                   </ol>
                 </div>
 
+                {/* ✅ WhatsApp Handover Settings (Moved here - right after enable toggle) */}
+                <div style={{
+                  padding: '1.5rem',
+                  background: '#e8f5e9',
+                  borderRadius: '8px',
+                  border: '2px solid #25d366',
+                  marginBottom: '1.5rem'
+                }}>
+                  <h4 style={{ marginTop: 0, fontSize: '15px', fontWeight: '600', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="fab fa-whatsapp" style={{ color: '#25d366' }}></i>
+                    📱 WhatsApp Handover Settings
+                  </h4>
+                  <p style={{ fontSize: '13px', color: '#666', marginBottom: '1rem', lineHeight: '1.6' }}>
+                    Configure where WhatsApp handover notifications are sent.
+                  </p>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '6px', fontWeight: '600' }}>Handover Phone Number</label>
+                      <input
+                        type="text"
+                        placeholder="+14698880705"
+                        value={handoverWhatsAppNumber}
+                        onChange={(e) => {
+                          setHandoverWhatsAppNumber(e.target.value)
+                          setHasUnsavedChanges(true)
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          border: '2px solid #25d366',
+                          borderRadius: '6px',
+                          fontSize: '14px'
+                        }}
+                      />
+                      <p style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Format: Include country code</p>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '6px', fontWeight: '600' }}>Template SID (Content SID)</label>
+                      <input
+                        type="text"
+                        placeholder="HX..."
+                        value={handoverTemplateSid}
+                        onChange={(e) => {
+                          setHandoverTemplateSid(e.target.value)
+                          setHasUnsavedChanges(true)
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          border: '2px solid #25d366',
+                          borderRadius: '6px',
+                          fontSize: '14px'
+                        }}
+                      />
+                      <p style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Twilio Content Template SID</p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="connect-btn"
+                      style={{ backgroundColor: '#25d366', color: '#fff' }}
+                      onClick={async () => {
+                        if (!selectedClientId) {
+                          alert('Select a client first')
+                          return
+                        }
+                        try {
+                          setSavingHandover(true)
+                          await api.put(`/handover/config/client/${selectedClientId}`, {
+                            handover_whatsapp_number: handoverWhatsAppNumber,
+                            whatsapp_handover_content_sid: handoverTemplateSid
+                          })
+                          alert('✅ Handover settings saved')
+                          setHasUnsavedChanges(false)
+                        } catch (e: any) {
+                          alert(`❌ Failed to save: ${e?.response?.data?.error || e.message}`)
+                        } finally {
+                          setSavingHandover(false)
+                        }
+                      }}
+                      disabled={savingHandover}
+                    >
+                      {savingHandover ? (
+                        <><i className="fas fa-spinner fa-spin" style={{ marginRight: '6px' }}></i> Saving...</>
+                      ) : (
+                        <><i className="fas fa-save" style={{ marginRight: '6px' }}></i> Save Handover Settings</>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="connect-btn"
+                      style={{ backgroundColor: '#075e54', color: '#fff' }}
+                      onClick={async () => {
+                        if (!selectedClientId) {
+                          alert('Select a client first')
+                          return
+                        }
+                        if (!handoverWhatsAppNumber.trim()) {
+                          alert('Enter phone number')
+                          return
+                        }
+                        setTestingHandoverWhatsApp(true)
+                        try {
+                          await api.post('/handover/test-whatsapp', {
+                            client_id: selectedClientId,
+                            phone_number: handoverWhatsAppNumber.trim()
+                          })
+                          alert('✅ Test message sent')
+                        } catch (e: any) {
+                          alert(`❌ Test failed: ${e?.response?.data?.error || e.message}`)
+                        } finally {
+                          setTestingHandoverWhatsApp(false)
+                        }
+                      }}
+                      disabled={testingHandoverWhatsApp || !handoverWhatsAppNumber.trim()}
+                    >
+                      {testingHandoverWhatsApp ? (
+                        <><i className="fas fa-spinner fa-spin" style={{ marginRight: '6px' }}></i> Sending...</>
+                      ) : (
+                        <><i className="fas fa-paper-plane" style={{ marginRight: '6px' }}></i> Send Test Message</>
+                      )}
+                    </button>
+                  </div>
+                  {handoverWhatsAppNumber && (
+                    <div style={{ marginTop: '12px', padding: '8px', background: '#fff', borderRadius: '6px', fontSize: '12px', color: '#666' }}>
+                      <i className="fas fa-info-circle" style={{ marginRight: '6px' }}></i>
+                      Current number: <strong>{handoverWhatsAppNumber}</strong>
+                    </div>
+                  )}
+                </div>
+
                 {/* Twilio Credentials Form */}
                 <div style={{
                   padding: '1.5rem',
@@ -2427,122 +2561,6 @@ export default function ChatWidgetEditor() {
                     {handoverOptions.webhook && <option value="webhook">Webhook</option>}
                   </select>
                 </div>
-
-                {/* ✅ WhatsApp Handover Settings (Phone + Template SID) */}
-                {handoverOptions.whatsapp && (
-                  <div style={{
-                    padding: '1.5rem',
-                    background: '#e8f5e9',
-                    borderRadius: '8px',
-                    border: '2px solid #25d366',
-                    marginBottom: '1.5rem'
-                  }}>
-                    <h4 style={{ marginTop: 0, fontSize: '15px', fontWeight: '600', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <i className="fab fa-whatsapp" style={{ color: '#25d366' }}></i>
-                      📱 WhatsApp Handover Settings
-                    </h4>
-                    <p style={{ fontSize: '13px', color: '#666', marginBottom: '1rem', lineHeight: '1.6' }}>
-                      Configure where WhatsApp handover notifications are sent.
-                    </p>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '6px', fontWeight: '600' }}>Handover Phone Number</label>
-                        <input
-                          type="text"
-                          placeholder="+14698880705"
-                          value={handoverWhatsAppNumber}
-                          onChange={(e) => setHandoverWhatsAppNumber(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '10px',
-                            border: '2px solid #25d366',
-                            borderRadius: '6px',
-                            fontSize: '14px'
-                          }}
-                        />
-                        <p style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Format: Include country code</p>
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '6px', fontWeight: '600' }}>Template SID (Content SID)</label>
-                        <input
-                          type="text"
-                          placeholder="HX..."
-                          value={handoverTemplateSid}
-                          onChange={(e) => setHandoverTemplateSid(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '10px',
-                            border: '2px solid #25d366',
-                            borderRadius: '6px',
-                            fontSize: '14px'
-                          }}
-                        />
-                        <p style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Twilio Content Template SID</p>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        className="connect-btn"
-                        style={{ backgroundColor: '#25d366', color: '#fff' }}
-                        onClick={async () => {
-                          if (!selectedClientId) {
-                            alert('Select a client first')
-                            return
-                          }
-                          try {
-                            await api.put(`/handover/config/client/${selectedClientId}`, {
-                              handover_whatsapp_number: handoverWhatsAppNumber,
-                              whatsapp_handover_content_sid: handoverTemplateSid
-                            })
-                            alert('✅ Handover settings saved')
-                            setHasUnsavedChanges(false)
-                          } catch (e: any) {
-                            alert(`❌ Failed to save: ${e?.response?.data?.error || e.message}`)
-                          }
-                        }}
-                      >
-                        <i className="fas fa-save" style={{ marginRight: '6px' }}></i>
-                        Save Handover Settings
-                      </button>
-                      <button
-                        type="button"
-                        className="connect-btn"
-                        style={{ backgroundColor: '#075e54', color: '#fff' }}
-                        onClick={async () => {
-                          if (!selectedClientId) {
-                            alert('Select a client first')
-                            return
-                          }
-                          if (!handoverWhatsAppNumber.trim()) {
-                            alert('Enter phone number')
-                            return
-                          }
-                          try {
-                            await api.post('/handover/test-whatsapp', {
-                              client_id: selectedClientId,
-                              phone_number: handoverWhatsAppNumber.trim()
-                            })
-                            alert('✅ Test message sent')
-                          } catch (e: any) {
-                            alert(`❌ Test failed: ${e?.response?.data?.error || e.message}`)
-                          }
-                        }}
-                      >
-                        <i className="fas fa-paper-plane" style={{ marginRight: '6px' }}></i>
-                        Send Test Message
-                      </button>
-                    </div>
-                    {handoverWhatsAppNumber && (
-                      <div style={{ marginTop: '12px', padding: '8px', background: '#fff', borderRadius: '6px', fontSize: '12px', color: '#666' }}>
-                        <i className="fas fa-info-circle" style={{ marginRight: '6px' }}></i>
-                        Current number: <strong>{handoverWhatsAppNumber}</strong>
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {/* Webhook Configuration */}
                 {handoverOptions.webhook && (
