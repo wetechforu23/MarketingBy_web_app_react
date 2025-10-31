@@ -311,14 +311,14 @@ export class HandoverService {
         if (!s.startsWith('+')) {
           if (s.startsWith('00')) {
             s = '+' + s.substring(2);
-          } else if (digitsOnly.length === 10) {
-            // 10 digits = US number, add +1
+          } else if (digitsOnly.length === 9 || digitsOnly.length === 10) {
+            // 9-10 digits = US number without country code, add +1
             s = '+1' + digitsOnly;
           } else if (digitsOnly.length === 11 && digitsOnly.startsWith('1')) {
             // 11 digits starting with 1 = US number
             s = '+' + digitsOnly;
           } else {
-            throw new Error(`Invalid phone number format: ${raw} (please include country code, e.g., +1469880705)`);
+            throw new Error(`Invalid phone number format: ${raw} (please include country code, e.g., +14698880705 or 14698880705)`);
           }
         }
         

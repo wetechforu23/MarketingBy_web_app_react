@@ -33,6 +33,9 @@ interface MessageResponse {
   status?: string;
   error?: string;
   cost?: number;
+  errorCode?: string;
+  errorMessage?: string;
+  twilioResponse?: any;
 }
 
 export class WhatsAppService {
@@ -212,6 +215,10 @@ export class WhatsAppService {
   // ==========================================
 
   async sendMessage(params: SendMessageParams): Promise<MessageResponse> {
+    // Declare variables in outer scope for error handling
+    let formattedTo: string = '';
+    let formattedFrom: string = '';
+    
     try {
       const {
         clientId,
@@ -232,8 +239,8 @@ export class WhatsAppService {
       }
 
       // Format phone numbers (ensure whatsapp: prefix)
-      const formattedTo = toNumber.startsWith('whatsapp:') ? toNumber : `whatsapp:${toNumber}`;
-      const formattedFrom = creds.fromNumber.startsWith('whatsapp:') 
+      formattedTo = toNumber.startsWith('whatsapp:') ? toNumber : `whatsapp:${toNumber}`;
+      formattedFrom = creds.fromNumber.startsWith('whatsapp:') 
         ? creds.fromNumber 
         : `whatsapp:${creds.fromNumber}`;
 
