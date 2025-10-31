@@ -313,26 +313,25 @@ router.post('/test-whatsapp', async (req, res) => {
 
     const normalizedNumber = normalizeWhatsAppNumber(phone_number);
 
-    // Send test message via WhatsApp Service
+    // Send test TEMPLATE message via WhatsApp Service (avoids 24h window issues)
     const { WhatsAppService } = await import('../services/whatsappService');
     const whatsappService = WhatsAppService.getInstance();
 
-    const testMessage = `🧪 *Test Message - WhatsApp Handover*\n\n` +
-      `This is a test notification to verify your WhatsApp handover number is working correctly.\n\n` +
-      `*Client ID:* ${client_id}\n` +
-      `*Widget:* ${widgetName}\n` +
-      `*Test Time:* ${new Date().toLocaleString()}\n\n` +
-      `✅ If you received this message, your WhatsApp handover notifications are configured correctly!\n\n` +
-      `When a visitor requests an agent, you will receive similar notifications at this number.`;
-
-    const result = await whatsappService.sendMessage({
+    const result = await whatsappService.sendTemplateMessage({
       clientId: parseInt(client_id),
       widgetId: widgetId,
-      conversationId: null,
-      toNumber: normalizedNumber,
-      message: testMessage,
-      sentByAgentName: 'System Test',
-      visitorName: 'Test User'
+      conversationId: 0,
+      toNumber: normalizedNumber.replace('whatsapp:', ''),
+      templateType: 'handover',
+      variables: {
+        client_name: `Client ${client_id}`,
+        widget_name: widgetName,
+        conversation_id: 'TEST',
+        visitor_name: 'Test User',
+        visitor_phone: phone_number,
+        visitor_email: 'test@example.com',
+        visitor_message: 'This is a test of WhatsApp handover notifications.'
+      }
     });
 
     res.json({
