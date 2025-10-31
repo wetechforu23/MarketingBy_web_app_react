@@ -173,9 +173,9 @@ router.post('/request', async (req, res) => {
     // visitor_phone is optional but recommended to include in the notification message
 
     const result = await HandoverService.createHandoverRequest({
-      conversation_id: convId || 0,
-      widget_id: wid || 0,
-      client_id: finalClientId || 0,
+      conversation_id: convId,
+      widget_id: wid,
+      client_id: finalClientId,
       requested_method,
       visitor_name,
       visitor_email,
