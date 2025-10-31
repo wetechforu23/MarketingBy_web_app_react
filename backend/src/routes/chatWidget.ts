@@ -229,13 +229,15 @@ router.post('/widgets', async (req, res) => {
 router.get('/widgets/:id', async (req, res) => {
   try {
     const widgetId = parseInt(req.params.id);
+    // Prefer session-based auth; fall back to legacy user object if present
+    const session: any = (req as any).session || {};
     const user = (req as any).user;
 
     if (!widgetId || isNaN(widgetId)) {
       return res.status(400).json({ error: 'Invalid widget ID' });
     }
 
-    // Fetch widget
+    // Fetch widget (include widget_specific_llm_key for AI detection)
     const result = await pool.query(
       `SELECT w.*, c.client_name, c.email as client_email
        FROM widget_configs w
@@ -250,12 +252,171 @@ router.get('/widgets/:id', async (req, res) => {
 
     const widget = result.rows[0];
 
+    // ✅ Compute AI configured flag and get partial API key info (priority: widget > client > global)
+    let aiConfigured = false;
+    let apiKeySource: 'widget' | 'client' | 'global' | null = null;
+    let apiKeyPartial: string | null = null; // First 6 + last 6 chars for verification
+    
+    // Debug logging
+    console.log(`🔍 AI Detection for Widget ${widgetId}:`);
+    console.log(`  - widget_specific_llm_key: ${widget.widget_specific_llm_key ? 'EXISTS' : 'NULL'}`);
+    if (widget.widget_specific_llm_key) {
+      const preview = String(widget.widget_specific_llm_key).substring(0, 20);
+      console.log(`  - Preview: ${preview}...`);
+    }
+    console.log(`  - client_id: ${widget.client_id}`);
+    
+    try {
+      const crypto = require('crypto');
+      const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key!!';
+      const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+      
+      const decrypt = (encrypted: string): string => {
+        try {
+          const parts = encrypted.split(':');
+          const iv = Buffer.from(parts[0], 'hex');
+          const encryptedText = parts[1];
+          const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+          let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+          decrypted += decipher.final('utf8');
+          return decrypted;
+        } catch (e) {
+          console.error('Decrypt error:', e);
+          return '';
+        }
+      };
+
+      // ✅ Priority 1: Check widget-specific key (widget_specific_llm_key)
+      if (widget.widget_specific_llm_key && String(widget.widget_specific_llm_key).trim().length > 0) {
+        const apiKeyValue = String(widget.widget_specific_llm_key).trim();
+        console.log(`  ✅ Found widget_specific_llm_key (length: ${apiKeyValue.length})`);
+        
+        // Check if it's already plaintext (starts with AIzaSy) or encrypted (has :)
+        if (apiKeyValue.startsWith('AIzaSy')) {
+          // Plaintext API key - mark as configured
+          aiConfigured = true;
+          apiKeySource = 'widget';
+          if (apiKeyValue.length >= 12) {
+            apiKeyPartial = `${apiKeyValue.substring(0, 6)}...${apiKeyValue.substring(apiKeyValue.length - 6)}`;
+          }
+          console.log(`  ✅ AI Configured: Widget-specific (plaintext), Partial: ${apiKeyPartial}`);
+        } else {
+          // Encrypted - try to decrypt
+          aiConfigured = true;
+          apiKeySource = 'widget';
+          try {
+            const decrypted = decrypt(apiKeyValue);
+            if (decrypted && decrypted.length >= 12) {
+              apiKeyPartial = `${decrypted.substring(0, 6)}...${decrypted.substring(decrypted.length - 6)}`;
+            }
+          } catch (e) {
+            console.error('Error decrypting widget key for partial display:', e);
+            // Still mark as configured if decryption fails (key exists)
+            if (apiKeyValue.length >= 20) {
+              apiKeyPartial = `••••${apiKeyValue.substring(apiKeyValue.length - 4)}`;
+            }
+          }
+        }
+      } 
+      // ✅ Priority 2: Check client-specific key (google_ai_client_{clientId})
+      else if (widget.client_id) {
+        const clientServiceName = `google_ai_client_${widget.client_id}`;
+        const clientCredCheck = await pool.query(
+          `SELECT encrypted_value 
+           FROM encrypted_credentials 
+           WHERE service = $1 AND key_name = 'api_key'
+           LIMIT 1`,
+          [clientServiceName]
+        );
+        
+        if (clientCredCheck.rows.length > 0 && clientCredCheck.rows[0].encrypted_value) {
+          aiConfigured = true;
+          apiKeySource = 'client';
+          try {
+            const decrypted = decrypt(clientCredCheck.rows[0].encrypted_value);
+            if (decrypted && decrypted.length >= 12) {
+              apiKeyPartial = `${decrypted.substring(0, 6)}...${decrypted.substring(decrypted.length - 6)}`;
+            }
+          } catch (e) {
+            console.error('Error decrypting client key for partial display:', e);
+          }
+        }
+        // ✅ Priority 3: Check global key
+        else {
+          const globalCredCheck = await pool.query(
+            `SELECT encrypted_value 
+             FROM encrypted_credentials 
+             WHERE (
+               (service IS NOT NULL AND (LOWER(service) LIKE '%gemini%' OR LOWER(service) LIKE '%google%') AND key_name = 'api_key')
+               OR (service_name IS NOT NULL AND (LOWER(service_name) LIKE '%gemini%' OR LOWER(service_name) LIKE '%google%') AND credential_type = 'api_key')
+             )
+             AND (environment IS NULL OR environment = $1)
+             AND (is_active IS NULL OR is_active = true)
+             LIMIT 1`,
+            [process.env.NODE_ENV || 'production']
+          );
+          
+          if (globalCredCheck.rows.length > 0 && globalCredCheck.rows[0].encrypted_value) {
+            aiConfigured = true;
+            apiKeySource = 'global';
+            try {
+              const decrypted = decrypt(globalCredCheck.rows[0].encrypted_value);
+              if (decrypted && decrypted.length >= 12) {
+                apiKeyPartial = `${decrypted.substring(0, 6)}...${decrypted.substring(decrypted.length - 6)}`;
+              }
+            } catch (e) {
+              console.error('Error decrypting global key for partial display:', e);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error checking AI configuration:', e);
+      aiConfigured = false;
+    }
+
+    // ✅ Fetch LLM usage stats for this widget
+    let llmUsageStats = null;
+    if (widget.llm_enabled && widget.client_id) {
+      try {
+        const usageResult = await pool.query(
+          `SELECT * FROM client_llm_usage 
+           WHERE client_id = $1 AND widget_id = $2`,
+          [widget.client_id, widget.id]
+        );
+        
+        if (usageResult.rows.length > 0) {
+          llmUsageStats = usageResult.rows[0];
+        } else {
+          // Defaults if no usage record yet
+          llmUsageStats = {
+            tokens_used_this_month: 0,
+            monthly_token_limit: 100000,
+            tokens_used_today: 0,
+            daily_token_limit: 5000,
+            requests_made_this_month: 0,
+            monthly_request_limit: 1000,
+            requests_made_today: 0,
+            daily_request_limit: 100
+          };
+        }
+      } catch (e) {
+        console.error('Error fetching LLM usage:', e);
+      }
+    }
+
     // Check permissions (super admin or widget owner)
     if (user && !user.is_admin && user.client_id !== widget.client_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    res.json(widget);
+    res.json({ 
+      ...widget, 
+      ai_configured: aiConfigured,
+      ai_api_key_source: apiKeySource, // 'widget' | 'client' | 'global'
+      ai_api_key_partial: apiKeyPartial, // e.g., "AIzaSy...xyz123"
+      llm_usage_stats: llmUsageStats
+    });
 
   } catch (error) {
     console.error('Error fetching widget:', error);
@@ -297,10 +458,40 @@ router.put('/widgets/:id', async (req, res) => {
     const values = [];
     let paramCount = 1;
 
+    // ✅ Encrypt API key if provided (widget_specific_llm_key)
+    const crypto = require('crypto');
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key!!';
+    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+    
+    const encrypt = (text: string): string => {
+      try {
+        // If already encrypted (has : separator), return as is
+        if (text.includes(':') && text.length > 50) {
+          return text;
+        }
+        const iv = crypto.randomBytes(16);
+        const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+        let encrypted = cipher.update(text, 'utf8', 'hex');
+        encrypted += cipher.final('hex');
+        return iv.toString('hex') + ':' + encrypted;
+      } catch (e) {
+        console.error('Encryption error:', e);
+        return text; // Return as-is if encryption fails
+      }
+    };
+
     for (const [key, value] of Object.entries(updates)) {
       if (allowedFields.includes(key)) {
-        setClause.push(`${key} = $${paramCount}`);
-        values.push(value);
+        // ✅ Encrypt widget_specific_llm_key if it's provided and not already encrypted
+        if (key === 'widget_specific_llm_key' && value && typeof value === 'string' && value.trim().length > 0) {
+          const encryptedValue = encrypt(value);
+          setClause.push(`${key} = $${paramCount}`);
+          values.push(encryptedValue);
+          console.log(`✅ Encrypting API key for widget ${id}`);
+        } else {
+          setClause.push(`${key} = $${paramCount}`);
+          values.push(value);
+        }
         paramCount++;
       }
     }
@@ -450,7 +641,7 @@ router.get('/public/widget/:widgetKey/config', async (req, res) => {
     const { widgetKey } = req.params;
 
     const result = await pool.query(
-      `SELECT widget_key, widget_name, primary_color, secondary_color, position,
+      `SELECT id, id as widget_id, widget_key, widget_name, primary_color, secondary_color, position,
               welcome_message, bot_name, bot_avatar_url, enable_appointment_booking,
               enable_email_capture, enable_phone_capture, enable_ai_handoff,
               ai_handoff_url, business_hours, offline_message, is_active,
@@ -504,7 +695,23 @@ router.post('/public/widget/:widgetKey/conversation', async (req, res) => {
 
     const widget = widgetResult.rows[0];
 
-    // Check for existing active conversation
+    // ✅ FIRST: Check for existing active conversation by visitor_session_id (cross-tab persistence)
+    if (visitor_session_id && visitor_session_id !== session_id) {
+      const existingConvByVisitor = await pool.query(
+        'SELECT id, intro_completed FROM widget_conversations WHERE widget_id = $1 AND visitor_session_id = $2 AND status = $3 ORDER BY created_at DESC LIMIT 1',
+        [widget.id, visitor_session_id, 'active']
+      );
+
+      if (existingConvByVisitor.rows.length > 0) {
+        return res.json({ 
+          conversation_id: existingConvByVisitor.rows[0].id, 
+          existing: true,
+          intro_completed: existingConvByVisitor.rows[0].intro_completed || false
+        });
+      }
+    }
+
+    // ✅ SECOND: Check for existing active conversation by session_id (fallback)
     const existingConv = await pool.query(
       'SELECT id FROM widget_conversations WHERE widget_id = $1 AND session_id = $2 AND status = $3',
       [widget.id, session_id, 'active']
@@ -658,13 +865,13 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
     const widget_id = widget.id;
     const client_id = widget.client_id;
 
-    // ✅ CHECK IF AGENT HAS TAKEN OVER (HANDOFF)
+    // ✅ CHECK IF AGENT HAS TAKEN OVER (HANDOFF) OR HANDOFF REQUESTED
     const convCheck = await pool.query(
-      'SELECT agent_handoff FROM widget_conversations WHERE id = $1',
+      'SELECT agent_handoff, handoff_requested FROM widget_conversations WHERE id = $1',
       [conversation_id]
     );
 
-    const isAgentHandoff = convCheck.rows.length > 0 && convCheck.rows[0].agent_handoff;
+    const isAgentHandoff = convCheck.rows.length > 0 && (convCheck.rows[0].agent_handoff || convCheck.rows[0].handoff_requested);
 
     // Save user message
     await pool.query(
@@ -2159,12 +2366,50 @@ router.post('/conversations/:conversationId/close-manual', async (req, res) => {
 /**
  * Get conversation status (for widget to check if conversation still active)
  */
+// ✅ Find active conversation by visitor_session_id (cross-tab persistence)
+router.get('/public/widget/:widgetKey/conversation/by-visitor/:visitorSessionId', async (req, res) => {
+  try {
+    const { widgetKey, visitorSessionId } = req.params;
+    
+    // Get widget ID
+    const widgetResult = await pool.query(
+      'SELECT id FROM widget_configs WHERE widget_key = $1 AND is_active = true',
+      [widgetKey]
+    );
+    
+    if (widgetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+    
+    const widgetId = widgetResult.rows[0].id;
+    
+    // Find active conversation by visitor_session_id
+    const result = await pool.query(
+      `SELECT id as conversation_id, status, intro_completed, intro_data
+       FROM widget_conversations 
+       WHERE widget_id = $1 AND visitor_session_id = $2 AND status = 'active'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [widgetId, visitorSessionId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No active conversation found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error finding conversation by visitorSessionId:', error);
+    res.status(500).json({ error: 'Failed to find conversation' });
+  }
+});
+
 router.get('/public/widget/:widgetKey/conversations/:conversationId/status', async (req, res) => {
   try {
     const { conversationId } = req.params;
     
     const result = await pool.query(
-      'SELECT status, closed_at, close_reason FROM widget_conversations WHERE id = $1',
+      'SELECT status, closed_at, close_reason, intro_completed, intro_data FROM widget_conversations WHERE id = $1',
       [conversationId]
     );
     

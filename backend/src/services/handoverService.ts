@@ -42,7 +42,9 @@ export class HandoverService {
           enable_whatsapp,
           whatsapp_configured,
           sms_twilio_configured,
-          notification_email
+          notification_email,
+          handover_whatsapp_number,
+          whatsapp_handover_content_sid
         FROM widget_configs
         WHERE id = $1
       `, [widgetId]);
@@ -68,6 +70,8 @@ export class HandoverService {
       default_handover_method?: string;
       webhook_url?: string;
       webhook_secret?: string;
+      handover_whatsapp_number?: string;
+      whatsapp_handover_content_sid?: string;
     }
   ) {
     const client = await pool.connect();
@@ -101,6 +105,16 @@ export class HandoverService {
         values.push(config.webhook_secret);
       }
 
+      if (config.handover_whatsapp_number !== undefined) {
+        updates.push(`handover_whatsapp_number = $${paramIndex++}`);
+        values.push(config.handover_whatsapp_number || null);
+      }
+
+      if (config.whatsapp_handover_content_sid !== undefined) {
+        updates.push(`whatsapp_handover_content_sid = $${paramIndex++}`);
+        values.push(config.whatsapp_handover_content_sid || null);
+      }
+
       if (updates.length === 0) {
         return { success: true, message: 'No updates to apply' };
       }
@@ -125,6 +139,19 @@ export class HandoverService {
   static async createHandoverRequest(data: HandoverRequest) {
     const client = await pool.connect();
     try {
+      // Prepare values with explicit type casting to match database schema
+      const values = [
+        data.conversation_id ? parseInt(String(data.conversation_id)) : null,
+        data.widget_id ? parseInt(String(data.widget_id)) : null,
+        data.client_id ? parseInt(String(data.client_id)) : null,
+        String(data.requested_method || 'portal'),
+        data.visitor_name ? String(data.visitor_name) : null,
+        data.visitor_email ? String(data.visitor_email) : null,
+        data.visitor_phone ? String(data.visitor_phone) : null,
+        data.visitor_message ? String(data.visitor_message) : null
+      ];
+
+      // Use explicit type casts in SQL to ensure compatibility
       const result = await client.query(`
         INSERT INTO handover_requests (
           conversation_id,
@@ -136,39 +163,42 @@ export class HandoverService {
           visitor_phone,
           visitor_message,
           status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
+        ) VALUES (
+          $1::integer,
+          $2::integer,
+          $3::integer,
+          $4::varchar(50),
+          $5::varchar(255),
+          $6::varchar(255),
+          $7::varchar(50),
+          $8::text,
+          'pending'::varchar(50)
+        )
         RETURNING *
-      `, [
-        data.conversation_id,
-        data.widget_id,
-        data.client_id,
-        data.requested_method,
-        data.visitor_name,
-        data.visitor_email,
-        data.visitor_phone,
-        data.visitor_message
-      ]);
+      `, values);
 
       const handoverRequest = result.rows[0];
 
       // Update conversation with preferred contact method
+      const contactDetails = {
+        name: data.visitor_name,
+        email: data.visitor_email,
+        phone: data.visitor_phone,
+        message: data.visitor_message
+      };
+      
       await client.query(`
         UPDATE widget_conversations
         SET 
-          preferred_contact_method = $1,
-          contact_method_details = $2,
+          preferred_contact_method = $1::varchar(50),
+          contact_method_details = $2::jsonb,
           handoff_requested = true,
           handoff_requested_at = CURRENT_TIMESTAMP
-        WHERE id = $3
+        WHERE id = $3::integer
       `, [
-        data.requested_method,
-        JSON.stringify({
-          name: data.visitor_name,
-          email: data.visitor_email,
-          phone: data.visitor_phone,
-          message: data.visitor_message
-        }),
-        data.conversation_id
+        String(data.requested_method || 'portal'),
+        JSON.stringify(contactDetails),
+        data.conversation_id ? parseInt(String(data.conversation_id)) : null
       ]);
 
       // Process the handover based on method
@@ -260,25 +290,218 @@ export class HandoverService {
 
   /**
    * Handle WhatsApp-based handover
+   * Sends notification to CLIENT's WhatsApp number (not visitor's)
    */
   private static async handleWhatsAppHandover(handoverRequest: any) {
-    if (!handoverRequest.visitor_phone) {
-      throw new Error('Phone number required for WhatsApp handover');
+    const client = await pool.connect();
+    try {
+      // 1) Get widget config to find client's handover WhatsApp number
+      const widgetConfig = await client.query(`
+        SELECT 
+          handover_whatsapp_number,
+          widget_name,
+          client_id
+        FROM widget_configs
+        WHERE id = $1
+      `, [handoverRequest.widget_id]);
+
+      if (widgetConfig.rows.length === 0) {
+        throw new Error('Widget configuration not found');
+      }
+
+      // 2) Get client info
+      const clientInfo = await client.query(`
+        SELECT name as client_name
+        FROM clients
+        WHERE id = $1
+      `, [handoverRequest.client_id]);
+
+      const clientName = clientInfo.rows.length > 0 ? clientInfo.rows[0].client_name : 'Client';
+
+      // 3) Determine client's WhatsApp number for handover
+      let clientHandoverNumber = widgetConfig.rows[0].handover_whatsapp_number;
+      
+      // If handover_whatsapp_number is not set, try to get it from WhatsApp credentials
+      if (!clientHandoverNumber) {
+        const { WhatsAppService } = await import('./whatsappService');
+        const whatsappService = WhatsAppService.getInstance();
+        const credentials = await whatsappService.getCredentials(handoverRequest.client_id);
+        
+        if (credentials && credentials.fromNumber) {
+          // Extract number from whatsapp:+14155551234 format
+          clientHandoverNumber = credentials.fromNumber.replace('whatsapp:', '');
+        }
+      }
+
+      if (!clientHandoverNumber) {
+        throw new Error('Client WhatsApp number not configured for handover. Please set handover_whatsapp_number in widget settings.');
+      }
+
+      // 4) Mark conversation as handed off so AI stops replying immediately
+      await client.query(
+        `UPDATE widget_conversations SET 
+           agent_handoff = true,
+           handoff_requested = false,
+           updated_at = NOW(),
+           last_activity_at = NOW()
+         WHERE id = $1`,
+        [handoverRequest.conversation_id]
+      );
+
+      // 5) Add a system message in the portal timeline
+      await client.query(
+        `INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+         VALUES ($1, $2, $3, NOW())`,
+        [
+          handoverRequest.conversation_id,
+          'system',
+          `🤝 Agent handover requested. Client WhatsApp number will be notified.`
+        ]
+      );
+
+      // 6) Normalize WhatsApp number
+      const normalizeWhatsAppNumber = (raw: string): string => {
+        // Remove non-digits, keep leading + if present
+        let s = (raw || '').toString().trim();
+        // If it already starts with 'whatsapp:', remove it first to normalize
+        if (s.startsWith('whatsapp:')) {
+          s = s.substring(9); // Remove 'whatsapp:' prefix
+        }
+        // Strip spaces and common separators
+        s = s.replace(/\s|\(|\)|-|\./g, '');
+        
+        // Validate: must have at least 10 digits
+        const digitsOnly = s.replace(/\+/g, '');
+        if (digitsOnly.length < 10) {
+          throw new Error(`Invalid phone number: ${raw} (too short, needs at least 10 digits)`);
+        }
+        
+        // Ensure leading +; default to US +1 if missing
+        if (!s.startsWith('+')) {
+          if (s.startsWith('00')) {
+            s = '+' + s.substring(2);
+          } else if (digitsOnly.length === 9 || digitsOnly.length === 10) {
+            // 9-10 digits = US number without country code, add +1
+            s = '+1' + digitsOnly;
+          } else if (digitsOnly.length === 11 && digitsOnly.startsWith('1')) {
+            // 11 digits starting with 1 = US number
+            s = '+' + digitsOnly;
+          } else {
+            throw new Error(`Invalid phone number format: ${raw} (please include country code, e.g., +14698880705 or 14698880705)`);
+          }
+        }
+        
+        // Final validation: E.164 format should be +[country code][number]
+        const finalNumber = `whatsapp:${s}`;
+        console.log(`📞 Normalized phone: ${raw} → ${finalNumber}`);
+        return finalNumber;
+      };
+
+      // 7) Send WhatsApp notification to CLIENT (not visitor)
+      const { WhatsAppService } = await import('./whatsappService');
+      const whatsappService = WhatsAppService.getInstance();
+      const clientWhatsAppNumber = normalizeWhatsAppNumber(clientHandoverNumber);
+
+      // Build notification message for client
+      const visitorInfo = [];
+      if (handoverRequest.visitor_name) {
+        visitorInfo.push(`Name: ${handoverRequest.visitor_name}`);
+      }
+      if (handoverRequest.visitor_phone) {
+        visitorInfo.push(`Phone: ${handoverRequest.visitor_phone}`);
+      }
+      if (handoverRequest.visitor_email) {
+        visitorInfo.push(`Email: ${handoverRequest.visitor_email}`);
+      }
+
+      const notificationMessage = `🔔 *New Agent Handover Request*\n\n` +
+        `A visitor has requested to speak with an agent.\n\n` +
+        (visitorInfo.length > 0 ? `*Visitor Details:*\n${visitorInfo.join('\n')}\n\n` : '') +
+        `*Message:*\n${handoverRequest.visitor_message || 'Visitor requested agent support'}\n\n` +
+        `*Conversation ID:* ${handoverRequest.conversation_id}\n` +
+        `*Widget:* ${widgetConfig.rows[0].widget_name || 'N/A'}\n\n` +
+        `Please respond to the visitor at your earliest convenience.`;
+
+      try {
+        console.log(`📱 Sending WhatsApp handover notification to client:`, {
+          to: clientWhatsAppNumber,
+          client_id: handoverRequest.client_id,
+          conversation_id: handoverRequest.conversation_id
+        });
+
+        // Prefer template first (avoids 24h window errors)
+        let result = await whatsappService.sendTemplateMessage({
+          clientId: handoverRequest.client_id,
+          widgetId: handoverRequest.widget_id,
+          conversationId: handoverRequest.conversation_id,
+          toNumber: clientWhatsAppNumber.replace('whatsapp:', ''),
+          templateType: 'handover',
+          variables: {
+            client_name: clientName,
+            widget_name: widgetConfig.rows[0].widget_name || 'Widget',
+            conversation_id: handoverRequest.conversation_id,
+            visitor_name: handoverRequest.visitor_name || 'Visitor',
+            visitor_phone: handoverRequest.visitor_phone || 'N/A',
+            visitor_email: handoverRequest.visitor_email || 'N/A',
+            visitor_message: handoverRequest.visitor_message || 'Visitor requested agent support',
+          }
+        });
+
+        // If template not configured, fallback to freeform
+        if (!result.success && /template/i.test(result.error || '')) {
+          result = await whatsappService.sendMessage({
+            clientId: handoverRequest.client_id,
+            widgetId: handoverRequest.widget_id,
+            conversationId: handoverRequest.conversation_id,
+            toNumber: clientWhatsAppNumber,
+            message: notificationMessage,
+            sentByAgentName: 'System',
+            visitorName: handoverRequest.visitor_name || 'Anonymous Visitor'
+          });
+        }
+
+        console.log(`✅ WhatsApp handover notification sent to client:`, {
+          messageSid: result.messageSid,
+          status: result.status,
+          to: clientWhatsAppNumber
+        });
+
+        // Log success in system messages
+        await client.query(
+          `INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+           VALUES ($1, 'system', $2, NOW())`,
+          [
+            handoverRequest.conversation_id,
+            `✅ WhatsApp handover notification sent to client at ${clientHandoverNumber}`
+          ]
+        );
+      } catch (sendErr: any) {
+        console.error('❌ WhatsApp sendMessage failed:', {
+          error: sendErr.message,
+          to: clientWhatsAppNumber,
+          client_id: handoverRequest.client_id,
+          conversation_id: handoverRequest.conversation_id
+        });
+        
+        // Log error in system messages
+        await client.query(
+          `INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+           VALUES ($1, 'system', $2, NOW())`,
+          [
+            handoverRequest.conversation_id,
+            `⚠️ Failed to send WhatsApp handover notification to client: ${sendErr?.message || 'Unknown error'}. Client number: ${clientHandoverNumber}`
+          ]
+        );
+        // Mark request as failed
+        await this.updateHandoverStatus(handoverRequest.id, 'failed', sendErr?.message || 'send_error');
+        return;
+      }
+
+      // 8) Update handover status
+      await this.updateHandoverStatus(handoverRequest.id, 'notified', null);
+    } finally {
+      client.release();
     }
-
-    // Use existing WhatsAppService
-    const { WhatsAppService } = await import('./whatsappService');
-    const whatsappService = WhatsAppService.getInstance();
-    
-    await whatsappService.sendMessage({
-      clientId: handoverRequest.client_id,
-      widgetId: handoverRequest.widget_id,
-      conversationId: handoverRequest.conversation_id,
-      toNumber: handoverRequest.visitor_phone,
-      message: `Hello ${handoverRequest.visitor_name || 'there'}! An agent will contact you shortly via WhatsApp. Your message: ${handoverRequest.visitor_message || 'You requested to speak with an agent.'}`
-    });
-
-    await this.updateHandoverStatus(handoverRequest.id, 'notified', null);
   }
 
   /**

@@ -33,6 +33,9 @@ interface MessageResponse {
   status?: string;
   error?: string;
   cost?: number;
+  errorCode?: string;
+  errorMessage?: string;
+  twilioResponse?: any;
 }
 
 export class WhatsAppService {
@@ -211,7 +214,127 @@ export class WhatsAppService {
   // MESSAGE SENDING
   // ==========================================
 
+  /**
+   * Send a WhatsApp Template message using Twilio Content API
+   * Requires a Twilio Content SID configured in env (per template)
+   * - Set TWILIO_CONTENT_SID_HANDOVER for the Agent Handover template
+   * - Content variables provided as a plain object (will be JSON-stringified)
+   */
+  async sendTemplateMessage(params: Omit<SendMessageParams, 'message'> & {
+    templateType?: 'handover';
+    contentSid?: string; // optional override, falls back to env variable
+    variables?: Record<string, any>;
+  }): Promise<MessageResponse> {
+    let formattedTo: string = '';
+    let formattedFrom: string = '';
+    try {
+      const { clientId, widgetId, conversationId, toNumber, mediaUrl, sentByUserId, sentByAgentName, visitorName, templateType, contentSid, variables } = params;
+
+      const creds = await this.getCredentials(clientId);
+      if (!creds) {
+        return { success: false, error: 'WhatsApp not configured for this client' };
+      }
+
+      // Prefer per-client Content SID from widget_configs; fallback to explicit contentSid; then env
+      let effectiveContentSid = contentSid as string | undefined;
+      if (!effectiveContentSid) {
+        try {
+          const sidResult = await pool.query(
+            `SELECT whatsapp_handover_content_sid FROM widget_configs WHERE client_id = $1 LIMIT 1`,
+            [clientId]
+          );
+          const dbSid = sidResult.rows?.[0]?.whatsapp_handover_content_sid;
+          effectiveContentSid = dbSid || effectiveContentSid;
+        } catch {}
+      }
+      if (!effectiveContentSid && templateType === 'handover') {
+        effectiveContentSid = process.env.TWILIO_CONTENT_SID_HANDOVER;
+      }
+
+      if (!effectiveContentSid) {
+        return { success: false, error: 'WhatsApp template not configured (missing Content SID)' };
+      }
+
+      formattedTo = toNumber.startsWith('whatsapp:') ? toNumber : `whatsapp:${toNumber}`;
+      formattedFrom = creds.fromNumber.startsWith('whatsapp:') ? creds.fromNumber : `whatsapp:${creds.fromNumber}`;
+
+      const url = `https://api.twilio.com/2010-04-01/Accounts/${creds.accountSid}/Messages.json`;
+      const auth = Buffer.from(`${creds.accountSid}:${creds.authToken}`).toString('base64');
+
+      const contentVariables = variables ? JSON.stringify(variables) : undefined;
+
+      const body = new URLSearchParams({
+        To: formattedTo,
+        From: formattedFrom,
+        ContentSid: effectiveContentSid,
+      });
+      if (contentVariables) body.append('ContentVariables', contentVariables);
+      if (mediaUrl) body.append('MediaUrl', mediaUrl);
+
+      console.log('📄 Sending WhatsApp template message via Content API', {
+        to: formattedTo,
+        contentSid: effectiveContentSid,
+        hasVariables: Boolean(contentVariables),
+      });
+
+      const response = await axios.post(url, body.toString(), {
+        headers: {
+          Authorization: `Basic ${auth}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        validateStatus: () => true,
+      });
+
+      const twilioData = response.data;
+      if (response.status !== 200 && response.status !== 201) {
+        const errorCode = twilioData.code || twilioData.error_code || 'unknown';
+        const errorMessage = twilioData.message || twilioData.error_message || 'Unknown Twilio error';
+        console.error('❌ Twilio Template send error', { status: response.status, errorCode, errorMessage });
+        return { success: false, error: `Twilio error ${errorCode}: ${errorMessage}`, errorCode, errorMessage, twilioResponse: twilioData };
+      }
+
+      // Persist a synthetic body to indicate template used
+      const persistedBody = `[TEMPLATE:${effectiveContentSid}]`;
+      await pool.query(
+        `INSERT INTO whatsapp_messages (
+          widget_id, conversation_id, client_id, direction,
+          from_number, to_number, message_body,
+          twilio_message_sid, twilio_status, media_url,
+          sent_by_user_id, sent_by_agent_name, visitor_name, visitor_phone, sent_at
+        ) VALUES ($1, $2, $3, 'outbound', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())`,
+        [
+          widgetId,
+          conversationId,
+          clientId,
+          formattedFrom,
+          formattedTo,
+          persistedBody,
+          twilioData.sid,
+          twilioData.status,
+          mediaUrl || null,
+          sentByUserId || null,
+          sentByAgentName || null,
+          visitorName || null,
+          toNumber.replace('whatsapp:', ''),
+        ]
+      );
+
+      await this.trackUsage(clientId, widgetId);
+      return { success: true, messageSid: twilioData.sid, status: twilioData.status };
+    } catch (error: any) {
+      const twilioError = error.response?.data || {};
+      const errorCode = twilioError.code || error.code || 'unknown';
+      const errorMessage = twilioError.message || error.message || 'Unknown error';
+      console.error('❌ Error sending WhatsApp template message', { code: errorCode, message: errorMessage });
+      return { success: false, error: `Twilio error ${errorCode}: ${errorMessage}`, errorCode, errorMessage, twilioResponse: twilioError };
+    }
+  }
+
   async sendMessage(params: SendMessageParams): Promise<MessageResponse> {
+    // Declare variables in outer scope for error handling
+    let formattedTo: string = '';
+    let formattedFrom: string = '';
+    
     try {
       const {
         clientId,
@@ -232,8 +355,8 @@ export class WhatsAppService {
       }
 
       // Format phone numbers (ensure whatsapp: prefix)
-      const formattedTo = toNumber.startsWith('whatsapp:') ? toNumber : `whatsapp:${toNumber}`;
-      const formattedFrom = creds.fromNumber.startsWith('whatsapp:') 
+      formattedTo = toNumber.startsWith('whatsapp:') ? toNumber : `whatsapp:${toNumber}`;
+      formattedFrom = creds.fromNumber.startsWith('whatsapp:') 
         ? creds.fromNumber 
         : `whatsapp:${creds.fromNumber}`;
 
@@ -252,14 +375,72 @@ export class WhatsAppService {
       }
 
       // Send message via Twilio
+      console.log(`📱 Sending WhatsApp message:`, {
+        to: formattedTo,
+        from: formattedFrom,
+        messageLength: message.length
+      });
+
       const response = await axios.post(url, body.toString(), {
         headers: {
           'Authorization': `Basic ${auth}`,
           'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        },
+        validateStatus: () => true // Don't throw on errors, handle them below
       });
 
       const twilioData = response.data;
+
+      // Check for Twilio errors
+      if (response.status !== 200 && response.status !== 201) {
+        const errorCode = twilioData.code || twilioData.error_code || 'unknown';
+        const errorMessage = twilioData.message || twilioData.error_message || 'Unknown Twilio error';
+        console.error(`❌ Twilio API error:`, {
+          status: response.status,
+          code: errorCode,
+          message: errorMessage,
+          to: formattedTo,
+          from: formattedFrom
+        });
+
+        // Store failed message in database
+        await pool.query(
+          `INSERT INTO whatsapp_messages (
+            widget_id, conversation_id, client_id, direction,
+            from_number, to_number, message_body,
+            twilio_message_sid, twilio_status,
+            twilio_error_code, twilio_error_message,
+            visitor_name, visitor_phone, failed_at, sent_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())`,
+          [
+            widgetId, conversationId, clientId, 'outbound',
+            formattedFrom, formattedTo, message,
+            twilioData.sid || null, 'failed',
+            String(errorCode), errorMessage,
+            visitorName || null, toNumber
+          ]
+        );
+
+        // If outside 24h window (WhatsApp error 63016), try template send as fallback
+        if (String(errorCode) === '63016') {
+          console.warn('🔁 Retrying with WhatsApp Template (Content API) due to 63016 window error');
+          return await this.sendTemplateMessage({
+            clientId,
+            widgetId,
+            conversationId,
+            toNumber: toNumber.replace('whatsapp:', ''),
+            templateType: 'handover',
+            variables: {
+              client_name: sentByAgentName || 'Agent',
+              visitor_name: visitorName || 'Customer',
+              conversation_id: conversationId,
+              message_preview: (message || '').slice(0, 120),
+            },
+          });
+        }
+
+        throw new Error(`Twilio error ${errorCode}: ${errorMessage}`);
+      }
 
       // Store message in database
       await pool.query(
@@ -311,9 +492,20 @@ export class WhatsAppService {
       };
 
     } catch (error: any) {
-      console.error('Error sending WhatsApp message:', error.response?.data || error.message);
+      const twilioError = error.response?.data || {};
+      const errorCode = twilioError.code || error.code || 'unknown';
+      const errorMessage = twilioError.message || error.message || 'Unknown error';
       
-      // Store failed message attempt
+      console.error('❌ Error sending WhatsApp message:', {
+        status: error.response?.status,
+        code: errorCode,
+        message: errorMessage,
+        to: params.toNumber,
+        from: formattedFrom || 'unknown',
+        twilioResponse: twilioError
+      });
+      
+      // Store failed message attempt with full error details
       try {
         await pool.query(
           `INSERT INTO whatsapp_messages (
@@ -324,20 +516,29 @@ export class WhatsAppService {
             from_number,
             to_number,
             message_body,
+            twilio_message_sid,
             twilio_status,
+            twilio_error_code,
             twilio_error_message,
-            failed_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
+            visitor_name,
+            visitor_phone,
+            failed_at,
+            sent_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())`,
           [
             params.widgetId,
             params.conversationId,
             params.clientId,
             'outbound',
-            'unknown',
+            formattedFrom || 'unknown',
             params.toNumber,
             params.message,
+            twilioError.sid || null,
             'failed',
-            error.response?.data?.message || error.message
+            String(errorCode),
+            errorMessage,
+            params.visitorName || null,
+            params.toNumber.replace('whatsapp:', '')
           ]
         );
       } catch (dbError) {
@@ -346,7 +547,10 @@ export class WhatsAppService {
 
       return {
         success: false,
-        error: error.response?.data?.message || error.message || 'Failed to send WhatsApp message'
+        error: `Twilio error ${errorCode}: ${errorMessage}`,
+        errorCode,
+        errorMessage,
+        twilioResponse: twilioError
       };
     }
   }

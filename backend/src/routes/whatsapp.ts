@@ -75,6 +75,8 @@ router.get('/settings/:clientId', requireAuth, async (req: Request, res: Respons
 
     // Get phone number if configured
     let phoneNumber = null;
+    let credentialsPartial = null; // Partial credentials for display (last 4 digits)
+    
     if (isConfigured) {
       const phoneResult = await pool.query(
         `SELECT phone_number, display_name, is_sandbox
@@ -87,6 +89,53 @@ router.get('/settings/:clientId', requireAuth, async (req: Request, res: Respons
       if (phoneResult.rows.length > 0) {
         phoneNumber = phoneResult.rows[0];
       }
+
+      // ✅ Get partial credentials for display (last 4 digits only)
+      try {
+        const crypto = require('crypto');
+        const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key!!';
+        const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+        
+        const decrypt = (encrypted: string): string => {
+          try {
+            const parts = encrypted.split(':');
+            const iv = Buffer.from(parts[0], 'hex');
+            const encryptedText = parts[1];
+            const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+            let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+            decrypted += decipher.final('utf8');
+            return decrypted;
+          } catch (e) {
+            console.error('Decrypt error:', e);
+            return '';
+          }
+        };
+
+        const credResult = await pool.query(
+          `SELECT key_name, encrypted_value 
+           FROM encrypted_credentials 
+           WHERE service = $1`,
+          [`whatsapp_client_${clientId}`]
+        );
+
+        if (credResult.rows.length > 0) {
+          const partials: any = {};
+          credResult.rows.forEach((row: any) => {
+            try {
+              const decrypted = decrypt(row.encrypted_value);
+              if (decrypted && decrypted.length >= 4) {
+                // Show last 4 characters
+                partials[row.key_name] = `••••${decrypted.substring(decrypted.length - 4)}`;
+              }
+            } catch (e) {
+              console.error(`Error decrypting ${row.key_name}:`, e);
+            }
+          });
+          credentialsPartial = partials;
+        }
+      } catch (e) {
+        console.error('Error getting partial credentials:', e);
+      }
     }
 
     // Get usage stats
@@ -95,6 +144,7 @@ router.get('/settings/:clientId', requireAuth, async (req: Request, res: Respons
     res.json({
       configured: isConfigured,
       phone_number: phoneNumber,
+      credentials_partial: credentialsPartial, // Last 4 digits for display
       usage
     });
 
@@ -263,6 +313,73 @@ router.get('/messages/:conversationId', requireAuth, async (req: Request, res: R
 
     res.json({
       messages: messages.rows
+    });
+
+  } catch (error) {
+    console.error('Error fetching WhatsApp messages:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+// ==========================================
+// GET /api/whatsapp/all/:clientId
+// Get all WhatsApp messages for a client (with optional widget filter)
+// ==========================================
+
+router.get('/all/:clientId', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userRole = req.session.role;
+    const userClientId = req.session.clientId;
+    const clientId = parseInt(req.params.clientId);
+    const widgetId = req.query.widgetId ? parseInt(req.query.widgetId as string) : null;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    // Check permissions
+    const isAdmin = userRole === 'super_admin';
+    if (!isAdmin && userClientId !== clientId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    let query = `
+      SELECT 
+        wm.id,
+        wm.widget_id,
+        wm.conversation_id,
+        wm.direction,
+        wm.from_number,
+        wm.to_number,
+        wm.message_body,
+        wm.twilio_message_sid,
+        wm.twilio_status,
+        wm.twilio_error_code,
+        wm.twilio_error_message,
+        wm.visitor_name,
+        wm.visitor_phone,
+        wm.sent_at,
+        wm.delivered_at,
+        wm.failed_at,
+        wc.widget_name,
+        wc.client_id
+      FROM whatsapp_messages wm
+      JOIN widget_configs wc ON wc.id = wm.widget_id
+      WHERE wm.client_id = $1
+    `;
+    const params: any[] = [clientId];
+    let paramIndex = 2;
+
+    if (widgetId) {
+      params.push(widgetId);
+      query += ` AND wm.widget_id = $${paramIndex++}`;
+    }
+
+    query += ` ORDER BY wm.sent_at DESC LIMIT $${paramIndex}`;
+    params.push(limit);
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      messages: result.rows,
+      total: result.rows.length
     });
 
   } catch (error) {

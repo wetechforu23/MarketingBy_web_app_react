@@ -25,6 +25,8 @@ const Unsubscribe: React.FC = () => {
     urgent_updates: false,
   });
 
+  const [smsConsent, setSmsConsent] = useState(false);
+
   const [action, setAction] = useState<'preferences' | 'pause' | 'unsubscribe'>('unsubscribe');
   const [smsAction, setSmsAction] = useState<'preferences' | 'unsubscribe'>('unsubscribe');
 
@@ -454,8 +456,45 @@ const Unsubscribe: React.FC = () => {
             </div>
           </>
         ) : (
-          /* SMS Preferences */
+          /* SMS Preferences + Twilio-compliant Opt-in Language */
           <>
+            {/* Twilio-compliant Opt-in Language */}
+            <div style={{
+              marginBottom: '24px',
+              padding: '16px',
+              border: '2px solid #e9ecef',
+              borderRadius: '8px',
+              background: '#f7fbff'
+            }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#2c3e50', marginBottom: '10px' }}>
+                Sign up to receive text messages from WeTechForU
+              </h3>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={smsConsent}
+                  onChange={(e) => setSmsConsent(e.target.checked)}
+                  style={{ marginTop: '3px', width: '18px', height: '18px' }}
+                />
+                <div>
+                  <div style={{ fontWeight: 500, color: '#2c3e50', marginBottom: '8px' }}>
+                    I agree to receive text messages from WeTechForU about:
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '20px', color: '#2c3e50' }}>
+                    <li>Promotional offers and discounts</li>
+                    <li>Appointment and service reminders</li>
+                    <li>Urgent updates</li>
+                  </ul>
+                  <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '10px' }}>
+                    Message and data rates may apply. Consent is not a condition of purchase. Reply <strong>STOP</strong> to unsubscribe at any time.
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '6px' }}>
+                    <a href="/privacy" style={{ color: '#4682B4', textDecoration: 'underline' }}>Privacy Policy</a> | <a href="/terms" style={{ color: '#4682B4', textDecoration: 'underline' }}>Terms of Service</a>
+                  </div>
+                </div>
+              </label>
+            </div>
+
             <div style={{ marginBottom: '30px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#2c3e50', marginBottom: '20px' }}>
                 Continue receiving text messages about:

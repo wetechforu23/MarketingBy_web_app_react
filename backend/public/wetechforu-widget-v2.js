@@ -41,7 +41,11 @@
       emergencyDisclaimer: 'If this is a medical emergency, please call 911 immediately.',
       hipaaDisclaimer: 'This chat is not for medical emergencies. For urgent medical concerns, please call 911 or visit your nearest emergency room.',
       showEmergencyWarning: false,
-      autoDetectEmergency: false
+      autoDetectEmergency: false,
+      // 🤝 Handover Configuration
+      enableHandoverChoice: false,
+      handoverOptions: { portal: true, whatsapp: false, email: true, phone: false, webhook: false },
+      defaultHandoverMethod: 'portal'
     },
 
     state: {
@@ -76,7 +80,9 @@
         heartbeatInterval: null,
         lastPageUrl: null,
         pageStartTime: null,
-        visitorFingerprint: null
+        visitorFingerprint: null,
+        lastActivityTime: null,
+        lastVisibilityChange: null
       }
     },
 
@@ -146,6 +152,28 @@
         if (config.hipaa_disclaimer) this.config.hipaaDisclaimer = config.hipaa_disclaimer;
         if (config.show_emergency_warning !== undefined) this.config.showEmergencyWarning = config.show_emergency_warning;
         if (config.auto_detect_emergency !== undefined) this.config.autoDetectEmergency = config.auto_detect_emergency;
+        
+        // 🤝 Load handover configuration
+        try {
+          const handoverResponse = await fetch(`${this.config.backendUrl}/api/handover/config/${config.widget_id || config.id}`);
+          if (handoverResponse.ok) {
+            const handoverConfig = await handoverResponse.json();
+            if (handoverConfig.enable_handover_choice !== undefined) {
+              this.config.enableHandoverChoice = handoverConfig.enable_handover_choice;
+            }
+            if (handoverConfig.handover_options) {
+              this.config.handoverOptions = typeof handoverConfig.handover_options === 'string' 
+                ? JSON.parse(handoverConfig.handover_options) 
+                : handoverConfig.handover_options;
+            }
+            if (handoverConfig.default_handover_method) {
+              this.config.defaultHandoverMethod = handoverConfig.default_handover_method;
+            }
+            console.log('✅ Handover config loaded:', this.config.handoverOptions);
+          }
+        } catch (error) {
+          console.warn('Could not load handover config:', error);
+        }
         
         console.log('✅ Widget config loaded from database:', config);
       } catch (error) {
@@ -823,7 +851,34 @@
 
     // Start intro flow (Enhanced with database questions)
     async startIntroFlow() {
-      if (this.state.hasShownIntro) return;
+      if (this.state.hasShownIntro) {
+        console.log('⚠️ Intro already shown - skipping');
+        return;
+      }
+      
+      // ✅ Check if intro was already completed for this conversation
+      const conversationId = await this.ensureConversation();
+      if (conversationId) {
+        try {
+          const statusResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/status`);
+          if (statusResponse.ok) {
+            const statusData = await statusResponse.json();
+            if (statusData.intro_completed) {
+              this.state.introFlow.isComplete = true;
+              this.state.hasShownIntro = true;
+              console.log('✅ Intro already completed - skipping intro questions');
+              // Show default welcome instead
+              setTimeout(() => {
+                this.startDefaultIntroFlow();
+              }, 500);
+              return;
+            }
+          }
+        } catch (error) {
+          console.warn('Could not check intro status, proceeding:', error);
+        }
+      }
+
       this.state.hasShownIntro = true;
 
       // Fetch widget config including intro questions
@@ -831,27 +886,35 @@
         const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/config`);
         const config = await response.json();
 
-        // Check if intro flow is enabled
-        if (config.intro_flow_enabled && config.intro_questions && config.intro_questions.length > 0) {
-          this.state.introFlow.enabled = true;
-          this.state.introFlow.questions = config.intro_questions;
-          this.state.introFlow.isActive = true;
+        // ✅ Only use questions from widget config (no hardcoded defaults)
+        // Check if intro flow is enabled AND has questions configured
+        if (config.intro_flow_enabled && config.intro_questions && Array.isArray(config.intro_questions) && config.intro_questions.length > 0) {
+          // ✅ Filter only enabled questions (only those in widget config)
+          const enabledQuestions = config.intro_questions.filter(q => q !== null && typeof q === 'object');
+          
+          if (enabledQuestions.length > 0) {
+            this.state.introFlow.enabled = true;
+            this.state.introFlow.questions = enabledQuestions; // ✅ Only use widget config questions
+            this.state.introFlow.isActive = true;
 
-          // Start with welcome message
-          setTimeout(() => {
-            this.addBotMessage(`👋 Welcome! I'm ${this.config.botName}.`);
-          }, 500);
+            // ✅ Use database welcome_message instead of hardcoded messages
+            const welcomeMsg = config.welcome_message || this.config.welcomeMessage || `👋 Welcome! I'm ${this.config.botName}.`;
+            
+            setTimeout(() => {
+              this.addBotMessage(welcomeMsg);
+            }, 500);
 
-          setTimeout(() => {
-            this.addBotMessage("Before we begin, I'd like to know a bit more about you.");
-          }, 1500);
-
-          setTimeout(() => {
-            this.askIntroQuestion();
-          }, 2500);
-
+            // Start asking intro questions immediately after welcome
+            setTimeout(() => {
+              this.askIntroQuestion();
+            }, 1500);
+          } else {
+            // No questions configured - use default intro
+            console.log('⚠️ Intro flow enabled but no questions configured - using default intro');
+            this.startDefaultIntroFlow();
+          }
         } else {
-          // Original intro flow (no questions)
+          // Intro flow disabled or no questions - use default intro
           this.startDefaultIntroFlow();
         }
       } catch (error) {
@@ -1176,6 +1239,33 @@
 
     // Request live agent - Collect contact info
     requestLiveAgent() {
+      // Check if we already have contact info from intro flow
+      if (this.state.introFlow && this.state.introFlow.isComplete && this.state.introFlow.answers) {
+        const answers = this.state.introFlow.answers;
+        if (answers.name && (answers.email || answers.phone)) {
+          // Use intro flow data
+          this.state.contactInfo = {
+            name: answers.name || answers.first_name || answers.full_name,
+            email: answers.email || answers.email_address,
+            phone: answers.phone || answers.phone_number || answers.mobile,
+            reason: answers.message || answers.question || answers.reason || 'Visitor requested to speak with an agent'
+          };
+          
+          setTimeout(() => {
+            this.submitToLiveAgent();
+          }, 500);
+          return;
+        }
+      }
+      
+      // If contact info already collected, skip questions
+      if (this.state.contactInfo && this.state.contactInfo.name && (this.state.contactInfo.email || this.state.contactInfo.phone)) {
+        setTimeout(() => {
+          this.submitToLiveAgent();
+        }, 500);
+        return;
+      }
+      
       this.addBotMessage("Let me connect you with a live agent. To get started, I need a few details:");
       
       // 📊 Track live agent request event
@@ -1186,14 +1276,52 @@
       
       // Start contact info collection
       setTimeout(() => {
-        this.state.contactInfoStep = 0;
-        this.state.contactInfo = {};
+        // Only reset if we don't have partial data
+        if (!this.state.contactInfo || !this.state.contactInfo.name) {
+          this.state.contactInfoStep = 0;
+          this.state.contactInfo = {};
+        }
         this.askContactInfo();
       }, 1000);
     },
 
-    // Ask contact info step by step
+    // Ask contact info step by step (only if not already collected in intro flow)
     askContactInfo() {
+      // ✅ First, check if intro flow already collected this information
+      if (this.state.introFlow && this.state.introFlow.answers && Object.keys(this.state.introFlow.answers).length > 0) {
+        // Map intro flow answers to contact info
+        const introAnswers = this.state.introFlow.answers;
+        
+        // Build name from first_name and last_name, or use full name if available
+        let fullName = '';
+        if (introAnswers.first_name && introAnswers.last_name) {
+          fullName = `${introAnswers.first_name} ${introAnswers.last_name}`;
+        } else if (introAnswers.first_name) {
+          fullName = introAnswers.first_name;
+        } else if (introAnswers.name) {
+          fullName = introAnswers.name;
+        }
+        
+        // Map email and phone
+        const email = introAnswers.email || introAnswers.email_address || null;
+        const phone = introAnswers.phone || introAnswers.phone_number || introAnswers.mobile || null;
+        
+        // If we have name + (email or phone), use intro data directly
+        if (fullName && (email || phone)) {
+          this.state.contactInfo = {
+            name: fullName,
+            email: email,
+            phone: phone,
+            reason: introAnswers.reason || introAnswers.message || introAnswers.question || 'Visitor requested to speak with an agent'
+          };
+          console.log('✅ Using contact info from intro flow:', this.state.contactInfo);
+          // Skip asking - go directly to submit
+          this.submitToLiveAgent();
+          return;
+        }
+      }
+      
+      // ✅ Only ask for missing information (not already in intro flow)
       const steps = [
         { field: 'name', question: "What's your full name?" },
         { field: 'email', question: "What's your email address?" },
@@ -1202,14 +1330,55 @@
       ];
       
       if (!this.state.contactInfoStep) this.state.contactInfoStep = 0;
+      if (!this.state.contactInfo) this.state.contactInfo = {};
       
-      if (this.state.contactInfoStep < steps.length) {
-        const step = steps[this.state.contactInfoStep];
-        this.addBotMessage(step.question);
-        this.state.currentContactField = step.field;
-      } else {
-        // All info collected - send to portal
+      // Pre-populate from intro flow if available
+      if (this.state.introFlow && this.state.introFlow.answers) {
+        const introAnswers = this.state.introFlow.answers;
+        if (!this.state.contactInfo.name) {
+          if (introAnswers.first_name && introAnswers.last_name) {
+            this.state.contactInfo.name = `${introAnswers.first_name} ${introAnswers.last_name}`;
+          } else if (introAnswers.first_name) {
+            this.state.contactInfo.name = introAnswers.first_name;
+          }
+        }
+        if (!this.state.contactInfo.email) {
+          this.state.contactInfo.email = introAnswers.email || introAnswers.email_address || null;
+        }
+        if (!this.state.contactInfo.phone) {
+          this.state.contactInfo.phone = introAnswers.phone || introAnswers.phone_number || introAnswers.mobile || null;
+        }
+      }
+      
+      // Find next unanswered question
+      let nextStepIndex = this.state.contactInfoStep;
+      while (nextStepIndex < steps.length) {
+        const step = steps[nextStepIndex];
+        if (!this.state.contactInfo[step.field]) {
+          // Found unanswered question
+          this.addBotMessage(step.question);
+          this.state.currentContactField = step.field;
+          this.state.contactInfoStep = nextStepIndex;
+          return;
+        }
+        nextStepIndex++;
+      }
+      
+      // All required info collected - submit
+      if (this.state.contactInfo.name && (this.state.contactInfo.email || this.state.contactInfo.phone)) {
         this.submitToLiveAgent();
+      } else {
+        // Missing required fields - ask for at least name + email or phone
+        if (!this.state.contactInfo.name) {
+          this.addBotMessage("What's your full name?");
+          this.state.currentContactField = 'name';
+          this.state.contactInfoStep = 0;
+        } else if (!this.state.contactInfo.email && !this.state.contactInfo.phone) {
+          this.addBotMessage("What's your email address or phone number?");
+          // Will handle in message handler
+        } else {
+          this.submitToLiveAgent();
+        }
       }
     },
 
@@ -1311,6 +1480,19 @@
         }
       }
       
+        // ✅ Detect agent requests in message
+      const agentKeywords = ['agent', 'human', 'person', 'live', 'real person', 'talk to someone', 'speak with', 'connect with agent'];
+      const messageLower = message.toLowerCase();
+      const wantsAgent = agentKeywords.some(keyword => messageLower.includes(keyword));
+      
+      if (wantsAgent && !this.state.currentContactField && !this.state.contactInfoStep) {
+        // User wants to talk to agent - start collection immediately
+        setTimeout(() => {
+          this.requestLiveAgent();
+        }, 500);
+        return;
+      }
+
       // ✅ If collecting contact info for live agent
       if (this.state.currentContactField) {
         if (!this.state.contactInfo) this.state.contactInfo = {};
@@ -1456,10 +1638,6 @@
         this.addBotMessage(`📧 Email: ${info.email}\n📱 Phone: ${info.phone}\n📝 Question: ${info.reason}`);
       }, 800);
       
-      setTimeout(() => {
-        this.addBotMessage("Checking agent availability...");
-      }, 1600);
-      
       // ✅ FIX: Ensure conversation exists before handoff
       const conversationId = await this.ensureConversation();
       if (!conversationId) {
@@ -1467,47 +1645,223 @@
         return;
       }
       
-      // Send handoff request to backend
+      // Get widget ID first
+      let widgetId = null;
       try {
-        const response = await fetch(`${this.config.backendUrl}/api/chat-widget/${this.config.widgetKey}/handoff`, {
+        const configResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/config`);
+        if (configResponse.ok) {
+          const widgetConfig = await configResponse.json();
+          widgetId = widgetConfig.widget_id || widgetConfig.id;
+          console.log('✅ Got widget ID:', widgetId);
+        }
+      } catch (error) {
+        console.error('Failed to get widget ID:', error);
+      }
+
+      if (!widgetId) {
+        this.addBotMessage("Sorry, there was an issue getting widget configuration. Please try again.");
+        return;
+      }
+
+      // Always avoid showing handover UI in chat; silently use preferred/default method
+      const preferredMethod = (() => {
+        // Prefer WhatsApp if enabled and phone provided
+        if (this.config.handoverOptions && this.config.handoverOptions.whatsapp && info.phone) return 'whatsapp';
+        // Else prefer Email if enabled and email provided
+        if (this.config.handoverOptions && this.config.handoverOptions.email && info.email) return 'email';
+        // Else use configured default or portal
+        return this.config.defaultHandoverMethod || 'portal';
+      })();
+
+      console.log('📞 Using silent handover method:', preferredMethod);
+      this.submitHandoverRequest(preferredMethod, info, conversationId, widgetId);
+    },
+
+    // Show handover choice modal
+    showHandoverChoiceModal(info, conversationId, widgetId) {
+      const availableOptions = [];
+      if (this.config.handoverOptions.portal) availableOptions.push({ method: 'portal', label: '💬 Portal Chat', desc: 'Continue chatting here' });
+      if (this.config.handoverOptions.whatsapp && info.phone) availableOptions.push({ method: 'whatsapp', label: '📱 WhatsApp', desc: 'Get contacted via WhatsApp' });
+      if (this.config.handoverOptions.email && info.email) availableOptions.push({ method: 'email', label: '📧 Email', desc: 'Receive email response' });
+      if (this.config.handoverOptions.phone && info.phone) availableOptions.push({ method: 'phone', label: '📞 Phone Call/SMS', desc: 'Get a call or text' });
+      if (this.config.handoverOptions.webhook) availableOptions.push({ method: 'webhook', label: '🔗 System Integration', desc: 'Send to your system' });
+
+      if (availableOptions.length === 0) {
+        // No options available, use default
+        this.submitHandoverRequest(this.config.defaultHandoverMethod || 'portal', info, conversationId, widgetId);
+        return;
+      }
+
+      // Build modal HTML
+      const modalHTML = `
+        <div id="wetechforu-handover-modal" style="
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0,0,0,0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        ">
+          <div style="
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+          ">
+            <h3 style="margin-top: 0; color: #333;">How would you like to be contacted?</h3>
+            <p style="color: #666; font-size: 14px; margin-bottom: 20px;">Choose your preferred contact method:</p>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              ${availableOptions.map(opt => `
+                <button onclick="WeTechForUWidget.selectHandoverMethod('${opt.method}')" style="
+                  padding: 12px 16px;
+                  border: 2px solid #e0e0e0;
+                  border-radius: 8px;
+                  background: white;
+                  cursor: pointer;
+                  text-align: left;
+                  transition: all 0.2s;
+                  font-size: 14px;
+                " onmouseover="this.style.borderColor='${this.config.primaryColor}'; this.style.background='#f5f5f5';" 
+                   onmouseout="this.style.borderColor='#e0e0e0'; this.style.background='white';">
+                  <div style="font-weight: 600; color: #333;">${opt.label}</div>
+                  <div style="font-size: 12px; color: #666; margin-top: 4px;">${opt.desc}</div>
+                </button>
+              `).join('')}
+            </div>
+            <button onclick="WeTechForUWidget.closeHandoverModal()" style="
+              margin-top: 16px;
+              width: 100%;
+              padding: 10px;
+              border: none;
+              border-radius: 6px;
+              background: #f0f0f0;
+              cursor: pointer;
+              color: #666;
+              font-size: 14px;
+            ">Cancel</button>
+          </div>
+        </div>
+      `;
+
+      // Add modal to page
+      document.body.insertAdjacentHTML('beforeend', modalHTML);
+      this.state.handoverInfo = info;
+      this.state.handoverConversationId = conversationId;
+      this.state.handoverWidgetId = widgetId;
+    },
+
+    // Close handover modal
+    closeHandoverModal() {
+      const modal = document.getElementById('wetechforu-handover-modal');
+      if (modal) modal.remove();
+      this.state.handoverInfo = null;
+      this.state.handoverConversationId = null;
+    },
+
+    // Select handover method
+    async selectHandoverMethod(method) {
+      this.closeHandoverModal();
+      const info = this.state.handoverInfo;
+      const conversationId = this.state.handoverConversationId;
+      const widgetId = this.state.handoverWidgetId;
+      
+      if (!info || !conversationId || !widgetId) {
+        this.addBotMessage("Sorry, there was an issue. Please try again.");
+        return;
+      }
+
+      // Submit handover request
+      await this.submitHandoverRequest(method, info, conversationId, widgetId);
+    },
+
+    // Submit handover request to backend
+    async submitHandoverRequest(method, info, conversationId, widgetId) {
+      if (!widgetId) {
+        // Try to get widget ID
+        try {
+          const configResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/config`);
+          if (configResponse.ok) {
+            const config = await configResponse.json();
+            widgetId = config.widget_id || config.id;
+          }
+        } catch (error) {
+          console.error('Failed to get widget ID:', error);
+        }
+      }
+
+      if (!widgetId) {
+        this.addBotMessage("Sorry, there was an issue. Please try again.");
+        return;
+      }
+
+      this.addBotMessage(`⏳ Processing your request...`);
+
+      try {
+        const requestBody = {
+          conversation_id: conversationId,
+          widget_id: widgetId,
+          client_id: this.config.clientId || null, // Will be determined by backend from widget_id
+          requested_method: method,
+          visitor_name: info.name,
+          visitor_email: info.email || null,
+          visitor_phone: info.phone || null,
+          visitor_message: info.reason || 'Visitor requested to speak with an agent'
+        };
+
+        console.log('📤 Sending handover request:', requestBody);
+
+        const response = await fetch(`${this.config.backendUrl}/api/handover/request`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            conversation_id: conversationId,
-            visitor_name: info.name,
-            visitor_email: info.email,
-            visitor_phone: info.phone,
-            handoff_type: 'live_agent',
-            handoff_details: { reason: info.reason }
-          })
+          body: JSON.stringify(requestBody)
         });
-        
-        const data = await response.json();
-        
-        setTimeout(() => {
-          if (data.agent_online) {
-            // Agent is online
-            this.addBotMessage(`✅ Great news! ${data.agent_name || 'An agent'} is available and will assist you shortly.`);
-            setTimeout(() => {
-              this.addBotMessage(`You're now connected with ${data.agent_name || 'a live agent'}. They'll respond to you here in this chat.`);
-            }, 1500);
-          } else {
-            // Agent is offline
-            this.addBotMessage("Our agents are currently offline. Your message has been sent, and we'll get back to you as soon as possible!");
-            setTimeout(() => {
-              this.addBotMessage("You can expect a response within 24 hours at the email address you provided.");
-            }, 1500);
+
+        console.log('📥 Handover response status:', response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Handover request failed:', response.status, errorText);
+          let errorMessage = "Sorry, there was an error submitting your request.";
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.error || errorMessage;
+          } catch (e) {
+            // Use default error message
           }
-          
-          // Reset contact info collection
-          this.state.contactInfo = {};
-          this.state.contactInfoStep = 0;
-          this.state.currentContactField = null;
-        }, 2400);
-        
+          throw new Error(errorMessage);
+        }
+
+        const data = await response.json();
+        console.log('✅ Handover response:', data);
+
+        if (data.success) {
+          // Show generic confirmation only (no method details in chat)
+          setTimeout(() => {
+            this.addBotMessage("✅ Your request has been submitted! Our team will reach out to you shortly.");
+            this.state.agentTookOver = true;
+          }, 800);
+        } else {
+          throw new Error(data.error || 'Request failed');
+        }
+
+        // Reset contact info collection
+        this.state.contactInfo = {};
+        this.state.contactInfoStep = 0;
+        this.state.currentContactField = null;
+        this.state.handoverInfo = null;
+        this.state.handoverConversationId = null;
+
       } catch (error) {
-        console.error('Failed to submit to agent:', error);
-        this.addBotMessage("Sorry, there was an issue connecting you. Please try again or call us directly.");
+        console.error('❌ Failed to submit handover request:', error);
+        const errorMsg = error.message || "Sorry, there was an error submitting your request. Please try again or refresh the page.";
+        this.addBotMessage(`❌ ${errorMsg}`);
       }
     },
 
@@ -1519,7 +1873,35 @@
         return this.state.conversationId;
       }
       
-      // ✅ 2. Check localStorage for persisted conversation (not closed)
+      // ✅ 2. FIRST: Try to find active conversation by visitorSessionId (cross-tab persistence)
+      const visitorSessionId = this.getVisitorSessionId();
+      try {
+        const findConvResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversation/by-visitor/${visitorSessionId}`);
+        if (findConvResponse.ok) {
+          const convData = await findConvResponse.json();
+          if (convData.conversation_id && convData.status === 'active') {
+            this.state.conversationId = convData.conversation_id;
+            localStorage.setItem(`wetechforu_conversation_${this.config.widgetKey}`, convData.conversation_id);
+            console.log('✅ Restored active conversation by visitorSessionId:', convData.conversation_id);
+            
+            // ✅ Load previous messages
+            await this.loadPreviousMessages(convData.conversation_id);
+            
+            // ✅ Check if intro was completed
+            if (convData.intro_completed) {
+              this.state.introFlow.isComplete = true;
+              this.state.hasShownIntro = true;
+              console.log('✅ Intro already completed - skipping intro flow');
+            }
+            
+            return convData.conversation_id;
+          }
+        }
+      } catch (error) {
+        console.warn('Could not find conversation by visitorSessionId:', error);
+      }
+      
+      // ✅ 3. Check localStorage for persisted conversation (not closed)
       const persistedConvId = localStorage.getItem(`wetechforu_conversation_${this.config.widgetKey}`);
       const conversationClosed = sessionStorage.getItem(`wetechforu_conversation_closed_${this.config.widgetKey}`);
       
@@ -1535,6 +1917,13 @@
               
               // ✅ Load previous messages
               await this.loadPreviousMessages(persistedConvId);
+              
+              // ✅ Check if intro was completed
+              if (statusData.intro_completed) {
+                this.state.introFlow.isComplete = true;
+                this.state.hasShownIntro = true;
+                console.log('✅ Intro already completed - skipping intro flow');
+              }
               
               return persistedConvId;
             } else {
@@ -1584,7 +1973,7 @@
             visitor_name: visitorName,
             visitor_email: visitorEmail,
             visitor_phone: visitorPhone,
-            visitor_session_id: this.state.tracking.sessionId // Link to visitor tracking
+            visitor_session_id: visitorSessionId // ✅ Use persistent visitorSessionId
           })
         });
         
@@ -1652,7 +2041,7 @@
       return false;
     },
     
-    // Get or create session ID
+    // Get or create session ID (for current session only)
     getSessionId() {
       let sessionId = sessionStorage.getItem('wetechforu_session_id');
       if (!sessionId) {
@@ -1660,6 +2049,18 @@
         sessionStorage.setItem('wetechforu_session_id', sessionId);
       }
       return sessionId;
+    },
+    
+    // Get or create persistent visitor session ID (across tabs/devices)
+    getVisitorSessionId() {
+      const STORAGE_KEY = 'wetechforu_visitor_session_id';
+      let visitorSessionId = localStorage.getItem(STORAGE_KEY);
+      if (!visitorSessionId) {
+        visitorSessionId = 'visitor_' + Math.random().toString(36).substr(2, 12) + Date.now();
+        localStorage.setItem(STORAGE_KEY, visitorSessionId);
+        console.log('✅ Generated new visitorSessionId:', visitorSessionId);
+      }
+      return visitorSessionId;
     },
     
     // Send message to backend
@@ -2215,8 +2616,8 @@
         
         console.log('✅ Visitor tracking started:', this.state.tracking.sessionId);
         
-        // Start heartbeat (every 30 seconds)
-        this.startHeartbeat();
+        // ✅ Event-driven activity tracking with 120s visibility-gated heartbeat fallback
+        this.startEventDrivenTracking();
         
         // Track initial page view
         this.trackPageView();
@@ -2224,38 +2625,107 @@
         // Listen for page changes (single page apps)
         this.setupPageChangeListener();
         
-        // Track when page is about to close
+        // Track when page is about to close/unload
         window.addEventListener('beforeunload', () => this.stopTracking());
+        window.addEventListener('pagehide', () => this.stopTracking());
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) {
+            // Page is hidden - send final activity update via sendBeacon
+            this.sendActivityUpdate(true); // sendBeacon = true
+          } else {
+            // Page is visible - resume activity tracking
+            this.resetVisibilityHeartbeat();
+          }
+        });
         
       } catch (error) {
         console.error('Failed to start visitor tracking:', error);
       }
     },
     
-    // Send heartbeat to keep session active
-    startHeartbeat() {
+    // ✅ Event-driven activity tracking with visibility-gated heartbeat
+    startEventDrivenTracking() {
       // Clear any existing interval
       if (this.state.tracking.heartbeatInterval) {
         clearInterval(this.state.tracking.heartbeatInterval);
       }
       
-      // Send heartbeat every 30 seconds
-      this.state.tracking.heartbeatInterval = setInterval(async () => {
+      // Track last activity time
+      this.state.tracking.lastActivityTime = Date.now();
+      this.state.tracking.lastVisibilityChange = Date.now();
+      
+      // ✅ Start visibility-gated heartbeat (only when page is visible)
+      this.resetVisibilityHeartbeat();
+      
+      // ✅ Track user interactions (event-driven)
+      const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+      activityEvents.forEach(eventType => {
+        document.addEventListener(eventType, () => {
+          this.state.tracking.lastActivityTime = Date.now();
+          // Send activity update immediately on interaction
+          this.sendActivityUpdate(false);
+        }, { passive: true });
+      });
+      
+      console.log('✅ Event-driven activity tracking started');
+    },
+    
+    // ✅ Reset visibility-gated heartbeat (120s when visible, pause when hidden)
+    resetVisibilityHeartbeat() {
+      // Clear existing interval
+      if (this.state.tracking.heartbeatInterval) {
+        clearInterval(this.state.tracking.heartbeatInterval);
+        this.state.tracking.heartbeatInterval = null;
+      }
+      
+      // Only start heartbeat if page is visible
+      if (!document.hidden) {
+        this.state.tracking.lastVisibilityChange = Date.now();
+        
+        // Send heartbeat every 120 seconds (2 minutes) when visible
+        this.state.tracking.heartbeatInterval = setInterval(() => {
+          // Only send if page is still visible and has been visible for at least 2 minutes
+          if (!document.hidden) {
+            const timeSinceVisibilityChange = Date.now() - this.state.tracking.lastVisibilityChange;
+            if (timeSinceVisibilityChange >= 120000) { // 120 seconds
+              this.sendActivityUpdate(false);
+              console.log('💓 Visibility-gated heartbeat sent');
+            }
+          }
+        }, 120000); // Check every 120 seconds
+      }
+    },
+    
+    // ✅ Send activity update (with sendBeacon option for page unload)
+    async sendActivityUpdate(useSendBeacon = false) {
+      const activityData = {
+        session_id: this.state.tracking.sessionId,
+        current_page_url: window.location.href,
+        current_page_title: document.title,
+        timestamp: new Date().toISOString()
+      };
+      
+      if (useSendBeacon && navigator.sendBeacon) {
+        // Use sendBeacon for reliable delivery on page unload
+        const success = navigator.sendBeacon(
+          `${this.config.backendUrl}/api/visitor-tracking/public/widget/${this.config.widgetKey}/track-session`,
+          JSON.stringify(activityData)
+        );
+        if (success) {
+          console.log('✅ Activity update sent via sendBeacon');
+        }
+      } else {
+        // Use fetch for normal updates
         try {
           await fetch(`${this.config.backendUrl}/api/visitor-tracking/public/widget/${this.config.widgetKey}/track-session`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              session_id: this.state.tracking.sessionId,
-              current_page_url: window.location.href,
-              current_page_title: document.title
-            })
+            body: JSON.stringify(activityData)
           });
-          console.log('💓 Heartbeat sent');
         } catch (error) {
-          console.error('Heartbeat failed:', error);
+          console.error('Activity update failed:', error);
         }
-      }, 30000); // 30 seconds
+      }
     },
     
     // Track page view
@@ -2345,20 +2815,25 @@
         this.state.tracking.heartbeatInterval = null;
       }
       
+      // ✅ Send final activity update via sendBeacon on page unload
+      this.sendActivityUpdate(true); // sendBeacon = true
+      
       // Track final page time
       if (this.state.tracking.lastPageUrl && this.state.tracking.pageStartTime) {
         const timeOnPage = Math.floor((Date.now() - this.state.tracking.pageStartTime) / 1000);
         
         // Use sendBeacon for reliable delivery on page unload
-        navigator.sendBeacon(
-          `${this.config.backendUrl}/api/visitor-tracking/public/widget/${this.config.widgetKey}/track-pageview`,
-          JSON.stringify({
-            session_id: this.state.tracking.sessionId,
-            page_url: this.state.tracking.lastPageUrl,
-            page_title: document.title,
-            time_on_page: timeOnPage
-          })
-        );
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(
+            `${this.config.backendUrl}/api/visitor-tracking/public/widget/${this.config.widgetKey}/track-pageview`,
+            JSON.stringify({
+              session_id: this.state.tracking.sessionId,
+              page_url: this.state.tracking.lastPageUrl,
+              page_title: document.title,
+              time_on_page: timeOnPage
+            })
+          );
+        }
       }
       
       console.log('🛑 Visitor tracking stopped');

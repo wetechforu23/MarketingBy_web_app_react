@@ -104,10 +104,11 @@ app.use((req, res, next) => {
   // This includes: chat widget routes + visitor tracking routes
   const isPublicChatWidget = req.path.startsWith('/api/chat-widget/public/');
   const isPublicVisitorTracking = req.path.startsWith('/api/visitor-tracking/public/');
+  const isPublicHandover = req.path.startsWith('/api/handover/');
   const isChatWidgetKey = /^\/api\/chat-widget\/wtfu_[a-f0-9]+\//.test(req.path);
   const isVisitorTrackingKey = /^\/api\/visitor-tracking\/public\/widget\/wtfu_[a-f0-9]+\//.test(req.path);
   
-  if (isPublicChatWidget || isPublicVisitorTracking || isChatWidgetKey || isVisitorTrackingKey) {
+  if (isPublicChatWidget || isPublicVisitorTracking || isPublicHandover || isChatWidgetKey || isVisitorTrackingKey) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
