@@ -897,18 +897,17 @@
             this.state.introFlow.questions = enabledQuestions; // ✅ Only use widget config questions
             this.state.introFlow.isActive = true;
 
-            // Start with welcome message
+            // ✅ Use database welcome_message instead of hardcoded messages
+            const welcomeMsg = config.welcome_message || this.config.welcomeMessage || `👋 Welcome! I'm ${this.config.botName}.`;
+            
             setTimeout(() => {
-              this.addBotMessage(`👋 Welcome! I'm ${this.config.botName}.`);
+              this.addBotMessage(welcomeMsg);
             }, 500);
 
-            setTimeout(() => {
-              this.addBotMessage("Before we begin, I'd like to know a bit more about you.");
-            }, 1500);
-
+            // Start asking intro questions immediately after welcome
             setTimeout(() => {
               this.askIntroQuestion();
-            }, 2500);
+            }, 1500);
           } else {
             // No questions configured - use default intro
             console.log('⚠️ Intro flow enabled but no questions configured - using default intro');
