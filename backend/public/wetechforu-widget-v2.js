@@ -1489,20 +1489,40 @@
         return;
       }
       
+      // Get widget ID first
+      let widgetId = null;
+      try {
+        const configResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/config`);
+        if (configResponse.ok) {
+          const widgetConfig = await configResponse.json();
+          widgetId = widgetConfig.widget_id || widgetConfig.id;
+          console.log('✅ Got widget ID:', widgetId);
+        }
+      } catch (error) {
+        console.error('Failed to get widget ID:', error);
+      }
+
+      if (!widgetId) {
+        this.addBotMessage("Sorry, there was an issue getting widget configuration. Please try again.");
+        return;
+      }
+
       // Check if handover choice is enabled
+      console.log('🤝 Handover choice enabled?', this.config.enableHandoverChoice);
       if (this.config.enableHandoverChoice) {
         // Show handover choice modal
         setTimeout(() => {
-          this.showHandoverChoiceModal(info, conversationId);
+          this.showHandoverChoiceModal(info, conversationId, widgetId);
         }, 1500);
       } else {
         // Use default method (legacy behavior)
-        this.submitHandoverRequest(this.config.defaultHandoverMethod || 'portal', info, conversationId);
+        console.log('📞 Using default handover method:', this.config.defaultHandoverMethod || 'portal');
+        this.submitHandoverRequest(this.config.defaultHandoverMethod || 'portal', info, conversationId, widgetId);
       }
     },
 
     // Show handover choice modal
-    showHandoverChoiceModal(info, conversationId) {
+    showHandoverChoiceModal(info, conversationId, widgetId) {
       const availableOptions = [];
       if (this.config.handoverOptions.portal) availableOptions.push({ method: 'portal', label: '💬 Portal Chat', desc: 'Continue chatting here' });
       if (this.config.handoverOptions.whatsapp && info.phone) availableOptions.push({ method: 'whatsapp', label: '📱 WhatsApp', desc: 'Get contacted via WhatsApp' });
@@ -1512,7 +1532,7 @@
 
       if (availableOptions.length === 0) {
         // No options available, use default
-        this.submitHandoverRequest(this.config.defaultHandoverMethod || 'portal', info, conversationId);
+        this.submitHandoverRequest(this.config.defaultHandoverMethod || 'portal', info, conversationId, widgetId);
         return;
       }
 
@@ -1578,6 +1598,7 @@
       document.body.insertAdjacentHTML('beforeend', modalHTML);
       this.state.handoverInfo = info;
       this.state.handoverConversationId = conversationId;
+      this.state.handoverWidgetId = widgetId;
     },
 
     // Close handover modal
@@ -1593,25 +1614,9 @@
       this.closeHandoverModal();
       const info = this.state.handoverInfo;
       const conversationId = this.state.handoverConversationId;
+      const widgetId = this.state.handoverWidgetId;
       
-      if (!info || !conversationId) {
-        this.addBotMessage("Sorry, there was an issue. Please try again.");
-        return;
-      }
-
-      // Get widget ID from config
-      let widgetId = null;
-      try {
-        const configResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/config`);
-        if (configResponse.ok) {
-          const config = await configResponse.json();
-          widgetId = config.widget_id || config.id;
-        }
-      } catch (error) {
-        console.error('Failed to get widget ID:', error);
-      }
-
-      if (!widgetId) {
+      if (!info || !conversationId || !widgetId) {
         this.addBotMessage("Sorry, there was an issue. Please try again.");
         return;
       }
@@ -1643,22 +1648,42 @@
       this.addBotMessage(`⏳ Processing your request...`);
 
       try {
+        const requestBody = {
+          conversation_id: conversationId,
+          widget_id: widgetId,
+          client_id: this.config.clientId || null, // Will be determined by backend from widget_id
+          requested_method: method,
+          visitor_name: info.name,
+          visitor_email: info.email || null,
+          visitor_phone: info.phone || null,
+          visitor_message: info.reason || 'Visitor requested to speak with an agent'
+        };
+
+        console.log('📤 Sending handover request:', requestBody);
+
         const response = await fetch(`${this.config.backendUrl}/api/handover/request`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            conversation_id: conversationId,
-            widget_id: widgetId,
-            client_id: this.config.clientId || null, // Will be determined by backend from widget_id
-            requested_method: method,
-            visitor_name: info.name,
-            visitor_email: info.email || null,
-            visitor_phone: info.phone || null,
-            visitor_message: info.reason || 'Visitor requested to speak with an agent'
-          })
+          body: JSON.stringify(requestBody)
         });
 
+        console.log('📥 Handover response status:', response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Handover request failed:', response.status, errorText);
+          let errorMessage = "Sorry, there was an error submitting your request.";
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.error || errorMessage;
+          } catch (e) {
+            // Use default error message
+          }
+          throw new Error(errorMessage);
+        }
+
         const data = await response.json();
+        console.log('✅ Handover response:', data);
 
         if (data.success) {
           const successMessages = {
@@ -1685,8 +1710,9 @@
         this.state.handoverConversationId = null;
 
       } catch (error) {
-        console.error('Failed to submit handover request:', error);
-        this.addBotMessage("❌ Sorry, there was an error submitting your request. Please try again or refresh the page.");
+        console.error('❌ Failed to submit handover request:', error);
+        const errorMsg = error.message || "Sorry, there was an error submitting your request. Please try again or refresh the page.";
+        this.addBotMessage(`❌ ${errorMsg}`);
       }
     },
 
