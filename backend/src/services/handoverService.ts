@@ -294,16 +294,38 @@ export class HandoverService {
       const normalizeWhatsAppNumber = (raw: string): string => {
         // Remove non-digits, keep leading + if present
         let s = (raw || '').toString().trim();
-        // If it already starts with 'whatsapp:', assume caller knows what they're doing
-        if (s.startsWith('whatsapp:')) return s;
+        // If it already starts with 'whatsapp:', remove it first to normalize
+        if (s.startsWith('whatsapp:')) {
+          s = s.substring(9); // Remove 'whatsapp:' prefix
+        }
         // Strip spaces and common separators
         s = s.replace(/\s|\(|\)|-|\./g, '');
+        
+        // Validate: must have at least 10 digits
+        const digitsOnly = s.replace(/\+/g, '');
+        if (digitsOnly.length < 10) {
+          throw new Error(`Invalid phone number: ${raw} (too short, needs at least 10 digits)`);
+        }
+        
         // Ensure leading +; default to US +1 if missing
         if (!s.startsWith('+')) {
-          if (s.startsWith('00')) s = '+' + s.substring(2);
-          else s = '+1' + s; // Default country code
+          if (s.startsWith('00')) {
+            s = '+' + s.substring(2);
+          } else if (digitsOnly.length === 10) {
+            // 10 digits = US number, add +1
+            s = '+1' + digitsOnly;
+          } else if (digitsOnly.length === 11 && digitsOnly.startsWith('1')) {
+            // 11 digits starting with 1 = US number
+            s = '+' + digitsOnly;
+          } else {
+            throw new Error(`Invalid phone number format: ${raw} (please include country code, e.g., +1469880705)`);
+          }
         }
-        return `whatsapp:${s}`;
+        
+        // Final validation: E.164 format should be +[country code][number]
+        const finalNumber = `whatsapp:${s}`;
+        console.log(`📞 Normalized phone: ${raw} → ${finalNumber}`);
+        return finalNumber;
       };
 
       const { WhatsAppService } = await import('./whatsappService');
@@ -311,22 +333,42 @@ export class HandoverService {
       const toNumber = normalizeWhatsAppNumber(handoverRequest.visitor_phone);
 
       try {
-        await whatsappService.sendMessage({
+        console.log(`📱 Attempting WhatsApp handover:`, {
+          to: toNumber,
+          visitor_name: handoverRequest.visitor_name,
+          visitor_phone: handoverRequest.visitor_phone,
+          conversation_id: handoverRequest.conversation_id
+        });
+
+        const result = await whatsappService.sendMessage({
           clientId: handoverRequest.client_id,
           widgetId: handoverRequest.widget_id,
           conversationId: handoverRequest.conversation_id,
           toNumber,
-          message: `Hello ${handoverRequest.visitor_name || 'there'}! An agent will contact you shortly via WhatsApp.\n\nYour request: ${handoverRequest.visitor_message || 'You requested to speak with an agent.'}`
+          message: `Hello ${handoverRequest.visitor_name || 'there'}! An agent will contact you shortly via WhatsApp.\n\nYour request: ${handoverRequest.visitor_message || 'You requested to speak with an agent.'}`,
+          visitorName: handoverRequest.visitor_name
+        });
+
+        console.log(`✅ WhatsApp handover successful:`, {
+          messageSid: result.messageSid,
+          status: result.status,
+          to: toNumber
         });
       } catch (sendErr: any) {
-        console.error('❌ WhatsApp sendMessage failed:', sendErr);
+        console.error('❌ WhatsApp sendMessage failed:', {
+          error: sendErr.message,
+          to: toNumber,
+          original_phone: handoverRequest.visitor_phone,
+          conversation_id: handoverRequest.conversation_id
+        });
+        
         // Log a system message so the portal shows the error context
         await client.query(
           `INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
            VALUES ($1, 'system', $2, NOW())`,
           [
             handoverRequest.conversation_id,
-            `⚠️ Failed to initiate WhatsApp handover: ${sendErr?.message || 'Unknown error'}`
+            `⚠️ Failed to initiate WhatsApp handover: ${sendErr?.message || 'Unknown error'}. Phone: ${handoverRequest.visitor_phone} → ${toNumber}`
           ]
         );
         // Mark request as failed

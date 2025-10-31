@@ -272,6 +272,73 @@ router.get('/messages/:conversationId', requireAuth, async (req: Request, res: R
 });
 
 // ==========================================
+// GET /api/whatsapp/all/:clientId
+// Get all WhatsApp messages for a client (with optional widget filter)
+// ==========================================
+
+router.get('/all/:clientId', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userRole = req.session.role;
+    const userClientId = req.session.clientId;
+    const clientId = parseInt(req.params.clientId);
+    const widgetId = req.query.widgetId ? parseInt(req.query.widgetId as string) : null;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    // Check permissions
+    const isAdmin = userRole === 'super_admin';
+    if (!isAdmin && userClientId !== clientId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    let query = `
+      SELECT 
+        wm.id,
+        wm.widget_id,
+        wm.conversation_id,
+        wm.direction,
+        wm.from_number,
+        wm.to_number,
+        wm.message_body,
+        wm.twilio_message_sid,
+        wm.twilio_status,
+        wm.twilio_error_code,
+        wm.twilio_error_message,
+        wm.visitor_name,
+        wm.visitor_phone,
+        wm.sent_at,
+        wm.delivered_at,
+        wm.failed_at,
+        wc.widget_name,
+        wc.client_id
+      FROM whatsapp_messages wm
+      JOIN widget_configs wc ON wc.id = wm.widget_id
+      WHERE wm.client_id = $1
+    `;
+    const params: any[] = [clientId];
+    let paramIndex = 2;
+
+    if (widgetId) {
+      params.push(widgetId);
+      query += ` AND wm.widget_id = $${paramIndex++}`;
+    }
+
+    query += ` ORDER BY wm.sent_at DESC LIMIT $${paramIndex}`;
+    params.push(limit);
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      messages: result.rows,
+      total: result.rows.length
+    });
+
+  } catch (error) {
+    console.error('Error fetching WhatsApp messages:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+// ==========================================
 // GET /api/whatsapp/usage/:clientId
 // Get WhatsApp usage statistics
 // ==========================================

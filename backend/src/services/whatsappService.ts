@@ -252,14 +252,54 @@ export class WhatsAppService {
       }
 
       // Send message via Twilio
+      console.log(`📱 Sending WhatsApp message:`, {
+        to: formattedTo,
+        from: formattedFrom,
+        messageLength: message.length
+      });
+
       const response = await axios.post(url, body.toString(), {
         headers: {
           'Authorization': `Basic ${auth}`,
           'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        },
+        validateStatus: () => true // Don't throw on errors, handle them below
       });
 
       const twilioData = response.data;
+
+      // Check for Twilio errors
+      if (response.status !== 200 && response.status !== 201) {
+        const errorCode = twilioData.code || twilioData.error_code || 'unknown';
+        const errorMessage = twilioData.message || twilioData.error_message || 'Unknown Twilio error';
+        console.error(`❌ Twilio API error:`, {
+          status: response.status,
+          code: errorCode,
+          message: errorMessage,
+          to: formattedTo,
+          from: formattedFrom
+        });
+
+        // Store failed message in database
+        await pool.query(
+          `INSERT INTO whatsapp_messages (
+            widget_id, conversation_id, client_id, direction,
+            from_number, to_number, message_body,
+            twilio_message_sid, twilio_status,
+            twilio_error_code, twilio_error_message,
+            visitor_name, visitor_phone, failed_at, sent_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())`,
+          [
+            widgetId, conversationId, clientId, 'outbound',
+            formattedFrom, formattedTo, message,
+            twilioData.sid || null, 'failed',
+            String(errorCode), errorMessage,
+            visitorName || null, toNumber
+          ]
+        );
+
+        throw new Error(`Twilio error ${errorCode}: ${errorMessage}`);
+      }
 
       // Store message in database
       await pool.query(
@@ -311,9 +351,20 @@ export class WhatsAppService {
       };
 
     } catch (error: any) {
-      console.error('Error sending WhatsApp message:', error.response?.data || error.message);
+      const twilioError = error.response?.data || {};
+      const errorCode = twilioError.code || error.code || 'unknown';
+      const errorMessage = twilioError.message || error.message || 'Unknown error';
       
-      // Store failed message attempt
+      console.error('❌ Error sending WhatsApp message:', {
+        status: error.response?.status,
+        code: errorCode,
+        message: errorMessage,
+        to: params.toNumber,
+        from: formattedFrom || 'unknown',
+        twilioResponse: twilioError
+      });
+      
+      // Store failed message attempt with full error details
       try {
         await pool.query(
           `INSERT INTO whatsapp_messages (
@@ -324,20 +375,29 @@ export class WhatsAppService {
             from_number,
             to_number,
             message_body,
+            twilio_message_sid,
             twilio_status,
+            twilio_error_code,
             twilio_error_message,
-            failed_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
+            visitor_name,
+            visitor_phone,
+            failed_at,
+            sent_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())`,
           [
             params.widgetId,
             params.conversationId,
             params.clientId,
             'outbound',
-            'unknown',
+            formattedFrom || 'unknown',
             params.toNumber,
             params.message,
+            twilioError.sid || null,
             'failed',
-            error.response?.data?.message || error.message
+            String(errorCode),
+            errorMessage,
+            params.visitorName || null,
+            params.toNumber.replace('whatsapp:', '')
           ]
         );
       } catch (dbError) {
@@ -346,7 +406,10 @@ export class WhatsAppService {
 
       return {
         success: false,
-        error: error.response?.data?.message || error.message || 'Failed to send WhatsApp message'
+        error: `Twilio error ${errorCode}: ${errorMessage}`,
+        errorCode,
+        errorMessage,
+        twilioResponse: twilioError
       };
     }
   }
