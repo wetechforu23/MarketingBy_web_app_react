@@ -47,6 +47,8 @@
     "pg": "^8.11.3",
     "puppeteer": "^24.25.0",
     "stripe": "^19.1.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.2.2"
   },
