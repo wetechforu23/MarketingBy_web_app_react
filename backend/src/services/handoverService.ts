@@ -139,9 +139,9 @@ export class HandoverService {
         ) VALUES ($1::integer, $2::integer, $3::integer, $4::text, $5::text, $6::text, $7::text, $8::text, 'pending')
         RETURNING *
       `, [
-        parseInt(data.conversation_id),
-        parseInt(data.widget_id),
-        parseInt(data.client_id),
+        data.conversation_id ? parseInt(String(data.conversation_id)) : null,
+        data.widget_id ? parseInt(String(data.widget_id)) : null,
+        data.client_id ? parseInt(String(data.client_id)) : null,
         data.requested_method || 'portal',
         data.visitor_name || null,
         data.visitor_email || null,
