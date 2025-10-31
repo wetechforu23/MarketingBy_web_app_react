@@ -37,38 +37,17 @@ export class GoogleSearchConsoleService {
   private credentials: any;
 
   constructor() {
-    // Resolve Google OAuth credentials from multiple supported env names
-    const clientId =
-      process.env.GOOGLE_CLIENT_ID ||
-      process.env.GOOGLE_ANALYTICS_CLIENT_ID ||
-      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
-      '';
-
-    const clientSecret =
-      process.env.GOOGLE_CLIENT_SECRET ||
-      process.env.GOOGLE_ANALYTICS_CLIENT_SECRET ||
-      '';
-
-    const redirectUri =
-      process.env.GOOGLE_REDIRECT_URI ||
-      process.env.GOOGLE_ANALYTICS_REDIRECT_URI ||
-      'https://marketingby.wetechforu.com/api/auth/google/callback';
-
     this.credentials = {
-      client_id: clientId,
-      client_secret: clientSecret,
-      redirect_uri: redirectUri
+      client_id: process.env.GOOGLE_ANALYTICS_CLIENT_ID || '',
+      client_secret: process.env.GOOGLE_ANALYTICS_CLIENT_SECRET || '',
+      redirect_uri: process.env.GOOGLE_ANALYTICS_REDIRECT_URI || 'https://marketingby.wetechforu.com/api/auth/google/callback'
     };
 
-    if (!clientId || !clientSecret) {
-      // Provide an actionable error early to avoid opaque 400s from Google
-      console.error('\n❌ Google OAuth credentials missing.');
-      console.error('   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are required.');
-      console.error('   Checked envs: GOOGLE_CLIENT_ID, GOOGLE_ANALYTICS_CLIENT_ID, NEXT_PUBLIC_GOOGLE_CLIENT_ID');
-      console.error('                  GOOGLE_CLIENT_SECRET, GOOGLE_ANALYTICS_CLIENT_SECRET');
-    }
-
-    this.oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+    this.oauth2Client = new google.auth.OAuth2(
+      this.credentials.client_id,
+      this.credentials.client_secret,
+      this.credentials.redirect_uri
+    );
   }
 
   /**
@@ -178,18 +157,7 @@ export class GoogleSearchConsoleService {
 
       // Check if token is expired
       if (credentials.expires_at && new Date(credentials.expires_at) <= new Date()) {
-        // Use refreshAccessToken if available; fall back to refreshAccessTokenAsync for newer libs
-        let newCredentials: any;
-        if (typeof (this.oauth2Client as any).refreshAccessToken === 'function') {
-          const refreshed = await (this.oauth2Client as any).refreshAccessToken();
-          newCredentials = refreshed.credentials || refreshed;
-        } else if (typeof (this.oauth2Client as any).refreshAccessTokenAsync === 'function') {
-          newCredentials = await (this.oauth2Client as any).refreshAccessTokenAsync();
-        } else {
-          // Fallback via getAccessToken which internally refreshes
-          await this.oauth2Client.getAccessToken();
-          newCredentials = (this.oauth2Client as any).credentials || {};
-        }
+        const { credentials: newCredentials } = await this.oauth2Client.refreshAccessToken();
         
         // Update stored credentials
         await this.storeClientCredentials(clientId, {

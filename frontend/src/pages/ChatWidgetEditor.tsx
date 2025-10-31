@@ -672,8 +672,7 @@ export default function ChatWidgetEditor() {
         default_handover_method: defaultHandoverMethod,
         webhook_url: webhookUrl,
         webhook_secret: webhookSecret,
-        // Always include client_id on create if we have it (both admin and client roles)
-        ...(isEditMode ? {} : (selectedClientId ? { client_id: selectedClientId } : {}))
+        ...(isEditMode ? {} : { client_id: selectedClientId })
       }
 
       // Only include AI key if user has entered a new one (to update)

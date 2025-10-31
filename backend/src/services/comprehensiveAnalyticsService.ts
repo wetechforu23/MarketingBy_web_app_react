@@ -16,13 +16,10 @@ interface PageInsights {
 
 interface GeographicData {
   country: string;
-  region?: string;
-  activeUsers: number;
-  newUsers: number;
-  engagedSessions: number;
-  engagementRate: number;
-  engagedSessionsPerUser: number;
-  averageEngagementTimePerSession: number;
+  city: string;
+  users: number;
+  sessions: number;
+  bounceRate: number;
 }
 
 interface KeywordAnalysis {
@@ -121,57 +118,27 @@ export class ComprehensiveAnalyticsService {
         return [];
       }
 
-      // Use existing Google Analytics service to get real data (force refresh to get latest)
-      const analyticsData = await this.googleAnalyticsService.getAnalyticsData(clientId, credentials.property_id, true);
-      
-      // If no data, return empty array
-      if (!analyticsData || !analyticsData.topPages || analyticsData.topPages.length === 0) {
-        return [];
-      }
+      // Use existing Google Analytics service to get real data
+      const analyticsData = await this.googleAnalyticsService.getAnalyticsData(clientId, credentials.property_id);
       
       // Transform the existing data into page insights format using REAL data
-      // Note: We use overall metrics where page-specific data isn't available from GA4 API
-      // For page-specific bounce rates and time, we'd need to fetch individual page reports
-      const pages: PageInsights[] = analyticsData.topPages.map((page: any, index: number) => {
-        // Calculate unique users estimate based on real page views (typically 60-80% of page views are unique)
-        const uniqueUsersEstimate = Math.floor(page.pageViews * (0.6 + Math.random() * 0.2));
-        
-        // Use overall bounce rate (GA4 Data API doesn't provide per-page bounce rate easily)
-        // In production, you'd fetch page-specific metrics via a separate GA4 report
-        const pageBounceRate = page.bounceRate || analyticsData.bounceRate;
-        
-        // Calculate avg time: vary based on page type (homepage vs content page)
-        const isHomePage = page.page === '/' || page.page === '';
-        const avgTimeVariation = isHomePage ? 90 : 150; // Home pages typically shorter
-        const avgTimeOnPage = Math.round(avgTimeVariation * (0.8 + Math.random() * 0.4));
-        
-        // Estimate conversions: vary by page type (services/contact pages convert better)
-        const isConversionPage = page.page.toLowerCase().includes('contact') || 
-                                 page.page.toLowerCase().includes('service') ||
-                                 page.page.toLowerCase().includes('book');
-        const baseConversionRate = isConversionPage ? 3.5 : 1.5;
-        const conversionRate = baseConversionRate * (0.8 + Math.random() * 0.4); // Add some realistic variation
-        const conversions = Math.floor(page.pageViews * (conversionRate / 100));
-        
-        return {
-          page: page.page,
-          pageViews: page.pageViews,
-          uniqueUsers: uniqueUsersEstimate,
-          bounceRate: pageBounceRate,
-          avgTimeOnPage: avgTimeOnPage,
-          exitRate: pageBounceRate * (0.7 + Math.random() * 0.3), // Vary exit rate
-          conversions: conversions,
-          conversionRate: Math.round(conversionRate * 10) / 10 // Round to 1 decimal
-        };
-      });
+      const pages: PageInsights[] = analyticsData.topPages.map((page: any, index: number) => ({
+        page: page.page,
+        pageViews: page.pageViews,
+        uniqueUsers: Math.floor(page.pageViews * 0.7), // Realistic estimate based on real page views
+        bounceRate: analyticsData.bounceRate, // Use real bounce rate from GA
+        avgTimeOnPage: 120, // Default value since we don't have page-specific time data
+        exitRate: analyticsData.bounceRate * 0.8, // Estimate based on real bounce rate
+        conversions: Math.floor(page.pageViews * 0.02), // Estimate 2% conversion rate
+        conversionRate: 2.0 // Default conversion rate
+      }));
 
       // Don't add fake pages - only show real pages from Google Analytics
 
       return pages.sort((a, b) => b.pageViews - a.pageViews);
-    } catch (error: any) {
-      console.error('Error getting page insights:', error.message);
-      // Return empty array instead of throwing to prevent 500 errors
-      return [];
+    } catch (error) {
+      console.error('Error getting page insights:', error);
+      throw error;
     }
   }
 
@@ -186,50 +153,15 @@ export class ComprehensiveAnalyticsService {
         return [];
       }
 
-      // Use existing Google Analytics service to get real data (force refresh to get latest)
-      const analyticsData = await this.googleAnalyticsService.getAnalyticsData(clientId, credentials.property_id, true);
-      
-      // If no data, return empty array
-      if (!analyticsData || !analyticsData.topPages || analyticsData.topPages.length === 0) {
-        return [];
-      }
-      
-      // Use geographicData from GA4 if available (includes engagement metrics)
-      if (analyticsData && analyticsData.geographicData && analyticsData.geographicData.length > 0) {
-        const geoData: GeographicData[] = analyticsData.geographicData.map((geo: any) => ({
-          country: geo.country || 'Unknown',
-          region: geo.region,
-          activeUsers: geo.activeUsers || 0,
-          newUsers: geo.newUsers || 0,
-          engagedSessions: geo.engagedSessions || 0,
-          engagementRate: geo.engagementRate || 0,
-          engagedSessionsPerUser: geo.engagedSessionsPerUser || 0,
-          averageEngagementTimePerSession: geo.averageEngagementTimePerSession || 0
-        }));
-        return geoData;
-      }
-      
-      // Fallback to countryBreakdown if geographicData not available
-      if (analyticsData && analyticsData.countryBreakdown) {
-        const geoData: GeographicData[] = Object.entries(analyticsData.countryBreakdown).map(([country, activeUsers]: [string, any]) => ({
-          country,
-          activeUsers: typeof activeUsers === 'number' ? activeUsers : 0,
-          newUsers: 0,
-          engagedSessions: 0,
-          engagementRate: 0,
-          engagedSessionsPerUser: 0,
-          averageEngagementTimePerSession: 0
-        }));
-        return geoData;
-      }
+      // Use existing Google Analytics service to get real data
+      const analyticsData = await this.googleAnalyticsService.getAnalyticsData(clientId, credentials.property_id);
       
       // For now, return empty array since we don't have real geographic data from GA
       // The Google Analytics Data API would need additional dimensions to get real geographic data
       return [];
-    } catch (error: any) {
-      console.error('Error getting geographic data:', error.message);
-      // Return empty array instead of throwing to prevent 500 errors
-      return [];
+    } catch (error) {
+      console.error('Error getting geographic data:', error);
+      throw error;
     }
   }
 
@@ -324,13 +256,8 @@ export class ComprehensiveAnalyticsService {
         return [];
       }
 
-      // Get current analytics data to use as baseline (force refresh to get latest)
-      const currentAnalyticsData = await this.googleAnalyticsService.getAnalyticsData(clientId, credentials.property_id, true);
-      
-      // If no data, return empty array
-      if (!currentAnalyticsData || currentAnalyticsData.pageViews === 0) {
-        return [];
-      }
+      // Get current analytics data to use as baseline
+      const currentAnalyticsData = await this.googleAnalyticsService.getAnalyticsData(clientId, credentials.property_id);
       
       const comparisons: MonthlyComparison[] = [];
       const currentDate = new Date();
@@ -378,10 +305,9 @@ export class ComprehensiveAnalyticsService {
       }
 
       return comparisons;
-    } catch (error: any) {
-      console.error('Error getting monthly comparison:', error.message);
-      // Return empty array instead of throwing to prevent 500 errors
-      return [];
+    } catch (error) {
+      console.error('Error getting monthly comparison:', error);
+      throw error;
     }
   }
 
@@ -521,7 +447,7 @@ export class ComprehensiveAnalyticsService {
       const result = await pool.query(`
         SELECT credentials
         FROM client_credentials 
-        WHERE client_id = $1 AND service_type = $2
+        WHERE client_id = $1 AND service_type = $2 AND is_active = true
       `, [clientId, serviceType]);
 
       if (result.rows.length === 0) {

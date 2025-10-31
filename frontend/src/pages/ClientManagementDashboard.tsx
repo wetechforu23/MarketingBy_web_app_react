@@ -127,30 +127,9 @@ const ClientManagementDashboard: React.FC = () => {
   const [facebookPages, setFacebookPages] = useState<any[]>([]);
   const [showPageSelector, setShowPageSelector] = useState(false);
   const [processingToken, setProcessingToken] = useState(false);
-  
-  // Service Account status state
-  const [serviceAccountStatus, setServiceAccountStatus] = useState<{
-    hasServiceAccount: boolean;
-    serviceAccountEmail?: string;
-  }>({ hasServiceAccount: false });
-
-  // Fetch Service Account status
-  const fetchServiceAccountStatus = async () => {
-    try {
-      const response = await http.get('/analytics/service-account/status');
-      setServiceAccountStatus({
-        hasServiceAccount: response.data.hasServiceAccount || false,
-        serviceAccountEmail: response.data.serviceAccountEmail || undefined
-      });
-    } catch (error) {
-      console.error('Error fetching Service Account status:', error);
-      setServiceAccountStatus({ hasServiceAccount: false });
-    }
-  };
 
   useEffect(() => {
     fetchClients();
-    fetchServiceAccountStatus();
   }, []);
 
   useEffect(() => {
@@ -375,92 +354,38 @@ const ClientManagementDashboard: React.FC = () => {
         }
       };
 
-      // Try to fetch real Google Analytics data - attempt even if not marked as connected
-      // (Service Account might work even if OAuth not connected)
+      // Try to fetch real Google Analytics data ONLY
       try {
         const propertyId = settingsResponse.data?.googleAnalytics?.propertyId;
         const isConnected = settingsResponse.data?.googleAnalytics?.connected;
         
-        // If we have a Property ID, try to fetch data (Service Account can work without OAuth)
-        if (propertyId) {
-          console.log(`🔍 Attempting to fetch Google Analytics data for property: ${propertyId} (connected: ${isConnected})`);
-          try {
-            // FORCE REFRESH to ensure API call happens and data is stored (especially for manually entered property_id)
-            const realAnalyticsResponse = await http.get(`/analytics/client/${clientId}/real?propertyId=${propertyId}&forceRefresh=true`);
-            console.log('✅ Real Google Analytics data loaded:', realAnalyticsResponse.data);
-            
-            // Check if we got meaningful data
-            const hasData = (realAnalyticsResponse.data.pageViews > 0 || realAnalyticsResponse.data.sessions > 0);
-            
-            if (hasData) {
-              // Map real data to our structure
-              analyticsData.googleAnalytics = {
-                pageViews: realAnalyticsResponse.data.pageViews || 0,
-                sessions: realAnalyticsResponse.data.sessions || 0,
-                bounceRate: realAnalyticsResponse.data.bounceRate || 0,
-                users: realAnalyticsResponse.data.users || 0,
-                newUsers: realAnalyticsResponse.data.newUsers || 0,
-                avgSessionDuration: realAnalyticsResponse.data.avgSessionDuration || 0,
-                topPages: realAnalyticsResponse.data.topPages || [],
-                trafficSources: realAnalyticsResponse.data.trafficSources || [],
-                connected: true,
-                status: 'Connected'
-              };
-              
-              // Update geographic data if available from GA4
-              if (realAnalyticsResponse.data.geographicData && Array.isArray(realAnalyticsResponse.data.geographicData)) {
-                setGeographicData(realAnalyticsResponse.data.geographicData);
-              }
-              
-              // If not marked as connected but we got data, update the settings
-              if (!isConnected) {
-                console.log('✅ Got data but not marked as connected - updating connection status');
-                try {
-                  await http.put(`/clients/${clientId}/service/google_analytics/config`, {
-                    propertyId: propertyId,
-                    connected: true
-                  });
-                } catch (updateError) {
-                  console.error('Failed to update connection status:', updateError);
-                }
-              }
-            } else {
-              // Got response but no data (might be new property with no traffic yet)
-              console.log('⚠️ Connected but no data available (new property or no traffic)');
-              analyticsData.googleAnalytics.connected = isConnected || false;
-              analyticsData.googleAnalytics.status = isConnected ? 'Connected (No Data)' : 'Not Connected';
-            }
-          } catch (fetchError: any) {
-            console.log('⚠️ Failed to fetch Google Analytics data:', fetchError.response?.data?.error || fetchError.message);
-            
-            // Check error type to determine connection status
-            if (fetchError.response?.status === 400 && fetchError.response?.data?.needsAuth) {
-              // No credentials available
-              analyticsData.googleAnalytics.connected = false;
-              analyticsData.googleAnalytics.status = 'Not Connected';
-            } else if (fetchError.response?.status === 403) {
-              // Permission denied - property exists but no access
-              analyticsData.googleAnalytics.connected = false;
-              analyticsData.googleAnalytics.status = 'Permission Denied';
-            } else if (fetchError.response?.status === 404) {
-              // Property not found
-              analyticsData.googleAnalytics.connected = false;
-              analyticsData.googleAnalytics.status = 'Invalid Property ID';
-            } else {
-              // Other error - still try to show connection status from settings
-              analyticsData.googleAnalytics.connected = isConnected || false;
-              analyticsData.googleAnalytics.status = isConnected ? 'Error Fetching' : 'Not Connected';
-            }
-          }
+        if (propertyId && isConnected) {
+          console.log(`🔍 Fetching real Google Analytics data for property: ${propertyId}`);
+          const realAnalyticsResponse = await http.get(`/analytics/client/${clientId}/real?propertyId=${propertyId}`);
+          console.log('✅ Real Google Analytics data loaded:', realAnalyticsResponse.data);
+          
+          // Map real data to our structure
+          analyticsData.googleAnalytics = {
+            pageViews: realAnalyticsResponse.data.pageViews || 0,
+            sessions: realAnalyticsResponse.data.sessions || 0,
+            bounceRate: realAnalyticsResponse.data.bounceRate || 0,
+            users: realAnalyticsResponse.data.users || 0,
+            newUsers: realAnalyticsResponse.data.newUsers || 0,
+            avgSessionDuration: realAnalyticsResponse.data.avgSessionDuration || 0,
+            topPages: realAnalyticsResponse.data.topPages || [],
+            trafficSources: realAnalyticsResponse.data.trafficSources || [],
+            connected: true,
+            status: 'Connected'
+          };
         } else {
-          console.log('⚠️ No Property ID configured - showing 0 values');
+          console.log('⚠️ Google Analytics not connected - showing 0 values');
           analyticsData.googleAnalytics.connected = false;
           analyticsData.googleAnalytics.status = 'Not Connected';
         }
       } catch (realError) {
-        console.log('⚠️ Error in Google Analytics fetch logic:', realError);
+        console.log('⚠️ Real Google Analytics not available - showing 0 values:', realError);
         analyticsData.googleAnalytics.connected = false;
-        analyticsData.googleAnalytics.status = 'Error';
+        analyticsData.googleAnalytics.status = 'Not Connected';
       }
 
       // Try to fetch real Search Console data ONLY
@@ -2394,7 +2319,7 @@ const ClientManagementDashboard: React.FC = () => {
                         <span className="label">Sessions</span>
                       </div>
                       <div className="stat">
-                        <span className="value">{analyticsData?.googleAnalytics?.bounceRate ? parseFloat(analyticsData.googleAnalytics.bounceRate.toString()).toFixed(1) : 0}%</span>
+                        <span className="value">{analyticsData?.googleAnalytics?.bounceRate || 0}%</span>
                         <span className="label">Bounce Rate</span>
                       </div>
                     </div>
@@ -2492,66 +2417,37 @@ const ClientManagementDashboard: React.FC = () => {
               {activeTab === 'analytics' && (
                 <div className="analytics-content">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h3 style={{ margin: 0, fontSize: '24px', fontWeight: '600', color: '#333' }}>Analytics Reports</h3>
-                    <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                      {/* Date Range Filter - Similar to image with calendar icons */}
-                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', backgroundColor: 'white' }}>
-                        <i className="fas fa-calendar-alt" style={{ color: '#666', fontSize: '14px' }}></i>
+                    <h3>Analytics Reports</h3>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      {/* Date Range Filter */}
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <label style={{ fontSize: '14px', fontWeight: '500' }}>Date Range:</label>
                         <input 
                           type="date" 
-                          value={syncDateFrom}
+                          value={new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
                           onChange={(e) => setSyncDateFrom(e.target.value)}
                           style={{
-                            padding: '4px 8px',
-                            border: 'none',
-                            borderRadius: '4px',
-                            fontSize: '14px',
-                            outline: 'none',
-                            width: '140px'
+                            padding: '8px 12px',
+                            border: '1px solid #ddd',
+                            borderRadius: '6px',
+                            fontSize: '14px'
                           }}
                         />
-                        <span style={{ fontSize: '14px', color: '#666' }}>to</span>
+                        <span style={{ fontSize: '14px' }}>to</span>
                         <input 
                           type="date" 
-                          value={syncDateTo}
+                          value={new Date().toISOString().split('T')[0]}
                           onChange={(e) => setSyncDateTo(e.target.value)}
                           style={{
-                            padding: '4px 8px',
-                            border: 'none',
-                            borderRadius: '4px',
-                            fontSize: '14px',
-                            outline: 'none',
-                            width: '140px'
+                            padding: '8px 12px',
+                            border: '1px solid #ddd',
+                            borderRadius: '6px',
+                            fontSize: '14px'
                           }}
                         />
-                        <i className="fas fa-calendar-alt" style={{ color: '#666', fontSize: '14px' }}></i>
                       </div>
                       <button 
-                        onClick={async () => {
-                          // Force refresh Google Analytics data
-                          if (selectedClient) {
-                            try {
-                              // Get property ID from settings
-                              const settingsRes = await http.get(`/clients/${selectedClient.id}/settings`);
-                              const propertyId = settingsRes?.data?.googleAnalytics?.propertyId;
-                              
-                              if (propertyId) {
-                                await http.get(`/analytics/client/${selectedClient.id}/real?propertyId=${propertyId}&forceRefresh=true`);
-                                await fetchClientData(selectedClient.id);
-                                setSuccessMessageText('✅ Data synced successfully!');
-                                setShowSuccessModal(true);
-                              } else {
-                                setErrorMessage('Property ID not found. Please configure Google Analytics first.');
-                                setShowErrorModal(true);
-                              }
-                            } catch (error: any) {
-                              console.error('Error syncing data:', error);
-                              setErrorMessage(error.response?.data?.error || 'Failed to sync data');
-                              setShowErrorModal(true);
-                            }
-                          }
-                          setShowSyncModal(true);
-                        }}
+                        onClick={() => setShowSyncModal(true)}
                         style={{
                           padding: '10px 20px',
                           backgroundColor: '#28a745',
@@ -2561,10 +2457,7 @@ const ClientManagementDashboard: React.FC = () => {
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '8px',
-                          fontWeight: '500',
-                          fontSize: '14px',
-                          boxShadow: '0 2px 4px rgba(40, 167, 69, 0.3)'
+                          gap: '8px'
                         }}
                       >
                         <i className="fas fa-sync-alt"></i>
@@ -2573,36 +2466,36 @@ const ClientManagementDashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Analytics Summary Cards - Show all Google Analytics metrics */}
+                  {/* Analytics Summary Cards */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderLeft: '4px solid #007bff' }}>
-                      <h4 style={{ margin: '0 0 10px 0', color: '#333', fontSize: '14px', fontWeight: '500' }}>Total Page Views</h4>
-                      <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#007bff' }}>
+                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                      <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Total Page Views</h4>
+                      <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#007bff' }}>
                         {analyticsData?.googleAnalytics?.pageViews?.toLocaleString() || 0}
                       </div>
                     </div>
-                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderLeft: '4px solid #28a745' }}>
-                      <h4 style={{ margin: '0 0 10px 0', color: '#333', fontSize: '14px', fontWeight: '500' }}>Total Sessions</h4>
-                      <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#28a745' }}>
+                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                      <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Total Sessions</h4>
+                      <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#28a745' }}>
                         {analyticsData?.googleAnalytics?.sessions?.toLocaleString() || 0}
                       </div>
                     </div>
-                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderLeft: '4px solid #dc3545' }}>
-                      <h4 style={{ margin: '0 0 10px 0', color: '#333', fontSize: '14px', fontWeight: '500' }}>Bounce Rate</h4>
-                      <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#dc3545' }}>
-                        {analyticsData?.googleAnalytics?.bounceRate ? parseFloat(analyticsData.googleAnalytics.bounceRate.toString()).toFixed(1) : 0}%
+                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                      <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Bounce Rate</h4>
+                      <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#dc3545' }}>
+                        {analyticsData?.googleAnalytics?.bounceRate?.toFixed(1) || 0}%
                       </div>
                     </div>
-                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderLeft: '4px solid #6f42c1' }}>
-                      <h4 style={{ margin: '0 0 10px 0', color: '#333', fontSize: '14px', fontWeight: '500' }}>Total Users</h4>
-                      <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#6f42c1' }}>
+                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                      <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Total Users</h4>
+                      <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#6f42c1' }}>
                         {analyticsData?.googleAnalytics?.users?.toLocaleString() || 0}
                       </div>
                     </div>
                   </div>
 
-                  {/* Page Performance Table - Shows data from Google Analytics topPages */}
-                  {((analyticsData?.googleAnalytics?.topPages && analyticsData.googleAnalytics.topPages.length > 0) || pageInsights.length > 0) && (
+                  {/* Page Insights */}
+                  {pageInsights.length > 0 && (
                     <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
                       <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>📄 Page Performance</h4>
                       <div style={{ overflowX: 'auto' }}>
@@ -2619,237 +2512,71 @@ const ClientManagementDashboard: React.FC = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {/* Show topPages from Google Analytics if available, otherwise show pageInsights */}
-                            {(
-                              analyticsData?.googleAnalytics?.topPages && analyticsData.googleAnalytics.topPages.length > 0
-                                ? analyticsData.googleAnalytics.topPages.map((page: any, index: number) => {
-                                    // Use REAL per-page metrics from GA4 API (if available)
-                                    const uniqueUsers = page.uniqueUsers !== undefined 
-                                      ? page.uniqueUsers 
-                                      : Math.floor((page.pageViews || 0) * 0.7);
-                                    // Use per-page bounce rate from GA4, fallback to overall if not available
-                                    const bounceRate = page.bounceRate !== undefined 
-                                      ? parseFloat(page.bounceRate.toString()) 
-                                      : (analyticsData?.googleAnalytics?.bounceRate ? parseFloat(analyticsData.googleAnalytics.bounceRate.toString()) : 0);
-                                    // Use per-page avg time from GA4 (in seconds), fallback to estimate
-                                    const avgTime = page.avgTime !== undefined 
-                                      ? Math.round(page.avgTime) 
-                                      : (page.page === '/' || page.page === '' ? 90 : 150);
-                                    // Use per-page conversions from GA4, fallback to estimate
-                                    const conversions = page.conversions !== undefined 
-                                      ? page.conversions 
-                                      : Math.floor((page.pageViews || 0) * 0.02); // 2% default estimate
-                                    // Use per-page conversion rate from GA4, fallback to calculate from conversions
-                                    const conversionRate = page.conversionRate !== undefined 
-                                      ? parseFloat(page.conversionRate.toString()) 
-                                      : (conversions > 0 && page.pageViews > 0 ? ((conversions / page.pageViews) * 100) : 0);
-                                    
-                                    return (
-                                      <tr key={index} style={{ borderBottom: '1px solid #dee2e6', backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa' }}>
-                                        <td style={{ padding: '12px', fontWeight: '500' }}>{page.page || '/'}</td>
-                                        <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                                          {(page.pageViews || 0).toLocaleString()}
-                                        </td>
-                                        <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                                          {uniqueUsers.toLocaleString()}
-                                        </td>
-                                        <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: bounceRate > 70 ? '#dc3545' : '#28a745' }}>
-                                          {bounceRate ? parseFloat(bounceRate.toString()).toFixed(1) : '0.0'}%
-                                        </td>
-                                        <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                                          {avgTime}s
-                                        </td>
-                                        <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                                          {conversions.toLocaleString()}
-                                        </td>
-                                        <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: conversionRate > 2 ? '#28a745' : '#dc3545' }}>
-                                          {conversionRate ? conversionRate.toFixed(2) : '0.00'}%
-                                        </td>
-                                      </tr>
-                                    );
-                                  })
-                                : pageInsights.slice(0, 10).map((page, index) => (
-                                    <tr key={index} style={{ borderBottom: '1px solid #dee2e6', backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa' }}>
-                                      <td style={{ padding: '12px', fontWeight: '500' }}>{page.page}</td>
-                                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                                        {page.pageViews.toLocaleString()}
-                                      </td>
-                                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                                        {page.uniqueUsers.toLocaleString()}
-                                      </td>
-                                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: page.bounceRate > 70 ? '#dc3545' : '#28a745' }}>
-                                        {page.bounceRate.toFixed(1)}%
-                                      </td>
-                                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                                        {Math.round(page.avgTimeOnPage)}s
-                                      </td>
-                                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                                        {page.conversions}
-                                      </td>
-                                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: page.conversionRate > 2 ? '#28a745' : '#dc3545' }}>
-                                        {page.conversionRate.toFixed(2)}%
-                                      </td>
-                                    </tr>
-                                  ))
-                            )}
+                            {pageInsights.slice(0, 10).map((page, index) => (
+                              <tr key={index} style={{ borderBottom: '1px solid #dee2e6' }}>
+                                <td style={{ padding: '12px', fontWeight: '500' }}>{page.page}</td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                  {page.pageViews.toLocaleString()}
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                  {page.uniqueUsers.toLocaleString()}
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: page.bounceRate > 70 ? '#dc3545' : '#28a745' }}>
+                                  {page.bounceRate.toFixed(1)}%
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                  {Math.round(page.avgTimeOnPage)}s
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                  {page.conversions}
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: page.conversionRate > 2 ? '#28a745' : '#dc3545' }}>
+                                  {page.conversionRate.toFixed(2)}%
+                                </td>
+                              </tr>
+                            ))}
                           </tbody>
                         </table>
-                      </div>
-                      {(!analyticsData?.googleAnalytics?.topPages || analyticsData.googleAnalytics.topPages.length === 0) && pageInsights.length === 0 && (
-                        <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
-                          No page performance data available. Please sync analytics data.
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Traffic Sources Section - Shows data stored from GA4 */}
-                  {analyticsData?.googleAnalytics?.trafficSources && analyticsData.googleAnalytics.trafficSources.length > 0 && (
-                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
-                      <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>🚦 Traffic Sources</h4>
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                          <thead>
-                            <tr style={{ backgroundColor: '#f8f9fa' }}>
-                              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Source</th>
-                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Sessions</th>
-                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Percentage</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {(() => {
-                              const totalSessions = analyticsData.googleAnalytics.trafficSources.reduce((sum: number, source: any) => sum + (source.sessions || 0), 0);
-                              return analyticsData.googleAnalytics.trafficSources
-                                .sort((a: any, b: any) => (b.sessions || 0) - (a.sessions || 0))
-                                .map((source: any, index: number) => {
-                                  const percentage = totalSessions > 0 ? ((source.sessions || 0) / totalSessions * 100) : 0;
-                                  return (
-                                    <tr key={index} style={{ borderBottom: '1px solid #dee2e6', backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa' }}>
-                                      <td style={{ padding: '12px', fontWeight: '500' }}>{source.source || source.originalSource || 'Unknown'}</td>
-                                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                                        {(source.sessions || 0).toLocaleString()}
-                                      </td>
-                                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: '#007bff' }}>
-                                        {percentage.toFixed(1)}%
-                                      </td>
-                                    </tr>
-                                  );
-                                });
-                            })()}
-                          </tbody>
-                        </table>
-                      </div>
-                      <div style={{ marginTop: '15px', padding: '12px', backgroundColor: '#e3f2fd', borderRadius: '6px', fontSize: '13px', color: '#1976d2' }}>
-                        <strong>💡 What This Means:</strong> Traffic sources show where your website visitors are coming from. This helps you understand which marketing channels (Organic Search, Social Media, Direct, Referrals, Paid Ads) are driving the most traffic to your website.
                       </div>
                     </div>
                   )}
 
                   {/* Geographic Data */}
-                  {geographicData.length > 0 && (() => {
-                    // Aggregate geographic data by country to remove duplicates
-                    const aggregatedByCountry = geographicData.reduce((acc: any, geo: any) => {
-                      const country = geo.country || 'Unknown';
-                      if (!acc[country]) {
-                        acc[country] = {
-                          country: country,
-                          activeUsers: 0,
-                          newUsers: 0,
-                          engagedSessions: 0,
-                          totalActiveUsersForEngagement: 0,
-                          totalEngagedSessionsForEngagement: 0,
-                          totalEngagementTime: 0,
-                          totalSessionsForEngagement: 0
-                        };
-                      }
-                      // Sum metrics
-                      acc[country].activeUsers += (geo.activeUsers || geo.users || 0);
-                      acc[country].newUsers += (geo.newUsers || 0);
-                      acc[country].engagedSessions += (geo.engagedSessions || geo.sessions || 0);
-                      // For weighted averages
-                      acc[country].totalActiveUsersForEngagement += (geo.activeUsers || geo.users || 0);
-                      acc[country].totalEngagedSessionsForEngagement += (geo.engagedSessions || 0);
-                      acc[country].totalEngagementTime += (geo.averageEngagementTimePerSession || 0) * (geo.engagedSessions || geo.sessions || 0);
-                      acc[country].totalSessionsForEngagement += (geo.engagedSessions || geo.sessions || 0);
-                      return acc;
-                    }, {});
-
-                    // Convert to array and calculate aggregated metrics
-                    const uniqueGeographicData = Object.values(aggregatedByCountry).map((item: any) => {
-                      // Calculate weighted engagement rate: engagedSessions / activeUsers
-                      const engagementRate = item.totalActiveUsersForEngagement > 0 
-                        ? (item.totalEngagedSessionsForEngagement / item.totalActiveUsersForEngagement) * 100 
-                        : 0;
-                      
-                      // Calculate engaged sessions per user
-                      const engagedSessionsPerUser = item.activeUsers > 0 
-                        ? item.engagedSessions / item.activeUsers 
-                        : 0;
-                      
-                      // Calculate average engagement time (weighted average)
-                      const avgEngagementTime = item.totalSessionsForEngagement > 0 
-                        ? item.totalEngagementTime / item.totalSessionsForEngagement 
-                        : 0;
-
-                      return {
-                        country: item.country,
-                        activeUsers: item.activeUsers,
-                        newUsers: item.newUsers,
-                        engagedSessions: item.engagedSessions,
-                        engagementRate: engagementRate,
-                        engagedSessionsPerUser: engagedSessionsPerUser,
-                        averageEngagementTimePerSession: avgEngagementTime
-                      };
-                    }).sort((a: any, b: any) => (b.activeUsers || 0) - (a.activeUsers || 0)); // Sort by active users descending
-
-                    return (
-                      <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
-                        <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>🌍 Geographic Distribution</h4>
-                        <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                            <thead>
-                              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Country</th>
-                                <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Active Users</th>
-                                <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>New Users</th>
-                                <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Engaged Sessions</th>
-                                <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Engagement Rate</th>
-                                <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Engaged Sessions/User</th>
-                                <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Avg Engagement Time</th>
+                  {geographicData.length > 0 && (
+                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
+                      <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>🌍 Geographic Distribution</h4>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                          <thead>
+                            <tr style={{ backgroundColor: '#f8f9fa' }}>
+                              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Country</th>
+                              <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>City</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Users</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Sessions</th>
+                              <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Bounce Rate</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {geographicData.slice(0, 15).map((geo, index) => (
+                              <tr key={index} style={{ borderBottom: '1px solid #dee2e6' }}>
+                                <td style={{ padding: '12px', fontWeight: '500' }}>{geo.country}</td>
+                                <td style={{ padding: '12px' }}>{geo.city}</td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                  {geo.users.toLocaleString()}
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                                  {geo.sessions.toLocaleString()}
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: geo.bounceRate > 70 ? '#dc3545' : '#28a745' }}>
+                                  {geo.bounceRate.toFixed(1)}%
+                                </td>
                               </tr>
-                            </thead>
-                            <tbody>
-                              {uniqueGeographicData.slice(0, 15).map((geo: any, index: number) => (
-                                <tr key={`${geo.country}-${index}`} style={{ borderBottom: '1px solid #dee2e6', backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa' }}>
-                                  <td style={{ padding: '12px', fontWeight: '500' }}>{geo.country}</td>
-                                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                                    {(geo.activeUsers || 0).toLocaleString()}
-                                  </td>
-                                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                                    {(geo.newUsers || 0).toLocaleString()}
-                                  </td>
-                                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                                    {(geo.engagedSessions || 0).toLocaleString()}
-                                  </td>
-                                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: (geo.engagementRate || 0) > 50 ? '#28a745' : '#dc3545' }}>
-                                    {geo.engagementRate !== undefined ? geo.engagementRate.toFixed(1) : '0.0'}%
-                                  </td>
-                                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                                    {geo.engagedSessionsPerUser !== undefined ? geo.engagedSessionsPerUser.toFixed(2) : '0.00'}
-                                  </td>
-                                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
-                                    {geo.averageEngagementTimePerSession !== undefined 
-                                      ? `${Math.round(geo.averageEngagementTimePerSession)}s` 
-                                      : '0s'}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
-                    );
-                  })()}
+                    </div>
+                  )}
 
                   {/* Keyword Analysis */}
                   {keywordAnalysis.length > 0 && (
@@ -4273,376 +4000,6 @@ const ClientManagementDashboard: React.FC = () => {
                       )}
                     </div>
                   </div>
-
-                  {/* GA4 Service Account Connection - Compact Brand Style */}
-                  <div className="integration-card" style={{ border: '1.5px solid #2E86AB', background: '#ffffff', marginTop: '15px', padding: '15px', borderRadius: '8px' }}>
-                    <div className="integration-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '16px', fontWeight: '600', color: '#2E86AB' }}>
-                        <span>📊</span>
-                        GA4 Service Account
-                        <span style={{ fontSize: '10px', background: '#2E86AB', color: 'white', padding: '2px 6px', borderRadius: '8px', fontWeight: '600' }}>
-                          AUTO
-                        </span>
-                      </h4>
-                      <span className={`status ${serviceAccountStatus.hasServiceAccount ? 'connected' : 'disconnected'}`} style={{ fontSize: '12px' }}>
-                        {serviceAccountStatus.hasServiceAccount ? '✅ Connected' : '⚠️ Not Connected'}
-                      </span>
-                    </div>
-                    
-                    <div className="integration-form">
-                      {!serviceAccountStatus.hasServiceAccount ? (
-                        <div>
-                          <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#666', lineHeight: '1.5' }}>
-                            Service Account credentials stored in <code style={{ background: '#f5f5f5', padding: '2px 4px', borderRadius: '3px', fontSize: '11px' }}>encrypted_credentials</code>. Contact admin to setup.
-                          </p>
-                          <button
-                            onClick={async () => {
-                              try {
-                                const response = await http.get('/analytics/service-account/status');
-                                await fetchServiceAccountStatus();
-                                if (response.data.hasServiceAccount) {
-                                  setSuccessMessage('✅ Service Account is configured!');
-                                  setShowSuccessModal(true);
-                                } else {
-                                  setErrorMessage('❌ Service Account not configured. Please contact administrator to set up Service Account credentials.');
-                                  setShowErrorModal(true);
-                                }
-                              } catch (error: any) {
-                                console.error('Service Account check error:', error);
-                                setErrorMessage('❌ Service Account not available. Please contact administrator to set up Service Account credentials.');
-                                setShowErrorModal(true);
-                              }
-                            }}
-                            style={{
-                              width: '100%',
-                              padding: '10px 16px',
-                              background: '#2E86AB',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              fontWeight: '600',
-                              fontSize: '13px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '8px'
-                            }}
-                          >
-                            <span>🔍</span>
-                            Check Status
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ padding: '12px', background: '#e8f5e9', borderRadius: '6px', border: '1px solid #4caf50' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span style={{ fontSize: '24px' }}>✅</span>
-                            <div style={{ flex: 1 }}>
-                              <h5 style={{ margin: '0 0 4px 0', color: '#2e7d32', fontSize: '14px', fontWeight: '600' }}>
-                                Service Account Active
-                              </h5>
-                              <p style={{ margin: 0, fontSize: '11px', color: '#666' }}>
-                                {serviceAccountStatus.serviceAccountEmail || 'wetechforu-marketing-platform@wetechforu-marketing-platform.iam.gserviceaccount.com'}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* GA4 OAuth 2.0 Connection - Compact Brand Style */}
-                  <div className="integration-card" style={{ border: '1.5px solid #A23B72', background: '#ffffff', marginTop: '15px', padding: '15px', borderRadius: '8px' }}>
-                    <div className="integration-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '16px', fontWeight: '600', color: '#A23B72' }}>
-                        <span>🔐</span>
-                        GA4 OAuth 2.0
-                        <span style={{ fontSize: '10px', background: '#A23B72', color: 'white', padding: '2px 6px', borderRadius: '8px', fontWeight: '600' }}>
-                          USER
-                        </span>
-                      </h4>
-                      <span className={`status ${clientSettings?.googleAnalytics?.connected ? 'connected' : 'disconnected'}`} style={{ fontSize: '12px' }}>
-                        {clientSettings?.googleAnalytics?.connected ? '✅ Connected' : '⚠️ Not Connected'}
-                      </span>
-                    </div>
-                    
-                    <div className="integration-form">
-                      {!clientSettings?.googleAnalytics?.connected ? (
-                        <div>
-                          <div style={{ marginBottom: '12px' }}>
-                            <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: '600', color: '#333' }}>
-                              Property ID
-                            </label>
-                            <input
-                              type="text"
-                              id="ga4-property-id"
-                              placeholder="e.g., 509964799"
-                              defaultValue={clientSettings?.googleAnalytics?.propertyId || ''}
-                              style={{
-                                width: '100%',
-                                padding: '8px 12px',
-                                border: '1px solid #ddd',
-                                borderRadius: '6px',
-                                fontSize: '13px',
-                                outline: 'none',
-                                transition: 'border-color 0.2s'
-                              }}
-                              onFocus={(e) => e.currentTarget.style.borderColor = '#A23B72'}
-                              onBlur={async (e) => {
-                                e.currentTarget.style.borderColor = '#ddd';
-                                const propertyId = e.currentTarget.value?.trim();
-                                
-                                // Check permissions if Property ID is provided
-                                if (propertyId && selectedClient && propertyId.length > 3) {
-                                  try {
-                                    const response = await http.get(`/analytics/check-permissions/${selectedClient.id}?propertyId=${propertyId}`);
-                                    
-                                    if (!response.data.hasPermissions) {
-                                      // Show permission error with steps
-                                      const steps = response.data.grantPermissionSteps || [];
-                                      let errorMsg = `⚠️ Permission not granted for Property ID: ${propertyId}\n\n`;
-                                      
-                                      if (steps.length > 0) {
-                                        steps.forEach((stepGroup: any) => {
-                                          errorMsg += `\n${stepGroup.method}:\n`;
-                                          stepGroup.steps.forEach((step: string) => {
-                                            errorMsg += `  ${step}\n`;
-                                          });
-                                        });
-                                      } else {
-                                        errorMsg += 'Please grant access in GA4 Admin → Property Access Management';
-                                      }
-                                      
-                                      setErrorMessage(errorMsg);
-                                      setShowErrorModal(true);
-                                    }
-                                  } catch (checkError: any) {
-                                    // Silent fail - don't show error on every blur
-                                    if (checkError.response?.status === 403) {
-                                      const steps = checkError.response?.data?.grantPermissionSteps || [];
-                                      let errorMsg = `⚠️ Permission not granted for Property ID: ${propertyId}\n\n`;
-                                      
-                                      if (steps.length > 0) {
-                                        steps.forEach((stepGroup: any) => {
-                                          errorMsg += `\n${stepGroup.method}:\n`;
-                                          stepGroup.steps.forEach((step: string) => {
-                                            errorMsg += `  ${step}\n`;
-                                          });
-                                        });
-                                      }
-                                      
-                                      setErrorMessage(errorMsg);
-                                      setShowErrorModal(true);
-                                    }
-                                  }
-                                }
-                              }}
-                            />
-                          </div>
-
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button 
-                              onClick={async () => {
-                                const propertyIdInput = document.getElementById('ga4-property-id') as HTMLInputElement;
-                                const propertyId = propertyIdInput?.value?.trim() || clientSettings?.googleAnalytics?.propertyId;
-                                
-                                if (!propertyId) {
-                                  setErrorMessage('⚠️ Please enter Property ID to connect Google Analytics');
-                                  setShowErrorModal(true);
-                                  return;
-                                }
-
-                                if (!selectedClient) {
-                                  setErrorMessage('⚠️ Please select a client first');
-                                  setShowErrorModal(true);
-                                  return;
-                                }
-
-                                try {
-                                  setErrorMessage('');
-                                  // Save property ID first
-                                  await http.put(`/clients/${selectedClient.id}/service/google_analytics/config`, {
-                                    propertyId: propertyId
-                                  });
-                                  
-                                  // Generate OAuth URL - use the correct endpoint
-                                  const authResponse = await http.get(`/api/auth/google/analytics?clientId=${selectedClient.id}`);
-                                  if (authResponse.data.authUrl) {
-                                    window.location.href = authResponse.data.authUrl;
-                                  } else {
-                                    throw new Error('Failed to get OAuth URL');
-                                  }
-                                } catch (error: any) {
-                                  console.error('OAuth error:', error);
-                                  setErrorMessage(error.response?.data?.error || '❌ Failed to connect. Please check Property ID and try again.');
-                                  setShowErrorModal(true);
-                                }
-                              }}
-                              style={{
-                                flex: 1,
-                                padding: '10px 16px',
-                                background: '#A23B72',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                fontWeight: '600',
-                                fontSize: '13px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px'
-                              }}
-                            >
-                              <span>🔗</span>
-                              Connect OAuth
-                            </button>
-
-                            <button 
-                              onClick={async () => {
-                                const propertyIdInput = document.getElementById('ga4-property-id') as HTMLInputElement;
-                                const propertyId = propertyIdInput?.value?.trim() || clientSettings?.googleAnalytics?.propertyId;
-                                
-                                if (!propertyId) {
-                                  setErrorMessage('⚠️ Please enter Property ID first to test connection');
-                                  setShowErrorModal(true);
-                                  return;
-                                }
-
-                                if (!selectedClient) {
-                                  setErrorMessage('⚠️ Please select a client first');
-                                  setShowErrorModal(true);
-                                  return;
-                                }
-
-                                try {
-                                  setErrorMessage('');
-                                  // Test connection - FORCE REFRESH to ensure API call happens and data is stored
-                                  const response = await http.get(`/analytics/client/${selectedClient.id}/real?propertyId=${propertyId}&forceRefresh=true`);
-                                  
-                                  if (response.data && (response.data.pageViews > 0 || response.data.sessions > 0)) {
-                                    // Successfully fetched data - update settings to show connected
-                                    await http.put(`/clients/${selectedClient.id}/service/google_analytics/config`, {
-                                      propertyId: propertyId,
-                                      connected: true
-                                    });
-                                    setSuccessMessage('✅ Connection verified! Data fetched successfully.');
-                                    setShowSuccessModal(true);
-                                    fetchClientData(selectedClient.id);
-                                  } else {
-                                    setErrorMessage('⚠️ Connected but no data available yet. Try syncing data from Analytics tab.');
-                                    setShowErrorModal(true);
-                                  }
-                                } catch (error: any) {
-                                  console.error('Test connection error:', error);
-                                  
-                                  if (error.response?.status === 403) {
-                                    // Get detailed permission steps from response
-                                    const steps = error.response?.data?.grantPermissionSteps || [];
-                                    let errorMsg = `⚠️ Permission Denied for Property ID: ${propertyId}\n\n`;
-                                    errorMsg += `📋 How to Grant Permissions:\n\n`;
-                                    
-                                    if (steps.length > 0) {
-                                      steps.forEach((stepGroup: any) => {
-                                        errorMsg += `\n🔹 ${stepGroup.method}:\n`;
-                                        stepGroup.steps.forEach((step: string) => {
-                                          errorMsg += `   ${step}\n`;
-                                        });
-                                      });
-                                    } else {
-                                      errorMsg += `Service Account Method:\n`;
-                                      errorMsg += `1. Go to GA4 Admin → Property Settings\n`;
-                                      errorMsg += `2. Click "Property Access Management"\n`;
-                                      errorMsg += `3. Add Service Account email with "Viewer" role\n`;
-                                      errorMsg += `4. Wait 1-2 minutes, then test again\n`;
-                                    }
-                                    
-                                    setErrorMessage(errorMsg);
-                                  } else if (error.response?.status === 401) {
-                                    setErrorMessage('⚠️ Authentication failed. Please complete OAuth connection or configure Service Account credentials.');
-                                  } else if (error.response?.status === 404) {
-                                    setErrorMessage(`❌ Property ID ${propertyId} not found. Please verify the Property ID is correct in GA4 Admin → Property Settings.`);
-                                  } else {
-                                    setErrorMessage(error.response?.data?.error || '❌ Connection test failed. Please verify Property ID is correct.');
-                                  }
-                                  setShowErrorModal(true);
-                                }
-                              }}
-                              style={{
-                                flex: 1,
-                                padding: '10px 16px',
-                                background: '#F18F01',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                fontWeight: '600',
-                                fontSize: '13px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px'
-                              }}
-                            >
-                              <span>🔍</span>
-                              Test Connection
-                            </button>
-                          </div>
-                          {clientSettings?.googleAnalytics?.propertyId && (
-                            <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
-                              💡 Property ID saved. If permissions already granted, click "Test Connection" to verify.
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <div style={{ padding: '12px', background: '#e8f5e9', borderRadius: '6px', border: '1px solid #4caf50' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span style={{ fontSize: '24px' }}>✅</span>
-                            <div style={{ flex: 1 }}>
-                              <h5 style={{ margin: '0 0 4px 0', color: '#2e7d32', fontSize: '14px', fontWeight: '600' }}>
-                                Google Analytics Connected!
-                              </h5>
-                              {clientSettings?.googleAnalytics?.propertyId && (
-                                <p style={{ margin: 0, fontSize: '11px', color: '#666' }}>
-                                  Property ID: <strong>{clientSettings.googleAnalytics.propertyId}</strong>
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <button 
-                            onClick={async () => {
-                              if (!confirm('⚠️ Disconnect Google Analytics? This will remove all GA4 data access.')) return;
-                              
-                              try {
-                                await http.post(`/clients/${selectedClient?.id}/service/google_analytics/disconnect`, {});
-                                setSuccessMessage('✅ Disconnected successfully!');
-                                setShowSuccessModal(true);
-                                fetchClientData(selectedClient!.id);
-                              } catch (error) {
-                                console.error('Disconnect error:', error);
-                                setError('❌ Failed to disconnect');
-                                setShowErrorModal(true);
-                              }
-                            }}
-                            style={{
-                              marginTop: '10px',
-                              padding: '8px 16px',
-                              background: '#dc3545',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              fontWeight: '600',
-                              fontSize: '12px',
-                              width: '100%'
-                            }}
-                          >
-                            🔌 Disconnect
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
                 </div>
               )}
             </div>
@@ -5165,67 +4522,20 @@ const ClientManagementDashboard: React.FC = () => {
             padding: '30px',
             borderRadius: '12px',
             width: '90%',
-            maxWidth: '600px',
-            maxHeight: '80vh',
-            overflowY: 'auto',
-            textAlign: 'left'
+            maxWidth: '500px',
+            textAlign: 'center'
           }}>
             <div style={{ 
               fontSize: '3rem', 
               color: '#dc3545', 
-              marginBottom: '20px',
-              textAlign: 'center'
+              marginBottom: '20px' 
             }}>
               <i className="fas fa-exclamation-triangle"></i>
             </div>
-            <h3 style={{ margin: '0 0 20px 0', color: '#333', textAlign: 'center' }}>Error</h3>
-            <div style={{ 
-              color: '#666', 
-              marginBottom: '30px', 
-              fontSize: '14px',
-              whiteSpace: 'pre-wrap',
-              lineHeight: '1.6',
-              fontFamily: 'monospace',
-              backgroundColor: '#f8f9fa',
-              padding: '15px',
-              borderRadius: '6px',
-              border: '1px solid #dee2e6'
-            }}>
-              {errorMessage.split('\n').map((line, idx) => {
-                // Style special lines
-                if (line.trim().startsWith('🔹') || line.trim().startsWith('📋') || line.trim().startsWith('⚠️')) {
-                  return (
-                    <div key={idx} style={{ 
-                      fontWeight: '600', 
-                      color: '#dc3545',
-                      marginTop: idx > 0 ? '10px' : '0',
-                      marginBottom: '5px'
-                    }}>
-                      {line}
-                    </div>
-                  );
-                } else if (line.trim().match(/^\d+\./)) {
-                  return (
-                    <div key={idx} style={{ 
-                      marginLeft: '15px',
-                      marginTop: '4px',
-                      color: '#495057'
-                    }}>
-                      {line}
-                    </div>
-                  );
-                } else {
-                  return (
-                    <div key={idx} style={{ 
-                      marginTop: line.trim() ? '8px' : '4px',
-                      color: '#495057'
-                    }}>
-                      {line || '\u00A0'}
-                    </div>
-                  );
-                }
-              })}
-            </div>
+            <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>Error</h3>
+            <p style={{ color: '#666', marginBottom: '30px', fontSize: '16px' }}>
+              {errorMessage}
+            </p>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
               <button 
                 onClick={() => setShowErrorModal(false)}

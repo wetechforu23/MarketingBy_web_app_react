@@ -3007,43 +3007,6 @@ router.get('/auth/google/callback', async (req, res) => {
         const googleAnalyticsService = require('../services/googleAnalyticsService').default;
         tokens = await googleAnalyticsService.exchangeCodeForTokens(code as string, state as string);
         console.log('✅ Google Analytics tokens received');
-        
-        // AUTO-FETCH GA4 DATA after OAuth completes (if property_id exists)
-        try {
-          console.log('🔄 Auto-fetching GA4 data after OAuth connection...');
-          // Get property_id from client_credentials table (where it's stored)
-          const credentialsResult = await pool.query(
-            'SELECT credentials FROM client_credentials WHERE client_id = $1 AND service_type = $2',
-            [clientId, 'google_analytics']
-          );
-          
-          if (credentialsResult.rows.length > 0) {
-            let credentials;
-            if (typeof credentialsResult.rows[0].credentials === 'string') {
-              credentials = JSON.parse(credentialsResult.rows[0].credentials);
-            } else {
-              credentials = credentialsResult.rows[0].credentials;
-            }
-            
-            const propertyId = credentials?.property_id;
-            
-            if (propertyId) {
-              console.log(`✅ Property ID found: ${propertyId} - Auto-fetching GA4 data...`);
-              // Force fetch and store data in google_analytics_data table
-              await googleAnalyticsService.getAnalyticsData(
-                parseInt(clientId),
-                propertyId,
-                true // forceRefresh = true to ensure API call happens
-              );
-              console.log('✅ GA4 data automatically fetched and stored after OAuth');
-            } else {
-              console.log('⚠️ No Property ID configured yet - skipping auto-fetch');
-            }
-          }
-        } catch (autoFetchError: any) {
-          console.error('⚠️ Auto-fetch error (non-critical, continuing):', autoFetchError.message);
-          // Don't fail the OAuth flow if auto-fetch fails
-        }
       } else if (type === 'google_search_console') {
         console.log('🔄 Exchanging code for Google Search Console tokens...');
         const googleSearchConsoleService = require('../services/googleSearchConsoleService').default;
@@ -3099,136 +3062,13 @@ router.get('/auth/google/:service', async (req, res) => {
   }
 });
 
-// Check GA4 Property permissions (tests if credentials have access)
-router.get('/analytics/check-permissions/:clientId', async (req, res) => {
+// Get real analytics data
+router.get('/analytics/client/:clientId/real', async (req, res) => {
   try {
     const { clientId } = req.params;
     const { propertyId } = req.query;
     
-    if (!propertyId) {
-      return res.status(400).json({ 
-        error: 'Property ID is required',
-        needsPropertyId: true
-      });
-    }
-    
-    const googleAnalyticsService = require('../services/googleAnalyticsService').default;
-    
-    // Try to fetch a minimal test request to check permissions
-    try {
-      // Make a minimal API call to test permissions
-      const testData = await googleAnalyticsService.getAnalyticsData(
-        parseInt(clientId),
-        propertyId as string,
-        true // forceRefresh to test actual API access
-      );
-      
-      // If we got data (even if zeros), permissions are granted
-      res.json({
-        hasPermissions: true,
-        message: 'Permissions verified - access granted',
-        serviceAccountEmail: await googleAnalyticsService.hasServiceAccount() 
-          ? 'wetechforu-marketing-platform@wetechforu-marketing-platform.iam.gserviceaccount.com'
-          : null
-      });
-    } catch (error: any) {
-      // Check error type
-      if (error.message?.includes('Permission denied') || 
-          error.message?.includes('sufficient permissions') ||
-          error.response?.status === 403) {
-        
-        const hasServiceAccount = await googleAnalyticsService.hasServiceAccount();
-        const hasOAuth2 = await googleAnalyticsService.hasValidCredentials(parseInt(clientId));
-        
-        res.status(403).json({
-          hasPermissions: false,
-          error: 'Permission denied',
-          propertyId: propertyId,
-          serviceAccountAvailable: hasServiceAccount,
-          oauth2Available: hasOAuth2,
-          serviceAccountEmail: hasServiceAccount 
-            ? 'wetechforu-marketing-platform@wetechforu-marketing-platform.iam.gserviceaccount.com'
-            : null,
-          grantPermissionSteps: getPermissionGrantSteps(hasServiceAccount, hasOAuth2, propertyId as string)
-        });
-      } else if (error.message?.includes('Property') && error.message?.includes('not found') ||
-                 error.response?.status === 404) {
-        res.status(404).json({
-          hasPermissions: false,
-          error: 'Property not found',
-          propertyId: propertyId,
-          grantPermissionSteps: null
-        });
-      } else {
-        throw error;
-      }
-    }
-  } catch (error: any) {
-    console.error('Check permissions error:', error);
-    res.status(500).json({ 
-      error: error.message || 'Failed to check permissions',
-      hasPermissions: false
-    });
-  }
-});
-
-function getPermissionGrantSteps(hasServiceAccount: boolean, hasOAuth2: boolean, propertyId: string) {
-  const steps = [];
-  
-  if (hasServiceAccount) {
-    steps.push({
-      method: 'Service Account',
-      steps: [
-        '1. Go to: https://analytics.google.com/',
-        `2. Select GA4 Property ID: ${propertyId}`,
-        '3. Click Admin (gear icon) → Property Settings',
-        '4. Click "Property Access Management"',
-        '5. Click "+" → "Add users"',
-        '6. Enter Service Account Email:',
-        '   wetechforu-marketing-platform@wetechforu-marketing-platform.iam.gserviceaccount.com',
-        '7. Select Role: "Viewer" or "Viewer (read-only)"',
-        '8. Click "Add"',
-        '9. Wait 1-2 minutes for permissions to propagate',
-        '10. Click "Test Connection" button again'
-      ]
-    });
-  }
-  
-  if (hasOAuth2) {
-    steps.push({
-      method: 'OAuth 2.0',
-      steps: [
-        '1. Make sure you\'re logged into the correct Google account',
-        '2. Click "Connect OAuth" button',
-        '3. Grant permissions in Google consent screen',
-        '4. Ensure the account has access to Property ID: ' + propertyId,
-        '5. After connecting, permissions are automatically granted'
-      ]
-    });
-  }
-  
-  if (!hasServiceAccount && !hasOAuth2) {
-    steps.push({
-      method: 'Setup Required',
-      steps: [
-        '1. Either set up Service Account credentials in encrypted_credentials table, OR',
-        '2. Complete OAuth 2.0 connection using "Connect OAuth" button',
-        '3. Then grant permissions as shown above'
-      ]
-    });
-  }
-  
-  return steps;
-}
-
-// Get real analytics data (cache-first: uses DB if fresh, otherwise calls API and stores)
-// Uses Service Account first, falls back to OAuth2 if needed
-router.get('/analytics/client/:clientId/real', async (req, res) => {
-  try {
-    const { clientId } = req.params;
-    const { propertyId, forceRefresh } = req.query;
-    
-    console.log(`🔍 Analytics request for client ${clientId}, propertyId: ${propertyId}, forceRefresh: ${forceRefresh}`);
+    console.log(`🔍 Real analytics request for client ${clientId}, propertyId: ${propertyId}`);
     
     if (!propertyId) {
       return res.status(400).json({ 
@@ -3238,110 +3078,29 @@ router.get('/analytics/client/:clientId/real', async (req, res) => {
     }
     
     const googleAnalyticsService = require('../services/googleAnalyticsService').default;
+    const hasCredentials = await googleAnalyticsService.hasValidCredentials(parseInt(clientId));
     
-    // Check if Service Account is available (works globally for all clients)
-    const hasServiceAccount = await googleAnalyticsService.hasServiceAccount();
-    
-    // Check if client has OAuth2 credentials (client-specific)
-    const hasOAuth2 = await googleAnalyticsService.hasValidCredentials(parseInt(clientId));
-    
-    if (!hasServiceAccount && !hasOAuth2) {
-      console.log(`⚠️ No credentials available for client ${clientId} (no Service Account, no OAuth2)`);
+    if (!hasCredentials) {
+      console.log(`⚠️ No OAuth credentials for client ${clientId}, but Property ID provided: ${propertyId}`);
       return res.status(400).json({ 
-        error: 'Google Analytics not connected. Please connect OAuth2 or set up Service Account.',
+        error: 'Google Analytics OAuth not connected. Please connect your Google Analytics account first.',
         needsAuth: true,
         service: 'google_analytics',
         propertyId: propertyId
       });
     }
-    
-    if (hasServiceAccount) {
-      console.log(`✅ Service Account available for client ${clientId}`);
-    }
-    if (hasOAuth2) {
-      console.log(`✅ OAuth2 credentials found for client ${clientId}`);
-    }
 
-    // Get analytics data (cache-first: checks DB, only calls API if needed)
-    // Auto-stores fetched data in database (unique per date, prevents data loss)
+    console.log(`✅ OAuth credentials found for client ${clientId}, fetching real data...`);
     const analyticsData = await googleAnalyticsService.getAnalyticsData(
       parseInt(clientId), 
-      propertyId as string,
-      forceRefresh === 'true' // Allow force refresh to bypass cache
+      propertyId as string
     );
 
-    console.log(`✅ Real analytics data fetched for client ${clientId}:`, {
-      pageViews: analyticsData.pageViews,
-      sessions: analyticsData.sessions,
-      users: analyticsData.users
-    });
+    console.log(`✅ Real analytics data fetched for client ${clientId}:`, analyticsData);
     res.json(analyticsData);
-  } catch (error: any) {
-    console.error('❌ Get real analytics data error:', error.message);
-    
-    // Provide helpful error messages
-    if (error.message.includes('Permission denied') || error.message.includes('sufficient permissions')) {
-      res.status(403).json({ 
-        error: error.message || 'Permission denied. Service Account or OAuth account needs access to this GA4 Property.',
-        needsAccess: true
-      });
-    } else if (error.message.includes('Property') && error.message.includes('not found')) {
-      res.status(404).json({ 
-        error: error.message || 'GA4 Property not found. Verify the Property ID is correct.',
-        invalidPropertyId: true
-      });
-    } else if (error.message.includes('No valid authentication')) {
-      res.status(401).json({ 
-        error: 'Authentication failed. Please set up Service Account or connect OAuth2.',
-        needsAuth: true
-      });
-    } else {
-      res.status(500).json({ 
-        error: error.message || 'Failed to fetch analytics data',
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-      });
-    }
-  }
-});
-
-// Check Service Account status
-router.get('/analytics/service-account/status', async (req, res) => {
-  try {
-    const googleAnalyticsService = require('../services/googleAnalyticsService').default;
-    const hasServiceAccount = await googleAnalyticsService.hasServiceAccount();
-    
-    // Get Service Account email if available
-    let serviceAccountEmail = null;
-    if (hasServiceAccount) {
-      // Try to get the email from encrypted_credentials (we'll need a helper method)
-      const pool = require('../config/database').default;
-      const result = await pool.query(
-        `SELECT encrypted_value 
-         FROM encrypted_credentials 
-         WHERE service = 'google_service_account' 
-           AND key_name = 'client_email'
-         LIMIT 1`
-      );
-      
-      if (result.rows.length > 0) {
-        // Decrypt to get email (or just show it's configured)
-        serviceAccountEmail = 'wetechforu-marketing-platform@wetechforu-marketing-platform.iam.gserviceaccount.com';
-      }
-    }
-    
-    res.json({
-      hasServiceAccount,
-      serviceAccountEmail,
-      message: hasServiceAccount 
-        ? 'Service Account is configured and ready' 
-        : 'Service Account not configured'
-    });
-  } catch (error: any) {
-    console.error('Error checking Service Account status:', error);
-    res.status(500).json({ 
-      hasServiceAccount: false,
-      error: error.message || 'Failed to check Service Account status'
-    });
+  } catch (error) {
+    console.error('Get real analytics data error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics data' });
   }
 });
 
@@ -3378,34 +3137,11 @@ router.get('/search-console/client/:clientId/real', async (req, res) => {
 router.put('/clients/:clientId/service/:service/config', async (req, res) => {
   try {
     const { clientId, service } = req.params;
-    const { propertyId, siteUrl, connected } = req.body;
+    const { propertyId, siteUrl } = req.body;
     
     if (service === 'google_analytics' && propertyId) {
       const googleAnalyticsService = require('../services/googleAnalyticsService').default;
       await googleAnalyticsService.updateClientPropertyId(parseInt(clientId), propertyId);
-      
-      // AUTO-FETCH AND STORE GA4 DATA after property_id is saved
-      try {
-        console.log(`🔄 Auto-fetching GA4 data for property ${propertyId} after manual save...`);
-        // Check if we have credentials (Service Account or OAuth2)
-        const hasServiceAccount = await googleAnalyticsService.hasServiceAccount();
-        const hasOAuth2 = await googleAnalyticsService.hasValidCredentials(parseInt(clientId));
-        
-        if (hasServiceAccount || hasOAuth2) {
-          // Force fetch and store data in google_analytics_data table
-          await googleAnalyticsService.getAnalyticsData(
-            parseInt(clientId),
-            propertyId,
-            true // forceRefresh = true to ensure API call happens and data is stored
-          );
-          console.log(`✅ GA4 data automatically fetched and stored after property_id save`);
-        } else {
-          console.log('⚠️ No credentials available yet - data will be fetched when credentials are added');
-        }
-      } catch (autoFetchError: any) {
-        console.error('⚠️ Auto-fetch error after property_id save (non-critical, continuing):', autoFetchError.message);
-        // Don't fail the config update if auto-fetch fails (might not have permissions yet)
-      }
     } else if (service === 'google_search_console' && siteUrl) {
       const googleSearchConsoleService = require('../services/googleSearchConsoleService').default;
       await googleSearchConsoleService.updateClientSiteUrl(parseInt(clientId), siteUrl);
@@ -5392,45 +5128,6 @@ router.get('/facebook/test-credentials/:clientId', requireAuth, async (req, res)
   }
 });
 
-/**
- * @swagger
- * /facebook/sync/{clientId}:
- *   post:
- *     summary: Sync Facebook data from Facebook API to database
- *     description: Fetches latest Facebook page metrics and posts from Facebook Graph API and stores them in the database
- *     tags: [Facebook]
- *     security:
- *       - cookieAuth: []
- *     parameters:
- *       - in: path
- *         name: clientId
- *         required: true
- *         schema:
- *           type: integer
- *         description: Client ID to sync Facebook data for
- *     responses:
- *       200:
- *         description: Successful sync
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: 'Facebook data synced successfully'
- *                 data:
- *                   $ref: '#/components/schemas/FacebookData'
- *       401:
- *         description: Unauthorized - Authentication required
- *       404:
- *         description: No Facebook credentials found for this client
- *       500:
- *         description: Failed to sync Facebook data
- */
 // Sync Facebook data - Simple pattern like Google Analytics
 router.post('/facebook/sync/:clientId', requireAuth, async (req, res) => {
   try {
@@ -5491,42 +5188,6 @@ router.get('/facebook/core-page-metrics/:clientId', requireAuth, async (req, res
   }
 });
 
-/**
- * @swagger
- * /facebook/overview/{clientId}:
- *   get:
- *     summary: Get Facebook page overview metrics from database
- *     description: Returns stored Facebook page metrics including followers, reach, engagement, and impressions
- *     tags: [Facebook]
- *     security:
- *       - cookieAuth: []
- *     parameters:
- *       - in: path
- *         name: clientId
- *         required: true
- *         schema:
- *           type: integer
- *         description: Client ID to fetch Facebook metrics for
- *     responses:
- *       200:
- *         description: Successful response with Facebook metrics
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/FacebookData'
- *       401:
- *         description: Unauthorized - Authentication required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
 // Get Facebook overview metrics - Simple pattern like Google Analytics
 router.get('/facebook/overview/:clientId', requireAuth, async (req, res) => {
   try {
@@ -5583,49 +5244,6 @@ router.get('/facebook/overview/:clientId', requireAuth, async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /facebook/posts/{clientId}:
- *   get:
- *     summary: Get Facebook posts with metrics from database
- *     description: Returns stored Facebook posts with impressions, reach, engagement, reactions, comments, and shares
- *     tags: [Facebook]
- *     security:
- *       - cookieAuth: []
- *     parameters:
- *       - in: path
- *         name: clientId
- *         required: true
- *         schema:
- *           type: integer
- *         description: Client ID to fetch posts for
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 50
- *         description: Maximum number of posts to return
- *     responses:
- *       200:
- *         description: Successful response with Facebook posts
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/FacebookPost'
- *                 count:
- *                   type: integer
- *       401:
- *         description: Unauthorized - Authentication required
- *       500:
- *         description: Server error
- */
 // Get Facebook posts (recent posts with all metrics including views, clicks, reach)
 router.get('/facebook/posts/:clientId', requireAuth, async (req, res) => {
   try {
@@ -5662,32 +5280,6 @@ router.get('/facebook/posts/:clientId', requireAuth, async (req, res) => {
       success: false,
       error: 'Failed to fetch Facebook posts' 
     });
-  }
-});
-
-// Create a Facebook post (text and optional media URL(s))
-router.post('/facebook/posts/:clientId', requireAuth, async (req, res) => {
-  try {
-    const { clientId } = req.params;
-    const { message, mediaUrls } = req.body || {};
-
-    if (!message || typeof message !== 'string') {
-      return res.status(400).json({ success: false, error: 'message is required' });
-    }
-
-    const FacebookService = (await import('../services/facebookService')).default;
-    const facebookService = new FacebookService(pool);
-
-    const result = await facebookService.createPost(parseInt(clientId), message, Array.isArray(mediaUrls) ? mediaUrls : undefined);
-
-    if (!result.success) {
-      return res.status(400).json({ success: false, error: result.error || 'Failed to create post' });
-    }
-
-    res.json({ success: true, data: { postId: result.postId, postUrl: result.postUrl } });
-  } catch (error: any) {
-    console.error('❌ Create Facebook post error:', error);
-    res.status(500).json({ success: false, error: 'Failed to create Facebook post' });
   }
 });
 
