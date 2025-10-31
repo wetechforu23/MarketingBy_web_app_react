@@ -152,6 +152,7 @@ export class HandoverService {
       ];
 
       // Use explicit type casts in SQL to ensure compatibility
+      // Handle NULL values by using COALESCE to ensure proper type casting
       const result = await client.query(`
         INSERT INTO handover_requests (
           conversation_id,
@@ -164,14 +165,14 @@ export class HandoverService {
           visitor_message,
           status
         ) VALUES (
-          $1::integer,
-          $2::integer,
-          $3::integer,
-          $4::varchar(50),
-          $5::varchar(255),
-          $6::varchar(255),
-          $7::varchar(50),
-          $8::text,
+          $1,
+          $2,
+          $3,
+          COALESCE($4, 'portal')::varchar(50),
+          NULLIF($5, '')::varchar(255),
+          NULLIF($6, '')::varchar(255),
+          NULLIF($7, '')::varchar(50),
+          NULLIF($8, '')::text,
           'pending'::varchar(50)
         )
         RETURNING *
@@ -426,8 +427,13 @@ export class HandoverService {
         console.log(`📱 Sending WhatsApp handover notification to client:`, {
           to: clientWhatsAppNumber,
           client_id: handoverRequest.client_id,
+          widget_id: handoverRequest.widget_id,
           conversation_id: handoverRequest.conversation_id
         });
+
+        if (!handoverRequest.client_id) {
+          throw new Error('client_id is required but was not provided in handover request');
+        }
 
         // Prefer template first (avoids 24h window errors)
         let result = await whatsappService.sendTemplateMessage({
@@ -447,8 +453,15 @@ export class HandoverService {
           }
         });
 
+        console.log(`📱 Template message result:`, {
+          success: result.success,
+          error: result.error,
+          messageSid: result.messageSid
+        });
+
         // If template not configured, fallback to freeform
         if (!result.success && /template/i.test(result.error || '')) {
+          console.log(`📱 Falling back to freeform message...`);
           result = await whatsappService.sendMessage({
             clientId: handoverRequest.client_id,
             widgetId: handoverRequest.widget_id,
@@ -458,6 +471,15 @@ export class HandoverService {
             sentByAgentName: 'System',
             visitorName: handoverRequest.visitor_name || 'Anonymous Visitor'
           });
+          console.log(`📱 Freeform message result:`, {
+            success: result.success,
+            error: result.error,
+            messageSid: result.messageSid
+          });
+        }
+
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to send WhatsApp message');
         }
 
         console.log(`✅ WhatsApp handover notification sent to client:`, {
@@ -478,8 +500,10 @@ export class HandoverService {
       } catch (sendErr: any) {
         console.error('❌ WhatsApp sendMessage failed:', {
           error: sendErr.message,
+          stack: sendErr.stack,
           to: clientWhatsAppNumber,
           client_id: handoverRequest.client_id,
+          widget_id: handoverRequest.widget_id,
           conversation_id: handoverRequest.conversation_id
         });
         
@@ -494,7 +518,8 @@ export class HandoverService {
         );
         // Mark request as failed
         await this.updateHandoverStatus(handoverRequest.id, 'failed', sendErr?.message || 'send_error');
-        return;
+        // Re-throw to ensure error is logged in processHandover catch block too
+        throw sendErr;
       }
 
       // 8) Update handover status
@@ -749,11 +774,11 @@ export class HandoverService {
       await client.query(`
         UPDATE handover_requests
         SET 
-          status = $1,
-          error_message = $2,
+          status = $1::varchar(50),
+          error_message = NULLIF($2, '')::text,
           completed_at = CASE WHEN $1 = 'completed' OR $1 = 'notified' THEN CURRENT_TIMESTAMP ELSE completed_at END
-        WHERE id = $3
-      `, [status, errorMessage, handoverId]);
+        WHERE id = $3::integer
+      `, [status, errorMessage || null, handoverId]);
     } finally {
       client.release();
     }
