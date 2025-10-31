@@ -151,14 +151,14 @@ export class HandoverService {
           visitor_message,
           status
         ) VALUES (
-          $1::integer,
-          $2::integer,
-          $3::integer,
-          $4::varchar,
-          $5::varchar,
-          $6::varchar,
-          $7::varchar,
-          $8::varchar,
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
           'pending'
         )
         RETURNING *
@@ -179,11 +179,11 @@ export class HandoverService {
       await client.query(`
         UPDATE widget_conversations
         SET 
-          preferred_contact_method = $1::varchar,
-          contact_method_details = $2::text,
+          preferred_contact_method = $1,
+          contact_method_details = $2,
           handoff_requested = true,
           handoff_requested_at = CURRENT_TIMESTAMP
-        WHERE id = $3::integer
+        WHERE id = $3
       `, [
         (data.requested_method || 'portal'),
         JSON.stringify({
