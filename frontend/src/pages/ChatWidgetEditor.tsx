@@ -77,9 +77,11 @@ export default function ChatWidgetEditor() {
   const [defaultHandoverMethod, setDefaultHandoverMethod] = useState('portal')
   const [webhookUrl, setWebhookUrl] = useState('')
   const [webhookSecret, setWebhookSecret] = useState('')
+  const [handoverWhatsAppNumber, setHandoverWhatsAppNumber] = useState('')
   const [savingHandover, setSavingHandover] = useState(false)
   const [testingWebhook, setTestingWebhook] = useState(false)
   const [webhookTestResult, setWebhookTestResult] = useState<string | null>(null)
+  const [testingHandoverWhatsApp, setTestingHandoverWhatsApp] = useState(false)
 
   // 🤖 AI/LLM Configuration State
   const [enableAI, setEnableAI] = useState(false)
@@ -381,7 +383,24 @@ export default function ChatWidgetEditor() {
       })
       setDefaultHandoverMethod(config.default_handover_method || 'portal')
       setWebhookUrl(config.webhook_url || '')
+      // Load handover WhatsApp number if available
+      if (config.handover_whatsapp_number) {
+        setHandoverWhatsAppNumber(config.handover_whatsapp_number)
+      }
       // Don't load webhook_secret for security - it stays on server
+      
+      // Also fetch client's handover WhatsApp number if widget has client_id
+      if (selectedClientId) {
+        try {
+          const clientHandoverResponse = await api.get(`/handover/config/client/${selectedClientId}`)
+          if (clientHandoverResponse.data.handover_whatsapp_number) {
+            setHandoverWhatsAppNumber(clientHandoverResponse.data.handover_whatsapp_number)
+          }
+        } catch (err) {
+          // Client handover config might not exist yet - that's OK
+          console.log('No client handover config found (this is OK)')
+        }
+      }
     } catch (err) {
       console.error('Failed to load handover config:', err)
     }
@@ -398,13 +417,27 @@ export default function ChatWidgetEditor() {
     setWebhookTestResult(null)
 
     try {
+      // Save widget handover config
       await api.put(`/handover/config/${id}`, {
         enable_handover_choice: enableHandoverChoice,
         handover_options: handoverOptions,
         default_handover_method: defaultHandoverMethod,
         webhook_url: webhookUrl || null,
-        webhook_secret: webhookSecret || null
+        webhook_secret: webhookSecret || null,
+        handover_whatsapp_number: handoverWhatsAppNumber || null
       })
+
+      // Also save to client config if client_id is set
+      if (selectedClientId && handoverWhatsAppNumber) {
+        try {
+          await api.put(`/handover/config/client/${selectedClientId}`, {
+            handover_whatsapp_number: handoverWhatsAppNumber
+          })
+        } catch (err) {
+          console.error('Failed to save client handover config:', err)
+          // Don't fail the whole operation if client save fails
+        }
+      }
 
       alert('✅ Handover configuration saved successfully!')
     } catch (err: any) {
@@ -1884,6 +1917,101 @@ export default function ChatWidgetEditor() {
                     {handoverOptions.webhook && <option value="webhook">Webhook</option>}
                   </select>
                 </div>
+
+                {/* WhatsApp Handover Phone Number */}
+                {handoverOptions.whatsapp && (
+                  <div style={{
+                    padding: '1.5rem',
+                    background: '#e8f5e9',
+                    borderRadius: '8px',
+                    border: '2px solid #25d366',
+                    marginBottom: '1.5rem'
+                  }}>
+                    <h4 style={{ marginTop: 0, fontSize: '15px', fontWeight: '600', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="fab fa-whatsapp" style={{ color: '#25d366' }}></i>
+                      📱 WhatsApp Handover Phone Number
+                    </h4>
+                    <p style={{ fontSize: '13px', color: '#666', marginBottom: '1rem', lineHeight: '1.6' }}>
+                      When a visitor requests an agent via WhatsApp, notifications will be sent to this number.
+                      <br/>
+                      <strong>Format:</strong> Include country code (e.g., +14698880705)
+                    </p>
+
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                      <input
+                        type="text"
+                        placeholder="+14698880705"
+                        value={handoverWhatsAppNumber}
+                        onChange={(e) => setHandoverWhatsAppNumber(e.target.value)}
+                        style={{
+                          flex: 1,
+                          minWidth: '250px',
+                          padding: '10px',
+                          border: '2px solid #25d366',
+                          borderRadius: '6px',
+                          fontSize: '14px'
+                        }}
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!handoverWhatsAppNumber.trim()) {
+                            alert('Please enter a WhatsApp number first');
+                            return;
+                          }
+                          if (!selectedClientId) {
+                            alert('Please select a client first');
+                            return;
+                          }
+
+                          setTestingHandoverWhatsApp(true);
+                          try {
+                            const response = await api.post('/handover/test-whatsapp', {
+                              client_id: selectedClientId,
+                              phone_number: handoverWhatsAppNumber.trim()
+                            });
+
+                            if (response.data.success) {
+                              alert(`✅ Test message sent successfully to ${handoverWhatsAppNumber}! Check your WhatsApp.`);
+                            }
+                          } catch (error: any) {
+                            alert(`❌ Failed to send test message: ${error.response?.data?.error || error.message}`);
+                          } finally {
+                            setTestingHandoverWhatsApp(false);
+                          }
+                        }}
+                        disabled={testingHandoverWhatsApp || !handoverWhatsAppNumber.trim()}
+                        style={{
+                          padding: '10px 20px',
+                          backgroundColor: testingHandoverWhatsApp ? '#ccc' : '#075e54',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: testingHandoverWhatsApp ? 'not-allowed' : 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <i className="fas fa-paper-plane" style={{ marginRight: '6px' }}></i>
+                        {testingHandoverWhatsApp ? 'Sending...' : 'Send Test Message'}
+                      </button>
+                    </div>
+
+                    {handoverWhatsAppNumber && (
+                      <div style={{
+                        marginTop: '12px',
+                        padding: '8px 12px',
+                        background: '#d4edda',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        color: '#155724'
+                      }}>
+                        <i className="fas fa-check-circle" style={{ marginRight: '6px', color: '#25d366' }}></i>
+                        Current number: <strong>{handoverWhatsAppNumber}</strong>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Webhook Configuration */}
                 {handoverOptions.webhook && (
