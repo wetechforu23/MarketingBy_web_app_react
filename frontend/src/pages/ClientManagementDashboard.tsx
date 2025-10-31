@@ -78,6 +78,9 @@ interface ClientSettings {
     connected: boolean;
     managerId: string;
   };
+  whatsappHandover: {
+    phoneNumber: string;
+  };
 }
 
 const ClientManagementDashboard: React.FC = () => {
@@ -292,8 +295,27 @@ const ClientManagementDashboard: React.FC = () => {
     try {
       // Fetch client settings first to get property IDs and configuration
           const settingsResponse = await http.get(`/clients/${clientId}/settings`);
-      setClientSettings(settingsResponse.data);
-      console.log('✅ Client settings loaded:', settingsResponse.data);
+      
+      // Fetch WhatsApp handover config
+      let whatsappHandoverPhone = '';
+      try {
+        const handoverResponse = await http.get(`/handover/config/client/${clientId}`);
+        whatsappHandoverPhone = handoverResponse.data.handover_whatsapp_number || '';
+        console.log('✅ WhatsApp handover config loaded:', handoverResponse.data);
+      } catch (handoverError) {
+        console.log('⚠️ WhatsApp handover config not found (this is OK if not configured yet)');
+      }
+
+      // Merge WhatsApp handover settings into client settings
+      const settingsWithHandover = {
+        ...settingsResponse.data,
+        whatsappHandover: {
+          phoneNumber: whatsappHandoverPhone
+        }
+      };
+      
+      setClientSettings(settingsWithHandover);
+      console.log('✅ Client settings loaded:', settingsWithHandover);
 
       // Initialize analytics data structure with ZERO values (NO MOCK DATA)
       let analyticsData = {
@@ -3305,6 +3327,126 @@ const ClientManagementDashboard: React.FC = () => {
                         >
                           Disconnect
                         </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* WhatsApp Handover Settings */}
+                  <div className="integration-card">
+                    <div className="integration-header">
+                      <h4>📱 WhatsApp Handover Notifications</h4>
+                      <span className={`status ${clientSettings?.whatsappHandover?.phoneNumber ? 'connected' : 'disconnected'}`}>
+                        {clientSettings?.whatsappHandover?.phoneNumber ? 'Configured' : 'Not Configured'}
+                      </span>
+                    </div>
+                    <div className="integration-form">
+                      <p style={{ fontSize: '13px', color: '#666', marginBottom: '12px', lineHeight: '1.6' }}>
+                        When a visitor requests an agent via WhatsApp, notifications will be sent to this number.
+                        <br/>
+                        <strong>Format:</strong> Include country code (e.g., +14698880705)
+                      </p>
+                      <input 
+                        type="text" 
+                        id="whatsapp-handover-phone"
+                        placeholder="+14698880705" 
+                        value={clientSettings?.whatsappHandover?.phoneNumber || ''}
+                        onChange={(e) => {
+                          if (clientSettings) {
+                            setClientSettings({
+                              ...clientSettings,
+                              whatsappHandover: {
+                                phoneNumber: e.target.value
+                              }
+                            });
+                          }
+                        }}
+                        style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '14px' }}
+                      />
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '12px' }}>
+                        <button 
+                          onClick={async () => {
+                            const phoneInput = document.getElementById('whatsapp-handover-phone') as HTMLInputElement;
+                            const phoneNumber = phoneInput.value.trim();
+                            
+                            if (!phoneNumber) {
+                              alert('Please enter a WhatsApp number');
+                              return;
+                            }
+                            
+                            if (!selectedClient) {
+                              alert('Please select a client first');
+                              return;
+                            }
+                            
+                            try {
+                              const response = await http.put(`/handover/config/client/${selectedClient.id}`, {
+                                handover_whatsapp_number: phoneNumber
+                              });
+                              
+                              if (response.data.success) {
+                                setSuccessMessage(`✅ WhatsApp handover number saved: ${phoneNumber}`);
+                                setTimeout(() => setSuccessMessage(null), 5000);
+                                await fetchClientData(selectedClient.id);
+                              }
+                            } catch (error: any) {
+                              console.error('Save WhatsApp handover error:', error);
+                              setError(`❌ Failed to save WhatsApp number: ${error.response?.data?.error || error.message}`);
+                              setTimeout(() => setError(null), 5000);
+                            }
+                          }}
+                          className="connect-btn"
+                          style={{ backgroundColor: '#25d366' }}
+                        >
+                          <i className="fab fa-whatsapp" style={{ marginRight: '8px' }}></i>
+                          Save WhatsApp Number
+                        </button>
+                        <button 
+                          onClick={async () => {
+                            const phoneInput = document.getElementById('whatsapp-handover-phone') as HTMLInputElement;
+                            const phoneNumber = phoneInput.value.trim();
+                            
+                            if (!phoneNumber) {
+                              alert('Please enter a WhatsApp number first');
+                              return;
+                            }
+                            
+                            if (!selectedClient) {
+                              alert('Please select a client first');
+                              return;
+                            }
+                            
+                            try {
+                              setSyncLoading(true);
+                              const response = await http.post('/handover/test-whatsapp', {
+                                client_id: selectedClient.id,
+                                phone_number: phoneNumber
+                              });
+                              
+                              if (response.data.success) {
+                                setSuccessMessage(`✅ Test message sent successfully to ${phoneNumber}! Check your WhatsApp.`);
+                                setTimeout(() => setSuccessMessage(null), 8000);
+                              }
+                            } catch (error: any) {
+                              console.error('Test WhatsApp error:', error);
+                              setError(`❌ Failed to send test message: ${error.response?.data?.error || error.message}`);
+                              setTimeout(() => setError(null), 8000);
+                            } finally {
+                              setSyncLoading(false);
+                            }
+                          }}
+                          className="connect-btn"
+                          style={{ backgroundColor: '#075e54' }}
+                          disabled={syncLoading}
+                        >
+                          <i className="fas fa-paper-plane" style={{ marginRight: '8px' }}></i>
+                          {syncLoading ? 'Sending...' : 'Send Test Message'}
+                        </button>
+                      </div>
+                      {clientSettings?.whatsappHandover?.phoneNumber && (
+                        <div style={{ marginTop: '10px', fontSize: '12px', color: '#555', padding: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
+                          <i className="fas fa-check-circle" style={{ color: '#25d366', marginRight: '6px' }}></i>
+                          Current number: <strong>{clientSettings.whatsappHandover.phoneNumber}</strong>
+                        </div>
                       )}
                     </div>
                   </div>

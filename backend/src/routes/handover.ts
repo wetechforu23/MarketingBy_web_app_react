@@ -20,6 +20,65 @@ router.get('/config/:widgetId', async (req, res) => {
 });
 
 /**
+ * GET /api/handover/config/client/:clientId
+ * Get handover WhatsApp number for a client
+ */
+router.get('/config/client/:clientId', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const result = await pool.query(
+      'SELECT id, client_id, handover_whatsapp_number, widget_name FROM widget_configs WHERE client_id = $1 LIMIT 1',
+      [parseInt(clientId)]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget config not found for this client' });
+    }
+
+    res.json({
+      widget_id: result.rows[0].id,
+      client_id: result.rows[0].client_id,
+      handover_whatsapp_number: result.rows[0].handover_whatsapp_number || '',
+      widget_name: result.rows[0].widget_name
+    });
+  } catch (error: any) {
+    console.error('Error getting client handover config:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PUT /api/handover/config/client/:clientId
+ * Update handover WhatsApp number for a client
+ */
+router.put('/config/client/:clientId', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { handover_whatsapp_number } = req.body;
+
+    const result = await pool.query(
+      'UPDATE widget_configs SET handover_whatsapp_number = $1 WHERE client_id = $2 RETURNING id, client_id, handover_whatsapp_number, widget_name',
+      [handover_whatsapp_number || null, parseInt(clientId)]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget config not found for this client' });
+    }
+
+    res.json({
+      success: true,
+      widget_id: result.rows[0].id,
+      client_id: result.rows[0].client_id,
+      handover_whatsapp_number: result.rows[0].handover_whatsapp_number,
+      widget_name: result.rows[0].widget_name
+    });
+  } catch (error: any) {
+    console.error('Error updating client handover config:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * PUT /api/handover/config/:widgetId
  * Update handover configuration for a widget
  */
@@ -92,9 +151,14 @@ router.post('/request', async (req, res) => {
       return res.status(400).json({ error: 'Email address required for email handover' });
     }
 
-    if ((requested_method === 'whatsapp' || requested_method === 'phone') && !visitor_phone) {
-      return res.status(400).json({ error: 'Phone number required for WhatsApp/Phone handover' });
+    // Phone handover still requires visitor phone (SMS to visitor)
+    if (requested_method === 'phone' && !visitor_phone) {
+      return res.status(400).json({ error: 'Phone number required for Phone handover' });
     }
+
+    // WhatsApp handover no longer requires visitor_phone 
+    // (notifications go to CLIENT's WhatsApp number, not visitor's)
+    // visitor_phone is optional but recommended to include in the notification message
 
     const result = await HandoverService.createHandoverRequest({
       conversation_id: parseInt(conversation_id),
@@ -188,6 +252,101 @@ router.post('/test-webhook', async (req, res) => {
       success: false,
       error: error.message,
       details: error.response?.data || 'No response from webhook'
+    });
+  }
+});
+
+/**
+ * POST /api/handover/test-whatsapp
+ * Test WhatsApp handover notification
+ */
+router.post('/test-whatsapp', async (req, res) => {
+  try {
+    const { client_id, phone_number } = req.body;
+
+    if (!client_id) {
+      return res.status(400).json({ error: 'client_id is required' });
+    }
+
+    if (!phone_number) {
+      return res.status(400).json({ error: 'phone_number is required' });
+    }
+
+    // Get widget for this client
+    const widgetResult = await pool.query(
+      'SELECT id, widget_name FROM widget_configs WHERE client_id = $1 LIMIT 1',
+      [parseInt(client_id)]
+    );
+
+    if (widgetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No widget found for this client' });
+    }
+
+    const widgetId = widgetResult.rows[0].id;
+    const widgetName = widgetResult.rows[0].widget_name || 'Test Widget';
+
+    // Normalize phone number
+    const normalizeWhatsAppNumber = (raw: string): string => {
+      let s = (raw || '').toString().trim();
+      if (s.startsWith('whatsapp:')) {
+        s = s.substring(9);
+      }
+      s = s.replace(/\s|\(|\)|-|\./g, '');
+      
+      const digitsOnly = s.replace(/\+/g, '');
+      if (digitsOnly.length < 10) {
+        throw new Error(`Invalid phone number: ${raw} (too short)`);
+      }
+      
+      if (!s.startsWith('+')) {
+        if (digitsOnly.length === 10 || digitsOnly.length === 11) {
+          s = '+1' + digitsOnly.replace(/^1/, '');
+        } else {
+          throw new Error(`Invalid phone number format: ${raw}`);
+        }
+      }
+      
+      return `whatsapp:${s}`;
+    };
+
+    const normalizedNumber = normalizeWhatsAppNumber(phone_number);
+
+    // Send test message via WhatsApp Service
+    const { WhatsAppService } = await import('../services/whatsappService');
+    const whatsappService = WhatsAppService.getInstance();
+
+    const testMessage = `🧪 *Test Message - WhatsApp Handover*\n\n` +
+      `This is a test notification to verify your WhatsApp handover number is working correctly.\n\n` +
+      `*Client ID:* ${client_id}\n` +
+      `*Widget:* ${widgetName}\n` +
+      `*Test Time:* ${new Date().toLocaleString()}\n\n` +
+      `✅ If you received this message, your WhatsApp handover notifications are configured correctly!\n\n` +
+      `When a visitor requests an agent, you will receive similar notifications at this number.`;
+
+    const result = await whatsappService.sendMessage({
+      clientId: parseInt(client_id),
+      widgetId: widgetId,
+      conversationId: null,
+      toNumber: normalizedNumber,
+      message: testMessage,
+      sentByAgentName: 'System Test',
+      visitorName: 'Test User'
+    });
+
+    res.json({
+      success: true,
+      message: 'Test WhatsApp message sent successfully',
+      messageSid: result.messageSid,
+      status: result.status,
+      to: phone_number,
+      normalized: normalizedNumber
+    });
+  } catch (error: any) {
+    console.error('WhatsApp test failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: error.stack
     });
   }
 });
