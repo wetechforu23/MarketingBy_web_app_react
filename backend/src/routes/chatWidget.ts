@@ -865,13 +865,13 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
     const widget_id = widget.id;
     const client_id = widget.client_id;
 
-    // ✅ CHECK IF AGENT HAS TAKEN OVER (HANDOFF)
+    // ✅ CHECK IF AGENT HAS TAKEN OVER (HANDOFF) OR HANDOFF REQUESTED
     const convCheck = await pool.query(
-      'SELECT agent_handoff FROM widget_conversations WHERE id = $1',
+      'SELECT agent_handoff, handoff_requested FROM widget_conversations WHERE id = $1',
       [conversation_id]
     );
 
-    const isAgentHandoff = convCheck.rows.length > 0 && convCheck.rows[0].agent_handoff;
+    const isAgentHandoff = convCheck.rows.length > 0 && (convCheck.rows[0].agent_handoff || convCheck.rows[0].handoff_requested);
 
     // Save user message
     await pool.query(

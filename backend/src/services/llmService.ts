@@ -62,18 +62,85 @@ export class LLMService {
     }
   }
 
-  private async getApiKey(provider: string): Promise<string> {
-    // Check cache first
-    const cacheKey = `${provider}_api_key`;
+  private async getApiKey(provider: string, clientId?: number, widgetId?: number): Promise<string> {
+    // Build cache key including client/widget context for proper caching
+    const cacheKey = `${provider}_api_key_${clientId || 'global'}_${widgetId || 'global'}`;
     const cached = this.cachedKeys.get(cacheKey);
     
     if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
       return cached.key;
     }
 
-    let result: any = { rows: [] };
+    // ✅ Priority 1: Check widget-specific key (widget_specific_llm_key)
+    if (widgetId && provider === 'gemini') {
+      try {
+        const widgetResult = await pool.query(
+          `SELECT widget_specific_llm_key 
+           FROM widget_configs 
+           WHERE id = $1 AND widget_specific_llm_key IS NOT NULL 
+           AND widget_specific_llm_key != ''`,
+          [widgetId]
+        );
+        
+        if (widgetResult.rows.length > 0 && widgetResult.rows[0].widget_specific_llm_key) {
+          const apiKeyValue = String(widgetResult.rows[0].widget_specific_llm_key).trim();
+          
+          // Check if it's plaintext or encrypted
+          let decryptedKey: string;
+          if (apiKeyValue.startsWith('AIzaSy')) {
+            // Plaintext - use directly
+            decryptedKey = apiKeyValue;
+            console.log(`✅ Found widget-specific ${provider} API key (plaintext) for widget ${widgetId}`);
+          } else {
+            // Encrypted - decrypt
+            decryptedKey = this.decrypt(apiKeyValue);
+            console.log(`✅ Found widget-specific ${provider} API key (encrypted) for widget ${widgetId}`);
+          }
+          
+          // Cache it
+          this.cachedKeys.set(cacheKey, {
+            key: decryptedKey,
+            timestamp: Date.now()
+          });
+          
+          return decryptedKey;
+        }
+      } catch (widgetError) {
+        console.error('Error checking widget-specific API key:', widgetError);
+      }
+    }
 
-    // Try old schema first (service, key_name) - Heroku production uses this
+    // ✅ Priority 2: Check client-specific key (google_ai_client_{clientId})
+    if (clientId && provider === 'gemini') {
+      try {
+        const clientServiceName = `google_ai_client_${clientId}`;
+        const clientCredResult = await pool.query(
+          `SELECT encrypted_value 
+           FROM encrypted_credentials 
+           WHERE service = $1 AND key_name = 'api_key'
+           LIMIT 1`,
+          [clientServiceName]
+        );
+        
+        if (clientCredResult.rows.length > 0 && clientCredResult.rows[0].encrypted_value) {
+          const decryptedKey = this.decrypt(clientCredResult.rows[0].encrypted_value);
+          console.log(`✅ Found client-specific ${provider} API key for client ${clientId}`);
+          
+          // Cache it
+          this.cachedKeys.set(cacheKey, {
+            key: decryptedKey,
+            timestamp: Date.now()
+          });
+          
+          return decryptedKey;
+        }
+      } catch (clientError) {
+        console.error('Error checking client-specific API key:', clientError);
+      }
+    }
+
+    // ✅ Priority 3: Check global encrypted_credentials (old schema)
+    let result: any = { rows: [] };
     try {
       result = await pool.query(
         `SELECT encrypted_value FROM encrypted_credentials 
@@ -89,7 +156,7 @@ export class LLMService {
       console.log(`ℹ️  Old schema not available, trying new schema...`);
     }
 
-    // If not found, try new schema (service_name, credential_type, environment)
+    // ✅ Priority 4: Check global encrypted_credentials (new schema)
     if (result.rows.length === 0) {
       try {
         result = await pool.query(
@@ -110,17 +177,22 @@ export class LLMService {
       }
     }
 
-    // If still not found, try environment variable
+    // ✅ Priority 5: Try environment variable
     if (result.rows.length === 0) {
       const envKey = provider.toUpperCase() + '_API_KEY';
       const apiKey = process.env[envKey];
       
-      if (!apiKey) {
-        throw new Error(`${provider} API key not found in database (old/new schema) or environment`);
+      if (apiKey) {
+        console.log(`⚠️  Using ${provider} API key from environment variable`);
+        // Cache it
+        this.cachedKeys.set(cacheKey, {
+          key: apiKey,
+          timestamp: Date.now()
+        });
+        return apiKey;
       }
       
-      console.log(`⚠️  Using ${provider} API key from environment variable`);
-      return apiKey;
+      throw new Error(`${provider} API key not found in widget-specific, client-specific, database, or environment`);
     }
 
     try {
@@ -255,7 +327,7 @@ export class LLMService {
       
       switch (config.provider) {
         case 'gemini':
-          response = await this.callGemini(userMessage, context, config);
+          response = await this.callGemini(userMessage, context, config, clientId, widgetId);
           break;
         case 'openai':
           response = await this.callOpenAI(userMessage, context, config);
@@ -318,11 +390,13 @@ export class LLMService {
   private async callGemini(
     userMessage: string,
     context: string,
-    config: LLMConfig
+    config: LLMConfig,
+    clientId?: number,
+    widgetId?: number
   ): Promise<LLMResponse> {
     try {
-      // Get API key from encrypted database
-      const apiKey = await this.getApiKey('gemini');
+      // Get API key (checks widget-specific, client-specific, then global)
+      const apiKey = await this.getApiKey('gemini', clientId, widgetId);
 
       // Build prompt with context
       const systemPrompt = `You are a helpful customer service assistant for a business. Be friendly, concise, and professional. Keep responses under 3 sentences unless more detail is needed.
