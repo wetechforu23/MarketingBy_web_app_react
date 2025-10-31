@@ -139,18 +139,19 @@ export class HandoverService {
   static async createHandoverRequest(data: HandoverRequest) {
     const client = await pool.connect();
     try {
-      // Prepare values with proper type handling
+      // Prepare values with explicit type casting to match database schema
       const values = [
         data.conversation_id ? parseInt(String(data.conversation_id)) : null,
         data.widget_id ? parseInt(String(data.widget_id)) : null,
         data.client_id ? parseInt(String(data.client_id)) : null,
-        (data.requested_method || 'portal'),
-        data.visitor_name || null,
-        data.visitor_email || null,
-        data.visitor_phone || null,
-        data.visitor_message || null
+        String(data.requested_method || 'portal'),
+        data.visitor_name ? String(data.visitor_name) : null,
+        data.visitor_email ? String(data.visitor_email) : null,
+        data.visitor_phone ? String(data.visitor_phone) : null,
+        data.visitor_message ? String(data.visitor_message) : null
       ];
 
+      // Use explicit type casts in SQL to ensure compatibility
       const result = await client.query(`
         INSERT INTO handover_requests (
           conversation_id,
@@ -163,15 +164,15 @@ export class HandoverService {
           visitor_message,
           status
         ) VALUES (
-          $1,
-          $2,
-          $3,
-          $4,
-          $5,
-          $6,
-          $7,
-          $8,
-          'pending'
+          $1::integer,
+          $2::integer,
+          $3::integer,
+          $4::varchar(50),
+          $5::varchar(255),
+          $6::varchar(255),
+          $7::varchar(50),
+          $8::text,
+          'pending'::varchar(50)
         )
         RETURNING *
       `, values);
@@ -189,13 +190,13 @@ export class HandoverService {
       await client.query(`
         UPDATE widget_conversations
         SET 
-          preferred_contact_method = $1,
+          preferred_contact_method = $1::varchar(50),
           contact_method_details = $2::jsonb,
           handoff_requested = true,
           handoff_requested_at = CURRENT_TIMESTAMP
-        WHERE id = $3
+        WHERE id = $3::integer
       `, [
-        (data.requested_method || 'portal'),
+        String(data.requested_method || 'portal'),
         JSON.stringify(contactDetails),
         data.conversation_id ? parseInt(String(data.conversation_id)) : null
       ]);
