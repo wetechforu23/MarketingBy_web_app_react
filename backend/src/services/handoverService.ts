@@ -152,6 +152,7 @@ export class HandoverService {
       ];
 
       // Use explicit type casts in SQL to ensure compatibility
+      // Handle NULL values by using COALESCE to ensure proper type casting
       const result = await client.query(`
         INSERT INTO handover_requests (
           conversation_id,
@@ -164,14 +165,14 @@ export class HandoverService {
           visitor_message,
           status
         ) VALUES (
-          $1::integer,
-          $2::integer,
-          $3::integer,
-          $4::varchar(50),
-          $5::varchar(255),
-          $6::varchar(255),
-          $7::varchar(50),
-          $8::text,
+          $1,
+          $2,
+          $3,
+          COALESCE($4, 'portal')::varchar(50),
+          NULLIF($5, '')::varchar(255),
+          NULLIF($6, '')::varchar(255),
+          NULLIF($7, '')::varchar(50),
+          NULLIF($8, '')::text,
           'pending'::varchar(50)
         )
         RETURNING *
@@ -749,11 +750,11 @@ export class HandoverService {
       await client.query(`
         UPDATE handover_requests
         SET 
-          status = $1,
-          error_message = $2,
+          status = $1::varchar(50),
+          error_message = NULLIF($2, '')::text,
           completed_at = CASE WHEN $1 = 'completed' OR $1 = 'notified' THEN CURRENT_TIMESTAMP ELSE completed_at END
-        WHERE id = $3
-      `, [status, errorMessage, handoverId]);
+        WHERE id = $3::integer
+      `, [status, errorMessage || null, handoverId]);
     } finally {
       client.release();
     }
