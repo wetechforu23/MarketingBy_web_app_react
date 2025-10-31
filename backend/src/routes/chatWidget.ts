@@ -279,15 +279,33 @@ router.get('/widgets/:id', async (req, res) => {
 
       // ✅ Priority 1: Check widget-specific key (widget_specific_llm_key)
       if (widget.widget_specific_llm_key && String(widget.widget_specific_llm_key).trim().length > 0) {
-        aiConfigured = true;
-        apiKeySource = 'widget';
-        try {
-          const decrypted = decrypt(widget.widget_specific_llm_key);
-          if (decrypted && decrypted.length >= 12) {
-            apiKeyPartial = `${decrypted.substring(0, 6)}...${decrypted.substring(decrypted.length - 6)}`;
+        const apiKeyValue = String(widget.widget_specific_llm_key).trim();
+        
+        // Check if it's already plaintext (starts with AIzaSy) or encrypted (has :)
+        if (apiKeyValue.startsWith('AIzaSy')) {
+          // Plaintext API key - mark as configured
+          aiConfigured = true;
+          apiKeySource = 'widget';
+          if (apiKeyValue.length >= 12) {
+            apiKeyPartial = `${apiKeyValue.substring(0, 6)}...${apiKeyValue.substring(apiKeyValue.length - 6)}`;
           }
-        } catch (e) {
-          console.error('Error decrypting widget key for partial display:', e);
+          console.log('⚠️ Widget API key found in plaintext - should be encrypted on next save');
+        } else {
+          // Encrypted - try to decrypt
+          aiConfigured = true;
+          apiKeySource = 'widget';
+          try {
+            const decrypted = decrypt(apiKeyValue);
+            if (decrypted && decrypted.length >= 12) {
+              apiKeyPartial = `${decrypted.substring(0, 6)}...${decrypted.substring(decrypted.length - 6)}`;
+            }
+          } catch (e) {
+            console.error('Error decrypting widget key for partial display:', e);
+            // Still mark as configured if decryption fails (key exists)
+            if (apiKeyValue.length >= 20) {
+              apiKeyPartial = `••••${apiKeyValue.substring(apiKeyValue.length - 4)}`;
+            }
+          }
         }
       } 
       // ✅ Priority 2: Check client-specific key (google_ai_client_{clientId})
@@ -430,10 +448,40 @@ router.put('/widgets/:id', async (req, res) => {
     const values = [];
     let paramCount = 1;
 
+    // ✅ Encrypt API key if provided (widget_specific_llm_key)
+    const crypto = require('crypto');
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key!!';
+    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+    
+    const encrypt = (text: string): string => {
+      try {
+        // If already encrypted (has : separator), return as is
+        if (text.includes(':') && text.length > 50) {
+          return text;
+        }
+        const iv = crypto.randomBytes(16);
+        const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+        let encrypted = cipher.update(text, 'utf8', 'hex');
+        encrypted += cipher.final('hex');
+        return iv.toString('hex') + ':' + encrypted;
+      } catch (e) {
+        console.error('Encryption error:', e);
+        return text; // Return as-is if encryption fails
+      }
+    };
+
     for (const [key, value] of Object.entries(updates)) {
       if (allowedFields.includes(key)) {
-        setClause.push(`${key} = $${paramCount}`);
-        values.push(value);
+        // ✅ Encrypt widget_specific_llm_key if it's provided and not already encrypted
+        if (key === 'widget_specific_llm_key' && value && typeof value === 'string' && value.trim().length > 0) {
+          const encryptedValue = encrypt(value);
+          setClause.push(`${key} = $${paramCount}`);
+          values.push(encryptedValue);
+          console.log(`✅ Encrypting API key for widget ${id}`);
+        } else {
+          setClause.push(`${key} = $${paramCount}`);
+          values.push(value);
+        }
         paramCount++;
       }
     }

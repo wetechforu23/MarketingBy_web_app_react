@@ -1550,7 +1550,7 @@ export default function ChatWidgetEditor() {
           {enableAI && (
             <>
               <div style={{ marginBottom: '1.5rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <label style={{ display: 'flex', marginBottom: '0.5rem', fontWeight: '600', alignItems: 'center', gap: '10px' }}>
                   Google AI API Key *
                   {aiConfigured && (
                     <span style={{
@@ -2174,7 +2174,7 @@ export default function ChatWidgetEditor() {
                         borderRadius: '8px',
                         fontWeight: '600',
                         cursor: 'pointer',
-                        whiteSpace: 'nowrap',
+                        whiteSpace: 'nowrap' as any, // React camelCase CSS
                         opacity: (testingWhatsApp || !whatsappConfigured) ? 0.5 : 1
                       }}
                       title={!whatsappConfigured ? 'Save settings first' : 'Test connection only'}
@@ -2199,7 +2199,7 @@ export default function ChatWidgetEditor() {
                         borderRadius: '8px',
                         fontWeight: '600',
                         cursor: 'pointer',
-                        whiteSpace: 'nowrap',
+                        whiteSpace: 'nowrap' as any, // React camelCase CSS
                         opacity: (testingWhatsApp || !whatsappConfigured || !handoverWhatsAppNumber.trim()) ? 0.5 : 1,
                         display: 'flex',
                         alignItems: 'center',
