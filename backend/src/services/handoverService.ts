@@ -427,8 +427,13 @@ export class HandoverService {
         console.log(`📱 Sending WhatsApp handover notification to client:`, {
           to: clientWhatsAppNumber,
           client_id: handoverRequest.client_id,
+          widget_id: handoverRequest.widget_id,
           conversation_id: handoverRequest.conversation_id
         });
+
+        if (!handoverRequest.client_id) {
+          throw new Error('client_id is required but was not provided in handover request');
+        }
 
         // Prefer template first (avoids 24h window errors)
         let result = await whatsappService.sendTemplateMessage({
@@ -448,8 +453,15 @@ export class HandoverService {
           }
         });
 
+        console.log(`📱 Template message result:`, {
+          success: result.success,
+          error: result.error,
+          messageSid: result.messageSid
+        });
+
         // If template not configured, fallback to freeform
         if (!result.success && /template/i.test(result.error || '')) {
+          console.log(`📱 Falling back to freeform message...`);
           result = await whatsappService.sendMessage({
             clientId: handoverRequest.client_id,
             widgetId: handoverRequest.widget_id,
@@ -459,6 +471,15 @@ export class HandoverService {
             sentByAgentName: 'System',
             visitorName: handoverRequest.visitor_name || 'Anonymous Visitor'
           });
+          console.log(`📱 Freeform message result:`, {
+            success: result.success,
+            error: result.error,
+            messageSid: result.messageSid
+          });
+        }
+
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to send WhatsApp message');
         }
 
         console.log(`✅ WhatsApp handover notification sent to client:`, {
@@ -479,8 +500,10 @@ export class HandoverService {
       } catch (sendErr: any) {
         console.error('❌ WhatsApp sendMessage failed:', {
           error: sendErr.message,
+          stack: sendErr.stack,
           to: clientWhatsAppNumber,
           client_id: handoverRequest.client_id,
+          widget_id: handoverRequest.widget_id,
           conversation_id: handoverRequest.conversation_id
         });
         
@@ -495,7 +518,8 @@ export class HandoverService {
         );
         // Mark request as failed
         await this.updateHandoverStatus(handoverRequest.id, 'failed', sendErr?.message || 'send_error');
-        return;
+        // Re-throw to ensure error is logged in processHandover catch block too
+        throw sendErr;
       }
 
       // 8) Update handover status
