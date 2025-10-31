@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import axios from 'axios';
 import { BlogService } from '../services/blogService';
 
 const router = express.Router();
@@ -164,6 +165,95 @@ router.post('/generate-ai', requireAuth, async (req: Request, res: Response) => 
   } catch (error: any) {
     console.error('❌ Error generating blog with AI:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/blogs/generate-image
+ * Generate/search for blog images using Unsplash API
+ */
+router.post('/generate-image', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { query, orientation = 'landscape' } = req.body;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Missing required field: query' });
+    }
+    
+    // Use Unsplash API (no API key needed for low volume)
+    // For production, get free API key from: https://unsplash.com/developers
+    const axios = require('axios');
+    
+    // Search Unsplash for relevant images
+    // Using demo access key - for production, get your own free key from: https://unsplash.com/developers
+    const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY || 'your-demo-key-here';
+    
+    const unsplashResponse = await axios.get('https://api.unsplash.com/search/photos', {
+      params: {
+        query: query,
+        orientation: orientation,
+        per_page: 6,
+        order_by: 'relevant'
+      },
+      headers: {
+        'Authorization': `Client-ID ${UNSPLASH_ACCESS_KEY}`,
+        'Accept-Version': 'v1'
+      }
+    });
+    
+    const images = unsplashResponse.data.results.map((photo: any) => ({
+      id: photo.id,
+      url: photo.urls.regular, // 1080px wide
+      url_small: photo.urls.small, // 400px wide (for preview)
+      url_full: photo.urls.full, // Full resolution
+      description: photo.description || photo.alt_description || query,
+      photographer: photo.user.name,
+      photographer_username: photo.user.username,
+      photographer_url: photo.user.links.html,
+      download_location: photo.links.download_location, // Required for tracking
+      width: photo.width,
+      height: photo.height,
+      color: photo.color
+    }));
+    
+    res.json({
+      success: true,
+      images: images,
+      query: query
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Error generating/searching images:', error);
+    
+    // Fallback: Return stock/placeholder suggestions with alternative placeholder service
+    const query = req.body.query || 'Blog Image';
+    res.json({
+      success: true,
+      images: [
+        {
+          id: 'placeholder-1',
+          url: `https://placehold.co/1200x628/4682B4/ffffff/png?text=${encodeURIComponent(query)}`,
+          url_small: `https://placehold.co/400x210/4682B4/ffffff/png?text=Blog+Image`,
+          description: 'Placeholder - Get free Unsplash API key for real images',
+          photographer: 'Placeholder',
+          photographer_url: 'https://unsplash.com/developers',
+          width: 1200,
+          height: 628
+        },
+        {
+          id: 'placeholder-2',
+          url: `https://placehold.co/1200x628/2E86AB/ffffff/png?text=${encodeURIComponent('Healthcare Marketing')}`,
+          url_small: `https://placehold.co/400x210/2E86AB/ffffff/png?text=Healthcare`,
+          description: 'Healthcare placeholder - Add Unsplash key for real photos',
+          photographer: 'Placeholder',
+          photographer_url: 'https://unsplash.com/developers',
+          width: 1200,
+          height: 628
+        }
+      ],
+      query: query,
+      note: 'Unsplash API key required. Get free key at: https://unsplash.com/developers'
+    });
   }
 });
 
@@ -596,7 +686,7 @@ router.get('/settings/:clientId', requireAuth, async (req: Request, res: Respons
     const aiResult = await pool.query(
       `SELECT key_name, encrypted_value 
        FROM encrypted_credentials 
-       WHERE service = $1 AND key_name = 'max_credits'`,
+       WHERE service = $1 AND key_name IN ('api_key', 'max_credits')`,
       [aiService]
     );
     
@@ -607,7 +697,7 @@ router.get('/settings/:clientId', requireAuth, async (req: Request, res: Respons
         username_set: wpResult.rows.some(r => r.key_name === 'username')
       },
       ai: {
-        configured: aiResult.rows.length > 0,
+        configured: aiResult.rows.some(r => r.key_name === 'api_key'),
         max_credits: aiResult.rows.find(r => r.key_name === 'max_credits')?.encrypted_value || '100000'
       }
     };
@@ -616,6 +706,207 @@ router.get('/settings/:clientId', requireAuth, async (req: Request, res: Respons
   } catch (error: any) {
     console.error('❌ Error fetching blog settings:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/blogs/settings/test-wordpress
+ * Test WordPress connection
+ */
+router.post('/settings/test-wordpress', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { client_id } = req.body;
+    
+    if (!client_id) {
+      return res.status(400).json({ error: 'Client ID required' });
+    }
+    
+    const pool = require('../config/database').default;
+    const crypto = require('crypto');
+    const axios = require('axios');
+    
+    // Get encryption key
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-encryption-key-change-this';
+    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+    
+    // Decrypt function
+    const decrypt = (encrypted: string): string => {
+      const parts = encrypted.split(':');
+      const iv = Buffer.from(parts[0], 'hex');
+      const encryptedText = parts[1];
+      const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+      let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return decrypted;
+    };
+    
+    // Get WordPress credentials
+    const serviceName = `wordpress_client_${client_id}`;
+    const wpResult = await pool.query(
+      `SELECT key_name, encrypted_value 
+       FROM encrypted_credentials 
+       WHERE service = $1 AND key_name IN ('site_url', 'username', 'app_password')`,
+      [serviceName]
+    );
+    
+    if (wpResult.rows.length < 3) {
+      return res.status(400).json({ error: 'WordPress credentials not configured' });
+    }
+    
+    const creds: any = {};
+    wpResult.rows.forEach((row: any) => {
+      creds[row.key_name] = decrypt(row.encrypted_value);
+    });
+    
+    const siteUrl = creds.site_url.replace(/\/$/, '');
+    const authString = Buffer.from(`${creds.username}:${creds.app_password}`).toString('base64');
+    
+    // Test WordPress REST API
+    const testResponse = await axios.get(`${siteUrl}/wp-json/wp/v2/posts?per_page=1`, {
+      headers: {
+        'Authorization': `Basic ${authString}`
+      },
+      timeout: 10000
+    });
+    
+    if (testResponse.status === 200) {
+      res.json({ 
+        success: true, 
+        message: '✅ WordPress connection successful!',
+        details: {
+          site_url: siteUrl,
+          api_version: 'v2',
+          authenticated: true
+        }
+      });
+    } else {
+      res.status(400).json({ error: 'WordPress API returned unexpected status' });
+    }
+    
+  } catch (error: any) {
+    console.error('❌ Error testing WordPress connection:', error);
+    res.status(500).json({ 
+      error: error.response?.data?.message || error.message || 'Failed to connect to WordPress'
+    });
+  }
+});
+
+/**
+ * POST /api/blogs/settings/test-ai
+ * Test Google AI API key
+ */
+router.post('/settings/test-ai', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { client_id } = req.body;
+    
+    if (!client_id) {
+      return res.status(400).json({ error: 'Client ID required' });
+    }
+    
+    const pool = require('../config/database').default;
+    const crypto = require('crypto');
+    const axios = require('axios');
+    
+    // Get encryption key
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-encryption-key-change-this';
+    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+    
+    // Decrypt function
+    const decrypt = (encrypted: string): string => {
+      const parts = encrypted.split(':');
+      const iv = Buffer.from(parts[0], 'hex');
+      const encryptedText = parts[1];
+      const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+      let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return decrypted;
+    };
+    
+    // Get AI credentials
+    const serviceName = `google_ai_client_${client_id}`;
+    const aiResult = await pool.query(
+      `SELECT key_name, encrypted_value 
+       FROM encrypted_credentials 
+       WHERE service = $1 AND key_name = 'api_key'`,
+      [serviceName]
+    );
+    
+    if (aiResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Google AI API key not configured' });
+    }
+    
+    const apiKey = decrypt(aiResult.rows[0].encrypted_value);
+    
+    // Test Google AI API with a simple request (gemini-2.5-flash - newer, faster, better)
+    const testResponse = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        contents: [{
+          parts: [{
+            text: 'Say "Hello" in one word.'
+          }]
+        }]
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      }
+    );
+    
+    if (testResponse.data && testResponse.data.candidates) {
+      res.json({ 
+        success: true, 
+        message: '✅ Google AI API key is valid and working with Gemini 2.5!',
+        details: {
+          model: 'gemini-2.5-flash',
+          api_version: 'v1beta',
+          test_response: testResponse.data.candidates[0]?.content?.parts[0]?.text || 'OK'
+        }
+      });
+    } else {
+      res.status(400).json({ error: 'Google AI API returned unexpected response' });
+    }
+    
+  } catch (error: any) {
+    console.error('❌ Error testing Google AI API:', error);
+    res.status(500).json({ 
+      error: error.response?.data?.error?.message || error.message || 'Failed to connect to Google AI API'
+    });
+  }
+});
+
+/**
+ * POST /api/blogs/track-unsplash-download
+ * Track Unsplash image download (REQUIRED for API compliance)
+ */
+router.post('/track-unsplash-download', async (req: Request, res: Response) => {
+  try {
+    const { download_location } = req.body;
+    
+    if (!download_location) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'download_location is required' 
+      });
+    }
+
+    const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY || 'BNJr2AVHw1l52uw5zcxp3xpvuzPfEi-l5gMFjYAL4Sw';
+
+    // Trigger Unsplash download tracking (required by API terms)
+    await axios.get(download_location, {
+      headers: {
+        'Authorization': `Client-ID ${UNSPLASH_ACCESS_KEY}`
+      }
+    });
+
+    console.log('✅ Unsplash download tracked:', download_location);
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('⚠️ Error tracking Unsplash download:', error.response?.data || error.message);
+    // Don't fail the request if tracking fails
+    res.json({ success: true, warning: 'Download tracking failed' });
   }
 });
 

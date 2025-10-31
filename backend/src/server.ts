@@ -38,6 +38,12 @@ import testEmailRoutes from './routes/testEmail';
 import duplicateManagementRoutes from './routes/duplicateManagement';
 // Blog Management routes
 import blogRoutes from './routes/blogs';
+// Conversation Flow Management routes
+import conversationFlowRoutes from './routes/conversationFlow';
+// WhatsApp Integration routes
+import whatsappRoutes from './routes/whatsapp';
+// Handover Preferences routes
+import handoverRoutes from './routes/handover';
 // Facebook Connect routes (2-Way Integration)
 import facebookConnectRoutes from './routes/facebookConnect';
 
@@ -96,10 +102,11 @@ app.use((req, res, next) => {
   // This includes: chat widget routes + visitor tracking routes
   const isPublicChatWidget = req.path.startsWith('/api/chat-widget/public/');
   const isPublicVisitorTracking = req.path.startsWith('/api/visitor-tracking/public/');
+  const isPublicHandover = req.path.startsWith('/api/handover/');
   const isChatWidgetKey = /^\/api\/chat-widget\/wtfu_[a-f0-9]+\//.test(req.path);
   const isVisitorTrackingKey = /^\/api\/visitor-tracking\/public\/widget\/wtfu_[a-f0-9]+\//.test(req.path);
   
-  if (isPublicChatWidget || isPublicVisitorTracking || isChatWidgetKey || isVisitorTrackingKey) {
+  if (isPublicChatWidget || isPublicVisitorTracking || isPublicHandover || isChatWidgetKey || isVisitorTrackingKey) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -193,6 +200,12 @@ app.use('/api/posts', postsRoutes);
 app.use('/api/upload', uploadRoutes);
 // Blog Management routes
 app.use('/api/blogs', blogRoutes);
+// Conversation Flow Management routes (authenticated)
+app.use('/api', conversationFlowRoutes);
+// WhatsApp Integration routes (authenticated + public webhook)
+app.use('/api/whatsapp', whatsappRoutes);
+// Handover Preferences routes (authenticated + public request endpoint)
+app.use('/api/handover', handoverRoutes);
 // Facebook Connect routes (2-Way Integration)
 app.use('/api', facebookConnectRoutes);
 

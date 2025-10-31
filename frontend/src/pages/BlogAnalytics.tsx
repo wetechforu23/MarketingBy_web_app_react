@@ -293,7 +293,7 @@ const BlogAnalytics: React.FC = () => {
                 Bounce Rate
               </div>
               <div style={{ fontSize: '32px', fontWeight: '700' }}>
-                {(selectedBlogData?.bounce_rate || 0).toFixed(1)}%
+                {(Number(selectedBlogData?.bounce_rate) || 0).toFixed(1)}%
               </div>
               <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '0.5rem' }}>
                 🚪 Exit without action
@@ -412,10 +412,10 @@ const BlogAnalytics: React.FC = () => {
                       </td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         <span style={{
-                          color: blog.bounce_rate > 70 ? '#dc3545' : blog.bounce_rate > 50 ? '#ffc107' : '#28a745',
+                          color: (blog.bounce_rate || 0) > 70 ? '#dc3545' : (blog.bounce_rate || 0) > 50 ? '#ffc107' : '#28a745',
                           fontWeight: '700'
                         }}>
-                          {blog.bounce_rate.toFixed(1)}%
+                          {(Number(blog.bounce_rate) || 0).toFixed(1)}%
                         </span>
                       </td>
                       <td style={{ padding: '12px', textAlign: 'center', fontWeight: '700', color: '#28a745' }}>

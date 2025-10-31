@@ -365,6 +365,31 @@ export default function ChatWidgets() {
                   Edit
                 </Link>
 
+                <Link
+                  to={`/app/chat-widgets/${widget.id}/flow`}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    background: '#2E86AB',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    textDecoration: 'none',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                  title="Configure conversation flow"
+                >
+                  <i className="fas fa-route"></i>
+                  Flow
+                </Link>
+
                 <button
                   onClick={() => toggleWidgetStatus(widget.id, widget.is_active)}
                   style={{

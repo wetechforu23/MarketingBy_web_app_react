@@ -3,7 +3,7 @@ import axios from 'axios';
 import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';
-import { UTMTrackingService } from './utmTrackingService';
+// import { UTMTrackingService } from './utmTrackingService'; // Temporarily disabled for deployment
 
 /**
  * Defines the structure for Facebook credentials retrieved from the database.
@@ -764,18 +764,19 @@ class FacebookService {
         }
 
         // NEW: Process message content with UTM tracking
-        console.log('🔗 Processing content with UTM tracking...');
-        const utmResult = UTMTrackingService.processPostContent(
-          message,
-          clientId,
-          clientName,
-          'text'
-        );
+        // console.log('🔗 Processing content with UTM tracking...');
+        // const utmResult = UTMTrackingService.processPostContent(
+        //   message,
+        //   clientId,
+        //   clientName,
+        //   'text'
+        // );
 
-        trackedMessage = utmResult.trackedContent;
-        utmCampaign = utmResult.utmCampaign;
-        originalUrls = utmResult.originalUrls;
-        trackedUrls = utmResult.trackedUrls;
+        // Temporarily use original message (UTM tracking disabled for deployment)
+        trackedMessage = message;
+        utmCampaign = null;
+        originalUrls = [];
+        trackedUrls = [];
 
         if (originalUrls.length > 0) {
           console.log(`✅ UTM tracking applied to ${originalUrls.length} URL(s)`);

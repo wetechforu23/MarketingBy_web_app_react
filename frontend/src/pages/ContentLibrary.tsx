@@ -121,19 +121,6 @@ const ContentLibrary: React.FC = () => {
     }
   };
 
-  const handleRepost = async (id: number) => {
-    if (!confirm('🔄 Repost this content?\n\nThis will post the same content again with NEW UTM tracking parameters.')) return;
-
-    try {
-      const response = await http.post(`/content/${id}/repost`);
-      alert('✅ Content reposted successfully!\n\n' + (response.data.message || 'Posted with new UTM tracking'));
-      fetchContents();
-      fetchStats();
-    } catch (error: any) {
-      alert('❌ Failed to repost\n\n' + (error.response?.data?.error || 'Please try again'));
-    }
-  };
-
   const getStatusColor = (status: string) => {
     const colors: any = {
       draft: 'bg-gray-100 text-gray-800',
@@ -626,28 +613,6 @@ const ContentLibrary: React.FC = () => {
                             title="Edit"
                           >
                             ✏️ Edit
-                          </button>
-                        )}
-                        {/* Show Repost button ONLY for posted content */}
-                        {content.status === 'posted' && (
-                          <button
-                            onClick={() => handleRepost(content.id)}
-                            style={{
-                              background: '#48bb78',
-                              color: 'white',
-                              padding: '6px 12px',
-                              borderRadius: '6px',
-                              border: 'none',
-                              fontSize: '12px',
-                              fontWeight: '600',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s'
-                            }}
-                            title="Repost with new UTM tracking"
-                            onMouseEnter={(e) => e.currentTarget.style.background = '#38a169'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = '#48bb78'}
-                          >
-                            🔄 Repost
                           </button>
                         )}
                         <button

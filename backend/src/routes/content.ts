@@ -508,61 +508,6 @@ router.post('/:id/post-now', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST: Repost already posted content
- * POST /api/content/:id/repost
- */
-router.post('/:id/repost', async (req: Request, res: Response) => {
-  try {
-    const contentId = parseInt(req.params.id);
-    console.log(`🔄 Reposting content ${contentId}...`);
-
-    // Get content
-    const contentResult = await contentService.getContentById(contentId, req);
-    if (!contentResult.success) {
-      return res.status(404).json({ error: 'Content not found' });
-    }
-
-    const content = contentResult.content;
-
-    // Check if content was already posted
-    if (content.status !== 'posted') {
-      return res.status(400).json({ error: 'Can only repost content that has been posted before' });
-    }
-
-    console.log(`📤 Reposting to platforms:`, content.target_platforms);
-
-    // Post immediately to same platforms with NEW UTM tracking
-    const results = [];
-    const platformList = content.target_platforms;
-
-    for (const platform of platformList) {
-      console.log(`🔄 Reposting to ${platform}...`);
-      
-      // REPOST FIX: Directly call postToPlatform to bypass approval check
-      // since reposting already-posted content should not require re-approval
-      const result = await postingService.postToPlatform(
-        null, // No post ID needed for direct posting
-        platform,
-        content, // Pass the full content object
-        content.client_id
-      );
-
-      results.push({ platform, ...result });
-    }
-
-    console.log(`✅ Repost complete:`, results);
-    res.json({ 
-      success: true, 
-      message: 'Content reposted successfully with new UTM tracking',
-      results 
-    });
-  } catch (error: any) {
-    console.error('❌ Error reposting content:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // ============================================================================
 // STATISTICS
 // ============================================================================

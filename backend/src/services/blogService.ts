@@ -18,6 +18,8 @@ export interface BlogPost {
   content: string;
   excerpt?: string;
   featured_image_url?: string;
+  image_photographer?: string;
+  image_photographer_url?: string;
   meta_title?: string;
   meta_description?: string;
   meta_keywords?: string[];
@@ -177,10 +179,11 @@ export class BlogService {
       const result = await pool.query(
         `INSERT INTO blog_posts (
           client_id, title, slug, content, excerpt, featured_image_url,
+          image_photographer, image_photographer_url,
           meta_title, meta_description, meta_keywords, seo_score,
           generated_by, ai_prompt, ai_model, generation_metadata,
           status, author_id, author_name, categories, tags
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
         RETURNING *`,
         [
           post.client_id,
@@ -189,6 +192,8 @@ export class BlogService {
           post.content,
           post.excerpt,
           post.featured_image_url,
+          post.image_photographer || null,
+          post.image_photographer_url || null,
           post.meta_title || post.title,
           post.meta_description || post.excerpt,
           post.meta_keywords || [],
@@ -361,8 +366,8 @@ export class BlogService {
       // Get client-specific Google AI API key (uses same system as chat widget)
       const apiKey = await this.getClientGoogleAIKey(request.client_id);
       
-      // Use direct v1 API (same as widget) instead of SDK for better compatibility
-      const modelName = 'gemini-1.5-flash-latest';
+      // Use v1beta API with gemini-2.5-flash (newer, faster, better quality)
+      const modelName = 'gemini-2.5-flash';
       
       // Build the prompt
       const tone = request.tone || 'professional';
@@ -393,10 +398,10 @@ Requirements:
 - Make it engaging, informative, and actionable
 - Keywords should be relevant search terms`;
       
-      // Call Gemini API v1 directly (same as widget for compatibility)
+      // Call Gemini API v1beta (gemini-1.5-flash requires v1beta)
       const axios = require('axios');
       const apiResponse = await axios.post(
-        `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
         {
           contents: [{
             parts: [{
@@ -407,7 +412,10 @@ Requirements:
             temperature: 0.7,
             maxOutputTokens: 8192,
             topP: 0.8,
-            topK: 10
+            topK: 10,
+            thinkingConfig: {
+              thinkingBudget: 0  // Disable thinking to save tokens and speed up generation
+            }
           }
         },
         {
@@ -786,32 +794,143 @@ ${approvalUrl}
       const siteUrl = creds.site_url.replace(/\/$/, '');
       const wpApiUrl = `${siteUrl}/wp-json/wp/v2/posts`;
       
+      // Prepare content with Unsplash attribution (if applicable)
+      let content = post.content;
+      
+      // Add Unsplash attribution at the end of content if image is from Unsplash
+      if (post.featured_image_url && post.image_photographer && post.image_photographer_url) {
+        const attributionHtml = `
+          <div style="margin-top: 30px; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e0e0e0; text-align: center; font-size: 14px; color: #666;">
+            📸 Featured image by 
+            <a href="${post.image_photographer_url}?utm_source=MarketingBy&utm_medium=referral" 
+               target="_blank" 
+               rel="noopener noreferrer" 
+               style="color: #667eea; text-decoration: none; font-weight: 500;">
+              ${post.image_photographer}
+            </a> 
+            on 
+            <a href="https://unsplash.com?utm_source=MarketingBy&utm_medium=referral" 
+               target="_blank" 
+               rel="noopener noreferrer" 
+               style="color: #667eea; text-decoration: none; font-weight: 500;">
+              Unsplash
+            </a>
+          </div>
+        `;
+        content += attributionHtml;
+      }
+      
+      // Create authorization header (Basic Auth with username:app_password)
+      const authString = Buffer.from(`${creds.username}:${creds.app_password}`).toString('base64');
+      
       // Prepare WordPress post data
       const wpPostData: any = {
         title: post.meta_title || post.title,
-        content: post.content,
+        content: content,
         excerpt: post.excerpt || '',
         status: 'publish', // or 'draft' if you want review in WP
         slug: post.slug
       };
       
+      // Helper function to get or create WordPress categories by name
+      const getOrCreateCategories = async (categoryNames: string[]): Promise<number[]> => {
+        const categoryIds: number[] = [];
+        
+        for (let categoryName of categoryNames) {
+          try {
+            // Clean category name: remove # symbols and special characters not allowed in WordPress
+            categoryName = categoryName.replace(/[#@$%^&*()]/g, '').trim();
+            if (!categoryName) continue; // Skip if empty after cleaning
+            
+            // Try to find existing category
+            const searchResponse = await axios.get(`${siteUrl}/wp-json/wp/v2/categories`, {
+              params: { search: categoryName, per_page: 1 },
+              headers: { 'Authorization': `Basic ${authString}` }
+            });
+            
+            if (searchResponse.data && searchResponse.data.length > 0) {
+              // Category exists
+              categoryIds.push(searchResponse.data[0].id);
+            } else {
+              // Create new category
+              const createResponse = await axios.post(`${siteUrl}/wp-json/wp/v2/categories`, {
+                name: categoryName,
+                slug: this.generateSlug(categoryName, post.client_id)
+              }, {
+                headers: {
+                  'Authorization': `Basic ${authString}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+              categoryIds.push(createResponse.data.id);
+            }
+          } catch (error: any) {
+            console.error(`⚠️ Failed to process category "${categoryName}":`, error.message);
+          }
+        }
+        
+        return categoryIds;
+      };
+      
+      // Helper function to get or create WordPress tags by name
+      const getOrCreateTags = async (tagNames: string[]): Promise<number[]> => {
+        const tagIds: number[] = [];
+        
+        for (let tagName of tagNames) {
+          try {
+            // Clean tag name: remove # symbols and special characters not allowed in WordPress
+            tagName = tagName.replace(/[#@$%^&*()]/g, '').trim();
+            if (!tagName) continue; // Skip if empty after cleaning
+            
+            // Try to find existing tag
+            const searchResponse = await axios.get(`${siteUrl}/wp-json/wp/v2/tags`, {
+              params: { search: tagName, per_page: 1 },
+              headers: { 'Authorization': `Basic ${authString}` }
+            });
+            
+            if (searchResponse.data && searchResponse.data.length > 0) {
+              // Tag exists
+              tagIds.push(searchResponse.data[0].id);
+            } else {
+              // Create new tag
+              const createResponse = await axios.post(`${siteUrl}/wp-json/wp/v2/tags`, {
+                name: tagName,
+                slug: this.generateSlug(tagName, post.client_id)
+              }, {
+                headers: {
+                  'Authorization': `Basic ${authString}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+              tagIds.push(createResponse.data.id);
+            }
+          } catch (error: any) {
+            console.error(`⚠️ Failed to process tag "${tagName}":`, error.message);
+          }
+        }
+        
+        return tagIds;
+      };
+      
       // Add categories if exists
       if (post.categories && post.categories.length > 0) {
-        // Note: WordPress needs category IDs, not names
-        // In production, you'd need to map category names to WP category IDs
-        // For now, we'll skip categories
-        console.log('⚠️ Categories not mapped to WordPress:', post.categories);
+        console.log('📂 Processing categories:', post.categories);
+        const categoryIds = await getOrCreateCategories(post.categories);
+        if (categoryIds.length > 0) {
+          wpPostData.categories = categoryIds;
+          console.log('✅ Categories added:', categoryIds);
+        }
       }
       
       // Add tags if exists
       if (post.tags && post.tags.length > 0) {
-        // Note: WordPress needs tag IDs, not names
-        // In production, you'd need to create tags first or map to existing IDs
-        console.log('⚠️ Tags not mapped to WordPress:', post.tags);
+        console.log('🏷️ Processing tags:', post.tags);
+        const tagIds = await getOrCreateTags(post.tags);
+        if (tagIds.length > 0) {
+          wpPostData.tags = tagIds;
+          console.log('✅ Tags added:', tagIds);
+        }
       }
-      
-      // Create authorization header (Basic Auth with username:app_password)
-      const authString = Buffer.from(`${creds.username}:${creds.app_password}`).toString('base64');
       
       console.log('📝 Publishing to WordPress:', {
         site: siteUrl,

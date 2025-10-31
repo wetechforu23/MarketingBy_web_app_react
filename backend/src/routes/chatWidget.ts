@@ -2,6 +2,7 @@ import express from 'express';
 import pool from '../config/database';
 import crypto from 'crypto';
 import archiver from 'archiver';
+import axios from 'axios';
 import { EmailService } from '../services/emailService';
 import llmService from '../services/llmService';
 
@@ -224,6 +225,83 @@ router.post('/widgets', async (req, res) => {
   }
 });
 
+// Get single widget by ID
+router.get('/widgets/:id', async (req, res) => {
+  try {
+    const widgetId = parseInt(req.params.id);
+    // Prefer session-based auth; fall back to legacy user object if present
+    const session: any = (req as any).session || {};
+    const user = (req as any).user;
+
+    if (!widgetId || isNaN(widgetId)) {
+      return res.status(400).json({ error: 'Invalid widget ID' });
+    }
+
+    // Fetch widget
+    const result = await pool.query(
+      `SELECT w.*, c.client_name, c.email as client_email
+       FROM widget_configs w
+       JOIN clients c ON w.client_id = c.id
+       WHERE w.id = $1`,
+      [widgetId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+
+    const widget = result.rows[0];
+
+    // Compute AI configured flag without exposing secrets
+    let aiConfigured = false;
+    try {
+      // If widget-specific key column has value, consider configured
+      if (widget.widget_specific_llm_key && String(widget.widget_specific_llm_key).trim().length > 0) {
+        aiConfigured = true;
+      } else {
+        // Otherwise, check encrypted_credentials for any Gemini API key using flexible matching (old/new schema)
+        let credCheck = await pool.query(
+          `SELECT 1 FROM encrypted_credentials 
+             WHERE (
+               (
+                 service IS NOT NULL 
+                 AND (
+                   LOWER(service) LIKE '%gemini%' OR LOWER(service) LIKE '%google%'
+                 )
+                 AND (key_name = 'api_key' OR credential_type = 'api_key' OR key_name IS NULL)
+               )
+               OR (
+                 service_name IS NOT NULL 
+                 AND (
+                   LOWER(service_name) LIKE '%gemini%' OR LOWER(service_name) LIKE '%google%'
+                 )
+                 AND (credential_type = 'api_key' OR key_name = 'api_key' OR credential_type IS NULL)
+               )
+             )
+             AND (environment IS NULL OR environment = $1)
+             AND (is_active IS NULL OR is_active = true)
+           LIMIT 1`,
+          [process.env.NODE_ENV || 'production']
+        );
+        aiConfigured = credCheck.rows.length > 0;
+      }
+    } catch (e) {
+      aiConfigured = false;
+    }
+
+    // Check permissions (super admin or widget owner)
+    if (user && !user.is_admin && user.client_id !== widget.client_id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    res.json({ ...widget, ai_configured: aiConfigured });
+
+  } catch (error) {
+    console.error('Error fetching widget:', error);
+    res.status(500).json({ error: 'Failed to fetch widget' });
+  }
+});
+
 // Update widget configuration
 router.put('/widgets/:id', async (req, res) => {
   try {
@@ -236,7 +314,22 @@ router.put('/widgets/:id', async (req, res) => {
       'enable_appointment_booking', 'enable_email_capture', 'enable_phone_capture',
       'enable_ai_handoff', 'ai_handoff_url', 'business_hours', 'offline_message',
       'is_active', 'rate_limit_messages', 'rate_limit_window', 'require_captcha',
-      'intro_flow_enabled', 'intro_questions' // ✅ FIXED: Allow intro flow fields to be saved
+      'intro_flow_enabled', 'intro_questions',
+      // AI Smart Responses
+      'llm_enabled', 'llm_provider', 'llm_model', 'llm_temperature', 'llm_max_tokens',
+      'widget_specific_llm_key', 'fallback_to_knowledge_base',
+      // Email Notifications
+      'enable_email_notifications', 'notification_email', 'visitor_engagement_minutes',
+      'notify_new_conversation', 'notify_agent_handoff', 'notify_daily_summary',
+      // WhatsApp Integration
+      'enable_whatsapp', 'whatsapp_configured',
+      // Agent Handover Options
+      'enable_handover_choice', 'handover_options', 'default_handover_method',
+      'webhook_url', 'webhook_secret',
+      // Industry & HIPAA
+      'industry', 'enable_hipaa', 'hipaa_disclaimer', 'detect_sensitive_data',
+      'emergency_keywords', 'emergency_contact', 'require_disclaimer', 'disclaimer_text',
+      'show_emergency_warning', 'auto_detect_emergency'
     ];
 
     const setClause = [];
@@ -396,7 +489,7 @@ router.get('/public/widget/:widgetKey/config', async (req, res) => {
     const { widgetKey } = req.params;
 
     const result = await pool.query(
-      `SELECT widget_key, widget_name, primary_color, secondary_color, position,
+      `SELECT id, id as widget_id, widget_key, widget_name, primary_color, secondary_color, position,
               welcome_message, bot_name, bot_avatar_url, enable_appointment_booking,
               enable_email_capture, enable_phone_capture, enable_ai_handoff,
               ai_handoff_url, business_hours, offline_message, is_active,
@@ -2299,6 +2392,59 @@ router.post('/conversations/bulk-delete', async (req, res) => {
   } catch (error) {
     console.error('Bulk delete conversations error:', error);
     res.status(500).json({ error: 'Failed to delete conversations' });
+  }
+});
+
+// ==========================================
+// POST /chat-widget/test-ai
+// Test AI/LLM connection
+// ==========================================
+
+router.post('/test-ai', async (req, res) => {
+  try {
+    const { api_key } = req.body;
+
+    if (!api_key) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+
+    // Test with Google Gemini (using axios)
+    const testResponse = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${api_key}`,
+      {
+        contents: [{
+          parts: [{ text: 'Say "Hello World" to test the connection.' }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 50
+        }
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
+        validateStatus: () => true // Don't throw on non-2xx status
+      }
+    );
+
+    if (testResponse.status !== 200) {
+      const errorMessage = testResponse.data?.error?.message || 'API test failed';
+      throw new Error(errorMessage);
+    }
+
+    const responseText = testResponse.data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
+
+    res.json({
+      success: true,
+      message: '✅ AI connection successful!',
+      test_response: responseText.substring(0, 100) // First 100 chars
+    });
+
+  } catch (error: any) {
+    console.error('AI test error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to test AI connection'
+    });
   }
 });
 

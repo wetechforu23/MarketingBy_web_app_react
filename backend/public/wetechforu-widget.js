@@ -58,9 +58,33 @@
         this.createWidget();
         this.attachEventListeners();
         console.log('WeTechForU Widget initialized');
+        
+        // Auto-popup after 3 seconds if not dismissed before
+        this.scheduleAutoPopup();
       }).catch(error => {
         console.error('WeTechForU Widget: Failed to initialize', error);
       });
+    },
+
+    /**
+     * Schedule auto-popup for first-time visitors
+     */
+    scheduleAutoPopup: function() {
+      // Check if user has already seen the welcome in this session
+      const hasSeenWelcome = sessionStorage.getItem('wtfu_widget_welcomed');
+      const hasClosed = sessionStorage.getItem('wtfu_widget_closed');
+      
+      if (!hasSeenWelcome && !hasClosed) {
+        // Auto-popup after 3 seconds
+        setTimeout(() => {
+          if (!this.state.isOpen) {
+            this.state.isOpen = true;
+            this.elements.window.classList.add('open');
+            this.startConversation();
+            sessionStorage.setItem('wtfu_widget_welcomed', 'true');
+          }
+        }, 3000); // 3 seconds delay
+      }
     },
 
     /**
@@ -450,6 +474,9 @@
       
       if (this.state.isOpen) {
         this.elements.input.focus();
+      } else {
+        // User closed the chat - don't auto-popup again this session
+        sessionStorage.setItem('wtfu_widget_closed', 'true');
       }
     },
 
@@ -475,9 +502,11 @@
         const data = await response.json();
         this.state.conversationId = data.conversation_id;
 
-        // Show welcome message
-        if (!data.existing) {
-          this.addMessage('bot', this.config.welcomeMessage || 'Hi! How can I help you today?');
+        // Show welcome message ONLY for new conversations AND only if we haven't already shown one
+        if (!data.existing && this.state.messages.length === 0) {
+          const welcomeMsg = this.config.welcomeMessage || 'Hi! How can I help you today?';
+          this.addMessage('bot', welcomeMsg);
+          console.log('✅ Welcome message shown:', welcomeMsg);
         }
       } catch (error) {
         console.error('Failed to start conversation:', error);

@@ -52,6 +52,55 @@ export default function ChatWidgetEditor() {
   const [editingQuestion, setEditingQuestion] = useState<any>(null)
   const [showQuestionForm, setShowQuestionForm] = useState(false)
 
+  // 💬 WhatsApp / Twilio Integration State
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false)
+  const [whatsappSettings, setWhatsappSettings] = useState({
+    account_sid: '',
+    auth_token: '',
+    from_number: ''
+  })
+  const [whatsappConfigured, setWhatsappConfigured] = useState(false)
+  const [whatsappUsage, setWhatsappUsage] = useState<any>(null)
+  const [testingWhatsApp, setTestingWhatsApp] = useState(false)
+  const [whatsappTestResult, setWhatsappTestResult] = useState<string | null>(null)
+  const [savingWhatsApp, setSavingWhatsApp] = useState(false)
+
+  // 🎯 Agent Handover Choice State
+  const [enableHandoverChoice, setEnableHandoverChoice] = useState(true)
+  const [handoverOptions, setHandoverOptions] = useState({
+    portal: true,
+    whatsapp: false,
+    email: true,
+    phone: false,
+    webhook: false
+  })
+  const [defaultHandoverMethod, setDefaultHandoverMethod] = useState('portal')
+  const [webhookUrl, setWebhookUrl] = useState('')
+  const [webhookSecret, setWebhookSecret] = useState('')
+  const [savingHandover, setSavingHandover] = useState(false)
+  const [testingWebhook, setTestingWebhook] = useState(false)
+  const [webhookTestResult, setWebhookTestResult] = useState<string | null>(null)
+
+  // 🤖 AI/LLM Configuration State
+  const [enableAI, setEnableAI] = useState(false)
+  const [aiApiKey, setAiApiKey] = useState('')
+  const [aiMaxTokens, setAiMaxTokens] = useState(1000)
+  const [aiConfigured, setAiConfigured] = useState(false)
+  const [testingAI, setTestingAI] = useState(false)
+  const [aiTestResult, setAiTestResult] = useState<string | null>(null)
+  const [savingAI, setSavingAI] = useState(false)
+
+  // 🏥 Industry & HIPAA State
+  const [industryType, setIndustryType] = useState('general')
+  const [enableHipaa, setEnableHipaa] = useState(false)
+  const [hipaaDisclaimer, setHipaaDisclaimer] = useState('')
+  const [detectSensitiveData, setDetectSensitiveData] = useState(false)
+  const [emergencyKeywords, setEmergencyKeywords] = useState(true)
+  const [emergencyContact, setEmergencyContact] = useState('Call 911 or visit nearest ER')
+
+  // 📚 Knowledge Base Quick Setup
+  const [quickKbEntries, setQuickKbEntries] = useState([{ question: '', answer: '', category: 'General' }])
+
   useEffect(() => {
     fetchUserAndClients()
     if (isEditMode) {
@@ -109,8 +158,9 @@ export default function ChatWidgetEditor() {
 
   const fetchWidget = async () => {
     try {
-      const response = await api.get(`/chat-widget/widgets`)
-      const widget = response.data.find((w: any) => w.id === parseInt(id!))
+      // Use single-widget endpoint so we can determine configured flags without exposing secrets
+      const response = await api.get(`/chat-widget/widgets/${id}`)
+      const widget = response.data
       if (widget) {
         setFormData({
           widget_name: widget.widget_name,
@@ -153,15 +203,238 @@ export default function ChatWidgetEditor() {
           }
         }
         
+        // Load AI settings
+        if (widget.llm_enabled !== undefined) {
+          setEnableAI(widget.llm_enabled)
+        }
+        // Check if AI key exists and show configured badge (but don't load the actual key for security)
+        if ((widget.widget_specific_llm_key && String(widget.widget_specific_llm_key).trim().length > 0) || widget.ai_configured) {
+          console.log('✅ AI API key found - showing configured badge')
+          setAiConfigured(true)
+          // Don't set the actual key - keep it empty and show placeholder
+        } else {
+          console.log('❌ No AI API key found')
+        }
+        if (widget.llm_max_tokens) {
+          setAiMaxTokens(widget.llm_max_tokens)
+        }
+
+        // Load Industry & HIPAA settings
+        if (widget.industry) {
+          setIndustryType(widget.industry)
+        }
+        if (widget.enable_hipaa !== undefined) {
+          setEnableHipaa(widget.enable_hipaa)
+        }
+        if (widget.hipaa_disclaimer) {
+          setHipaaDisclaimer(widget.hipaa_disclaimer)
+        }
+        if (widget.detect_sensitive_data !== undefined) {
+          setDetectSensitiveData(widget.detect_sensitive_data)
+        }
+        if (widget.emergency_keywords !== undefined) {
+          setEmergencyKeywords(widget.emergency_keywords)
+        }
+        if (widget.emergency_contact) {
+          setEmergencyContact(widget.emergency_contact)
+        }
+
+        // Load WhatsApp settings
+        if (widget.enable_whatsapp !== undefined) {
+          setWhatsappEnabled(widget.enable_whatsapp)
+        }
+
+        // Load Handover Options
+        if (widget.enable_handover_choice !== undefined) {
+          setEnableHandoverChoice(widget.enable_handover_choice)
+        }
+        if (widget.handover_options) {
+          try {
+            const options = typeof widget.handover_options === 'string'
+              ? JSON.parse(widget.handover_options)
+              : widget.handover_options
+            setHandoverOptions(options)
+          } catch (e) {
+            console.error('Failed to parse handover_options:', e)
+          }
+        }
+        if (widget.default_handover_method) {
+          setDefaultHandoverMethod(widget.default_handover_method)
+        }
+        if (widget.webhook_url) {
+          setWebhookUrl(widget.webhook_url)
+        }
+        if (widget.webhook_secret) {
+          setWebhookSecret(widget.webhook_secret)
+        }
+
         // Set client_id for edit mode
         if (widget.client_id) {
           setSelectedClientId(widget.client_id)
+          // Fetch WhatsApp settings for this client
+          fetchWhatsAppSettings(widget.client_id)
         }
+        
+        // Fetch handover configuration
+        fetchHandoverConfig(widget.id)
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load widget')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // 💬 Fetch WhatsApp Settings
+  const fetchWhatsAppSettings = async (clientId: number) => {
+    try {
+      console.log(`🔍 Checking WhatsApp configuration for client ${clientId}...`)
+      const response = await api.get(`/whatsapp/settings/${clientId}`)
+      console.log('WhatsApp settings response:', response.data)
+      
+      if (response.data.configured) {
+        console.log('✅ WhatsApp is configured - showing badge')
+        setWhatsappConfigured(true)
+        setWhatsappEnabled(response.data.enable_whatsapp || false)
+        // Don't load sensitive credentials - they're on the server
+        // Just show that it's configured
+      } else {
+        console.log('❌ WhatsApp is NOT configured')
+      }
+      
+      // Fetch usage stats
+      const usageResponse = await api.get(`/whatsapp/usage/${clientId}`)
+      setWhatsappUsage(usageResponse.data)
+    } catch (err) {
+      console.error('Failed to load WhatsApp settings:', err)
+      // Not an error - just means WhatsApp isn't configured yet
+    }
+  }
+
+  // 💬 Save WhatsApp Settings
+  const handleSaveWhatsAppSettings = async () => {
+    if (!selectedClientId) {
+      setError('Please select a client first')
+      return
+    }
+
+    setSavingWhatsApp(true)
+    setWhatsappTestResult(null)
+
+    try {
+      await api.post('/whatsapp/settings', {
+        client_id: selectedClientId,
+        account_sid: whatsappSettings.account_sid,
+        auth_token: whatsappSettings.auth_token,
+        from_number: whatsappSettings.from_number,
+        enable_whatsapp: whatsappEnabled
+      })
+
+      setWhatsappConfigured(true)
+      alert('✅ WhatsApp settings saved successfully!')
+      
+      // Refresh usage stats
+      fetchWhatsAppSettings(selectedClientId)
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to save WhatsApp settings')
+    } finally {
+      setSavingWhatsApp(false)
+    }
+  }
+
+  // 💬 Test WhatsApp Connection
+  const handleTestWhatsApp = async () => {
+    if (!selectedClientId) {
+      setWhatsappTestResult('❌ Please select a client first')
+      return
+    }
+
+    setTestingWhatsApp(true)
+    setWhatsappTestResult(null)
+
+    try {
+      const response = await api.post('/whatsapp/test-connection', {
+        client_id: selectedClientId
+      })
+
+      setWhatsappTestResult(`✅ ${response.data.message}`)
+    } catch (err: any) {
+      setWhatsappTestResult(`❌ ${err.response?.data?.error || 'Connection test failed'}`)
+    } finally {
+      setTestingWhatsApp(false)
+    }
+  }
+
+  // 🎯 Fetch Handover Configuration
+  const fetchHandoverConfig = async (widgetId: number) => {
+    try {
+      const response = await api.get(`/handover/config/${widgetId}`)
+      const config = response.data
+      
+      setEnableHandoverChoice(config.enable_handover_choice ?? true)
+      setHandoverOptions(config.handover_options || {
+        portal: true,
+        whatsapp: false,
+        email: true,
+        phone: false,
+        webhook: false
+      })
+      setDefaultHandoverMethod(config.default_handover_method || 'portal')
+      setWebhookUrl(config.webhook_url || '')
+      // Don't load webhook_secret for security - it stays on server
+    } catch (err) {
+      console.error('Failed to load handover config:', err)
+    }
+  }
+
+  // 🎯 Save Handover Configuration
+  const handleSaveHandoverConfig = async () => {
+    if (!id) {
+      alert('Please save the widget first before configuring handover options')
+      return
+    }
+
+    setSavingHandover(true)
+    setWebhookTestResult(null)
+
+    try {
+      await api.put(`/handover/config/${id}`, {
+        enable_handover_choice: enableHandoverChoice,
+        handover_options: handoverOptions,
+        default_handover_method: defaultHandoverMethod,
+        webhook_url: webhookUrl || null,
+        webhook_secret: webhookSecret || null
+      })
+
+      alert('✅ Handover configuration saved successfully!')
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to save handover configuration')
+    } finally {
+      setSavingHandover(false)
+    }
+  }
+
+  // 🎯 Test Webhook Connection
+  const handleTestWebhook = async () => {
+    if (!webhookUrl) {
+      setWebhookTestResult('❌ Please enter a webhook URL first')
+      return
+    }
+
+    setTestingWebhook(true)
+    setWebhookTestResult(null)
+
+    try {
+      const response = await api.post('/handover/test-webhook', {
+        webhook_url: webhookUrl,
+        webhook_secret: webhookSecret || null
+      })
+
+      setWebhookTestResult(`✅ ${response.data.message} (Status: ${response.data.status_code})`)
+    } catch (err: any) {
+      setWebhookTestResult(`❌ ${err.response?.data?.error || 'Webhook test failed'}`)
+    } finally {
+      setTestingWebhook(false)
     }
   }
 
@@ -178,11 +451,34 @@ export default function ChatWidgetEditor() {
     setError('')
 
     try {
-      const widgetData = {
+      const widgetData: any = {
         ...formData,
         intro_flow_enabled: introFlowEnabled,
         intro_questions: JSON.stringify(introQuestions),
+        // AI Smart Responses
+        llm_enabled: enableAI,
+        llm_max_tokens: aiMaxTokens,
+        // Industry & HIPAA
+        industry: industryType,
+        enable_hipaa: enableHipaa,
+        hipaa_disclaimer: hipaaDisclaimer,
+        detect_sensitive_data: detectSensitiveData,
+        emergency_keywords: emergencyKeywords,
+        emergency_contact: emergencyContact,
+        // WhatsApp
+        enable_whatsapp: whatsappEnabled,
+        // Handover Options
+        enable_handover_choice: enableHandoverChoice,
+        handover_options: JSON.stringify(handoverOptions),
+        default_handover_method: defaultHandoverMethod,
+        webhook_url: webhookUrl,
+        webhook_secret: webhookSecret,
         ...(isEditMode ? {} : { client_id: selectedClientId })
+      }
+
+      // Only include AI key if user has entered a new one (to update)
+      if (aiApiKey && aiApiKey.trim().length > 0) {
+        widgetData.widget_specific_llm_key = aiApiKey
       }
 
       if (isEditMode) {
@@ -636,6 +932,7 @@ export default function ChatWidgetEditor() {
                   type="text"
                   value={formData.primary_color}
                   onChange={(e) => handleChange('primary_color', e.target.value)}
+                  autoComplete="off"
                   style={{
                     flex: 1,
                     padding: '8px 12px',
@@ -668,6 +965,7 @@ export default function ChatWidgetEditor() {
                   type="text"
                   value={formData.secondary_color}
                   onChange={(e) => handleChange('secondary_color', e.target.value)}
+                  autoComplete="off"
                   style={{
                     flex: 1,
                     padding: '8px 12px',
@@ -827,15 +1125,178 @@ export default function ChatWidgetEditor() {
             </div>
           </div>
 
-          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+          {/* CAPTCHA hidden until implemented */}
+        </div>
+
+        {/* 🤖 AI/LLM Configuration */}
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '2rem',
+          marginBottom: '1.5rem',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }}>
+          <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            🤖 AI Smart Responses (Google Gemini)
+            {aiConfigured && (
+              <span style={{
+                background: '#28a745',
+                color: 'white',
+                padding: '4px 12px',
+                borderRadius: '12px',
+                fontSize: '12px',
+                fontWeight: '600'
+              }}>
+                ✓ Configured
+              </span>
+            )}
+          </h3>
+          <p style={{ fontSize: '14px', color: '#666', marginBottom: '1.5rem' }}>
+            Enable AI-powered responses using Google Gemini. AI will answer questions the Knowledge Base can't handle.
+          </p>
+
+          <label style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem', cursor: 'pointer' }}>
             <input
               type="checkbox"
-              checked={formData.require_captcha}
-              onChange={(e) => handleChange('require_captcha', e.target.checked)}
-              style={{ marginRight: '0.5rem', width: '18px', height: '18px' }}
+              checked={enableAI}
+              onChange={(e) => setEnableAI(e.target.checked)}
+              style={{ marginRight: '10px', width: '20px', height: '20px', cursor: 'pointer' }}
             />
-            <span style={{ fontWeight: '600' }}>Require CAPTCHA (future feature)</span>
+            <span style={{ fontWeight: '700', fontSize: '16px' }}>Enable AI-powered responses</span>
           </label>
+
+          {enableAI && (
+            <>
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  Google AI API Key *
+                  {aiConfigured && (
+                    <span style={{
+                      background: '#28a745',
+                      color: 'white',
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      fontWeight: '600'
+                    }}>
+                      ✓ Configured
+                    </span>
+                  )}
+                </label>
+                {aiConfigured && (
+                  <div style={{
+                    padding: '8px 12px',
+                    background: '#d4edda',
+                    border: '1px solid #c3e6cb',
+                    borderRadius: '6px',
+                    marginBottom: '8px',
+                    fontSize: '12px',
+                    color: '#155724'
+                  }}>
+                    <i className="fas fa-lock"></i> API key is saved and encrypted. Enter new key below to update.
+                  </div>
+                )}
+                <input
+                  type="password"
+                  value={aiApiKey}
+                  onChange={(e) => setAiApiKey(e.target.value)}
+                  autoComplete="current-password"
+                  placeholder={aiConfigured ? "AIzaSy••••••••••••••••••••••••" : "AIzaSy..."}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '2px solid #e0e0e0',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontFamily: 'monospace'
+                  }}
+                />
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '6px' }}>
+                  Get your free API key from{' '}
+                  <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{ color: '#4682B4' }}>
+                    Google AI Studio
+                  </a>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
+                  Free Credits per Month (tokens)
+                </label>
+                <input
+                  type="number"
+                  min="100"
+                  max="100000"
+                  value={aiMaxTokens}
+                  onChange={(e) => setAiMaxTokens(parseInt(e.target.value))}
+                  style={{
+                    width: '200px',
+                    padding: '12px',
+                    border: '2px solid #e0e0e0',
+                    borderRadius: '8px',
+                    fontSize: '14px'
+                  }}
+                />
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '6px' }}>
+                  Monthly token limit for AI responses. Resets automatically.
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!aiApiKey.trim()) {
+                      setAiTestResult('❌ Please enter API key first')
+                      return
+                    }
+                    setTestingAI(true)
+                    setAiTestResult(null)
+                    try {
+                      // Test AI connection (you'll need to implement this endpoint)
+                      const response = await api.post('/chat-widget/test-ai', {
+                        api_key: aiApiKey
+                      })
+                      setAiTestResult('✅ ' + response.data.message)
+                      setAiConfigured(true)
+                    } catch (error: any) {
+                      setAiTestResult('❌ ' + (error.response?.data?.error || 'Test failed'))
+                      setAiConfigured(false)
+                    } finally {
+                      setTestingAI(false)
+                    }
+                  }}
+                  disabled={testingAI}
+                  style={{
+                    padding: '10px 20px',
+                    background: testingAI ? '#6c757d' : '#17a2b8',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: testingAI ? 'not-allowed' : 'pointer',
+                    fontWeight: '600',
+                    fontSize: '14px'
+                  }}
+                >
+                  {testingAI ? 'Testing...' : '🧪 Test AI Connection'}
+                </button>
+              </div>
+
+              {aiTestResult && (
+                <div style={{
+                  marginTop: '10px',
+                  padding: '12px',
+                  background: aiTestResult.startsWith('✅') ? '#d4edda' : '#f8d7da',
+                  border: `1px solid ${aiTestResult.startsWith('✅') ? '#c3e6cb' : '#f5c6cb'}`,
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  color: aiTestResult.startsWith('✅') ? '#155724' : '#721c24'
+                }}>
+                  {aiTestResult}
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* 📧 Email Notification Settings */}
@@ -947,15 +1408,7 @@ export default function ChatWidgetEditor() {
                   <span>🔴 Agent Handoff Requested (Urgent)</span>
                 </label>
 
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={formData.notify_daily_summary}
-                    onChange={(e) => handleChange('notify_daily_summary', e.target.checked)}
-                    style={{ marginRight: '0.5rem', width: '18px', height: '18px' }}
-                  />
-                  <span>📊 Daily Summary Report (Coming Soon)</span>
-                </label>
+                {/* Daily Summary Report temporarily hidden until implemented */}
               </div>
 
               <div style={{ 
@@ -972,6 +1425,785 @@ export default function ChatWidgetEditor() {
             </>
           )}
         </div>
+
+        {/* 💬 WhatsApp / Twilio Integration */}
+        {selectedClientId && (
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '2rem',
+            marginBottom: '1.5rem',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+          }}>
+            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <i className="fab fa-whatsapp" style={{ color: '#25D366', fontSize: '1.8rem' }}></i>
+              WhatsApp Integration (Agent Handoff)
+            </h3>
+            <p style={{ fontSize: '14px', color: '#666', marginBottom: '1.5rem' }}>
+              Connect your Twilio WhatsApp Business Account to enable agent handoff via WhatsApp. 
+              Includes <strong>1,000 free conversations/month</strong> per client! 🎉
+            </p>
+
+            {/* Configured Status Badge */}
+            {whatsappConfigured && (
+              <div style={{
+                background: '#d4edda',
+                border: '2px solid #28a745',
+                borderRadius: '8px',
+                padding: '12px',
+                marginBottom: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <i className="fas fa-check-circle" style={{ color: '#28a745', fontSize: '1.2rem' }}></i>
+                <span style={{ fontWeight: '600', color: '#155724' }}>
+                  WhatsApp Configured ✅
+                </span>
+              </div>
+            )}
+
+            {/* Usage Stats */}
+            {whatsappUsage && (
+              <div style={{
+                background: '#f8f9fa',
+                borderRadius: '8px',
+                padding: '1rem',
+                marginBottom: '1.5rem',
+                border: '1px solid #dee2e6'
+              }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600' }}>
+                  📊 Current Usage (This Month)
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '14px' }}>
+                  <div>
+                    <span style={{ color: '#666' }}>Conversations:</span>
+                    <strong style={{ marginLeft: '8px', color: whatsappUsage.conversations_this_month >= 1000 ? '#dc3545' : '#28a745' }}>
+                      {whatsappUsage.conversations_this_month} / 1,000
+                    </strong>
+                    {whatsappUsage.conversations_this_month >= 1000 && (
+                      <span style={{ color: '#dc3545', fontSize: '12px', display: 'block' }}>
+                        ⚠️ Free tier exceeded! Additional costs apply.
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <span style={{ color: '#666' }}>Messages Sent:</span>
+                    <strong style={{ marginLeft: '8px' }}>{whatsappUsage.messages_this_month}</strong>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <span style={{ color: '#666' }}>Estimated Cost:</span>
+                    <strong style={{ marginLeft: '8px', color: '#4682B4' }}>
+                      ${(Number(whatsappUsage.estimated_cost_this_month) || 0).toFixed(2)} USD
+                    </strong>
+                    <p style={{ fontSize: '12px', color: '#666', margin: '4px 0 0 0' }}>
+                      Resets on: {whatsappUsage.next_reset_date ? new Date(whatsappUsage.next_reset_date).toLocaleDateString() : 'Not available'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Enable WhatsApp Toggle */}
+            <label style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={whatsappEnabled}
+                onChange={(e) => setWhatsappEnabled(e.target.checked)}
+                style={{ marginRight: '0.5rem', width: '20px', height: '20px' }}
+              />
+              <span style={{ fontWeight: '700', fontSize: '16px' }}>Enable WhatsApp for Agent Handoff</span>
+            </label>
+
+            {whatsappEnabled && (
+              <>
+                <div style={{
+                  background: '#e7f3ff',
+                  padding: '1rem',
+                  borderRadius: '8px',
+                  marginBottom: '1.5rem',
+                  fontSize: '13px',
+                  lineHeight: '1.6'
+                }}>
+                  <strong>📱 How it works:</strong>
+                  <ol style={{ margin: '8px 0 0 20px', padding: 0 }}>
+                    <li>When a visitor requests agent handoff, the conversation switches to WhatsApp</li>
+                    <li>Agent receives WhatsApp message notification on their phone</li>
+                    <li>Agent responds via WhatsApp, conversation syncs back to portal in real-time</li>
+                    <li>First 1,000 conversations/month are FREE per client! 🎉</li>
+                  </ol>
+                </div>
+
+                {/* Twilio Credentials Form */}
+                <div style={{
+                  padding: '1.5rem',
+                  background: '#fafbfc',
+                  borderRadius: '8px',
+                  border: '1px solid #e1e4e8'
+                }}>
+                  <h4 style={{ marginTop: 0, fontSize: '15px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    🔐 Twilio WhatsApp Credentials
+                    {whatsappConfigured && (
+                      <span style={{
+                        background: '#28a745',
+                        color: 'white',
+                        padding: '4px 12px',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: '600'
+                      }}>
+                        ✓ Configured
+                      </span>
+                    )}
+                  </h4>
+                  
+                  {whatsappConfigured && (
+                    <div style={{
+                      padding: '10px 15px',
+                      background: '#d4edda',
+                      border: '1px solid #c3e6cb',
+                      borderRadius: '6px',
+                      marginBottom: '1rem',
+                      fontSize: '13px',
+                      color: '#155724'
+                    }}>
+                      <i className="fas fa-check-circle"></i> WhatsApp credentials are saved and encrypted. Enter new values below to update them.
+                    </div>
+                  )}
+                  
+                  <div style={{ marginBottom: '1rem' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '14px' }}>
+                      Account SID *
+                    </label>
+                    <input
+                      type="text"
+                      value={whatsappSettings.account_sid}
+                      onChange={(e) => setWhatsappSettings({ ...whatsappSettings, account_sid: e.target.value })}
+                      placeholder={whatsappConfigured ? "AC•••••••••••••••••••••••••••••" : "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        border: '2px solid #e0e0e0',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: '1rem' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '14px' }}>
+                      Auth Token *
+                    </label>
+                    <input
+                      type="password"
+                      value={whatsappSettings.auth_token}
+                      onChange={(e) => setWhatsappSettings({ ...whatsappSettings, auth_token: e.target.value })}
+                      placeholder={whatsappConfigured ? "••••••••••••••••••••••••••••••" : "Your Twilio Auth Token"}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        border: '2px solid #e0e0e0',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: '1rem' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '14px' }}>
+                      WhatsApp From Number *
+                    </label>
+                    <input
+                      type="text"
+                      value={whatsappSettings.from_number}
+                      onChange={(e) => setWhatsappSettings({ ...whatsappSettings, from_number: e.target.value })}
+                      placeholder={whatsappConfigured ? "whatsapp:+1••••••••••" : "whatsapp:+14155238886"}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        border: '2px solid #e0e0e0',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+                    <p style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                      Format: whatsapp:+1234567890 (must be a Twilio WhatsApp-enabled number)
+                    </p>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '1.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={handleSaveWhatsAppSettings}
+                      disabled={savingWhatsApp || !whatsappSettings.account_sid || !whatsappSettings.auth_token || !whatsappSettings.from_number}
+                      style={{
+                        flex: 1,
+                        padding: '12px',
+                        background: '#4682B4',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        opacity: (savingWhatsApp || !whatsappSettings.account_sid || !whatsappSettings.auth_token || !whatsappSettings.from_number) ? 0.5 : 1
+                      }}
+                    >
+                      {savingWhatsApp ? (
+                        <><i className="fas fa-spinner fa-spin"></i> Saving...</>
+                      ) : (
+                        <><i className="fas fa-save"></i> Save WhatsApp Settings</>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleTestWhatsApp}
+                      disabled={testingWhatsApp}
+                      style={{
+                        padding: '12px 20px',
+                        background: '#28a745',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        opacity: testingWhatsApp ? 0.7 : 1
+                      }}
+                    >
+                      {testingWhatsApp ? (
+                        <><i className="fas fa-spinner fa-spin"></i> Testing...</>
+                      ) : (
+                        <><i className="fas fa-vial"></i> Test Connection</>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Test Result */}
+                  {whatsappTestResult && (
+                    <div style={{
+                      marginTop: '1rem',
+                      padding: '12px',
+                      background: whatsappTestResult.startsWith('✅') ? '#d4edda' : '#f8d7da',
+                      border: `2px solid ${whatsappTestResult.startsWith('✅') ? '#28a745' : '#dc3545'}`,
+                      borderRadius: '6px',
+                      fontSize: '14px'
+                    }}>
+                      {whatsappTestResult}
+                    </div>
+                  )}
+                </div>
+
+                {/* Setup Guide */}
+                <div style={{
+                  marginTop: '1.5rem',
+                  padding: '1rem',
+                  background: '#fff3cd',
+                  borderRadius: '8px',
+                  border: '1px solid #ffc107',
+                  fontSize: '13px'
+                }}>
+                  <strong>📚 Don't have Twilio WhatsApp setup?</strong>
+                  <ol style={{ margin: '8px 0 0 20px', padding: 0 }}>
+                    <li>Go to <a href="https://www.twilio.com/console" target="_blank" rel="noopener noreferrer">Twilio Console</a></li>
+                    <li>Navigate to: Messaging → Try it Out → Send a WhatsApp message</li>
+                    <li>Follow the setup wizard to enable WhatsApp on your Twilio number</li>
+                    <li>Copy your Account SID, Auth Token, and WhatsApp number</li>
+                    <li>Paste them above and click Save!</li>
+                  </ol>
+                  <p style={{ margin: '8px 0 0 0' }}>
+                    💡 <strong>Pricing:</strong> First 1,000 conversations/month are FREE, then ~$0.005 per conversation.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* 🎯 Agent Handover Choice System */}
+        {selectedClientId && (
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '2rem',
+            marginBottom: '1.5rem',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+          }}>
+            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <i className="fas fa-directions" style={{ color: '#2E86AB', fontSize: '1.6rem' }}></i>
+              Agent Handover Options
+            </h3>
+            <p style={{ fontSize: '14px', color: '#666', marginBottom: '1.5rem' }}>
+              Let visitors choose HOW they want to be contacted when requesting agent help
+            </p>
+
+            {/* Enable Handover Choice Toggle */}
+            <label style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={enableHandoverChoice}
+                onChange={(e) => setEnableHandoverChoice(e.target.checked)}
+                style={{ marginRight: '0.5rem', width: '20px', height: '20px' }}
+              />
+              <span style={{ fontWeight: '700', fontSize: '16px' }}>Allow Visitors to Choose Contact Method</span>
+            </label>
+
+            {enableHandoverChoice && (
+              <>
+                <div style={{
+                  background: '#e7f3ff',
+                  padding: '1rem',
+                  borderRadius: '8px',
+                  marginBottom: '1.5rem',
+                  fontSize: '13px',
+                  lineHeight: '1.6'
+                }}>
+                  <strong>📱 How it works:</strong>
+                  <ol style={{ margin: '8px 0 0 20px', padding: 0 }}>
+                    <li>Visitor clicks "Talk to Agent"</li>
+                    <li>Modal shows available contact methods (checked below)</li>
+                    <li>Visitor chooses their preferred method</li>
+                    <li>System automatically notifies your team via chosen method</li>
+                  </ol>
+                </div>
+
+                {/* Available Methods */}
+                <div style={{
+                  padding: '1.5rem',
+                  background: '#f8f9fa',
+                  borderRadius: '8px',
+                  border: '1px solid #e0e0e0',
+                  marginBottom: '1.5rem'
+                }}>
+                  <h4 style={{ marginTop: 0, fontSize: '15px', fontWeight: '600', marginBottom: '1rem' }}>
+                    ✅ Available Contact Methods
+                  </h4>
+                  <p style={{ fontSize: '13px', color: '#666', marginBottom: '1rem' }}>
+                    Check the methods you want to offer to visitors:
+                  </p>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    {/* Portal */}
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px' }}>
+                      <input
+                        type="checkbox"
+                        checked={handoverOptions.portal}
+                        onChange={(e) => setHandoverOptions({ ...handoverOptions, portal: e.target.checked })}
+                        style={{ marginRight: '8px', width: '18px', height: '18px' }}
+                      />
+                      <span style={{ fontSize: '14px' }}>
+                        <i className="fas fa-comment-dots" style={{ marginRight: '6px', color: '#28a745' }}></i>
+                        <strong>Portal Chat</strong> (In-widget messaging)
+                      </span>
+                    </label>
+
+                    {/* WhatsApp */}
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px' }}>
+                      <input
+                        type="checkbox"
+                        checked={handoverOptions.whatsapp}
+                        onChange={(e) => setHandoverOptions({ ...handoverOptions, whatsapp: e.target.checked })}
+                        disabled={!whatsappConfigured}
+                        style={{ marginRight: '8px', width: '18px', height: '18px' }}
+                      />
+                      <span style={{ fontSize: '14px', opacity: whatsappConfigured ? 1 : 0.5 }}>
+                        <i className="fab fa-whatsapp" style={{ marginRight: '6px', color: '#25D366' }}></i>
+                        <strong>WhatsApp</strong> {!whatsappConfigured && '(Configure above)'}
+                      </span>
+                    </label>
+
+                    {/* Email */}
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px' }}>
+                      <input
+                        type="checkbox"
+                        checked={handoverOptions.email}
+                        onChange={(e) => setHandoverOptions({ ...handoverOptions, email: e.target.checked })}
+                        style={{ marginRight: '8px', width: '18px', height: '18px' }}
+                      />
+                      <span style={{ fontSize: '14px' }}>
+                        <i className="fas fa-envelope" style={{ marginRight: '6px', color: '#dc3545' }}></i>
+                        <strong>Email</strong> (Professional emails)
+                      </span>
+                    </label>
+
+                    {/* Phone/SMS */}
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px' }}>
+                      <input
+                        type="checkbox"
+                        checked={handoverOptions.phone}
+                        onChange={(e) => setHandoverOptions({ ...handoverOptions, phone: e.target.checked })}
+                        disabled={!whatsappConfigured}
+                        style={{ marginRight: '8px', width: '18px', height: '18px' }}
+                      />
+                      <span style={{ fontSize: '14px', opacity: whatsappConfigured ? 1 : 0.5 }}>
+                        <i className="fas fa-phone" style={{ marginRight: '6px', color: '#007bff' }}></i>
+                        <strong>Phone/SMS</strong> {!whatsappConfigured && '(Uses Twilio)'}
+                      </span>
+                    </label>
+
+                    {/* Webhook */}
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px', gridColumn: '1 / -1' }}>
+                      <input
+                        type="checkbox"
+                        checked={handoverOptions.webhook}
+                        onChange={(e) => setHandoverOptions({ ...handoverOptions, webhook: e.target.checked })}
+                        style={{ marginRight: '8px', width: '18px', height: '18px' }}
+                      />
+                      <span style={{ fontSize: '14px' }}>
+                        <i className="fas fa-plug" style={{ marginRight: '6px', color: '#6f42c1' }}></i>
+                        <strong>Webhook</strong> (Send to your CRM/system)
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Default Method */}
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '14px' }}>
+                    🔵 Default Contact Method (if visitor doesn't choose)
+                  </label>
+                  <select
+                    value={defaultHandoverMethod}
+                    onChange={(e) => setDefaultHandoverMethod(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      border: '2px solid #e0e0e0',
+                      borderRadius: '6px',
+                      fontSize: '14px'
+                    }}
+                  >
+                    {handoverOptions.portal && <option value="portal">Portal Chat</option>}
+                    {handoverOptions.whatsapp && <option value="whatsapp">WhatsApp</option>}
+                    {handoverOptions.email && <option value="email">Email</option>}
+                    {handoverOptions.phone && <option value="phone">Phone/SMS</option>}
+                    {handoverOptions.webhook && <option value="webhook">Webhook</option>}
+                  </select>
+                </div>
+
+                {/* Webhook Configuration */}
+                {handoverOptions.webhook && (
+                  <div style={{
+                    padding: '1.5rem',
+                    background: '#fafbfc',
+                    borderRadius: '8px',
+                    border: '1px solid #e1e4e8',
+                    marginBottom: '1.5rem'
+                  }}>
+                    <h4 style={{ marginTop: 0, fontSize: '15px', fontWeight: '600', marginBottom: '0.5rem' }}>
+                      🔗 Webhook Configuration
+                    </h4>
+                    <p style={{ fontSize: '13px', color: '#666', marginBottom: '1rem' }}>
+                      Send handover requests to your own CRM or system
+                    </p>
+
+                    <div style={{ marginBottom: '1rem' }}>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '14px' }}>
+                        Webhook URL *
+                      </label>
+                      <input
+                        type="url"
+                        value={webhookUrl}
+                        onChange={(e) => setWebhookUrl(e.target.value)}
+                        placeholder="https://your-crm.com/webhooks/marketingby"
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          border: '2px solid #e0e0e0',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontFamily: 'monospace'
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ marginBottom: '1rem' }}>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '14px' }}>
+                        Webhook Secret (Optional - for HMAC signature)
+                      </label>
+                      <input
+                        type="password"
+                        value={webhookSecret}
+                        onChange={(e) => setWebhookSecret(e.target.value)}
+                        placeholder="your-secret-key"
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          border: '2px solid #e0e0e0',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontFamily: 'monospace'
+                        }}
+                      />
+                      <p style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                        If provided, requests will include X-MarketingBy-Signature header with HMAC-SHA256
+                      </p>
+                    </div>
+
+                    {webhookUrl && (
+                      <button
+                        type="button"
+                        onClick={handleTestWebhook}
+                        disabled={testingWebhook}
+                        style={{
+                          padding: '10px 16px',
+                          background: '#6f42c1',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {testingWebhook ? (
+                          <><i className="fas fa-spinner fa-spin"></i> Testing...</>
+                        ) : (
+                          <><i className="fas fa-vial"></i> Test Webhook</>
+                        )}
+                      </button>
+                    )}
+
+                    {webhookTestResult && (
+                      <div style={{
+                        marginTop: '1rem',
+                        padding: '10px',
+                        background: webhookTestResult.startsWith('✅') ? '#d4edda' : '#f8d7da',
+                        border: `2px solid ${webhookTestResult.startsWith('✅') ? '#28a745' : '#dc3545'}`,
+                        borderRadius: '6px',
+                        fontSize: '13px'
+                      }}>
+                        {webhookTestResult}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Save Button */}
+                <button
+                  type="button"
+                  onClick={handleSaveHandoverConfig}
+                  disabled={savingHandover}
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    background: '#2E86AB',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    opacity: savingHandover ? 0.6 : 1
+                  }}
+                >
+                  {savingHandover ? (
+                    <><i className="fas fa-spinner fa-spin"></i> Saving...</>
+                  ) : (
+                    <><i className="fas fa-save"></i> Save Handover Configuration</>
+                  )}
+                </button>
+              </>
+            )}
+
+            {!enableHandoverChoice && (
+              <div style={{
+                padding: '1rem',
+                background: '#fff3cd',
+                borderRadius: '8px',
+                border: '1px solid #ffc107',
+                fontSize: '14px'
+              }}>
+                <i className="fas fa-info-circle"></i> Handover choice is disabled. 
+                All agent requests will use the default portal chat method.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 🏥 Industry & HIPAA Compliance */}
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '2rem',
+          marginBottom: '1.5rem',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }}>
+          <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            🏥 Industry & Compliance Settings
+          </h3>
+          <p style={{ fontSize: '14px', color: '#666', marginBottom: '1.5rem' }}>
+            Configure industry-specific settings and compliance requirements
+          </p>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
+              Industry Type
+            </label>
+            <select
+              value={industryType}
+              onChange={(e) => setIndustryType(e.target.value)}
+              style={{
+                width: '100%',
+                maxWidth: '300px',
+                padding: '12px',
+                border: '2px solid #e0e0e0',
+                borderRadius: '8px',
+                fontSize: '14px'
+              }}
+            >
+              <option value="general">General / Business</option>
+              <option value="healthcare">Healthcare / Medical</option>
+              <option value="finance">Finance / Banking</option>
+              <option value="legal">Legal Services</option>
+              <option value="education">Education</option>
+              <option value="real_estate">Real Estate</option>
+              <option value="ecommerce">E-commerce / Retail</option>
+            </select>
+          </div>
+
+          {industryType === 'healthcare' && (
+            <div style={{
+              background: '#f0f9ff',
+              padding: '1.5rem',
+              borderRadius: '8px',
+              border: '2px solid #0ea5e9',
+              marginBottom: '1.5rem'
+            }}>
+              <h4 style={{ marginTop: 0, fontSize: '15px', fontWeight: '600', color: '#0369a1' }}>
+                🏥 Healthcare-Specific Settings
+              </h4>
+              
+              <label style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '1rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={enableHipaa}
+                  onChange={(e) => setEnableHipaa(e.target.checked)}
+                  style={{ marginRight: '10px', marginTop: '3px', width: '18px', height: '18px' }}
+                />
+                <div>
+                  <span style={{ fontWeight: '600' }}>Display HIPAA Disclaimer</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#666' }}>
+                    Show disclaimer before chatting (required for HIPAA compliance)
+                  </p>
+                </div>
+              </label>
+
+              {enableHipaa && (
+                <div style={{ marginLeft: '28px', marginBottom: '1rem' }}>
+                  <textarea
+                    value={hipaaDisclaimer}
+                    onChange={(e) => setHipaaDisclaimer(e.target.value)}
+                    placeholder="Enter custom HIPAA disclaimer or leave empty for default message..."
+                    rows={3}
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      fontFamily: 'inherit'
+                    }}
+                  />
+                </div>
+              )}
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '1rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={detectSensitiveData}
+                  onChange={(e) => setDetectSensitiveData(e.target.checked)}
+                  style={{ marginRight: '10px', marginTop: '3px', width: '18px', height: '18px' }}
+                />
+                <div>
+                  <span style={{ fontWeight: '600' }}>Block Sensitive Information</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#666' }}>
+                    Detect and block SSN, credit cards, medical records from chat
+                  </p>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '1rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={emergencyKeywords}
+                  onChange={(e) => setEmergencyKeywords(e.target.checked)}
+                  style={{ marginRight: '10px', marginTop: '3px', width: '18px', height: '18px' }}
+                />
+                <div>
+                  <span style={{ fontWeight: '600' }}>Emergency Keyword Detection</span>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#666' }}>
+                    Detect emergency keywords and display emergency contact info
+                  </p>
+                </div>
+              </label>
+
+              {emergencyKeywords && (
+                <div style={{ marginLeft: '28px' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '13px' }}>
+                    Emergency Contact Message
+                  </label>
+                  <input
+                    type="text"
+                    value={emergencyContact}
+                    onChange={(e) => setEmergencyContact(e.target.value)}
+                    placeholder="e.g., Call 911 or visit nearest ER"
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontSize: '13px'
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 🔀 Conversation Flow Configuration */}
+        {isEditMode && (
+          <div style={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            borderRadius: '12px',
+            padding: '2rem',
+            marginBottom: '1.5rem',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            color: 'white'
+          }}>
+            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🔀 Conversation Flow Configuration
+            </h3>
+            <p style={{ fontSize: '14px', marginBottom: '1.5rem', opacity: 0.9 }}>
+              Define how the bot handles conversations: Greeting → Knowledge Base → AI → Agent Handoff
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate(`/app/chat-widgets/${id}/flow`)}
+              style={{
+                padding: '12px 24px',
+                background: 'white',
+                color: '#667eea',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '15px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <i className="fas fa-route"></i>
+              Configure Conversation Flow
+            </button>
+          </div>
+        )}
 
         {/* 🤖 Intro Questions Configuration */}
         <div style={{

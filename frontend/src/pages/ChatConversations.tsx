@@ -54,6 +54,10 @@ export default function ChatConversations() {
   const [refreshing, setRefreshing] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  
+  // 💬 WhatsApp State
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false)
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false)
 
   // Fetch widgets on mount
   useEffect(() => {
@@ -64,6 +68,7 @@ export default function ChatConversations() {
   useEffect(() => {
     if (selectedWidgetId) {
       fetchConversations(selectedWidgetId)
+      checkWhatsAppConfig(selectedWidgetId)
     }
   }, [selectedWidgetId])
 
@@ -148,6 +153,64 @@ export default function ChatConversations() {
       alert('Failed to load messages')
     } finally {
       setLoadingMessages(false)
+    }
+  }
+
+  // 💬 Check WhatsApp Configuration
+  const checkWhatsAppConfig = async (widgetId: number) => {
+    try {
+      // Find widget to get client_id
+      const widget = widgets.find(w => w.id === widgetId)
+      if (!widget) return
+
+      const response = await api.get(`/whatsapp/settings/${(widget as any).client_id}`)
+      setWhatsappEnabled(response.data.configured && response.data.enable_whatsapp)
+    } catch (err) {
+      setWhatsappEnabled(false)
+    }
+  }
+
+  // 💬 Send WhatsApp Message
+  const sendViaWhatsApp = async () => {
+    if (!replyText.trim() || !selectedConv) return
+    
+    // Check if visitor has phone number
+    if (!selectedConv.visitor_phone) {
+      alert('❌ Cannot send WhatsApp: No phone number available for this visitor.')
+      return
+    }
+
+    try {
+      setSendingWhatsApp(true)
+      
+      await api.post('/whatsapp/send', {
+        conversation_id: selectedConv.id,
+        message: replyText.trim()
+      })
+
+      // Add system message to indicate WhatsApp was sent
+      const newMessage: Message = {
+        id: Date.now(),
+        conversation_id: selectedConv.id,
+        message_type: 'system',
+        message_text: `📱 WhatsApp sent: ${replyText.trim()}`,
+        created_at: new Date().toISOString(),
+        sender_name: 'System'
+      }
+      
+      setMessages([...messages, newMessage])
+      setReplyText('')
+      
+      alert('✅ WhatsApp message sent successfully!')
+      
+      // Refresh conversations
+      if (selectedWidgetId) {
+        fetchConversations(selectedWidgetId)
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to send WhatsApp message')
+    } finally {
+      setSendingWhatsApp(false)
     }
   }
 
@@ -965,47 +1028,104 @@ export default function ChatConversations() {
                     onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
                   />
                 </div>
-                <button
-                  onClick={sendReply}
-                  disabled={!replyText.trim() || sending}
-                  style={{
-                    padding: '12px 24px',
-                    background: sending ? '#ccc' : '#28a745',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '15px',
-                    fontWeight: '600',
-                    cursor: sending ? 'not-allowed' : 'pointer',
-                    minWidth: '120px',
-                    height: '48px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    opacity: (!replyText.trim() || sending) ? 0.5 : 1
-                  }}
-                >
-                  {sending ? (
-                    <>
-                      <i className="fas fa-spinner fa-spin"></i>
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <i className="fas fa-paper-plane"></i>
-                      Send Reply
-                    </>
+                
+                {/* Send Buttons - Portal & WhatsApp */}
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <button
+                    onClick={sendReply}
+                    disabled={!replyText.trim() || sending}
+                    style={{
+                      flex: 1,
+                      padding: '12px 24px',
+                      background: sending ? '#ccc' : '#28a745',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '15px',
+                      fontWeight: '600',
+                      cursor: sending ? 'not-allowed' : 'pointer',
+                      minWidth: '140px',
+                      height: '48px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      opacity: (!replyText.trim() || sending) ? 0.5 : 1
+                    }}
+                  >
+                    {sending ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin"></i>
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-paper-plane"></i>
+                        Send in Portal
+                      </>
+                    )}
+                  </button>
+
+                  {/* WhatsApp Send Button */}
+                  {whatsappEnabled && (
+                    <button
+                      onClick={sendViaWhatsApp}
+                      disabled={!replyText.trim() || sendingWhatsApp || !selectedConv?.visitor_phone}
+                      title={!selectedConv?.visitor_phone ? 'No phone number available' : 'Send via WhatsApp'}
+                      style={{
+                        flex: 1,
+                        padding: '12px 24px',
+                        background: sendingWhatsApp ? '#ccc' : '#25D366',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontSize: '15px',
+                        fontWeight: '600',
+                        cursor: (sendingWhatsApp || !selectedConv?.visitor_phone || !replyText.trim()) ? 'not-allowed' : 'pointer',
+                        minWidth: '140px',
+                        height: '48px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        opacity: (!replyText.trim() || sendingWhatsApp || !selectedConv?.visitor_phone) ? 0.5 : 1
+                      }}
+                    >
+                      {sendingWhatsApp ? (
+                        <>
+                          <i className="fas fa-spinner fa-spin"></i>
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fab fa-whatsapp"></i>
+                          Send WhatsApp
+                        </>
+                      )}
+                    </button>
                   )}
-                </button>
+                </div>
               </div>
+              
+              {/* Help Text */}
               <p style={{
                 margin: '8px 0 0 0',
                 fontSize: '12px',
                 color: '#666'
               }}>
                 <i className="fas fa-info-circle" style={{ marginRight: '6px' }}></i>
-                Your reply will be displayed to the customer in the chat widget on their website.
+                {whatsappEnabled ? (
+                  <>
+                    Send via <strong>Portal</strong> (shows in widget) or <strong>WhatsApp</strong> (SMS notification)
+                    {!selectedConv?.visitor_phone && (
+                      <span style={{ color: '#dc3545', marginLeft: '8px' }}>
+                        ⚠️ WhatsApp unavailable: No phone number
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  'Your reply will be displayed to the customer in the chat widget on their website.'
+                )}
               </p>
             </div>
           </div>
