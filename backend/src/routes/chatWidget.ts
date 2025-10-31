@@ -543,7 +543,23 @@ router.post('/public/widget/:widgetKey/conversation', async (req, res) => {
 
     const widget = widgetResult.rows[0];
 
-    // Check for existing active conversation
+    // ✅ FIRST: Check for existing active conversation by visitor_session_id (cross-tab persistence)
+    if (visitor_session_id && visitor_session_id !== session_id) {
+      const existingConvByVisitor = await pool.query(
+        'SELECT id, intro_completed FROM widget_conversations WHERE widget_id = $1 AND visitor_session_id = $2 AND status = $3 ORDER BY created_at DESC LIMIT 1',
+        [widget.id, visitor_session_id, 'active']
+      );
+
+      if (existingConvByVisitor.rows.length > 0) {
+        return res.json({ 
+          conversation_id: existingConvByVisitor.rows[0].id, 
+          existing: true,
+          intro_completed: existingConvByVisitor.rows[0].intro_completed || false
+        });
+      }
+    }
+
+    // ✅ SECOND: Check for existing active conversation by session_id (fallback)
     const existingConv = await pool.query(
       'SELECT id FROM widget_conversations WHERE widget_id = $1 AND session_id = $2 AND status = $3',
       [widget.id, session_id, 'active']
@@ -2198,12 +2214,50 @@ router.post('/conversations/:conversationId/close-manual', async (req, res) => {
 /**
  * Get conversation status (for widget to check if conversation still active)
  */
+// ✅ Find active conversation by visitor_session_id (cross-tab persistence)
+router.get('/public/widget/:widgetKey/conversation/by-visitor/:visitorSessionId', async (req, res) => {
+  try {
+    const { widgetKey, visitorSessionId } = req.params;
+    
+    // Get widget ID
+    const widgetResult = await pool.query(
+      'SELECT id FROM widget_configs WHERE widget_key = $1 AND is_active = true',
+      [widgetKey]
+    );
+    
+    if (widgetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+    
+    const widgetId = widgetResult.rows[0].id;
+    
+    // Find active conversation by visitor_session_id
+    const result = await pool.query(
+      `SELECT id as conversation_id, status, intro_completed, intro_data
+       FROM widget_conversations 
+       WHERE widget_id = $1 AND visitor_session_id = $2 AND status = 'active'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [widgetId, visitorSessionId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No active conversation found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error finding conversation by visitorSessionId:', error);
+    res.status(500).json({ error: 'Failed to find conversation' });
+  }
+});
+
 router.get('/public/widget/:widgetKey/conversations/:conversationId/status', async (req, res) => {
   try {
     const { conversationId } = req.params;
     
     const result = await pool.query(
-      'SELECT status, closed_at, close_reason FROM widget_conversations WHERE id = $1',
+      'SELECT status, closed_at, close_reason, intro_completed, intro_data FROM widget_conversations WHERE id = $1',
       [conversationId]
     );
     
