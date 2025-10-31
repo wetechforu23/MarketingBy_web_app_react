@@ -64,8 +64,6 @@ export default function ChatWidgetEditor() {
   const [testingWhatsApp, setTestingWhatsApp] = useState(false)
   const [whatsappTestResult, setWhatsappTestResult] = useState<string | null>(null)
   const [savingWhatsApp, setSavingWhatsApp] = useState(false)
-  const [handoverWhatsAppNumber, setHandoverWhatsAppNumber] = useState('')
-  const [handoverTemplateSid, setHandoverTemplateSid] = useState('')
 
   // 🎯 Agent Handover Choice State
   const [enableHandoverChoice, setEnableHandoverChoice] = useState(true)
@@ -80,6 +78,7 @@ export default function ChatWidgetEditor() {
   const [webhookUrl, setWebhookUrl] = useState('')
   const [webhookSecret, setWebhookSecret] = useState('')
   const [handoverWhatsAppNumber, setHandoverWhatsAppNumber] = useState('')
+  const [handoverTemplateSid, setHandoverTemplateSid] = useState('')
   const [savingHandover, setSavingHandover] = useState(false)
   const [testingWebhook, setTestingWebhook] = useState(false)
   const [webhookTestResult, setWebhookTestResult] = useState<string | null>(null)
@@ -439,10 +438,11 @@ export default function ChatWidgetEditor() {
       })
 
       // Also save to client config if client_id is set
-      if (selectedClientId && handoverWhatsAppNumber) {
+      if (selectedClientId) {
         try {
           await api.put(`/handover/config/client/${selectedClientId}`, {
-            handover_whatsapp_number: handoverWhatsAppNumber
+            handover_whatsapp_number: handoverWhatsAppNumber,
+            whatsapp_handover_content_sid: handoverTemplateSid
           })
         } catch (err) {
           console.error('Failed to save client handover config:', err)
