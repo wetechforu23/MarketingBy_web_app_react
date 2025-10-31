@@ -237,7 +237,7 @@ router.get('/widgets/:id', async (req, res) => {
       return res.status(400).json({ error: 'Invalid widget ID' });
     }
 
-    // Fetch widget
+    // Fetch widget (include widget_specific_llm_key for AI detection)
     const result = await pool.query(
       `SELECT w.*, c.client_name, c.email as client_email
        FROM widget_configs w
@@ -256,6 +256,15 @@ router.get('/widgets/:id', async (req, res) => {
     let aiConfigured = false;
     let apiKeySource: 'widget' | 'client' | 'global' | null = null;
     let apiKeyPartial: string | null = null; // First 6 + last 6 chars for verification
+    
+    // Debug logging
+    console.log(`🔍 AI Detection for Widget ${widgetId}:`);
+    console.log(`  - widget_specific_llm_key: ${widget.widget_specific_llm_key ? 'EXISTS' : 'NULL'}`);
+    if (widget.widget_specific_llm_key) {
+      const preview = String(widget.widget_specific_llm_key).substring(0, 20);
+      console.log(`  - Preview: ${preview}...`);
+    }
+    console.log(`  - client_id: ${widget.client_id}`);
     
     try {
       const crypto = require('crypto');
@@ -280,6 +289,7 @@ router.get('/widgets/:id', async (req, res) => {
       // ✅ Priority 1: Check widget-specific key (widget_specific_llm_key)
       if (widget.widget_specific_llm_key && String(widget.widget_specific_llm_key).trim().length > 0) {
         const apiKeyValue = String(widget.widget_specific_llm_key).trim();
+        console.log(`  ✅ Found widget_specific_llm_key (length: ${apiKeyValue.length})`);
         
         // Check if it's already plaintext (starts with AIzaSy) or encrypted (has :)
         if (apiKeyValue.startsWith('AIzaSy')) {
@@ -289,7 +299,7 @@ router.get('/widgets/:id', async (req, res) => {
           if (apiKeyValue.length >= 12) {
             apiKeyPartial = `${apiKeyValue.substring(0, 6)}...${apiKeyValue.substring(apiKeyValue.length - 6)}`;
           }
-          console.log('⚠️ Widget API key found in plaintext - should be encrypted on next save');
+          console.log(`  ✅ AI Configured: Widget-specific (plaintext), Partial: ${apiKeyPartial}`);
         } else {
           // Encrypted - try to decrypt
           aiConfigured = true;

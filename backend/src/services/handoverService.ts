@@ -139,6 +139,18 @@ export class HandoverService {
   static async createHandoverRequest(data: HandoverRequest) {
     const client = await pool.connect();
     try {
+      // Prepare values with proper type handling
+      const values = [
+        data.conversation_id ? parseInt(String(data.conversation_id)) : null,
+        data.widget_id ? parseInt(String(data.widget_id)) : null,
+        data.client_id ? parseInt(String(data.client_id)) : null,
+        (data.requested_method || 'portal'),
+        data.visitor_name || null,
+        data.visitor_email || null,
+        data.visitor_phone || null,
+        data.visitor_message || null
+      ];
+
       const result = await client.query(`
         INSERT INTO handover_requests (
           conversation_id,
@@ -154,24 +166,15 @@ export class HandoverService {
           $1,
           $2,
           $3,
-          $4::varchar,
-          $5::varchar,
-          $6::varchar,
-          $7::varchar,
-          $8::text,
-          'pending'::varchar
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          'pending'
         )
         RETURNING *
-      `, [
-        data.conversation_id ? parseInt(String(data.conversation_id)) : null,
-        data.widget_id ? parseInt(String(data.widget_id)) : null,
-        data.client_id ? parseInt(String(data.client_id)) : null,
-        (data.requested_method || 'portal'),
-        (data.visitor_name || null),
-        (data.visitor_email || null),
-        (data.visitor_phone || null),
-        (data.visitor_message || null)
-      ]);
+      `, values);
 
       const handoverRequest = result.rows[0];
 
