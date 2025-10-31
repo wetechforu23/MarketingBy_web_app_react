@@ -154,12 +154,12 @@ export class HandoverService {
           $1,
           $2,
           $3,
-          $4,
-          $5,
-          $6,
-          $7,
-          $8,
-          'pending'
+          $4::varchar,
+          $5::varchar,
+          $6::varchar,
+          $7::varchar,
+          $8::text,
+          'pending'::varchar
         )
         RETURNING *
       `, [
@@ -176,22 +176,24 @@ export class HandoverService {
       const handoverRequest = result.rows[0];
 
       // Update conversation with preferred contact method
+      const contactDetails = {
+        name: data.visitor_name,
+        email: data.visitor_email,
+        phone: data.visitor_phone,
+        message: data.visitor_message
+      };
+      
       await client.query(`
         UPDATE widget_conversations
         SET 
           preferred_contact_method = $1,
-          contact_method_details = $2,
+          contact_method_details = $2::jsonb,
           handoff_requested = true,
           handoff_requested_at = CURRENT_TIMESTAMP
         WHERE id = $3
       `, [
         (data.requested_method || 'portal'),
-        JSON.stringify({
-          name: data.visitor_name,
-          email: data.visitor_email,
-          phone: data.visitor_phone,
-          message: data.visitor_message
-        }),
+        JSON.stringify(contactDetails),
         data.conversation_id ? parseInt(String(data.conversation_id)) : null
       ]);
 
