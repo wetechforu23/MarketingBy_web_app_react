@@ -1,5 +1,6 @@
 import express from 'express';
 import HandoverService from '../services/handoverService';
+import pool from '../config/database';
 
 const router = express.Router();
 
@@ -54,9 +55,27 @@ router.post('/request', async (req, res) => {
     } = req.body;
 
     // Validation
-    if (!conversation_id || !widget_id || !client_id || !requested_method) {
+    if (!conversation_id || !widget_id || !requested_method) {
       return res.status(400).json({ 
-        error: 'Missing required fields: conversation_id, widget_id, client_id, requested_method' 
+        error: 'Missing required fields: conversation_id, widget_id, requested_method' 
+      });
+    }
+
+    // Get client_id from widget_id if not provided
+    let finalClientId = client_id;
+    if (!finalClientId) {
+      const widgetResult = await pool.query(
+        'SELECT client_id FROM widget_configs WHERE id = $1',
+        [parseInt(widget_id)]
+      );
+      if (widgetResult.rows.length > 0) {
+        finalClientId = widgetResult.rows[0].client_id;
+      }
+    }
+
+    if (!finalClientId) {
+      return res.status(400).json({ 
+        error: 'Could not determine client_id from widget_id' 
       });
     }
 
@@ -80,7 +99,7 @@ router.post('/request', async (req, res) => {
     const result = await HandoverService.createHandoverRequest({
       conversation_id: parseInt(conversation_id),
       widget_id: parseInt(widget_id),
-      client_id: parseInt(client_id),
+      client_id: parseInt(finalClientId),
       requested_method,
       visitor_name,
       visitor_email,

@@ -489,7 +489,7 @@ router.get('/public/widget/:widgetKey/config', async (req, res) => {
     const { widgetKey } = req.params;
 
     const result = await pool.query(
-      `SELECT widget_key, widget_name, primary_color, secondary_color, position,
+      `SELECT id, id as widget_id, widget_key, widget_name, primary_color, secondary_color, position,
               welcome_message, bot_name, bot_avatar_url, enable_appointment_booking,
               enable_email_capture, enable_phone_capture, enable_ai_handoff,
               ai_handoff_url, business_hours, offline_message, is_active,

@@ -41,7 +41,11 @@
       emergencyDisclaimer: 'If this is a medical emergency, please call 911 immediately.',
       hipaaDisclaimer: 'This chat is not for medical emergencies. For urgent medical concerns, please call 911 or visit your nearest emergency room.',
       showEmergencyWarning: false,
-      autoDetectEmergency: false
+      autoDetectEmergency: false,
+      // 🤝 Handover Configuration
+      enableHandoverChoice: false,
+      handoverOptions: { portal: true, whatsapp: false, email: true, phone: false, webhook: false },
+      defaultHandoverMethod: 'portal'
     },
 
     state: {
@@ -134,10 +138,6 @@
         if (config.secondary_color) this.config.secondaryColor = config.secondary_color;
         if (config.position) this.config.position = config.position;
         
-        // Store IDs for handover requests
-        if (config.id) this.config.widgetId = config.id;
-        if (config.client_id) this.config.clientId = config.client_id;
-
         // Store intro flow settings
         if (config.intro_flow_enabled !== undefined) {
           this.config.enableIntroFlow = config.intro_flow_enabled;
@@ -150,6 +150,28 @@
         if (config.hipaa_disclaimer) this.config.hipaaDisclaimer = config.hipaa_disclaimer;
         if (config.show_emergency_warning !== undefined) this.config.showEmergencyWarning = config.show_emergency_warning;
         if (config.auto_detect_emergency !== undefined) this.config.autoDetectEmergency = config.auto_detect_emergency;
+        
+        // 🤝 Load handover configuration
+        try {
+          const handoverResponse = await fetch(`${this.config.backendUrl}/api/handover/config/${config.widget_id || config.id}`);
+          if (handoverResponse.ok) {
+            const handoverConfig = await handoverResponse.json();
+            if (handoverConfig.enable_handover_choice !== undefined) {
+              this.config.enableHandoverChoice = handoverConfig.enable_handover_choice;
+            }
+            if (handoverConfig.handover_options) {
+              this.config.handoverOptions = typeof handoverConfig.handover_options === 'string' 
+                ? JSON.parse(handoverConfig.handover_options) 
+                : handoverConfig.handover_options;
+            }
+            if (handoverConfig.default_handover_method) {
+              this.config.defaultHandoverMethod = handoverConfig.default_handover_method;
+            }
+            console.log('✅ Handover config loaded:', this.config.handoverOptions);
+          }
+        } catch (error) {
+          console.warn('Could not load handover config:', error);
+        }
         
         console.log('✅ Widget config loaded from database:', config);
       } catch (error) {
@@ -1178,158 +1200,22 @@
       }, 1500);
     },
 
-    // Request live agent - Show handover choice modal (WhatsApp, Email, etc.)
-    async requestLiveAgent() {
-      // Track event
+    // Request live agent - Collect contact info
+    requestLiveAgent() {
+      this.addBotMessage("Let me connect you with a live agent. To get started, I need a few details:");
+      
+      // 📊 Track live agent request event
       this.trackEvent('live_agent_requested', {
         page_url: window.location.href,
         timestamp: new Date().toISOString()
       });
-
-      // Load handover configuration
-      try {
-        const widgetId = this.config.widgetId;
-        if (!widgetId) {
-          console.warn('Missing widgetId in config; falling back to portal handover');
-          this.startHandoverFlow('portal', {});
-          return;
-        }
-
-        const configResponse = await fetch(`${this.config.backendUrl}/api/handover/config/${widgetId}`);
-        const handoverConfig = await configResponse.json();
-
-        if (!handoverConfig.enable_handover_choice) {
-          this.startHandoverFlow(handoverConfig.default_handover_method || 'portal', handoverConfig);
-          return;
-        }
-
-        this.showHandoverChoiceModal(handoverConfig);
-      } catch (error) {
-        console.error('Failed to load handover config:', error);
-        this.startHandoverFlow('portal', {});
-      }
-    },
-
-    showHandoverChoiceModal(config) {
-      const options = config.handover_options || { portal: true, whatsapp: false, email: true, phone: false, webhook: false };
-      const availableOptions = Object.entries(options).filter(([, enabled]) => enabled);
-      if (availableOptions.length === 1) {
-        this.startHandoverFlow(availableOptions[0][0], config);
-        return;
-      }
-
-      let modalHTML = `
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1.25rem; border-radius: 12px 12px 0 0; text-align: center;">
-          <h3 style="margin: 0 0 6px 0; font-size: 1.2rem; font-weight: 700;">🎯 How Would You Like Us to Contact You?</h3>
-          <p style="margin: 0; font-size: 0.9rem; opacity: 0.9;">Choose your preferred method below</p>
-        </div>
-        <div style="padding: 1rem; background: white;">
-      `;
-
-      const methodDetails = {
-        portal: { icon: '💬', label: 'Chat Here', desc: 'Continue in this chat window', color: '#28a745' },
-        whatsapp: { icon: '📱', label: 'WhatsApp', desc: 'Get a message on WhatsApp', color: '#25D366' },
-        email: { icon: '📧', label: 'Email', desc: 'Receive an email response', color: '#dc3545' },
-        phone: { icon: '📞', label: 'Phone/SMS', desc: 'Get a call or text message', color: '#007bff' },
-        webhook:{ icon: '🔗', label: 'My System', desc: 'Connect to your CRM', color: '#6f42c1' }
-      };
-
-      availableOptions.forEach(([method]) => {
-        const d = methodDetails[method];
-        modalHTML += `
-          <button onclick="WeTechForUWidget.selectHandoverMethod('${method}')" style="width: 100%; padding: 0.9rem; margin-bottom: 0.6rem; background: white; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 12px;">
-            <span style="font-size: 1.6rem;">${d.icon}</span>
-            <div style="flex:1;">
-              <div style="font-weight: 700; font-size: 1rem; color: #333; margin-bottom: 4px;">${d.label}</div>
-              <div style="font-size: 0.85rem; color: #666;">${d.desc}</div>
-            </div>
-            <i class="fas fa-chevron-right" style="color: #999;"></i>
-          </button>`;
-      });
-
-      modalHTML += `
-        <button onclick="WeTechForUWidget.closeHandoverModal()" style="width: 100%; padding: 0.6rem; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; cursor: pointer; color: #666; font-size: 0.9rem;">❌ Cancel</button>
-        </div>`;
-
-      this.addBotMessage(modalHTML, true);
-      this.state.handoverConfig = config;
-    },
-
-    closeHandoverModal() {
-      const messages = document.getElementById('wetechforu-messages');
-      if (messages && messages.lastChild) messages.removeChild(messages.lastChild);
-    },
-
-    selectHandoverMethod(method) {
-      this.closeHandoverModal();
-      this.startHandoverFlow(method, this.state.handoverConfig || {});
-    },
-
-    async startHandoverFlow(method, config) {
-      const labels = { portal: 'Portal Chat', whatsapp: 'WhatsApp', email: 'Email', phone: 'Phone/SMS', webhook: 'Your System' };
-      this.addUserMessage(`💬 Contact via: ${labels[method]}`);
-      this.addBotMessage(`Great! Let me collect your information for ${labels[method]} contact.`);
-      this.state.selectedHandoverMethod = method;
-      this.state.requiredFields = ['name', 'message'];
-      if (method === 'email') this.state.requiredFields.push('email');
-      if (method === 'whatsapp' || method === 'phone') this.state.requiredFields.push('phone');
-      setTimeout(() => { this.state.contactInfoStep = 0; this.state.contactInfo = {}; this.askHandoverInfo(); }, 800);
-    },
-
-    askHandoverInfo() {
-      const fields = this.state.requiredFields || [];
-      if (!this.state.contactInfoStep) this.state.contactInfoStep = 0;
-      if (this.state.contactInfoStep < fields.length) {
-        const field = fields[this.state.contactInfoStep];
-        const questions = {
-          name: "What's your full name?",
-          email: "What's your email address?",
-          phone: "What's your phone number? (with country code, e.g., +1234567890)",
-          message: "Briefly, what can we help you with?"
-        };
-        this.addBotMessage(questions[field]);
-        this.state.currentContactField = field;
-      } else {
-        this.submitHandoverRequest();
-      }
-    },
-
-    async submitHandoverRequest() {
-      const method = this.state.selectedHandoverMethod;
-      const info = this.state.contactInfo || {};
-      try {
-        this.addBotMessage('⏳ Processing your request...');
-        const response = await fetch(`${this.config.backendUrl}/api/handover/request`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            conversation_id: this.state.conversationId,
-            widget_id: this.config.widgetId,
-            client_id: this.config.clientId,
-            requested_method: method,
-            visitor_name: info.name,
-            visitor_email: info.email || null,
-            visitor_phone: info.phone || null,
-            visitor_message: info.message
-          })
-        });
-        const result = await response.json();
-        if (!response.ok || !result.success) throw new Error(result.error || 'Failed to submit');
-
-        const successCopy = {
-          portal: '✅ An agent will respond here shortly.',
-          whatsapp: '✅ You\'ll receive a WhatsApp message soon. Please check your phone!',
-          email: '✅ We\'ve sent you a confirmation email. Expect a response within 24 hours.',
-          phone: '✅ We\'ll call or text you soon at the number you provided.',
-          webhook: '✅ Your request has been sent to our system.'
-        };
-        this.addBotMessage(successCopy[method] || '✅ Your request has been submitted!');
-        this.state.agentTookOver = true;
-        setTimeout(() => this.showSessionEndOptions(), 1500);
-      } catch (e) {
-        console.error('Handover request failed:', e);
-        this.addBotMessage('❌ Sorry, there was an error submitting your request. Please try again.');
-      }
+      
+      // Start contact info collection
+      setTimeout(() => {
+        this.state.contactInfoStep = 0;
+        this.state.contactInfo = {};
+        this.askContactInfo();
+      }, 1000);
     },
 
     // Ask contact info step by step
@@ -1459,11 +1345,7 @@
         this.state.currentContactField = null;
         
         setTimeout(() => {
-          if (this.state.requiredFields) {
-            this.askHandoverInfo();
-          } else {
-            this.askContactInfo();
-          }
+          this.askContactInfo();
         }, 500);
         return;
       }
@@ -1600,10 +1482,6 @@
         this.addBotMessage(`📧 Email: ${info.email}\n📱 Phone: ${info.phone}\n📝 Question: ${info.reason}`);
       }, 800);
       
-      setTimeout(() => {
-        this.addBotMessage("Checking agent availability...");
-      }, 1600);
-      
       // ✅ FIX: Ensure conversation exists before handoff
       const conversationId = await this.ensureConversation();
       if (!conversationId) {
@@ -1611,47 +1489,204 @@
         return;
       }
       
-      // Send handoff request to backend
+      // Check if handover choice is enabled
+      if (this.config.enableHandoverChoice) {
+        // Show handover choice modal
+        setTimeout(() => {
+          this.showHandoverChoiceModal(info, conversationId);
+        }, 1500);
+      } else {
+        // Use default method (legacy behavior)
+        this.submitHandoverRequest(this.config.defaultHandoverMethod || 'portal', info, conversationId);
+      }
+    },
+
+    // Show handover choice modal
+    showHandoverChoiceModal(info, conversationId) {
+      const availableOptions = [];
+      if (this.config.handoverOptions.portal) availableOptions.push({ method: 'portal', label: '💬 Portal Chat', desc: 'Continue chatting here' });
+      if (this.config.handoverOptions.whatsapp && info.phone) availableOptions.push({ method: 'whatsapp', label: '📱 WhatsApp', desc: 'Get contacted via WhatsApp' });
+      if (this.config.handoverOptions.email && info.email) availableOptions.push({ method: 'email', label: '📧 Email', desc: 'Receive email response' });
+      if (this.config.handoverOptions.phone && info.phone) availableOptions.push({ method: 'phone', label: '📞 Phone Call/SMS', desc: 'Get a call or text' });
+      if (this.config.handoverOptions.webhook) availableOptions.push({ method: 'webhook', label: '🔗 System Integration', desc: 'Send to your system' });
+
+      if (availableOptions.length === 0) {
+        // No options available, use default
+        this.submitHandoverRequest(this.config.defaultHandoverMethod || 'portal', info, conversationId);
+        return;
+      }
+
+      // Build modal HTML
+      const modalHTML = `
+        <div id="wetechforu-handover-modal" style="
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0,0,0,0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        ">
+          <div style="
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+          ">
+            <h3 style="margin-top: 0; color: #333;">How would you like to be contacted?</h3>
+            <p style="color: #666; font-size: 14px; margin-bottom: 20px;">Choose your preferred contact method:</p>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              ${availableOptions.map(opt => `
+                <button onclick="WeTechForUWidget.selectHandoverMethod('${opt.method}')" style="
+                  padding: 12px 16px;
+                  border: 2px solid #e0e0e0;
+                  border-radius: 8px;
+                  background: white;
+                  cursor: pointer;
+                  text-align: left;
+                  transition: all 0.2s;
+                  font-size: 14px;
+                " onmouseover="this.style.borderColor='${this.config.primaryColor}'; this.style.background='#f5f5f5';" 
+                   onmouseout="this.style.borderColor='#e0e0e0'; this.style.background='white';">
+                  <div style="font-weight: 600; color: #333;">${opt.label}</div>
+                  <div style="font-size: 12px; color: #666; margin-top: 4px;">${opt.desc}</div>
+                </button>
+              `).join('')}
+            </div>
+            <button onclick="WeTechForUWidget.closeHandoverModal()" style="
+              margin-top: 16px;
+              width: 100%;
+              padding: 10px;
+              border: none;
+              border-radius: 6px;
+              background: #f0f0f0;
+              cursor: pointer;
+              color: #666;
+              font-size: 14px;
+            ">Cancel</button>
+          </div>
+        </div>
+      `;
+
+      // Add modal to page
+      document.body.insertAdjacentHTML('beforeend', modalHTML);
+      this.state.handoverInfo = info;
+      this.state.handoverConversationId = conversationId;
+    },
+
+    // Close handover modal
+    closeHandoverModal() {
+      const modal = document.getElementById('wetechforu-handover-modal');
+      if (modal) modal.remove();
+      this.state.handoverInfo = null;
+      this.state.handoverConversationId = null;
+    },
+
+    // Select handover method
+    async selectHandoverMethod(method) {
+      this.closeHandoverModal();
+      const info = this.state.handoverInfo;
+      const conversationId = this.state.handoverConversationId;
+      
+      if (!info || !conversationId) {
+        this.addBotMessage("Sorry, there was an issue. Please try again.");
+        return;
+      }
+
+      // Get widget ID from config
+      let widgetId = null;
       try {
-        const response = await fetch(`${this.config.backendUrl}/api/chat-widget/${this.config.widgetKey}/handoff`, {
+        const configResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/config`);
+        if (configResponse.ok) {
+          const config = await configResponse.json();
+          widgetId = config.widget_id || config.id;
+        }
+      } catch (error) {
+        console.error('Failed to get widget ID:', error);
+      }
+
+      if (!widgetId) {
+        this.addBotMessage("Sorry, there was an issue. Please try again.");
+        return;
+      }
+
+      // Submit handover request
+      await this.submitHandoverRequest(method, info, conversationId, widgetId);
+    },
+
+    // Submit handover request to backend
+    async submitHandoverRequest(method, info, conversationId, widgetId) {
+      if (!widgetId) {
+        // Try to get widget ID
+        try {
+          const configResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/config`);
+          if (configResponse.ok) {
+            const config = await configResponse.json();
+            widgetId = config.widget_id || config.id;
+          }
+        } catch (error) {
+          console.error('Failed to get widget ID:', error);
+        }
+      }
+
+      if (!widgetId) {
+        this.addBotMessage("Sorry, there was an issue. Please try again.");
+        return;
+      }
+
+      this.addBotMessage(`⏳ Processing your request...`);
+
+      try {
+        const response = await fetch(`${this.config.backendUrl}/api/handover/request`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             conversation_id: conversationId,
+            widget_id: widgetId,
+            client_id: this.config.clientId || null, // Will be determined by backend from widget_id
+            requested_method: method,
             visitor_name: info.name,
-            visitor_email: info.email,
-            visitor_phone: info.phone,
-            handoff_type: 'live_agent',
-            handoff_details: { reason: info.reason }
+            visitor_email: info.email || null,
+            visitor_phone: info.phone || null,
+            visitor_message: info.reason || 'Visitor requested to speak with an agent'
           })
         });
-        
+
         const data = await response.json();
-        
-        setTimeout(() => {
-          if (data.agent_online) {
-            // Agent is online
-            this.addBotMessage(`✅ Great news! ${data.agent_name || 'An agent'} is available and will assist you shortly.`);
-            setTimeout(() => {
-              this.addBotMessage(`You're now connected with ${data.agent_name || 'a live agent'}. They'll respond to you here in this chat.`);
-            }, 1500);
-          } else {
-            // Agent is offline
-            this.addBotMessage("Our agents are currently offline. Your message has been sent, and we'll get back to you as soon as possible!");
-            setTimeout(() => {
-              this.addBotMessage("You can expect a response within 24 hours at the email address you provided.");
-            }, 1500);
-          }
-          
-          // Reset contact info collection
-          this.state.contactInfo = {};
-          this.state.contactInfoStep = 0;
-          this.state.currentContactField = null;
-        }, 2400);
-        
+
+        if (data.success) {
+          const successMessages = {
+            portal: "✅ Perfect! An agent will respond to you right here in this chat shortly.",
+            whatsapp: "✅ Great! You'll receive a WhatsApp message soon. Please check your phone!",
+            email: "✅ Thank you! We've sent you a confirmation email. Expect a response within 24 hours.",
+            phone: "✅ Got it! We'll call or text you soon at the number you provided.",
+            webhook: "✅ Your request has been sent to our system. Someone will reach out shortly!"
+          };
+
+          setTimeout(() => {
+            this.addBotMessage(successMessages[method] || "✅ Your request has been submitted!");
+            this.state.agentTookOver = true;
+          }, 800);
+        } else {
+          throw new Error(data.error || 'Request failed');
+        }
+
+        // Reset contact info collection
+        this.state.contactInfo = {};
+        this.state.contactInfoStep = 0;
+        this.state.currentContactField = null;
+        this.state.handoverInfo = null;
+        this.state.handoverConversationId = null;
+
       } catch (error) {
-        console.error('Failed to submit to agent:', error);
-        this.addBotMessage("Sorry, there was an issue connecting you. Please try again or call us directly.");
+        console.error('Failed to submit handover request:', error);
+        this.addBotMessage("❌ Sorry, there was an error submitting your request. Please try again or refresh the page.");
       }
     },
 
