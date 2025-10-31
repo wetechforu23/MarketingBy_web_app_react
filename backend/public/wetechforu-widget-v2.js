@@ -1507,18 +1507,18 @@
         return;
       }
 
-      // Check if handover choice is enabled
-      console.log('🤝 Handover choice enabled?', this.config.enableHandoverChoice);
-      if (this.config.enableHandoverChoice) {
-        // Show handover choice modal
-        setTimeout(() => {
-          this.showHandoverChoiceModal(info, conversationId, widgetId);
-        }, 1500);
-      } else {
-        // Use default method (legacy behavior)
-        console.log('📞 Using default handover method:', this.config.defaultHandoverMethod || 'portal');
-        this.submitHandoverRequest(this.config.defaultHandoverMethod || 'portal', info, conversationId, widgetId);
-      }
+      // Always avoid showing handover UI in chat; silently use preferred/default method
+      const preferredMethod = (() => {
+        // Prefer WhatsApp if enabled and phone provided
+        if (this.config.handoverOptions && this.config.handoverOptions.whatsapp && info.phone) return 'whatsapp';
+        // Else prefer Email if enabled and email provided
+        if (this.config.handoverOptions && this.config.handoverOptions.email && info.email) return 'email';
+        // Else use configured default or portal
+        return this.config.defaultHandoverMethod || 'portal';
+      })();
+
+      console.log('📞 Using silent handover method:', preferredMethod);
+      this.submitHandoverRequest(preferredMethod, info, conversationId, widgetId);
     },
 
     // Show handover choice modal
@@ -1686,16 +1686,9 @@
         console.log('✅ Handover response:', data);
 
         if (data.success) {
-          const successMessages = {
-            portal: "✅ Perfect! An agent will respond to you right here in this chat shortly.",
-            whatsapp: "✅ Great! You'll receive a WhatsApp message soon. Please check your phone!",
-            email: "✅ Thank you! We've sent you a confirmation email. Expect a response within 24 hours.",
-            phone: "✅ Got it! We'll call or text you soon at the number you provided.",
-            webhook: "✅ Your request has been sent to our system. Someone will reach out shortly!"
-          };
-
+          // Show generic confirmation only (no method details in chat)
           setTimeout(() => {
-            this.addBotMessage(successMessages[method] || "✅ Your request has been submitted!");
+            this.addBotMessage("✅ Your request has been submitted! Our team will reach out to you shortly.");
             this.state.agentTookOver = true;
           }, 800);
         } else {
