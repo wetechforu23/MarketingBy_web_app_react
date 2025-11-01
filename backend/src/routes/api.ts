@@ -3070,10 +3070,198 @@ router.get('/analytics/client/:clientId/real', async (req, res) => {
     
     console.log(`🔍 Real analytics request for client ${clientId}, propertyId: ${propertyId}`);
     
+    // First, check if we have stored data in google_analytics_data table
+    try {
+      const storedDataResult = await pool.query(`
+        SELECT 
+          SUM(page_views) as total_page_views,
+          SUM(sessions) as total_sessions,
+          SUM(users) as total_users,
+          SUM(new_users) as total_new_users,
+          AVG(bounce_rate) as avg_bounce_rate,
+          AVG(avg_session_duration) as avg_session_duration,
+          MAX(date) as latest_date
+        FROM google_analytics_data
+        WHERE client_id = $1 
+          AND date >= NOW() - INTERVAL '30 days'
+      `, [clientId]);
+
+      if (storedDataResult.rows.length > 0 && storedDataResult.rows[0].total_page_views) {
+        const stored = storedDataResult.rows[0];
+        console.log(`✅ Found stored Google Analytics data for client ${clientId}`);
+        
+        // Get top pages from most recent data
+        // The top_pages field should contain full page metrics: page, pageViews, uniqueUsers, bounceRate, avgTimeOnPage, conversions, conversionRate
+        const topPagesResult = await pool.query(`
+          SELECT top_pages
+          FROM google_analytics_data
+          WHERE client_id = $1 
+            AND top_pages IS NOT NULL
+            AND date = (SELECT MAX(date) FROM google_analytics_data WHERE client_id = $1)
+          LIMIT 1
+        `, [clientId]);
+
+        // Get traffic sources from most recent data
+        const trafficSourcesResult = await pool.query(`
+          SELECT traffic_sources
+          FROM google_analytics_data
+          WHERE client_id = $1 
+            AND traffic_sources IS NOT NULL
+            AND date = (SELECT MAX(date) FROM google_analytics_data WHERE client_id = $1)
+          LIMIT 1
+        `, [clientId]);
+
+        // Ensure topPages have the correct structure with all required fields
+        let topPages = topPagesResult.rows[0]?.top_pages || [];
+        if (Array.isArray(topPages)) {
+          topPages = topPages.map((page: any) => {
+            // If stored data has full structure, use it; otherwise use minimal structure
+            if (page.uniqueUsers !== undefined) {
+              return page; // Already has full structure
+            }
+            // Fallback for older data structure that only has page and pageViews
+            return {
+              page: page.page || page.pagePath || '',
+              pageViews: page.pageViews || 0,
+              uniqueUsers: 0, // Will be populated from API if available
+              bounceRate: stored.avg_bounce_rate || 0,
+              avgTimeOnPage: stored.avg_session_duration || 0,
+              conversions: 0,
+              conversionRate: 0
+            };
+          });
+        }
+
+        // Get geographic data from stored data - check metadata field first (new format), then country/state breakdown (old format)
+        const geographicResult = await pool.query(`
+          SELECT metadata, country_breakdown, state_breakdown
+          FROM google_analytics_data
+          WHERE client_id = $1 
+            AND (metadata IS NOT NULL OR country_breakdown IS NOT NULL OR state_breakdown IS NOT NULL)
+            AND date = (SELECT MAX(date) FROM google_analytics_data WHERE client_id = $1)
+          LIMIT 1
+        `, [clientId]);
+
+        // Convert stored data to geographic data array format
+        let geographicData: any[] = [];
+        let detailedGeographicData: any[] = []; // For the detailed region table
+        if (geographicResult.rows.length > 0) {
+          const metadata = geographicResult.rows[0].metadata || {};
+          const countryBreakdown = geographicResult.rows[0].country_breakdown || {};
+          const stateBreakdown = geographicResult.rows[0].state_breakdown || {};
+          
+          // Priority 1: Check if metadata contains geographicData array (new format with region, country, activeUsers, etc.)
+          if (metadata.geographicData && Array.isArray(metadata.geographicData)) {
+            // For simple geographic table (country-level aggregation)
+            geographicData = metadata.geographicData
+              .filter((geo: any) => geo.country && geo.country !== 'Unknown' && geo.country !== '(not set)')
+              .map((geo: any) => {
+                // Calculate total sessions from engagedSessions and engagementRate if available
+                let sessions = 0;
+                if (geo.engagedSessions && geo.engagementRate && geo.engagementRate > 0) {
+                  // totalSessions = engagedSessions / (engagementRate / 100)
+                  sessions = Math.round(geo.engagedSessions / (geo.engagementRate / 100));
+                } else {
+                  // Fallback: use engagedSessions as sessions count
+                  sessions = geo.engagedSessions || 0;
+                }
+                
+                return {
+                  country: geo.country || 'Unknown',
+                  users: geo.activeUsers || geo.newUsers || 0,
+                  sessions: sessions,
+                  bounceRate: geo.engagementRate !== undefined ? (100 - geo.engagementRate) : 0
+                };
+              })
+              // Aggregate by country (sum users and sessions, average bounceRate)
+              .reduce((acc: any[], current: any) => {
+                const existing = acc.find(item => item.country === current.country);
+                if (existing) {
+                  existing.users += current.users;
+                  existing.sessions += current.sessions;
+                  // Weighted average for bounce rate
+                  existing.bounceRate = ((existing.bounceRate * existing.sessions) + (current.bounceRate * current.sessions)) / (existing.sessions + current.sessions);
+                } else {
+                  acc.push(current);
+                }
+                return acc;
+              }, []);
+
+            // For detailed region table (keep all fields from metadata)
+            detailedGeographicData = metadata.geographicData
+              .filter((geo: any) => geo.country && geo.country !== 'Unknown' && geo.country !== '(not set)')
+              .map((geo: any) => ({
+                region: geo.region || 'Unknown',
+                country: geo.country || 'Unknown',
+                newUsers: geo.newUsers || 0,
+                activeUsers: geo.activeUsers || 0,
+                engagementRate: geo.engagementRate || 0,
+                engagedSessions: geo.engagedSessions || 0,
+                engagedSessionsPerUser: geo.engagedSessionsPerUser || 0,
+                averageEngagementTimePerSession: geo.averageEngagementTimePerSession || 0
+              }));
+            
+            console.log(`✅ Found geographic data in metadata: ${geographicData.length} country entries, ${detailedGeographicData.length} region entries`);
+          }
+          // Priority 2: Convert country breakdown to array format (old format)
+          else if (Object.keys(countryBreakdown).length > 0) {
+            geographicData = Object.entries(countryBreakdown).map(([country, users]: [string, any]) => ({
+              country: country,
+              city: 'Unknown',
+              region: 'Unknown',
+              users: parseInt(users) || 0,
+              sessions: 0,
+              bounceRate: 0
+            }));
+            console.log(`✅ Found geographic data in country_breakdown: ${geographicData.length} entries`);
+          }
+        }
+
+        const analyticsData = {
+          pageViews: parseInt(stored.total_page_views) || 0,
+          sessions: parseInt(stored.total_sessions) || 0,
+          users: parseInt(stored.total_users) || 0,
+          newUsers: parseInt(stored.total_new_users) || 0,
+          bounceRate: parseFloat(stored.avg_bounce_rate) || 0,
+          avgSessionDuration: parseFloat(stored.avg_session_duration) || 0,
+          topPages: topPages, // Use processed topPages with full structure
+          trafficSources: trafficSourcesResult.rows[0]?.traffic_sources || [],
+          geographicData: geographicData, // Simple country-level geographic data (for first table)
+          detailedGeographicData: detailedGeographicData || [], // Detailed region-level data (for second table)
+          countryBreakdown: {},
+          stateBreakdown: {},
+          source: 'database',
+          latestDate: stored.latest_date
+        };
+
+        console.log(`✅ Returning stored Google Analytics data for client ${clientId}:`, {
+          pageViews: analyticsData.pageViews,
+          sessions: analyticsData.sessions,
+          users: analyticsData.users,
+          latestDate: analyticsData.latestDate
+        });
+        return res.json(analyticsData);
+      }
+    } catch (dbError) {
+      console.log(`⚠️ Could not fetch stored data, will try API:`, dbError);
+    }
+    
+    // If no stored data, try to fetch from API if propertyId and credentials are available
     if (!propertyId) {
-      return res.status(400).json({ 
-        error: 'Property ID is required',
-        needsPropertyId: true
+      console.log(`⚠️ No stored data and no propertyId provided for client ${clientId}`);
+      return res.json({
+        pageViews: 0,
+        sessions: 0,
+        users: 0,
+        newUsers: 0,
+        bounceRate: 0,
+        avgSessionDuration: 0,
+        topPages: [],
+        trafficSources: [],
+        countryBreakdown: {},
+        stateBreakdown: {},
+        source: 'none',
+        error: 'No data available. Please sync Google Analytics data first.'
       });
     }
     
@@ -3082,7 +3270,18 @@ router.get('/analytics/client/:clientId/real', async (req, res) => {
     
     if (!hasCredentials) {
       console.log(`⚠️ No OAuth credentials for client ${clientId}, but Property ID provided: ${propertyId}`);
-      return res.status(400).json({ 
+      return res.json({
+        pageViews: 0,
+        sessions: 0,
+        users: 0,
+        newUsers: 0,
+        bounceRate: 0,
+        avgSessionDuration: 0,
+        topPages: [],
+        trafficSources: [],
+        countryBreakdown: {},
+        stateBreakdown: {},
+        source: 'none',
         error: 'Google Analytics OAuth not connected. Please connect your Google Analytics account first.',
         needsAuth: true,
         service: 'google_analytics',
@@ -3090,17 +3289,32 @@ router.get('/analytics/client/:clientId/real', async (req, res) => {
       });
     }
 
-    console.log(`✅ OAuth credentials found for client ${clientId}, fetching real data...`);
+    console.log(`✅ OAuth credentials found for client ${clientId}, fetching real data from API...`);
     const analyticsData = await googleAnalyticsService.getAnalyticsData(
       parseInt(clientId), 
       propertyId as string
     );
 
-    console.log(`✅ Real analytics data fetched for client ${clientId}:`, analyticsData);
+    analyticsData.source = 'api';
+    console.log(`✅ Real analytics data fetched from API for client ${clientId}:`, analyticsData);
     res.json(analyticsData);
   } catch (error) {
     console.error('Get real analytics data error:', error);
-    res.status(500).json({ error: 'Failed to fetch analytics data' });
+    // Return zeros instead of error to prevent dashboard from breaking
+    res.json({
+      pageViews: 0,
+      sessions: 0,
+      users: 0,
+      newUsers: 0,
+      bounceRate: 0,
+      avgSessionDuration: 0,
+      topPages: [],
+      trafficSources: [],
+      countryBreakdown: {},
+      stateBreakdown: {},
+      source: 'error',
+      error: error.message || 'Failed to fetch analytics data'
+    });
   }
 });
 

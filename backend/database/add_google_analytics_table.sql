@@ -47,3 +47,4 @@ COMMENT ON COLUMN google_analytics_data.traffic_sources IS 'Array of traffic sou
 COMMENT ON COLUMN google_analytics_data.country_breakdown IS 'Object with country counts: {"United States": 45, "Canada": 10}';
 COMMENT ON COLUMN google_analytics_data.state_breakdown IS 'Object with state counts: {"California": 20, "New York": 15}';
 
+
