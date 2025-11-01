@@ -436,9 +436,18 @@ export class HandoverService {
         }
 
         // Prefer template first (avoids 24h window errors)
-        // Remove 'whatsapp:' prefix from number if present
-        const cleanNumber = clientWhatsAppNumber.replace('whatsapp:', '').trim();
+        // Remove 'whatsapp:' prefix from number if present, ensure it's just digits with + prefix
+        let cleanNumber = clientWhatsAppNumber.replace('whatsapp:', '').trim();
+        
+        // Ensure E.164 format: + followed by digits only
+        if (!cleanNumber.startsWith('+')) {
+          cleanNumber = '+' + cleanNumber.replace(/\D/g, '');
+        } else {
+          cleanNumber = '+' + cleanNumber.replace(/[^\d]/g, '');
+        }
+        
         console.log(`📱 Sending WhatsApp to clean number: ${cleanNumber} (original: ${clientWhatsAppNumber})`);
+        console.log(`📱 Client ID: ${handoverRequest.client_id}, Widget ID: ${handoverRequest.widget_id}, Conversation ID: ${handoverRequest.conversation_id}`);
         
         let result = await whatsappService.sendTemplateMessage({
           clientId: handoverRequest.client_id,
@@ -460,7 +469,12 @@ export class HandoverService {
         console.log(`📱 Template message result:`, {
           success: result.success,
           error: result.error,
-          messageSid: result.messageSid
+          errorCode: result.errorCode,
+          errorMessage: result.errorMessage,
+          messageSid: result.messageSid,
+          status: result.status,
+          to: cleanNumber,
+          clientId: handoverRequest.client_id
         });
 
         // If template not configured, fallback to freeform

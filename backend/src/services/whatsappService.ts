@@ -273,8 +273,14 @@ export class WhatsAppService {
 
       console.log('📄 Sending WhatsApp template message via Content API', {
         to: formattedTo,
+        from: formattedFrom,
         contentSid: effectiveContentSid,
         hasVariables: Boolean(contentVariables),
+        clientId: clientId,
+        widgetId: widgetId,
+        conversationId: conversationId,
+        templateType: templateType,
+        variables: variables
       });
 
       const response = await axios.post(url, body.toString(), {

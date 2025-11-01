@@ -86,7 +86,10 @@
       },
       // ⏰ Inactivity monitoring
       inactivityMonitorInterval: null,
-      conversationExpired: false
+      conversationExpired: false,
+      // 📝 Form flow control
+      shouldShowFormAfterInput: false,
+      pendingFormQuestions: null
     },
 
     // Initialize widget
@@ -937,15 +940,14 @@
               }
             }
             
-            // If form data doesn't exist, show form
+            // ✅ If form data doesn't exist, wait for user input FIRST before showing form
             if (!formDataExists) {
-              setTimeout(() => {
-                this.addBotMessage("Please complete the information below so we can assist you better:");
-              }, 1500);
+              // Set flag to show form after first user message
+              this.state.shouldShowFormAfterInput = true;
+              this.state.pendingFormQuestions = enabledQuestions;
               
-              setTimeout(() => {
-                this.showIntroForm(enabledQuestions);
-              }, 2000);
+              // Don't show form immediately - wait for user to send a message first
+              console.log('⏳ Waiting for user input before showing form');
             }
           } else {
             // No questions configured - use default intro
@@ -2493,6 +2495,24 @@
           // Stop polling for bot, start polling for agent
           this.state.agentTookOver = true;
           return;
+        }
+        
+        // ✅ Check if we need to show form after first user input
+        if (this.state.shouldShowFormAfterInput && this.state.pendingFormQuestions) {
+          this.state.shouldShowFormAfterInput = false; // Reset flag
+          const questions = this.state.pendingFormQuestions;
+          this.state.pendingFormQuestions = null;
+          
+          // Show form after a brief delay
+          setTimeout(() => {
+            this.addBotMessage("Please complete the information below so we can assist you better:");
+          }, 1500);
+          
+          setTimeout(() => {
+            this.showIntroForm(questions);
+          }, 2000);
+          
+          return; // Don't process bot response, just show form
         }
         
         if (data.response) {
