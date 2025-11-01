@@ -583,8 +583,9 @@ export default function ChatWidgetEditor() {
 
     try {
       // Save widget handover config
+      // Note: enable_handover_choice is always false - visitors don't choose, client configures the method
       await api.put(`/handover/config/${id}`, {
-        enable_handover_choice: enableHandoverChoice,
+        enable_handover_choice: false, // Visitors don't choose - system uses configured default
         handover_options: handoverOptions,
         default_handover_method: defaultHandoverMethod,
         webhook_url: webhookUrl || null,
@@ -667,7 +668,7 @@ export default function ChatWidgetEditor() {
         // WhatsApp
         enable_whatsapp: whatsappEnabled,
         // Handover Options
-        enable_handover_choice: enableHandoverChoice,
+        enable_handover_choice: false, // Visitors don't choose - system uses configured default
         handover_options: JSON.stringify(handoverOptions),
         default_handover_method: defaultHandoverMethod,
         webhook_url: webhookUrl,
@@ -2412,41 +2413,27 @@ export default function ChatWidgetEditor() {
           }}>
             <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <i className="fas fa-directions" style={{ color: '#2E86AB', fontSize: '1.6rem' }}></i>
-              Agent Handover Options
+              Agent Handover Configuration
             </h3>
             <p style={{ fontSize: '14px', color: '#666', marginBottom: '1.5rem' }}>
-              Let visitors choose HOW they want to be contacted when requesting agent help
+              Configure HOW your team will be notified when visitors request agent help. This is a <strong>client-side configuration</strong> - visitors do not choose; the system automatically uses your configured method.
             </p>
 
-            {/* Enable Handover Choice Toggle */}
-            <label style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={enableHandoverChoice}
-                onChange={(e) => setEnableHandoverChoice(e.target.checked)}
-                style={{ marginRight: '0.5rem', width: '20px', height: '20px' }}
-              />
-              <span style={{ fontWeight: '700', fontSize: '16px' }}>Allow Visitors to Choose Contact Method</span>
-            </label>
-
-            {enableHandoverChoice && (
-              <>
-                <div style={{
-                  background: '#e7f3ff',
-                  padding: '1rem',
-                  borderRadius: '8px',
-                  marginBottom: '1.5rem',
-                  fontSize: '13px',
-                  lineHeight: '1.6'
-                }}>
-                  <strong>📱 How it works:</strong>
-                  <ol style={{ margin: '8px 0 0 20px', padding: 0 }}>
-                    <li>Visitor clicks "Talk to Agent"</li>
-                    <li>Modal shows available contact methods (checked below)</li>
-                    <li>Visitor chooses their preferred method</li>
-                    <li>System automatically notifies your team via chosen method</li>
-                  </ol>
-                </div>
+            <div style={{
+              background: '#e7f3ff',
+              padding: '1rem',
+              borderRadius: '8px',
+              marginBottom: '1.5rem',
+              fontSize: '13px',
+              lineHeight: '1.6'
+            }}>
+              <strong>📱 How it works:</strong>
+              <ol style={{ margin: '8px 0 0 20px', padding: 0 }}>
+                <li>Visitor clicks "Talk to Agent"</li>
+                <li>System automatically uses your configured <strong>Default Contact Method</strong> (selected below)</li>
+                <li>Your team is notified via the chosen method</li>
+              </ol>
+            </div>
 
                 {/* Available Methods */}
                 <div style={{
@@ -2457,10 +2444,10 @@ export default function ChatWidgetEditor() {
                   marginBottom: '1.5rem'
                 }}>
                   <h4 style={{ marginTop: 0, fontSize: '15px', fontWeight: '600', marginBottom: '1rem' }}>
-                    ✅ Available Contact Methods
+                    ✅ Enabled Contact Methods
                   </h4>
                   <p style={{ fontSize: '13px', color: '#666', marginBottom: '1rem' }}>
-                    Check the methods you want to offer to visitors:
+                    Select which contact methods are available for handover. At least one method must be enabled.
                   </p>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -2596,8 +2583,11 @@ export default function ChatWidgetEditor() {
                 {/* Default Method */}
                 <div style={{ marginBottom: '1.5rem' }}>
                   <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600', fontSize: '14px' }}>
-                    🔵 Default Contact Method (if visitor doesn't choose)
+                    🔵 Default Contact Method
                   </label>
+                  <p style={{ fontSize: '12px', color: '#666', marginBottom: '0.5rem' }}>
+                    This method will be automatically used when a visitor requests agent help. Must be one of the enabled methods above.
+                  </p>
                   <select
                     value={defaultHandoverMethod}
                     onChange={(e) => setDefaultHandoverMethod(e.target.value)}
@@ -2739,21 +2729,6 @@ export default function ChatWidgetEditor() {
                     <><i className="fas fa-save"></i> Save Handover Configuration</>
                   )}
                 </button>
-              </>
-            )}
-
-            {!enableHandoverChoice && (
-              <div style={{
-                padding: '1rem',
-                background: '#fff3cd',
-                borderRadius: '8px',
-                border: '1px solid #ffc107',
-                fontSize: '14px'
-              }}>
-                <i className="fas fa-info-circle"></i> Handover choice is disabled. 
-                All agent requests will use the default portal chat method.
-              </div>
-            )}
           </div>
         )}
 

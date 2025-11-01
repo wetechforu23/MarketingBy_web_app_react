@@ -1951,18 +1951,10 @@
         return;
       }
 
-      // Always avoid showing handover UI in chat; silently use preferred/default method
-      const preferredMethod = (() => {
-        // Prefer WhatsApp if enabled and phone provided
-        if (this.config.handoverOptions && this.config.handoverOptions.whatsapp && info.phone) return 'whatsapp';
-        // Else prefer Email if enabled and email provided
-        if (this.config.handoverOptions && this.config.handoverOptions.email && info.email) return 'email';
-        // Else use configured default or portal
-        return this.config.defaultHandoverMethod || 'portal';
-      })();
-
-      console.log('📞 Using silent handover method:', preferredMethod);
-      this.submitHandoverRequest(preferredMethod, info, conversationId, widgetId);
+      // Always use the client-configured default handover method (visitors don't choose)
+      const handoverMethod = this.config.defaultHandoverMethod || 'portal';
+      console.log('📞 Using configured handover method:', handoverMethod);
+      this.submitHandoverRequest(handoverMethod, info, conversationId, widgetId);
     },
 
     // Show handover choice modal
