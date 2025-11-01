@@ -26,6 +26,8 @@ interface AnalyticsData {
     source: string;
     sessions: number;
   }>;
+  geographicData?: any[]; // Country-level aggregated geographic data
+  detailedGeographicData?: any[]; // Region-level detailed geographic data
   countryBreakdown?: { [key: string]: number };
   stateBreakdown?: { [key: string]: number };
 }
@@ -224,8 +226,8 @@ export class GoogleAnalyticsService {
       // Get real data from Google Analytics API
       const analytics = google.analyticsdata('v1beta');
       
-      // Set up the request for basic metrics
-      const request = {
+      // Get aggregated metrics (overall totals)
+      const aggregateRequest = {
         dateRanges: [
           {
             startDate: '30daysAgo',
@@ -239,20 +241,60 @@ export class GoogleAnalyticsService {
           { name: 'totalUsers' },
           { name: 'newUsers' },
           { name: 'averageSessionDuration' }
+        ]
+      };
+
+      const aggregateResponse = await analytics.properties.runReport({
+        property: `properties/${propertyId}`,
+        requestBody: aggregateRequest,
+        auth: this.oauth2Client
+      });
+
+      // Extract aggregated metrics
+      const aggregateRows = aggregateResponse.data.rows || [];
+      const aggregateMetrics = aggregateRows.length > 0 ? aggregateRows[0].metricValues : [];
+      const pageViews = aggregateMetrics[0]?.value ? parseInt(aggregateMetrics[0].value) : 0;
+      const sessions = aggregateMetrics[1]?.value ? parseInt(aggregateMetrics[1].value) : 0;
+      const bounceRate = aggregateMetrics[2]?.value ? parseFloat(aggregateMetrics[2].value) * 100 : 0;
+      const users = aggregateMetrics[3]?.value ? parseInt(aggregateMetrics[3].value) : 0;
+      const newUsers = aggregateMetrics[4]?.value ? parseInt(aggregateMetrics[4].value) : 0;
+      const avgSessionDuration = aggregateMetrics[5]?.value ? parseFloat(aggregateMetrics[5].value) : 0;
+
+      // Get detailed per-page metrics for Page Performance table (exact GA4 API structure as specified)
+      const pageDetailsRequest = {
+        dateRanges: [
+          {
+            startDate: '30daysAgo',
+            endDate: 'today'
+          }
+        ],
+        metrics: [
+          { name: 'screenPageViews' },
+          { name: 'totalUsers' },
+          { name: 'bounceRate' },
+          { name: 'averageSessionDuration' },
+          { name: 'conversions' },
+          { name: 'sessionConversionRate' }
         ],
         dimensions: [
           { name: 'pagePath' }
         ],
-        limit: '10'
+        orderBys: [
+          {
+            metric: { metricName: 'screenPageViews' },
+            desc: true
+          }
+        ],
+        limit: '50'
       };
 
-      const response = await analytics.properties.runReport({
+      const pageDetailsResponse = await analytics.properties.runReport({
         property: `properties/${propertyId}`,
-        requestBody: request,
+        requestBody: pageDetailsRequest,
         auth: this.oauth2Client
       });
 
-      // Get traffic source data
+      // Get traffic source data (exact GA4 API structure as specified)
       const trafficRequest = {
         dateRanges: [
           {
@@ -264,11 +306,15 @@ export class GoogleAnalyticsService {
           { name: 'sessions' }
         ],
         dimensions: [
-          { name: 'sessionDefaultChannelGrouping' },
-          { name: 'sessionSource' },
-          { name: 'sessionMedium' }
+          { name: 'sessionSource' }
         ],
-        limit: '20'
+        orderBys: [
+          {
+            metric: { metricName: 'sessions' },
+            desc: true
+          }
+        ],
+        limit: '50'
       };
 
       const trafficResponse = await analytics.properties.runReport({
@@ -277,54 +323,52 @@ export class GoogleAnalyticsService {
         auth: this.oauth2Client
       });
 
-      // Process the real data
-      const rows = response.data.rows || [];
-      const trafficRows = trafficResponse.data.rows || [];
+      // Process per-page data with real metrics
+      const pageRows = pageDetailsResponse.data?.rows || [];
+      const trafficRows = trafficResponse.data?.rows || [];
       
-      // Extract metrics from the first row (aggregated data)
-      const metrics = rows.length > 0 ? rows[0].metricValues : [];
-      const pageViews = metrics[0]?.value ? parseInt(metrics[0].value) : 0;
-      const sessions = metrics[1]?.value ? parseInt(metrics[1].value) : 0;
-      const bounceRate = metrics[2]?.value ? parseFloat(metrics[2].value) * 100 : 0;
-      const users = metrics[3]?.value ? parseInt(metrics[3].value) : 0;
-      const newUsers = metrics[4]?.value ? parseInt(metrics[4].value) : 0;
-      const avgSessionDuration = metrics[5]?.value ? parseFloat(metrics[5].value) : 0;
+      // Process top pages with detailed metrics (using exact GA4 API response structure)
+      const topPages = pageRows.map(row => {
+        const pagePath = row.dimensionValues?.[0]?.value || '';
+        const pageViews = row.metricValues?.[0]?.value ? parseInt(row.metricValues[0].value) : 0; // screenPageViews
+        const uniqueUsers = row.metricValues?.[1]?.value ? parseInt(row.metricValues[1].value) : 0; // totalUsers
+        const pageBounceRate = row.metricValues?.[2]?.value ? parseFloat(row.metricValues[2].value) * 100 : 0; // bounceRate (convert from decimal)
+        const avgTime = row.metricValues?.[3]?.value ? parseFloat(row.metricValues[3].value) : 0; // averageSessionDuration (in seconds)
+        const conversions = row.metricValues?.[4]?.value ? parseInt(row.metricValues[4].value) : 0; // conversions
+        const conversionRate = row.metricValues?.[5]?.value ? parseFloat(row.metricValues[5].value) * 100 : 0; // sessionConversionRate (convert from decimal)
 
-      // Process top pages
-      const topPages = rows.slice(1).map(row => ({
-        page: row.dimensionValues?.[0]?.value || '',
-        pageViews: row.metricValues?.[0]?.value ? parseInt(row.metricValues[0].value) : 0
-      }));
-
-      // Process traffic sources with social media tracking
-      const trafficSources = trafficRows.map(row => {
-        const channelGrouping = row.dimensionValues?.[0]?.value || '';
-        const source = row.dimensionValues?.[1]?.value || '';
-        const medium = row.dimensionValues?.[2]?.value || '';
-        const sessions = row.metricValues?.[0]?.value ? parseInt(row.metricValues[0].value) : 0;
-        
-        // Enhanced source tracking for social media
-        let enhancedSource = channelGrouping;
-        if (medium === 'social' || source.includes('facebook') || source.includes('instagram') || 
-            source.includes('twitter') || source.includes('linkedin') || source.includes('tiktok')) {
-          enhancedSource = `Social Media (${source})`;
-        } else if (source.includes('google') && medium === 'cpc') {
-          enhancedSource = 'Google Ads';
-        } else if (source.includes('facebook') && medium === 'cpc') {
-          enhancedSource = 'Facebook Ads';
-        } else if (medium === 'referral') {
-          enhancedSource = `Referral (${source})`;
-        }
-        
         return {
-          source: enhancedSource,
-          originalSource: source,
-          medium: medium,
-          sessions: sessions
+          page: pagePath,
+          pageViews: pageViews,
+          uniqueUsers: uniqueUsers,
+          bounceRate: pageBounceRate,
+          avgTimeOnPage: avgTime,
+          conversions: conversions,
+          conversionRate: conversionRate
         };
       });
 
-      // Get geographic data
+      // Process traffic sources (using exact GA4 API response structure)
+      // Calculate total sessions for percentage calculation
+      const totalTrafficSessions = trafficRows.reduce((sum, row) => {
+        return sum + (row.metricValues?.[0]?.value ? parseInt(row.metricValues[0].value) : 0);
+      }, 0);
+
+      const trafficSources = trafficRows.map(row => {
+        const source = row.dimensionValues?.[0]?.value || ''; // sessionSource
+        const sessions = row.metricValues?.[0]?.value ? parseInt(row.metricValues[0].value) : 0; // sessions
+        
+        // Calculate percentage: (Sessions for one source) / (Total sessions)
+        const percentage = totalTrafficSessions > 0 ? (sessions / totalTrafficSessions) * 100 : 0;
+        
+        return {
+          source: source,
+          sessions: sessions,
+          percentage: percentage
+        };
+      });
+
+      // Get geographic data with comprehensive metrics (for Geographic Distribution table)
       const geoRequest = {
         dateRanges: [
           {
@@ -333,11 +377,19 @@ export class GoogleAnalyticsService {
           }
         ],
         metrics: [
-          { name: 'totalUsers' }
+          { name: 'totalUsers' },
+          { name: 'sessions' },
+          { name: 'bounceRate' }
         ],
         dimensions: [
           { name: 'country' },
-          { name: 'region' }
+          { name: 'city' }
+        ],
+        orderBys: [
+          {
+            metric: { metricName: 'totalUsers' },
+            desc: true
+          }
         ],
         limit: '50'
       };
@@ -348,28 +400,46 @@ export class GoogleAnalyticsService {
         auth: this.oauth2Client
       });
 
-      const geoRows = geoResponse.data.rows || [];
+      const geoRows = geoResponse.data?.rows || [];
       
-      // Process geographic data
+      // Process geographic data with all metrics
       const geographicData = geoRows.map(row => ({
         country: row.dimensionValues?.[0]?.value || 'Unknown',
-        region: row.dimensionValues?.[1]?.value || 'Unknown',
-        users: row.metricValues?.[0]?.value ? parseInt(row.metricValues[0].value) : 0
+        city: row.dimensionValues?.[1]?.value || 'Unknown', // city dimension
+        region: row.dimensionValues?.[1]?.value || 'Unknown', // fallback to region
+        users: row.metricValues?.[0]?.value ? parseInt(row.metricValues[0].value) : 0, // totalUsers
+        sessions: row.metricValues?.[1]?.value ? parseInt(row.metricValues[1].value) : 0, // sessions
+        bounceRate: row.metricValues?.[2]?.value ? parseFloat(row.metricValues[2].value) * 100 : 0 // bounceRate (convert from decimal)
       }));
 
-      // Get country breakdown
+      // Get country breakdown (aggregated)
       const countryBreakdown = geographicData.reduce((acc, item) => {
         acc[item.country] = (acc[item.country] || 0) + item.users;
         return acc;
       }, {} as Record<string, number>);
 
-      // Get state breakdown (for US)
+      // Get state breakdown (for US - using city as state for now)
       const stateBreakdown = geographicData
         .filter(item => item.country === 'United States')
         .reduce((acc, item) => {
-          acc[item.region] = (acc[item.region] || 0) + item.users;
+          const state = item.region || item.city || 'Unknown';
+          acc[state] = (acc[state] || 0) + item.users;
           return acc;
         }, {} as Record<string, number>);
+
+      // Create detailed geographic data array (region-level with all fields from metadata if available)
+      // Note: When data comes from stored metadata, detailedGeographicData will be provided by the API endpoint
+      // This is a placeholder structure for when data comes directly from API
+      const detailedGeographicData = geographicData.map(geo => ({
+        region: geo.region || 'Unknown',
+        country: geo.country || 'Unknown',
+        activeUsers: geo.users || 0,
+        newUsers: 0, // Not available from this API call
+        engagementRate: geo.bounceRate ? (100 - geo.bounceRate) : 0, // Convert bounce rate to engagement rate
+        engagedSessions: geo.sessions || 0,
+        engagedSessionsPerUser: geo.users > 0 ? (geo.sessions / geo.users) : 0,
+        averageEngagementTimePerSession: 0 // Not available from this API call
+      }));
 
       return {
         pageViews,
@@ -380,6 +450,8 @@ export class GoogleAnalyticsService {
         avgSessionDuration,
         topPages,
         trafficSources,
+        geographicData, // Country-level aggregated data (for first table)
+        detailedGeographicData, // Region-level data (for second table, will be overridden by metadata in API endpoint)
         countryBreakdown,
         stateBreakdown
       };

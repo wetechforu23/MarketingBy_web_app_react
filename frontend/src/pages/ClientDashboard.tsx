@@ -31,6 +31,7 @@ interface GoogleAnalyticsData {
   pageViews: number;
   bounceRate: number;
   avgSessionDuration: number;
+  detailedGeographicData?: any[]; // Region-level detailed geographic data
 }
 
 interface FacebookData {
@@ -81,6 +82,9 @@ const ClientDashboard: React.FC = () => {
   const [facebookData, setFacebookData] = useState<FacebookData | null>(null);
   const [facebookPosts, setFacebookPosts] = useState<FacebookPost[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
+  const [pageInsights, setPageInsights] = useState<any[]>([]);
+  const [geographicData, setGeographicData] = useState<any[]>([]);
+  const [trafficSources, setTrafficSources] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -176,25 +180,104 @@ const ClientDashboard: React.FC = () => {
         console.log('⚠️ SEO data not available');
       }
 
-      // Step 5: Get Google Analytics data
+      // Step 5: Get Google Analytics data (checks database first, then API)
       try {
         const gaResponse = await api.get(`/analytics/client/${userData.client_id}/real`);
-        if (gaResponse.data) {
+        console.log('✅ Google Analytics API response:', gaResponse.data);
+        
+        // Check if we have actual data (non-zero values)
+        const hasData = gaResponse.data && (
+          gaResponse.data.pageViews > 0 ||
+          gaResponse.data.sessions > 0 ||
+          gaResponse.data.users > 0
+        );
+        
+        if (hasData) {
+          // Set all Google Analytics data including detailedGeographicData
           setGoogleAnalyticsData({
             users: gaResponse.data.users || 0,
             sessions: gaResponse.data.sessions || 0,
             pageViews: gaResponse.data.pageViews || 0,
             bounceRate: gaResponse.data.bounceRate || 0,
-            avgSessionDuration: gaResponse.data.avgSessionDuration || 0
+            avgSessionDuration: gaResponse.data.avgSessionDuration || 0,
+            detailedGeographicData: gaResponse.data.detailedGeographicData || [] // Include detailed geographic data
           });
-          console.log('✅ Google Analytics data loaded FROM DATABASE:', gaResponse.data);
+          
+          // Set traffic sources from the response (REAL DATA)
+          if (gaResponse.data.trafficSources && Array.isArray(gaResponse.data.trafficSources)) {
+            setTrafficSources(gaResponse.data.trafficSources);
+            console.log('✅ Traffic sources loaded (REAL DATA):', gaResponse.data.trafficSources.length);
+          }
+          
+          // Set page insights from the response (REAL DATA - no mock values)
+          if (gaResponse.data.topPages && Array.isArray(gaResponse.data.topPages)) {
+            // Use real data from backend - it now includes uniqueUsers, bounceRate, avgTimeOnPage, conversions, conversionRate
+            setPageInsights(gaResponse.data.topPages);
+            console.log('✅ Page insights loaded (REAL DATA):', gaResponse.data.topPages.length);
+          }
+          
+          // Set geographic data from the response (REAL DATA - includes country, users, sessions, bounceRate)
+          if (gaResponse.data.geographicData && Array.isArray(gaResponse.data.geographicData)) {
+            setGeographicData(gaResponse.data.geographicData);
+            console.log('✅ Geographic data loaded (REAL DATA):', gaResponse.data.geographicData.length);
+          }
+          
+          // Log detailed geographic data if available
+          if (gaResponse.data.detailedGeographicData && Array.isArray(gaResponse.data.detailedGeographicData)) {
+            console.log('✅ Detailed geographic data loaded (REAL DATA):', gaResponse.data.detailedGeographicData.length);
+            console.log('📊 Sample region data:', gaResponse.data.detailedGeographicData[0]);
+          } else {
+            console.log('⚠️ No detailedGeographicData in response:', {
+              hasDetailedData: !!gaResponse.data.detailedGeographicData,
+              keys: Object.keys(gaResponse.data || {}),
+              fullResponse: gaResponse.data
+            });
+          }
+          
+          if (!gaResponse.data.geographicData && !gaResponse.data.detailedGeographicData) {
+            // Fallback: Try separate endpoint if not in main response
+            const dateTo = new Date().toISOString().split('T')[0];
+            const dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            
+            try {
+              const geographicRes = await api.get(`/analytics/geographic/${userData.client_id}?dateFrom=${dateFrom}&dateTo=${dateTo}`).catch(() => ({ data: { data: [] } }));
+              setGeographicData(geographicRes.data?.data || []);
+              console.log('✅ Geographic data loaded from separate endpoint:', geographicRes.data?.data?.length || 0);
+            } catch (err: any) {
+              console.log('⚠️ Could not fetch geographic data:', err.message);
+            }
+          }
+          
+          console.log('✅ Google Analytics data loaded:', gaResponse.data);
           console.log('   → Users:', gaResponse.data.users);
           console.log('   → Sessions:', gaResponse.data.sessions);
+          console.log('   → Page Views:', gaResponse.data.pageViews);
+          console.log('   → Source:', gaResponse.data.source || 'unknown');
           console.log('   → Status will show: ✅ Connected');
+        } else {
+          console.log('⚠️ Google Analytics response received but no data available');
+          console.log('   → Status will show: ⚪ Not Connected');
         }
       } catch (err: any) {
-        console.log('⚠️ Google Analytics not available:', err.response?.data?.error || err.message);
-        console.log('   → Status will show: ⚪ Not Connected');
+        // Check if error response has data
+        if (err.response?.data && (
+          err.response.data.pageViews > 0 ||
+          err.response.data.sessions > 0 ||
+          err.response.data.users > 0
+        )) {
+          setGoogleAnalyticsData({
+            users: err.response.data.users || 0,
+            sessions: err.response.data.sessions || 0,
+            pageViews: err.response.data.pageViews || 0,
+            bounceRate: err.response.data.bounceRate || 0,
+            avgSessionDuration: err.response.data.avgSessionDuration || 0
+          });
+          console.log('✅ Google Analytics data loaded from error response:', err.response.data);
+          console.log('   → Status will show: ✅ Connected');
+        } else {
+          console.log('⚠️ Google Analytics not available:', err.response?.data?.error || err.message);
+          console.log('   → Status will show: ⚪ Not Connected');
+        }
       }
 
       // Step 6: Get Facebook data
@@ -335,22 +418,41 @@ const ClientDashboard: React.FC = () => {
             </div>
 
             {googleAnalyticsData ? (
+              <>
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                gap: '1.5rem'
+                gap: '1.5rem',
+                marginTop: '1.5rem'
               }}>
                 {/* Users Card */}
                 <div style={{
                   backgroundColor: 'white',
                   padding: '1.5rem',
                   borderRadius: '12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                  border: '1px solid #e9ecef'
+                  boxShadow: '0 2px 8px rgba(46, 134, 171, 0.1)',
+                  border: '1px solid rgba(46, 134, 171, 0.1)',
+                  transition: 'transform 0.2s, box-shadow 0.2s'
                 }}>
-                  <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>👥</div>
-                  <h3 style={{ margin: '0 0 0.5rem 0', color: '#666', fontSize: '0.9rem' }}>Total Users</h3>
-                  <p style={{ margin: 0, fontSize: '2.5rem', fontWeight: '700', color: '#2E86AB' }}>
+                  <div style={{ 
+                    fontSize: '2rem', 
+                    marginBottom: '0.75rem',
+                    color: '#2E86AB'
+                  }}>👥</div>
+                  <h3 style={{ 
+                    margin: '0 0 0.75rem 0', 
+                    color: '#666', 
+                    fontSize: '0.875rem',
+                    fontWeight: '400',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>Total Users</h3>
+                  <p style={{ 
+                    margin: 0, 
+                    fontSize: '2rem', 
+                    fontWeight: '600', 
+                    color: '#2E86AB',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>
                     {googleAnalyticsData.users.toLocaleString()}
                   </p>
                 </div>
@@ -360,12 +462,29 @@ const ClientDashboard: React.FC = () => {
                   backgroundColor: 'white',
                   padding: '1.5rem',
                   borderRadius: '12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                  border: '1px solid #e9ecef'
+                  boxShadow: '0 2px 8px rgba(241, 143, 1, 0.1)',
+                  border: '1px solid rgba(241, 143, 1, 0.1)',
+                  transition: 'transform 0.2s, box-shadow 0.2s'
                 }}>
-                  <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🔄</div>
-                  <h3 style={{ margin: '0 0 0.5rem 0', color: '#666', fontSize: '0.9rem' }}>Sessions</h3>
-                  <p style={{ margin: 0, fontSize: '2.5rem', fontWeight: '700', color: '#28a745' }}>
+                  <div style={{ 
+                    fontSize: '2rem', 
+                    marginBottom: '0.75rem',
+                    color: '#F18F01'
+                  }}>🔄</div>
+                  <h3 style={{ 
+                    margin: '0 0 0.75rem 0', 
+                    color: '#666', 
+                    fontSize: '0.875rem',
+                    fontWeight: '400',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>Sessions</h3>
+                  <p style={{ 
+                    margin: 0, 
+                    fontSize: '2rem', 
+                    fontWeight: '600', 
+                    color: '#F18F01',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>
                     {googleAnalyticsData.sessions.toLocaleString()}
                   </p>
                 </div>
@@ -375,12 +494,29 @@ const ClientDashboard: React.FC = () => {
                   backgroundColor: 'white',
                   padding: '1.5rem',
                   borderRadius: '12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                  border: '1px solid #e9ecef'
+                  boxShadow: '0 2px 8px rgba(162, 59, 114, 0.1)',
+                  border: '1px solid rgba(162, 59, 114, 0.1)',
+                  transition: 'transform 0.2s, box-shadow 0.2s'
                 }}>
-                  <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📄</div>
-                  <h3 style={{ margin: '0 0 0.5rem 0', color: '#666', fontSize: '0.9rem' }}>Page Views</h3>
-                  <p style={{ margin: 0, fontSize: '2.5rem', fontWeight: '700', color: '#F18F01' }}>
+                  <div style={{ 
+                    fontSize: '2rem', 
+                    marginBottom: '0.75rem',
+                    color: '#A23B72'
+                  }}>📄</div>
+                  <h3 style={{ 
+                    margin: '0 0 0.75rem 0', 
+                    color: '#666', 
+                    fontSize: '0.875rem',
+                    fontWeight: '400',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>Page Views</h3>
+                  <p style={{ 
+                    margin: 0, 
+                    fontSize: '2rem', 
+                    fontWeight: '600', 
+                    color: '#A23B72',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>
                     {googleAnalyticsData.pageViews.toLocaleString()}
                   </p>
                 </div>
@@ -390,12 +526,29 @@ const ClientDashboard: React.FC = () => {
                   backgroundColor: 'white',
                   padding: '1.5rem',
                   borderRadius: '12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                  border: '1px solid #e9ecef'
+                  boxShadow: '0 2px 8px rgba(241, 143, 1, 0.1)',
+                  border: '1px solid rgba(241, 143, 1, 0.1)',
+                  transition: 'transform 0.2s, box-shadow 0.2s'
                 }}>
-                  <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📊</div>
-                  <h3 style={{ margin: '0 0 0.5rem 0', color: '#666', fontSize: '0.9rem' }}>Bounce Rate</h3>
-                  <p style={{ margin: 0, fontSize: '2.5rem', fontWeight: '700', color: '#dc3545' }}>
+                  <div style={{ 
+                    fontSize: '2rem', 
+                    marginBottom: '0.75rem',
+                    color: googleAnalyticsData.bounceRate > 70 ? '#dc3545' : '#2E86AB'
+                  }}>📊</div>
+                  <h3 style={{ 
+                    margin: '0 0 0.75rem 0', 
+                    color: '#666', 
+                    fontSize: '0.875rem',
+                    fontWeight: '400',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>Bounce Rate</h3>
+                  <p style={{ 
+                    margin: 0, 
+                    fontSize: '2rem', 
+                    fontWeight: '600', 
+                    color: googleAnalyticsData.bounceRate > 70 ? '#dc3545' : '#2E86AB',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>
                     {googleAnalyticsData.bounceRate.toFixed(1)}%
                   </p>
                 </div>
@@ -405,16 +558,276 @@ const ClientDashboard: React.FC = () => {
                   backgroundColor: 'white',
                   padding: '1.5rem',
                   borderRadius: '12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                  border: '1px solid #e9ecef'
+                  boxShadow: '0 2px 8px rgba(46, 134, 171, 0.1)',
+                  border: '1px solid rgba(46, 134, 171, 0.1)',
+                  transition: 'transform 0.2s, box-shadow 0.2s'
                 }}>
-                  <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>⏱️</div>
-                  <h3 style={{ margin: '0 0 0.5rem 0', color: '#666', fontSize: '0.9rem' }}>Avg Session</h3>
-                  <p style={{ margin: 0, fontSize: '2.5rem', fontWeight: '700', color: '#6f42c1' }}>
-                    {Math.floor(googleAnalyticsData.avgSessionDuration / 60)}m {googleAnalyticsData.avgSessionDuration % 60}s
+                  <div style={{ 
+                    fontSize: '2rem', 
+                    marginBottom: '0.75rem',
+                    color: '#2E86AB'
+                  }}>⏱️</div>
+                  <h3 style={{ 
+                    margin: '0 0 0.75rem 0', 
+                    color: '#666', 
+                    fontSize: '0.875rem',
+                    fontWeight: '400',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>Avg Session</h3>
+                  <p style={{ 
+                    margin: 0, 
+                    fontSize: '2rem', 
+                    fontWeight: '600', 
+                    color: '#2E86AB',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>
+                    {Math.floor(googleAnalyticsData.avgSessionDuration / 60)}m {Math.round(googleAnalyticsData.avgSessionDuration % 60)}s
                   </p>
                 </div>
               </div>
+
+              {/* Page Performance Table */}
+              {pageInsights.length > 0 && (
+                <div style={{
+                  backgroundColor: 'white',
+                  padding: '20px',
+                  borderRadius: '12px',
+                  boxShadow: '0 2px 8px rgba(46, 134, 171, 0.1)',
+                  marginTop: '2rem',
+                  marginBottom: '2rem',
+                  border: '1px solid rgba(46, 134, 171, 0.1)'
+                }}>
+                  <h3 style={{ 
+                    margin: '0 0 20px 0', 
+                    color: '#2E86AB', 
+                    fontSize: '1.25rem', 
+                    fontWeight: '600',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>
+                    📄 Page Performance
+                  </h3>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#2E86AB', color: 'white' }}>
+                          <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #1a5f7a', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Page</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #1a5f7a', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Page Views</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #1a5f7a', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Unique Users</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #1a5f7a', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Bounce Rate</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #1a5f7a', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Avg Time</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #1a5f7a', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Conversions</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #1a5f7a', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Conv Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pageInsights.slice(0, 10).map((page, index) => (
+                          <tr key={index} style={{ borderBottom: '1px solid rgba(46, 134, 171, 0.1)', backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa' }}>
+                            <td style={{ padding: '12px', fontWeight: '400', fontFamily: 'Inter, sans-serif' }}>{page.page}</td>
+                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: '#2E86AB', fontFamily: 'Inter, sans-serif' }}>
+                              {page.pageViews.toLocaleString()}
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: '#2E86AB', fontFamily: 'Inter, sans-serif' }}>
+                              {(page.uniqueUsers || 0).toLocaleString()}
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: (page.bounceRate || 0) > 70 ? '#dc3545' : '#2E86AB', fontFamily: 'Inter, sans-serif' }}>
+                              {(page.bounceRate || 0).toFixed(1)}%
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: '#2E86AB', fontFamily: 'Inter, sans-serif' }}>
+                              {Math.round(page.avgTimeOnPage || 0)}s
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: '#F18F01', fontFamily: 'Inter, sans-serif' }}>
+                              {page.conversions || 0}
+                            </td>
+                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: (page.conversionRate || 0) > 2 ? '#2E86AB' : '#666', fontFamily: 'Inter, sans-serif' }}>
+                              {(page.conversionRate || 0).toFixed(2)}%
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Traffic Sources Table */}
+              {trafficSources.length > 0 && (
+                <div style={{
+                  backgroundColor: 'white',
+                  padding: '20px',
+                  borderRadius: '12px',
+                  boxShadow: '0 2px 8px rgba(241, 143, 1, 0.1)',
+                  marginTop: '2rem',
+                  marginBottom: '2rem',
+                  border: '1px solid rgba(241, 143, 1, 0.1)'
+                }}>
+                  <h3 style={{ 
+                    margin: '0 0 20px 0', 
+                    color: '#F18F01', 
+                    fontSize: '1.25rem', 
+                    fontWeight: '600',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>
+                    🚦 Traffic Sources
+                  </h3>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#F18F01', color: 'white' }}>
+                          <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #c97200', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Source</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #c97200', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Sessions</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #c97200', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Percentage</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {trafficSources
+                          .slice(0, 15)
+                          .map((source: any, index: number) => {
+                            // Use percentage from backend if available, otherwise calculate it
+                            const percentage = source.percentage !== undefined 
+                              ? source.percentage 
+                              : 0; // Backend now calculates this
+                            // Use source name from backend (sessionSource)
+                            const displaySource = source.source || 'Unknown';
+                            return (
+                              <tr key={index} style={{ borderBottom: '1px solid rgba(241, 143, 1, 0.1)', backgroundColor: index % 2 === 0 ? 'white' : '#fff8f0' }}>
+                                <td style={{ padding: '12px', fontWeight: '400', fontFamily: 'Inter, sans-serif' }}>{displaySource}</td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: '#F18F01', fontFamily: 'Inter, sans-serif' }}>
+                                  {(source.sessions || 0).toLocaleString()}
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: '#2E86AB', fontFamily: 'Inter, sans-serif' }}>
+                                  {percentage.toFixed(1)}%
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Geographic Distribution Table */}
+              {geographicData.length > 0 && (
+                <div style={{
+                  backgroundColor: 'white',
+                  padding: '20px',
+                  borderRadius: '12px',
+                  boxShadow: '0 2px 8px rgba(162, 59, 114, 0.1)',
+                  marginTop: '2rem',
+                  marginBottom: '2rem',
+                  border: '1px solid rgba(162, 59, 114, 0.1)'
+                }}>
+                  <h3 style={{ 
+                    margin: '0 0 20px 0', 
+                    color: '#A23B72', 
+                    fontSize: '1.25rem', 
+                    fontWeight: '600',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>
+                    🌍 Geographic Distribution
+                  </h3>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#A23B72', color: 'white' }}>
+                          <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #7a2d56', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Country</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #7a2d56', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Users</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #7a2d56', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Sessions</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #7a2d56', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Bounce Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {geographicData
+                          .filter((geo: any) => geo.country && geo.country !== 'Unknown')
+                          .slice(0, 15)
+                          .map((geo: any, index: number) => (
+                            <tr key={index} style={{ borderBottom: '1px solid rgba(162, 59, 114, 0.1)', backgroundColor: index % 2 === 0 ? 'white' : '#faf5f8' }}>
+                              <td style={{ padding: '12px', fontWeight: '400', fontFamily: 'Inter, sans-serif' }}>{geo.country || 'Unknown'}</td>
+                              <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: '#A23B72', fontFamily: 'Inter, sans-serif' }}>
+                                {(geo.users || 0).toLocaleString()}
+                              </td>
+                              <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: '#A23B72', fontFamily: 'Inter, sans-serif' }}>
+                                {(geo.sessions || 0).toLocaleString()}
+                              </td>
+                              <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: (geo.bounceRate || 0) > 70 ? '#dc3545' : '#2E86AB', fontFamily: 'Inter, sans-serif' }}>
+                                {(geo.bounceRate || 0).toFixed(1)}%
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Region Performance Table - Detailed Region Data */}
+              {googleAnalyticsData?.detailedGeographicData && googleAnalyticsData.detailedGeographicData.length > 0 && (
+                <div style={{
+                  backgroundColor: 'white',
+                  padding: '20px',
+                  borderRadius: '12px',
+                  boxShadow: '0 2px 8px rgba(46, 134, 171, 0.1)',
+                  marginTop: '2rem',
+                  marginBottom: '2rem',
+                  border: '1px solid rgba(46, 134, 171, 0.1)'
+                }}>
+                  <h3 style={{ 
+                    margin: '0 0 20px 0', 
+                    color: '#2E86AB', 
+                    fontSize: '1.25rem', 
+                    fontWeight: '600',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>
+                    📊 Region Performance
+                  </h3>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#2E86AB', color: 'white' }}>
+                          <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #1a5f7a', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Region</th>
+                          <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #1a5f7a', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Country</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #1a5f7a', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>New Users</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #1a5f7a', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Active Users</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #1a5f7a', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Engagement Rate</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #1a5f7a', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Engaged Sessions</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #1a5f7a', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Sessions/User</th>
+                          <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #1a5f7a', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Avg Time</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {googleAnalyticsData.detailedGeographicData
+                          .filter((geo: any) => geo.country && geo.country !== 'Unknown' && geo.country !== '(not set)')
+                          .slice(0, 20)
+                          .map((geo: any, index: number) => (
+                            <tr key={index} style={{ borderBottom: '1px solid rgba(46, 134, 171, 0.1)', backgroundColor: index % 2 === 0 ? 'white' : '#f0f7fa' }}>
+                              <td style={{ padding: '12px', fontWeight: '400', fontFamily: 'Inter, sans-serif' }}>{geo.region || 'Unknown'}</td>
+                              <td style={{ padding: '12px', fontWeight: '400', fontFamily: 'Inter, sans-serif' }}>{geo.country || 'Unknown'}</td>
+                              <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: '#2E86AB', fontFamily: 'Inter, sans-serif' }}>
+                                {(geo.newUsers || 0).toLocaleString()}
+                              </td>
+                              <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: '#2E86AB', fontFamily: 'Inter, sans-serif' }}>
+                                {(geo.activeUsers || 0).toLocaleString()}
+                              </td>
+                              <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: (geo.engagementRate || 0) > 50 ? '#2E86AB' : '#dc3545', fontFamily: 'Inter, sans-serif' }}>
+                                {(geo.engagementRate || 0).toFixed(1)}%
+                              </td>
+                              <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: '#F18F01', fontFamily: 'Inter, sans-serif' }}>
+                                {(geo.engagedSessions || 0).toLocaleString()}
+                              </td>
+                              <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: '#2E86AB', fontFamily: 'Inter, sans-serif' }}>
+                                {(geo.engagedSessionsPerUser || 0).toFixed(2)}
+                              </td>
+                              <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600', color: '#2E86AB', fontFamily: 'Inter, sans-serif' }}>
+                                {Math.round(geo.averageEngagementTimePerSession || 0)}s
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              </>
             ) : (
               <div style={{
                 backgroundColor: 'white',
