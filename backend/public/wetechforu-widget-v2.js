@@ -83,7 +83,9 @@
         visitorFingerprint: null,
         lastActivityTime: null,
         lastVisibilityChange: null
-      }
+      },
+      // ⏰ Inactivity monitoring
+      inactivityMonitorInterval: null
     },
 
     // Initialize widget
@@ -904,10 +906,46 @@
               this.addBotMessage(welcomeMsg);
             }, 500);
 
-            // Start asking intro questions immediately after welcome
-            setTimeout(() => {
-              this.askIntroQuestion();
-            }, 1500);
+            // ✅ Check if form data already exists in database (from conversation or visitor_session_id)
+            const conversationId = await this.ensureConversation();
+            let formDataExists = false;
+            
+            if (conversationId) {
+              try {
+                const statusResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/status`);
+                if (statusResponse.ok) {
+                  const statusData = await statusResponse.json();
+                  if (statusData.intro_completed && statusData.intro_data) {
+                    formDataExists = true;
+                    // Restore form data
+                    this.state.introFlow.answers = statusData.intro_data;
+                    this.state.introFlow.isComplete = true;
+                    console.log('✅ Form data already exists - skipping form');
+                    
+                    // Show summary of existing data
+                    setTimeout(() => {
+                      this.showFormSummary(statusData.intro_data);
+                      setTimeout(() => {
+                        this.addBotMessage("How can I help you today? Feel free to ask me anything! 😊");
+                      }, 1000);
+                    }, 500);
+                  }
+                }
+              } catch (error) {
+                console.warn('Could not check form data:', error);
+              }
+            }
+            
+            // If form data doesn't exist, show form
+            if (!formDataExists) {
+              setTimeout(() => {
+                this.addBotMessage("Please complete the information below so we can assist you better:");
+              }, 1500);
+              
+              setTimeout(() => {
+                this.showIntroForm(enabledQuestions);
+              }, 2000);
+            }
           } else {
             // No questions configured - use default intro
             console.log('⚠️ Intro flow enabled but no questions configured - using default intro');
@@ -984,6 +1022,253 @@
     // Save intro answer
     saveIntroAnswer(questionId, answer) {
       this.state.introFlow.answers[questionId] = answer;
+    },
+
+    // ✅ Show intro form as a single form UI (instead of one-by-one questions)
+    showIntroForm(questions) {
+      const messagesDiv = document.getElementById('wetechforu-messages');
+      if (!messagesDiv) return;
+      
+      const formDiv = document.createElement('div');
+      formDiv.id = 'wetechforu-intro-form';
+      formDiv.style.cssText = `
+        margin: 16px 0;
+        padding: 20px;
+        background: #f8f9fa;
+        border-radius: 12px;
+        border: 2px solid #e0e0e0;
+        animation: slideUp 0.3s ease-out;
+      `;
+      
+      let formHTML = '<form id="wetechforu-form-form">';
+      
+      questions.forEach((question, index) => {
+        const fieldName = question.id || question.field || `field_${index}`;
+        const label = question.question || question.label || '';
+        const required = question.required ? '<span style="color: red;">*</span>' : '';
+        const placeholder = question.placeholder || '';
+        
+        formHTML += `
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 6px; font-weight: 600; color: #333; font-size: 14px;">
+              ${label} ${required}
+            </label>
+        `;
+        
+        if (question.type === 'select' && question.options) {
+          formHTML += `
+            <select 
+              name="${fieldName}" 
+              id="form_${fieldName}"
+              ${question.required ? 'required' : ''}
+              style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; background: white;"
+            >
+              <option value="">-- Select --</option>
+              ${question.options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+            </select>
+          `;
+        } else if (question.type === 'email') {
+          formHTML += `
+            <input 
+              type="email" 
+              name="${fieldName}" 
+              id="form_${fieldName}"
+              placeholder="${placeholder || 'your@email.com'}"
+              ${question.required ? 'required' : ''}
+              style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
+            />
+          `;
+        } else if (question.type === 'tel' || question.type === 'phone') {
+          formHTML += `
+            <input 
+              type="tel" 
+              name="${fieldName}" 
+              id="form_${fieldName}"
+              placeholder="${placeholder || '+1 (555) 123-4567'}"
+              pattern="[0-9\\s\\+\\-\\(\\)]{10,}"
+              ${question.required ? 'required' : ''}
+              style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
+            />
+          `;
+        } else {
+          // Text input
+          formHTML += `
+            <input 
+              type="text" 
+              name="${fieldName}" 
+              id="form_${fieldName}"
+              placeholder="${placeholder}"
+              ${question.required ? 'required' : ''}
+              style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
+              ${question.field === 'first_name' || question.id === 'first_name' ? 'pattern="[A-Za-z\\s]{2,}" title="First name should contain only letters"' : ''}
+            />
+          `;
+        }
+        
+        formHTML += `
+          </div>
+        `;
+      });
+      
+      formHTML += `
+        <button 
+          type="submit"
+          style="width: 100%; padding: 12px; background: #2E86AB; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 10px;"
+          onmouseover="this.style.background='#1e6a8a'"
+          onmouseout="this.style.background='#2E86AB'"
+        >
+          Submit Information
+        </button>
+      </form>`;
+      
+      formDiv.innerHTML = formHTML;
+      messagesDiv.appendChild(formDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      
+      // Attach form submit handler
+      const form = document.getElementById('wetechforu-form-form');
+      if (form) {
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          this.handleFormSubmit(questions);
+        });
+      }
+      
+      // Focus first input
+      setTimeout(() => {
+        const firstInput = formDiv.querySelector('input, select');
+        if (firstInput) firstInput.focus();
+      }, 100);
+    },
+    
+    // ✅ Handle form submission with validation
+    async handleFormSubmit(questions) {
+      const form = document.getElementById('wetechforu-form-form');
+      if (!form) return;
+      
+      const formData = new FormData(form);
+      const answers = {};
+      let hasErrors = false;
+      const errors = [];
+      
+      // Validate and collect answers
+      questions.forEach((question, index) => {
+        const fieldName = question.id || question.field || `field_${index}`;
+        const value = formData.get(fieldName)?.trim() || '';
+        const label = question.question || question.label || fieldName;
+        
+        // Required field validation
+        if (question.required && !value) {
+          hasErrors = true;
+          errors.push(`${label} is required`);
+          return;
+        }
+        
+        // First name validation (should not be number)
+        if ((fieldName === 'first_name' || question.id === 'first_name') && value) {
+          if (/^\d+$/.test(value) || /^\d/.test(value)) {
+            hasErrors = true;
+            errors.push('First name should contain only letters, not numbers');
+            return;
+          }
+          if (value.length < 2) {
+            hasErrors = true;
+            errors.push('First name must be at least 2 characters');
+            return;
+          }
+        }
+        
+        // Phone validation
+        if ((question.type === 'tel' || question.type === 'phone') && value) {
+          const phoneRegex = /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,9}$/;
+          if (!phoneRegex.test(value.replace(/\s/g, ''))) {
+            hasErrors = true;
+            errors.push('Please enter a valid phone number (e.g., +1 (555) 123-4567)');
+            return;
+          }
+        }
+        
+        // Email validation (HTML5 does this, but double-check)
+        if (question.type === 'email' && value) {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(value)) {
+            hasErrors = true;
+            errors.push('Please enter a valid email address');
+            return;
+          }
+        }
+        
+        if (value) {
+          answers[fieldName] = value;
+        }
+      });
+      
+      // Show errors if any
+      if (hasErrors) {
+        const errorMsg = errors.join('<br>');
+        const errorDiv = document.createElement('div');
+        errorDiv.style.cssText = 'margin-top: 10px; padding: 10px; background: #fee; color: #c33; border-radius: 6px; font-size: 13px;';
+        errorDiv.innerHTML = `❌ ${errorMsg}`;
+        
+        const existingError = form.querySelector('.form-error');
+        if (existingError) existingError.remove();
+        
+        form.appendChild(errorDiv);
+        errorDiv.className = 'form-error';
+        return;
+      }
+      
+      // Store answers
+      this.state.introFlow.answers = answers;
+      
+      // Hide form
+      const formDiv = document.getElementById('wetechforu-intro-form');
+      if (formDiv) {
+        formDiv.style.display = 'none';
+      }
+      
+      // Show summary
+      this.showFormSummary(answers);
+      
+      // Complete intro flow
+      await this.completeIntroFlow();
+    },
+    
+    // ✅ Show form summary
+    showFormSummary(answers) {
+      const messagesDiv = document.getElementById('wetechforu-messages');
+      if (!messagesDiv) return;
+      
+      const summaryDiv = document.createElement('div');
+      summaryDiv.style.cssText = `
+        margin: 16px 0;
+        padding: 16px;
+        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        border-radius: 12px;
+        border: 2px solid #2196F3;
+        animation: slideUp 0.3s ease-out;
+      `;
+      
+      let summaryHTML = '<div style="font-weight: 600; margin-bottom: 12px; color: #1976D2; font-size: 15px;">✅ Your Information Summary</div>';
+      summaryHTML += '<div style="background: white; padding: 12px; border-radius: 8px;">';
+      
+      Object.keys(answers).forEach(key => {
+        const value = answers[key];
+        if (value) {
+          const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          summaryHTML += `
+            <div style="margin-bottom: 8px; padding: 8px; border-bottom: 1px solid #eee;">
+              <strong style="color: #555; font-size: 13px;">${label}:</strong>
+              <span style="color: #333; font-size: 14px; margin-left: 8px;">${value}</span>
+            </div>
+          `;
+        }
+      });
+      
+      summaryHTML += '</div>';
+      summaryDiv.innerHTML = summaryHTML;
+      messagesDiv.appendChild(summaryDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
     },
 
     // Complete intro flow
@@ -1877,24 +2162,58 @@
       const visitorSessionId = this.getVisitorSessionId();
       try {
         const findConvResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversation/by-visitor/${visitorSessionId}`);
-        if (findConvResponse.ok) {
+          if (findConvResponse.ok) {
           const convData = await findConvResponse.json();
-          if (convData.conversation_id && convData.status === 'active') {
-            this.state.conversationId = convData.conversation_id;
-            localStorage.setItem(`wetechforu_conversation_${this.config.widgetKey}`, convData.conversation_id);
-            console.log('✅ Restored active conversation by visitorSessionId:', convData.conversation_id);
+          
+          // ✅ Check conversation status for expiration
+          const statusResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${convData.conversation_id}/status`);
+          if (statusResponse.ok) {
+            const statusData = await statusResponse.json();
             
-            // ✅ Load previous messages
-            await this.loadPreviousMessages(convData.conversation_id);
-            
-            // ✅ Check if intro was completed
-            if (convData.intro_completed) {
-              this.state.introFlow.isComplete = true;
-              this.state.hasShownIntro = true;
-              console.log('✅ Intro already completed - skipping intro flow');
+            // ✅ Check if conversation expired
+            if (statusData.is_expired) {
+              console.log('⏰ Conversation expired due to inactivity:', statusData.minutes_inactive, 'minutes');
+              
+              // Send email summary if email was provided
+              if (statusData.visitor_email) {
+                try {
+                  await fetch(`${this.config.backendUrl}/api/chat-widget/conversations/${convData.conversation_id}/send-expiry-email`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                  });
+                } catch (emailError) {
+                  console.warn('Failed to send expiry email:', emailError);
+                }
+              }
+              
+              // Don't restore - fall through to create new conversation
+              console.log('⚠️ Expired conversation - will create new one');
+            } else if (convData.conversation_id && statusData.status === 'active') {
+              this.state.conversationId = convData.conversation_id;
+              localStorage.setItem(`wetechforu_conversation_${this.config.widgetKey}`, convData.conversation_id);
+              console.log('✅ Restored active conversation by visitorSessionId:', convData.conversation_id);
+              
+              // ✅ Load previous messages
+              await this.loadPreviousMessages(convData.conversation_id);
+              
+              // ✅ Check if intro was completed
+              if (statusData.intro_completed) {
+                this.state.introFlow.isComplete = true;
+                this.state.hasShownIntro = true;
+                console.log('✅ Intro already completed - skipping intro flow');
+              }
+              
+              // ✅ Start inactivity monitoring
+              this.startInactivityMonitoring(convData.conversation_id);
+              
+              // ✅ Show warning if approaching expiration
+              if (statusData.is_warning_threshold) {
+                const minutesLeft = Math.max(0, 15 - statusData.minutes_inactive);
+                this.addBotMessage(`⏰ This conversation has been inactive for ${statusData.minutes_inactive} minutes. If inactive for ${minutesLeft} more minute${minutesLeft !== 1 ? 's' : ''}, the chat will turn off and all history will be removed. ${statusData.visitor_email ? 'If you provided an email, we\'ll send you a summary.' : ''}`);
+              }
+              
+              return convData.conversation_id;
             }
-            
-            return convData.conversation_id;
           }
         }
       } catch (error) {
@@ -1911,7 +2230,47 @@
           const checkResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${persistedConvId}/status`);
           if (checkResponse.ok) {
             const statusData = await checkResponse.json();
-            if (statusData.status === 'active') {
+            
+            // ✅ Check if conversation expired (15+ minutes inactive or status inactive)
+            if (statusData.is_expired) {
+              console.log('⏰ Conversation expired due to inactivity:', statusData.minutes_inactive, 'minutes');
+              
+              // Send email summary if email was provided
+              if (statusData.visitor_email) {
+                try {
+                  await fetch(`${this.config.backendUrl}/api/chat-widget/conversations/${persistedConvId}/send-expiry-email`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                  });
+                } catch (emailError) {
+                  console.warn('Failed to send expiry email:', emailError);
+                }
+              }
+              
+              // Show expiration message
+              this.addBotMessage('⏰ This conversation has been inactive for a while. I\'m turning off the chat here.');
+              if (statusData.visitor_email) {
+                this.addBotMessage(`📧 I've sent a summary of our conversation to ${statusData.visitor_email}. All conversation history will be removed.`);
+              }
+              this.addBotMessage('🔄 Let\'s start fresh! I\'ll ask you a few questions again to help you better.');
+              
+              // Clear conversation from localStorage
+              localStorage.removeItem(`wetechforu_conversation_${this.config.widgetKey}`);
+              sessionStorage.setItem(`wetechforu_conversation_reset_${this.config.widgetKey}`, 'true');
+              
+              // Clear messages
+              const messagesDiv = document.getElementById('wetechforu-messages');
+              if (messagesDiv) {
+                messagesDiv.innerHTML = '';
+              }
+              
+              // Reset state
+              this.state.conversationId = null;
+              this.state.introFlow.isComplete = false;
+              this.state.hasShownIntro = false;
+              
+              // Don't return - fall through to create new conversation
+            } else if (statusData.status === 'active') {
               this.state.conversationId = persistedConvId;
               console.log('✅ Restored active conversation from localStorage:', persistedConvId);
               
@@ -1923,6 +2282,15 @@
                 this.state.introFlow.isComplete = true;
                 this.state.hasShownIntro = true;
                 console.log('✅ Intro already completed - skipping intro flow');
+              }
+              
+              // ✅ Start inactivity monitoring (check every minute)
+              this.startInactivityMonitoring(persistedConvId);
+              
+              // ✅ Show warning if approaching expiration (10+ minutes inactive)
+              if (statusData.is_warning_threshold) {
+                const minutesLeft = Math.max(0, 15 - statusData.minutes_inactive);
+                this.addBotMessage(`⏰ This conversation has been inactive for ${statusData.minutes_inactive} minutes. If inactive for ${minutesLeft} more minute${minutesLeft !== 1 ? 's' : ''}, the chat will turn off and all history will be removed. ${statusData.visitor_email ? 'If you provided an email, we\'ll send you a summary.' : ''}`);
               }
               
               return persistedConvId;
@@ -2836,7 +3204,81 @@
         }
       }
       
+      // Stop inactivity monitoring
+      if (this.state.inactivityMonitorInterval) {
+        clearInterval(this.state.inactivityMonitorInterval);
+        this.state.inactivityMonitorInterval = null;
+      }
+      
       console.log('🛑 Visitor tracking stopped');
+    },
+    
+    // ✅ Start inactivity monitoring (check every minute)
+    startInactivityMonitoring(conversationId) {
+      // Clear existing interval
+      if (this.state.inactivityMonitorInterval) {
+        clearInterval(this.state.inactivityMonitorInterval);
+      }
+      
+      let hasShownWarning = false;
+      
+      // Check every 60 seconds (1 minute)
+      this.state.inactivityMonitorInterval = setInterval(async () => {
+        try {
+          const statusResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/status`);
+          if (statusResponse.ok) {
+            const statusData = await statusResponse.json();
+            
+            // Check if expired
+            if (statusData.is_expired) {
+              clearInterval(this.state.inactivityMonitorInterval);
+              this.state.inactivityMonitorInterval = null;
+              
+              // Send email summary if email was provided
+              if (statusData.visitor_email) {
+                try {
+                  await fetch(`${this.config.backendUrl}/api/chat-widget/conversations/${conversationId}/send-expiry-email`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                  });
+                } catch (emailError) {
+                  console.warn('Failed to send expiry email:', emailError);
+                }
+              }
+              
+              // Show expiration message
+              this.addBotMessage('⏰ This conversation has been inactive for a while. I\'m turning off the chat here.');
+              if (statusData.visitor_email) {
+                this.addBotMessage(`📧 I've sent a summary of our conversation to ${statusData.visitor_email}. All conversation history will be removed.`);
+              }
+              this.addBotMessage('🔄 Let\'s start fresh! I\'ll ask you a few questions again to help you better.');
+              
+              // Clear conversation
+              localStorage.removeItem(`wetechforu_conversation_${this.config.widgetKey}`);
+              this.state.conversationId = null;
+              this.state.introFlow.isComplete = false;
+              this.state.hasShownIntro = false;
+              
+              // Clear messages UI
+              const messagesDiv = document.getElementById('wetechforu-messages');
+              if (messagesDiv) {
+                messagesDiv.innerHTML = '';
+              }
+              
+              console.log('⏰ Conversation expired - reset');
+            } else if (statusData.is_warning_threshold && !hasShownWarning) {
+              // Show warning only once
+              hasShownWarning = true;
+              const minutesLeft = Math.max(0, 15 - statusData.minutes_inactive);
+              this.addBotMessage(`⏰ This conversation has been inactive for ${statusData.minutes_inactive} minutes. If inactive for ${minutesLeft} more minute${minutesLeft !== 1 ? 's' : ''}, the chat will turn off and all history will be removed. ${statusData.visitor_email ? 'If you provided an email, we\'ll send you a summary.' : ''}`);
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to check conversation inactivity:', error);
+        }
+      }, 60000); // Check every 60 seconds
+      
+      console.log('⏰ Inactivity monitoring started for conversation:', conversationId);
     }
   };
 

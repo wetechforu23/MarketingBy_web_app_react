@@ -1399,7 +1399,9 @@ router.get('/widgets/:widgetId/conversations', async (req, res) => {
         COALESCE(wc.visitor_name, 'Anonymous Visitor') as visitor_name,
         wc.visitor_email,
         wc.visitor_phone,
-        wc.visitor_session_id
+        wc.visitor_session_id,
+        wc.intro_completed,
+        wc.intro_data
       FROM widget_conversations wc
       LEFT JOIN widget_configs wconf ON wc.widget_id = wconf.id
       WHERE wc.widget_id = $1
@@ -2409,7 +2411,17 @@ router.get('/public/widget/:widgetKey/conversations/:conversationId/status', asy
     const { conversationId } = req.params;
     
     const result = await pool.query(
-      'SELECT status, closed_at, close_reason, intro_completed, intro_data FROM widget_conversations WHERE id = $1',
+      `SELECT 
+        status, 
+        closed_at, 
+        close_reason, 
+        intro_completed, 
+        intro_data,
+        last_activity_at,
+        visitor_email,
+        EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - last_activity_at))/60 as minutes_inactive
+       FROM widget_conversations 
+       WHERE id = $1`,
       [conversationId]
     );
     
@@ -2417,7 +2429,15 @@ router.get('/public/widget/:widgetKey/conversations/:conversationId/status', asy
       return res.status(404).json({ error: 'Conversation not found' });
     }
     
-    res.json(result.rows[0]);
+    const conv = result.rows[0];
+    const minutesInactive = conv.minutes_inactive ? Math.round(conv.minutes_inactive) : 0;
+    
+    res.json({
+      ...conv,
+      minutes_inactive: minutesInactive,
+      is_warning_threshold: minutesInactive >= 10 && minutesInactive < 15 && conv.status === 'active',
+      is_expired: (minutesInactive >= 15 || conv.status === 'inactive') && conv.status !== 'closed'
+    });
   } catch (error) {
     console.error('Error fetching conversation status:', error);
     res.status(500).json({ error: 'Failed to fetch status' });
@@ -2443,6 +2463,214 @@ router.get('/public/widget/:widgetKey/conversations/:conversationId/messages', a
   } catch (error) {
     console.error('Error fetching messages:', error);
     res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+/**
+ * Send conversation summary email when conversation expires
+ */
+router.post('/conversations/:conversationId/send-expiry-email', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    
+    // Get conversation details
+    const convResult = await pool.query(
+      `SELECT 
+        wc.id, wc.visitor_name, wc.visitor_email, wc.widget_id, wc.message_count,
+        wc.intro_data, wc.visitor_session_id,
+        w.widget_name, w.client_id, w.notification_email,
+        c.name as client_name
+       FROM widget_conversations wc
+       JOIN widget_configs w ON w.id = wc.widget_id
+       LEFT JOIN clients c ON c.id = w.client_id
+       WHERE wc.id = $1`,
+      [conversationId]
+    );
+    
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+    
+    const conv = convResult.rows[0];
+    
+    if (!conv.visitor_email) {
+      return res.status(400).json({ error: 'No email address provided' });
+    }
+    
+    // Get all messages
+    const messagesResult = await pool.query(
+      `SELECT message_type, message_text, sender_name, agent_name, created_at
+       FROM widget_messages
+       WHERE conversation_id = $1
+       ORDER BY created_at ASC`,
+      [conversationId]
+    );
+    
+    const messages = messagesResult.rows;
+    
+    // Get form data (intro_data) from conversation
+    const formData = conv.intro_data || {};
+    
+    // Get visitor session ID
+    const sessionResult = await pool.query(
+      'SELECT visitor_session_id, created_at, last_activity_at FROM widget_conversations WHERE id = $1',
+      [conversationId]
+    );
+    const visitorSessionId = sessionResult.rows[0]?.visitor_session_id || 'N/A';
+    const createdAt = sessionResult.rows[0]?.created_at || new Date();
+    const lastActivityAt = sessionResult.rows[0]?.last_activity_at || new Date();
+    
+    // Build email HTML
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #2E86AB;">📧 Conversation Summary</h2>
+        <p>Hello ${conv.visitor_name || 'there'},</p>
+        <p>Thank you for chatting with us! This is a summary of our conversation from ${conv.widget_name || 'our website'}.</p>
+        
+        ${Object.keys(formData).length > 0 ? `
+          <div style="background: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; border: 2px solid #2196F3;">
+            <h3 style="color: #1976D2; margin-top: 0;">✅ Your Information</h3>
+            ${Object.keys(formData).map(key => {
+              const value = formData[key];
+              const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              return `
+                <div style="margin: 10px 0; padding: 10px; background: white; border-radius: 4px;">
+                  <strong style="color: #555;">${label}:</strong>
+                  <span style="color: #333; margin-left: 8px;">${value}</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        ` : ''}
+        
+        <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #2E86AB; margin-top: 0;">Conversation History</h3>
+          ${messages.map(msg => {
+            const sender = msg.agent_name || msg.sender_name || (msg.message_type === 'user' ? 'You' : 'Bot');
+            const time = new Date(msg.created_at).toLocaleString();
+            return `
+              <div style="margin: 15px 0; padding: 10px; background: white; border-radius: 4px; border-left: 4px solid ${msg.message_type === 'user' ? '#A23B72' : '#2E86AB'};">
+                <div style="font-weight: bold; color: #666; font-size: 12px; margin-bottom: 5px;">
+                  ${sender} • ${time}
+                </div>
+                <div style="color: #333;">
+                  ${msg.message_text}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        
+        <div style="background: #fff9e6; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800;">
+          <h4 style="color: #f57c00; margin-top: 0;">📋 Session Details</h4>
+          <p style="margin: 5px 0; color: #666; font-size: 14px;"><strong>Session ID:</strong> ${visitorSessionId}</p>
+          <p style="margin: 5px 0; color: #666; font-size: 14px;"><strong>Started:</strong> ${new Date(createdAt).toLocaleString()}</p>
+          <p style="margin: 5px 0; color: #666; font-size: 14px;"><strong>Last Activity:</strong> ${new Date(lastActivityAt).toLocaleString()}</p>
+          <p style="margin: 5px 0; color: #666; font-size: 14px;"><strong>Conversation ID:</strong> ${conversationId}</p>
+        </div>
+        
+        <p style="color: #666; font-size: 14px;">
+          <strong>Note:</strong> This conversation was automatically closed due to inactivity. 
+          If you have more questions, feel free to start a new chat anytime!
+        </p>
+        
+        <p style="margin-top: 30px;">
+          Best regards,<br>
+          ${conv.client_name || 'WeTechForU'} Team
+        </p>
+      </div>
+    `;
+    
+    // Send email
+    const { EmailService } = await import('../services/emailService');
+    const emailService = new EmailService();
+    
+    // Send email to visitor
+    await emailService.sendEmail({
+      to: conv.visitor_email,
+      subject: `Conversation Summary - ${conv.widget_name || 'Chat'}`,
+      html: emailHtml,
+      from: `"${conv.client_name || 'WeTechForU'}" <info@wetechforu.com>`
+    });
+    
+    console.log(`✅ Conversation summary email sent to ${conv.visitor_email} for conversation ${conversationId}`);
+    
+    // Also send email to client if notification_email is configured
+    if (conv.notification_email) {
+      const clientEmailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #2E86AB;">📧 Conversation Summary - Expired</h2>
+          <p>Hello,</p>
+          <p>A conversation from ${conv.widget_name || 'your widget'} has expired due to inactivity. Below is the complete summary.</p>
+          
+          ${Object.keys(formData).length > 0 ? `
+            <div style="background: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; border: 2px solid #2196F3;">
+              <h3 style="color: #1976D2; margin-top: 0;">✅ Visitor Information</h3>
+              ${Object.keys(formData).map(key => {
+                const value = formData[key];
+                const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                return `
+                  <div style="margin: 10px 0; padding: 10px; background: white; border-radius: 4px;">
+                    <strong style="color: #555;">${label}:</strong>
+                    <span style="color: #333; margin-left: 8px;">${value}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : ''}
+          
+          <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="color: #2E86AB; margin-top: 0;">Conversation History</h3>
+            ${messages.map(msg => {
+              const sender = msg.agent_name || msg.sender_name || (msg.message_type === 'user' ? 'Visitor' : 'Bot');
+              const time = new Date(msg.created_at).toLocaleString();
+              return `
+                <div style="margin: 15px 0; padding: 10px; background: white; border-radius: 4px; border-left: 4px solid ${msg.message_type === 'user' ? '#A23B72' : '#2E86AB'};">
+                  <div style="font-weight: bold; color: #666; font-size: 12px; margin-bottom: 5px;">
+                    ${sender} • ${time}
+                  </div>
+                  <div style="color: #333;">
+                    ${msg.message_text}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          
+          <div style="background: #fff9e6; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800;">
+            <h4 style="color: #f57c00; margin-top: 0;">📋 Session Details</h4>
+            <p style="margin: 5px 0; color: #666; font-size: 14px;"><strong>Session ID:</strong> ${visitorSessionId}</p>
+            <p style="margin: 5px 0; color: #666; font-size: 14px;"><strong>Visitor Name:</strong> ${conv.visitor_name || 'N/A'}</p>
+            <p style="margin: 5px 0; color: #666; font-size: 14px;"><strong>Visitor Email:</strong> ${conv.visitor_email || 'N/A'}</p>
+            <p style="margin: 5px 0; color: #666; font-size: 14px;"><strong>Started:</strong> ${new Date(createdAt).toLocaleString()}</p>
+            <p style="margin: 5px 0; color: #666; font-size: 14px;"><strong>Last Activity:</strong> ${new Date(lastActivityAt).toLocaleString()}</p>
+            <p style="margin: 5px 0; color: #666; font-size: 14px;"><strong>Conversation ID:</strong> ${conversationId}</p>
+            <p style="margin: 5px 0; color: #666; font-size: 14px;"><strong>Widget:</strong> ${conv.widget_name}</p>
+          </div>
+          
+          <p style="margin-top: 30px;">
+            <a href="https://marketingby.wetechforu.com/app/chat-conversations" 
+               style="background: #2E86AB; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              View All Conversations →
+            </a>
+          </p>
+        </div>
+      `;
+      
+      await emailService.sendEmail({
+        to: conv.notification_email,
+        subject: `📧 Expired Conversation Summary - ${conv.widget_name || 'Chat'}`,
+        html: clientEmailHtml,
+        from: `"WeTechForU MarketingBy" <info@wetechforu.com>`
+      });
+      
+      console.log(`✅ Conversation summary email sent to client ${conv.notification_email} for conversation ${conversationId}`);
+    }
+    
+    res.json({ success: true, message: 'Email sent successfully' });
+  } catch (error) {
+    console.error('Error sending conversation summary email:', error);
+    res.status(500).json({ error: 'Failed to send email', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 
