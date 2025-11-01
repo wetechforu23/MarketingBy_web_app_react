@@ -85,7 +85,8 @@
         lastVisibilityChange: null
       },
       // ⏰ Inactivity monitoring
-      inactivityMonitorInterval: null
+      inactivityMonitorInterval: null,
+      conversationExpired: false
     },
 
     // Initialize widget
@@ -2247,7 +2248,7 @@
                 }
               }
               
-              // Show expiration message
+              // Show expiration message (but DON'T clear existing messages)
               this.addBotMessage('⏰ This conversation has been inactive for a while. I\'m turning off the chat here.');
               if (statusData.visitor_email) {
                 this.addBotMessage(`📧 I've sent a summary of our conversation to ${statusData.visitor_email}. All conversation history will be removed.`);
@@ -2258,16 +2259,13 @@
               localStorage.removeItem(`wetechforu_conversation_${this.config.widgetKey}`);
               sessionStorage.setItem(`wetechforu_conversation_reset_${this.config.widgetKey}`, 'true');
               
-              // Clear messages
-              const messagesDiv = document.getElementById('wetechforu-messages');
-              if (messagesDiv) {
-                messagesDiv.innerHTML = '';
-              }
+              // DON'T clear messages UI - keep them visible
               
               // Reset state
               this.state.conversationId = null;
               this.state.introFlow.isComplete = false;
               this.state.hasShownIntro = false;
+              this.state.conversationExpired = true;
               
               // Don't return - fall through to create new conversation
             } else if (statusData.status === 'active') {
@@ -3229,41 +3227,38 @@
           if (statusResponse.ok) {
             const statusData = await statusResponse.json();
             
-            // Check if expired
-            if (statusData.is_expired) {
+            // Check if expired (only handle once)
+            if (statusData.is_expired && !this.state.conversationExpired) {
+              this.state.conversationExpired = true; // Mark as expired to prevent multiple triggers
               clearInterval(this.state.inactivityMonitorInterval);
               this.state.inactivityMonitorInterval = null;
               
-              // Send email summary if email was provided
+              // Send email summary if email was provided (don't wait for it)
               if (statusData.visitor_email) {
-                try {
-                  await fetch(`${this.config.backendUrl}/api/chat-widget/conversations/${conversationId}/send-expiry-email`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                  });
-                } catch (emailError) {
+                fetch(`${this.config.backendUrl}/api/chat-widget/conversations/${conversationId}/send-expiry-email`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' }
+                }).catch(emailError => {
                   console.warn('Failed to send expiry email:', emailError);
-                }
+                });
               }
               
-              // Show expiration message
+              // Show expiration message (but DON'T clear existing messages)
               this.addBotMessage('⏰ This conversation has been inactive for a while. I\'m turning off the chat here.');
               if (statusData.visitor_email) {
                 this.addBotMessage(`📧 I've sent a summary of our conversation to ${statusData.visitor_email}. All conversation history will be removed.`);
               }
               this.addBotMessage('🔄 Let\'s start fresh! I\'ll ask you a few questions again to help you better.');
               
-              // Clear conversation
+              // Clear conversation from localStorage
               localStorage.removeItem(`wetechforu_conversation_${this.config.widgetKey}`);
+              
+              // Reset state (but keep messages visible)
               this.state.conversationId = null;
               this.state.introFlow.isComplete = false;
               this.state.hasShownIntro = false;
               
-              // Clear messages UI
-              const messagesDiv = document.getElementById('wetechforu-messages');
-              if (messagesDiv) {
-                messagesDiv.innerHTML = '';
-              }
+              // DON'T clear messages UI - keep them visible
               
               console.log('⏰ Conversation expired - reset');
             } else if (statusData.is_warning_threshold && !hasShownWarning) {

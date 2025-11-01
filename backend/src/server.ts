@@ -105,8 +105,9 @@ app.use((req, res, next) => {
   const isPublicHandover = req.path.startsWith('/api/handover/');
   const isChatWidgetKey = /^\/api\/chat-widget\/wtfu_[a-f0-9]+\//.test(req.path);
   const isVisitorTrackingKey = /^\/api\/visitor-tracking\/public\/widget\/wtfu_[a-f0-9]+\//.test(req.path);
+  const isExpiryEmail = req.path.startsWith('/api/chat-widget/conversations/') && req.path.endsWith('/send-expiry-email');
   
-  if (isPublicChatWidget || isPublicVisitorTracking || isPublicHandover || isChatWidgetKey || isVisitorTrackingKey) {
+  if (isPublicChatWidget || isPublicVisitorTracking || isPublicHandover || isChatWidgetKey || isVisitorTrackingKey || isExpiryEmail) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
