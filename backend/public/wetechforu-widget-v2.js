@@ -1001,12 +1001,19 @@
               }
             }
             
-            // ✅ If form data doesn't exist, wait for user input before showing form
+            // ✅ If form data doesn't exist, show form immediately after welcome message
             if (!formDataExists) {
-              // Set flag to wait for user's first input
-              this.state.waitingForFirstInput = true;
-              this.state.pendingFormQuestions = enabledQuestions;
-              console.log('✅ Welcome message shown - waiting for user input before showing form');
+              // Show form immediately (no waiting for user input)
+              setTimeout(() => {
+                this.addBotMessage("Thank you for reaching out! 😊 Before I assist you better, please fill in the information below:");
+                setTimeout(() => {
+                  this.showIntroForm(enabledQuestions);
+                  this.state.introFlow.enabled = true;
+                  this.state.introFlow.questions = enabledQuestions;
+                  this.state.introFlow.isActive = true;
+                  console.log('✅ Intro form displayed immediately after welcome');
+                }, 300);
+              }, 800); // Small delay after welcome message
             }
           } else {
             // No questions configured - use default intro
@@ -2450,8 +2457,40 @@
               // Add system message about restored conversation
               this.addBotMessage('👋 Welcome back! Here\'s your previous conversation:');
               
-              // Display all previous messages
-              messages.forEach(msg => {
+              // Display all previous messages with date separators
+              let lastDate = null;
+              const messagesDiv = document.getElementById('wetechforu-messages');
+              
+              messages.forEach((msg, index) => {
+                // Add date separator if date changed
+                const msgDate = new Date(msg.created_at);
+                const msgDateStr = msgDate.toLocaleDateString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric', 
+                  year: 'numeric' 
+                });
+                
+                if (lastDate !== msgDateStr) {
+                  // Add date separator line
+                  const separator = document.createElement('div');
+                  separator.style.cssText = `
+                    text-align: center;
+                    margin: 16px 0;
+                    padding: 8px 0;
+                    border-top: 1px solid #ddd;
+                    border-bottom: 1px solid #ddd;
+                    color: #666;
+                    font-size: 12px;
+                    font-weight: 600;
+                    background: #f9f9f9;
+                  `;
+                  separator.textContent = `📅 ${msgDateStr}`;
+                  if (messagesDiv) {
+                    messagesDiv.appendChild(separator);
+                  }
+                  lastDate = msgDateStr;
+                }
+                
                 if (msg.message_type === 'user') {
                   this.addUserMessage(msg.message_text, false); // Don't send to backend
                 } else if (msg.message_type === 'bot') {
@@ -2465,6 +2504,13 @@
               
               // Add continuation message
               this.addBotMessage('How else can I help you today?');
+              
+              // Scroll to bottom after loading messages (newest at bottom)
+              setTimeout(() => {
+                if (messagesDiv) {
+                  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                }
+              }, 100);
               
               console.log(`✅ Successfully restored ${messages.length} messages`);
               return true;
@@ -2578,26 +2624,7 @@
           return;
         }
         
-        // ✅ Check if we're waiting for first input before showing form
-        if (this.state.waitingForFirstInput && this.state.pendingFormQuestions) {
-          console.log('✅ User provided first input - now showing form');
-          this.state.waitingForFirstInput = false;
-          
-          // Show the "Thank you for reaching out!" message and form
-          this.addBotMessage("Thank you for reaching out! 😊 Before I assist you better, please fill in the information below:");
-          
-          setTimeout(() => {
-            this.showIntroForm(this.state.pendingFormQuestions);
-            this.state.introFlow.enabled = true;
-            this.state.introFlow.questions = this.state.pendingFormQuestions;
-            this.state.introFlow.isActive = true;
-            this.state.pendingFormQuestions = null;
-            console.log('✅ Intro form displayed after user input');
-          }, 300);
-          
-          // Don't process this message as a chat message - it was just the trigger to show the form
-          return;
-        }
+        // ✅ Removed waiting for first input - form shows immediately after welcome
         
         // ✅ If intro form is not completed, check if form exists and block messages
         if (!this.state.introFlow.isComplete && this.state.introFlow.enabled) {

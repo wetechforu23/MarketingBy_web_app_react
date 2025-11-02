@@ -592,8 +592,8 @@ router.post('/incoming', async (req: Request, res: Response) => {
 
     if (clientResult.rows.length === 0) {
       console.log(`⚠️ No active WhatsApp handover found for number: ${fromNumber}`);
-      // Still send 200 to Twilio to acknowledge receipt
-      return res.sendStatus(200);
+      // Still send 200 to Twilio to acknowledge receipt (empty response prevents "OK" auto-replies)
+      return res.status(200).send('');
     }
 
     const match = clientResult.rows[0];
@@ -613,7 +613,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
     if (extensionResult.extended) {
       // Extension granted, update activity and return
       await inactivityService.updateActivityTimestamp(conversationId, true);
-      return res.sendStatus(200);
+      return res.status(200).send(''); // Empty response prevents "OK" auto-replies
     }
     
     // ✅ CHECK FOR "STOP CONVERSATION" COMMAND
@@ -761,7 +761,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
         }
       }
       
-      return res.sendStatus(200);
+      return res.status(200).send(''); // Empty response prevents "OK" auto-replies
     }
 
     // Store agent's WhatsApp message in widget_messages (normal message, not stop command)
@@ -823,7 +823,9 @@ router.post('/incoming', async (req: Request, res: Response) => {
 
     console.log(`✅ Agent WhatsApp message synced to conversation ${conversationId}`);
 
-    res.sendStatus(200);
+    // ✅ Return empty 200 response to Twilio (no text body - prevents "OK" auto-replies)
+    // Twilio may send "OK" auto-replies if the webhook response contains any text
+    res.status(200).send('');
   } catch (error) {
     console.error('❌ Error processing incoming WhatsApp message:', error);
     // Still send 200 to prevent Twilio from retrying

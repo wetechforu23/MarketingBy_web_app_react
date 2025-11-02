@@ -196,6 +196,7 @@ export default function ChatWidgetEditor() {
 
   const fetchWidget = async () => {
     try {
+      setHasUnsavedChanges(false) // Reset unsaved changes flag when loading widget (not a change)
       // Use single-widget endpoint so we can determine configured flags without exposing secrets
       const response = await api.get(`/chat-widget/widgets/${id}`)
       const widget = response.data
