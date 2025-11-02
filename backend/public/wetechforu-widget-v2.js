@@ -799,7 +799,7 @@
     },
 
     // Open chat
-    openChat() {
+    async openChat() {
       const chatWindow = document.getElementById('wetechforu-chat-window');
       const badge = document.getElementById('wetechforu-badge');
       chatWindow.style.display = 'flex';
@@ -813,26 +813,48 @@
         timestamp: new Date().toISOString()
       });
 
-      // ✅ Show welcome message ONLY on first visit in this session
-      const hasShownWelcome = sessionStorage.getItem(`wetechforu_welcome_shown_${this.config.widgetKey}`);
-      
-      if (!hasShownWelcome) {
-        console.log('🎉 First visit - showing welcome message');
-        // Mark welcome as shown for this session
-        sessionStorage.setItem(`wetechforu_welcome_shown_${this.config.widgetKey}`, 'true');
-        
-        // Start intro flow or show welcome
-        if (this.config.enableIntroFlow) {
-          setTimeout(() => {
-            this.startIntroFlow();
-          }, 500);
-        } else {
-          setTimeout(() => {
-            this.startDefaultIntroFlow();
-          }, 500);
+      // ✅ FIRST: Try to restore existing conversation BEFORE showing welcome message
+      let conversationRestored = false;
+      try {
+        const conversationId = await this.ensureConversation();
+        if (conversationId && this.state.conversationId) {
+          // Messages were loaded in ensureConversation() -> loadPreviousMessages()
+          conversationRestored = true;
+          console.log('✅ Conversation restored with messages');
+          
+          // If messages were loaded, don't show welcome message again
+          // The loadPreviousMessages() already shows "Welcome back!" message
+          const hasShownWelcome = sessionStorage.getItem(`wetechforu_welcome_shown_${this.config.widgetKey}`);
+          if (!hasShownWelcome) {
+            sessionStorage.setItem(`wetechforu_welcome_shown_${this.config.widgetKey}`, 'true');
+          }
         }
-      } else {
-        console.log('👋 Returning visitor - skipping welcome message');
+      } catch (error) {
+        console.warn('Could not restore conversation on open:', error);
+      }
+
+      // ✅ Only show welcome message if conversation was NOT restored
+      if (!conversationRestored) {
+        const hasShownWelcome = sessionStorage.getItem(`wetechforu_welcome_shown_${this.config.widgetKey}`);
+        
+        if (!hasShownWelcome) {
+          console.log('🎉 First visit - showing welcome message');
+          // Mark welcome as shown for this session
+          sessionStorage.setItem(`wetechforu_welcome_shown_${this.config.widgetKey}`, 'true');
+          
+          // Start intro flow or show welcome
+          if (this.config.enableIntroFlow) {
+            setTimeout(() => {
+              this.startIntroFlow();
+            }, 500);
+          } else {
+            setTimeout(() => {
+              this.startDefaultIntroFlow();
+            }, 500);
+          }
+        } else {
+          console.log('👋 Returning visitor - skipping welcome message');
+        }
       }
 
       // Focus input
@@ -2380,44 +2402,55 @@
     // ✅ Load previous messages from conversation
     async loadPreviousMessages(conversationId) {
       try {
+        console.log(`📥 Loading previous messages for conversation ${conversationId}`);
         const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/messages`);
         if (response.ok) {
           const data = await response.json();
           const messages = data.messages || [];
           
+          console.log(`📨 Found ${messages.length} messages to restore`);
+          
           if (messages.length > 0) {
-            console.log(`✅ Loading ${messages.length} previous messages`);
-            
-            // Clear existing messages
+            // Clear existing messages ONLY if we have messages to restore
             const messagesDiv = document.getElementById('wetechforu-messages');
             if (messagesDiv) {
-              messagesDiv.innerHTML = '';
-            }
-            
-            // Add system message about restored conversation
-            this.addBotMessage('👋 Welcome back! Here\'s your previous conversation:');
-            
-            // Display all previous messages
-            messages.forEach(msg => {
-              if (msg.message_type === 'user') {
-                this.addUserMessage(msg.message_text, false); // Don't send to backend
-              } else if (msg.message_type === 'bot') {
-                this.addBotMessage(msg.message_text);
-              } else if (msg.message_type === 'human' && msg.agent_name) {
-                this.addBotMessage(msg.message_text, true, msg.agent_name); // Show as agent
-              } else if (msg.message_type === 'system') {
-                this.addBotMessage(`ℹ️ ${msg.message_text}`);
+              // Check if there are existing messages in the UI
+              const existingMessages = messagesDiv.querySelectorAll('.wetechforu-message, #wetechforu-intro-form');
+              if (existingMessages.length > 0) {
+                messagesDiv.innerHTML = '';
+                console.log('🧹 Cleared existing UI messages before restoring');
               }
-            });
-            
-            // Add system message
-            this.addBotMessage('How else can I help you today?');
-            
-            return true;
+              
+              // Add system message about restored conversation
+              this.addBotMessage('👋 Welcome back! Here\'s your previous conversation:');
+              
+              // Display all previous messages
+              messages.forEach(msg => {
+                if (msg.message_type === 'user') {
+                  this.addUserMessage(msg.message_text, false); // Don't send to backend
+                } else if (msg.message_type === 'bot') {
+                  this.addBotMessage(msg.message_text);
+                } else if (msg.message_type === 'human' && msg.agent_name) {
+                  this.addBotMessage(msg.message_text, true, msg.agent_name); // Show as agent
+                } else if (msg.message_type === 'system') {
+                  this.addBotMessage(`ℹ️ ${msg.message_text}`);
+                }
+              });
+              
+              // Add continuation message
+              this.addBotMessage('How else can I help you today?');
+              
+              console.log(`✅ Successfully restored ${messages.length} messages`);
+              return true;
+            }
+          } else {
+            console.log('ℹ️ No previous messages found for this conversation');
           }
+        } else {
+          console.warn(`⚠️ Failed to load messages: ${response.status} ${response.statusText}`);
         }
       } catch (error) {
-        console.error('Failed to load previous messages:', error);
+        console.error('❌ Failed to load previous messages:', error);
       }
       return false;
     },
