@@ -345,7 +345,8 @@ export class WhatsAppService {
       }
       
       // Track usage with actual price from Twilio, fallback to estimated if not available
-      const costToTrack = actualPrice || (trackConversation ? 0.009 : 0.005);
+      // Template messages are always conversation initiations, so use 0.009 (template cost)
+      const costToTrack = actualPrice || 0.009;
       await this.trackUsage(clientId, widgetId, true, costToTrack); // true = track as conversation
       
       return { 
