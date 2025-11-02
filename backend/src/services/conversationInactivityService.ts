@@ -53,7 +53,7 @@ export class ConversationInactivityService {
           c.client_name
         FROM widget_conversations wc
         JOIN widget_configs w ON w.id = wc.widget_id
-        JOIN clients c ON c.id = wc.client_id
+        JOIN clients c ON c.id = w.client_id
         WHERE wc.status = 'active'
           AND wc.agent_handoff = true
           AND wc.last_activity_at IS NOT NULL

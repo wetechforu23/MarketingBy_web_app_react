@@ -330,6 +330,9 @@ router.post('/public/widget/:widgetKey/track-session', async (req, res) => {
       device_type
     } = req.body;
 
+    // ✅ FIX: Generate session_id if not provided (required for database)
+    const finalSessionId = session_id || `sess_${Math.random().toString(36).substr(2, 9)}${Date.now()}`;
+
     // 🔧 FIX: Extract real client IP from X-Forwarded-For header (Heroku/proxy safe)
     let ip_address = req.headers['x-forwarded-for'] || req.ip || req.connection.remoteAddress;
     
@@ -375,7 +378,7 @@ router.post('/public/widget/:widgetKey/track-session', async (req, res) => {
     // Check if session exists
     const existingSession = await pool.query(
       'SELECT id, landing_page_url, session_started_at FROM widget_visitor_sessions WHERE session_id = $1',
-      [session_id]
+      [finalSessionId]
     );
 
     if (existingSession.rows.length > 0) {
@@ -388,7 +391,7 @@ router.post('/public/widget/:widgetKey/track-session', async (req, res) => {
              is_active = true,
              updated_at = CURRENT_TIMESTAMP
          WHERE session_id = $3`,
-        [current_page_url, current_page_title, session_id]
+        [current_page_url, current_page_title, finalSessionId]
       );
 
       // ✅ CHECK IF VISITOR HAS BEEN HERE 5+ MINUTES (and email not sent yet)
@@ -399,24 +402,24 @@ router.post('/public/widget/:widgetKey/track-session', async (req, res) => {
         // Check if email already sent
         const emailCheck = await pool.query(
           'SELECT engagement_email_sent FROM widget_visitor_sessions WHERE session_id = $1',
-          [session_id]
+          [finalSessionId]
         );
         
         if (emailCheck.rows.length > 0 && !emailCheck.rows[0].engagement_email_sent) {
           // Send email notification (async - don't block response)
-          sendVisitorEngagementEmail(widget_id, session_id, ip_address, visitor_fingerprint)
+          sendVisitorEngagementEmail(widget_id, finalSessionId, ip_address, visitor_fingerprint)
             .catch(err => console.error('Failed to send visitor engagement email:', err));
           
           // Mark as sent
           await pool.query(
             'UPDATE widget_visitor_sessions SET engagement_email_sent = true, engagement_email_sent_at = CURRENT_TIMESTAMP WHERE session_id = $1',
-            [session_id]
+            [finalSessionId]
           );
         }
       }
 
-      console.log(`✅ Updated session: ${session_id} (${minutesOnSite} minutes)`);
-      res.json({ status: 'updated', session_id });
+      console.log(`✅ Updated session: ${finalSessionId} (${minutesOnSite} minutes)`);
+      res.json({ status: 'updated', session_id: finalSessionId });
     } else {
       // 🌍 Lookup Enhanced GeoIP data (all fields from ipapi.co)
       const geo = await getGeoLocation(ip_address as string);
@@ -439,7 +442,7 @@ router.post('/public/widget/:widgetKey/track-session', async (req, res) => {
           true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )`,
         [
-          widget_id, session_id, visitor_fingerprint, ip_address,
+          widget_id, finalSessionId, visitor_fingerprint, ip_address,
           current_page_url, current_page_title, referrer_url, current_page_url, // landing_page = current_page on first visit
           user_agent, browser, browser_version, os, os_version, device_type,
           geo.city, geo.region, geo.region_code, geo.country, geo.country_code, geo.country_code_iso3,
@@ -449,11 +452,11 @@ router.post('/public/widget/:widgetKey/track-session', async (req, res) => {
         ]
       );
 
-      console.log(`✅ New visitor session: ${session_id}`);
-      console.log(`   📍 Location: ${geo.city || 'Unknown'}, ${geo.region || ''}, ${geo.country || 'Unknown'} (${geo.country_code || ''})`);
+      console.log(`✅ New visitor session: ${finalSessionId}`);
+      console.log(`   📍 Location: ${geo.city || 'Unknown'}, ${geo.region || ''}, ${geo.country || 'Unknown'} (${geo.country_code || 'Unknown'})`);
       console.log(`   🕐 Timezone: ${geo.timezone || 'Unknown'} | 💰 Currency: ${geo.currency || 'Unknown'} | 🌐 ISP: ${geo.org || 'Unknown'}`);
       
-      res.json({ status: 'created', session_id });
+      res.json({ status: 'created', session_id: finalSessionId });
     }
   } catch (error) {
     console.error('Track session error:', error);
