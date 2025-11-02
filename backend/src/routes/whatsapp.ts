@@ -661,7 +661,8 @@ router.post('/incoming', async (req: Request, res: Response) => {
       // Send summary email to visitor
       if (conv.visitor_email) {
         try {
-          const { emailService } = await import('../services/emailService');
+          const { EmailService } = await import('../services/emailService');
+          const emailService = new EmailService();
           await emailService.sendEmail({
             to: conv.visitor_email,
             from: '"WeTechForU Support" <info@wetechforu.com>',
@@ -707,7 +708,8 @@ router.post('/incoming', async (req: Request, res: Response) => {
       // Send summary email to client
       if (conv.client_email) {
         try {
-          const { emailService } = await import('../services/emailService');
+          const { EmailService } = await import('../services/emailService');
+          const emailService = new EmailService();
           await emailService.sendEmail({
             to: conv.client_email,
             from: '"WeTechForU Support" <info@wetechforu.com>',
