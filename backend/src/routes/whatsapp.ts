@@ -592,7 +592,155 @@ router.post('/incoming', async (req: Request, res: Response) => {
 
     console.log(`✅ Matched conversation ${conversationId} for widget ${widgetId}, client ${clientId}`);
 
-    // Store agent's WhatsApp message in widget_messages
+    const messageBody = (Body || '').trim();
+    
+    // ✅ CHECK FOR "STOP CONVERSATION" COMMAND
+    const stopCommands = ['stop conversation', 'end conversation', 'stop', 'end', 'close conversation', 'finish conversation'];
+    const isStopCommand = stopCommands.some(cmd => messageBody.toLowerCase().includes(cmd.toLowerCase()));
+    
+    if (isStopCommand) {
+      console.log(`🛑 Agent requested to end conversation ${conversationId}`);
+      
+      // Get conversation details for summary
+      const convDetails = await pool.query(`
+        SELECT wconv.visitor_name, wconv.visitor_email, wconv.created_at, wconv.message_count,
+               wc.widget_name, c.client_name, c.client_email
+        FROM widget_conversations wconv
+        JOIN widget_configs wc ON wc.id = wconv.widget_id
+        JOIN clients c ON c.id = wc.client_id
+        WHERE wconv.id = $1
+      `, [conversationId]);
+      
+      const conv = convDetails.rows[0];
+      
+      // Get all messages for summary
+      const messagesResult = await pool.query(`
+        SELECT message_type, message_text, agent_name, created_at
+        FROM widget_messages
+        WHERE conversation_id = $1
+        ORDER BY created_at ASC
+      `, [conversationId]);
+      
+      // Update conversation status to ended
+      await pool.query(`
+        UPDATE widget_conversations
+        SET 
+          status = 'ended',
+          agent_handoff = false,
+          ended_at = NOW(),
+          updated_at = NOW()
+        WHERE id = $1
+      `, [conversationId]);
+      
+      // Add system message
+      await pool.query(`
+        INSERT INTO widget_messages (
+          conversation_id,
+          message_type,
+          message_text,
+          created_at
+        ) VALUES ($1, 'system', $2, NOW())
+      `, [conversationId, '📞 Conversation ended by agent. A summary has been sent to your email.']);
+      
+      // Generate summary
+      const messages = messagesResult.rows;
+      const summary = {
+        conversationId,
+        visitorName: conv.visitor_name || 'Visitor',
+        visitorEmail: conv.visitor_email,
+        startedAt: conv.created_at,
+        messageCount: conv.message_count || messages.length,
+        messages: messages.map((m: any) => ({
+          type: m.message_type,
+          text: m.message_text,
+          sender: m.agent_name || (m.message_type === 'user' ? 'You' : 'Bot'),
+          time: m.created_at
+        }))
+      };
+      
+      // Send summary email to visitor
+      if (conv.visitor_email) {
+        try {
+          const { emailService } = await import('../services/emailService');
+          await emailService.sendEmail({
+            to: conv.visitor_email,
+            from: '"WeTechForU Support" <info@wetechforu.com>',
+            subject: `📋 Conversation Summary - ${conv.widget_name || 'Chat Support'}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #2E86AB;">📋 Conversation Summary</h2>
+                <p>Hello ${conv.visitor_name || 'there'},</p>
+                <p>Your conversation with our support team has ended. Here's a summary:</p>
+                <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                  <p><strong>Conversation ID:</strong> #${conversationId}</p>
+                  <p><strong>Started:</strong> ${new Date(conv.created_at).toLocaleString()}</p>
+                  <p><strong>Total Messages:</strong> ${summary.messageCount}</p>
+                </div>
+                <h3>Messages:</h3>
+                <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 15px; border-radius: 5px;">
+                  ${summary.messages.map((m: any) => `
+                    <div style="margin-bottom: 15px; padding: 10px; background: ${m.type === 'user' ? '#e3f2fd' : '#f5f5f5'}; border-radius: 5px;">
+                      <strong>${m.sender}:</strong> ${m.text}
+                      <div style="font-size: 12px; color: #666; margin-top: 5px;">${new Date(m.time).toLocaleString()}</div>
+                    </div>
+                  `).join('')}
+                </div>
+                <p style="margin-top: 30px;">
+                  <a href="https://marketingby.wetechforu.com/review?conversation=${conversationId}" 
+                     style="background: #2E86AB; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                    ⭐ Rate Your Experience
+                  </a>
+                </p>
+                <p style="color: #666; font-size: 14px; margin-top: 20px;">
+                  Thank you for reaching out to us!
+                </p>
+              </div>
+            `,
+            text: `Conversation Summary\n\nConversation ID: #${conversationId}\nStarted: ${new Date(conv.created_at).toLocaleString()}\nTotal Messages: ${summary.messageCount}\n\nRate your experience: https://marketingby.wetechforu.com/review?conversation=${conversationId}`
+          });
+          console.log(`✅ Summary email sent to visitor: ${conv.visitor_email}`);
+        } catch (emailError) {
+          console.error('❌ Error sending summary email to visitor:', emailError);
+        }
+      }
+      
+      // Send summary email to client
+      if (conv.client_email) {
+        try {
+          const { emailService } = await import('../services/emailService');
+          await emailService.sendEmail({
+            to: conv.client_email,
+            from: '"WeTechForU Support" <info@wetechforu.com>',
+            subject: `📋 Conversation Ended - ${conv.visitor_name || 'Visitor'} - ${conv.widget_name}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #2E86AB;">📋 Conversation Summary</h2>
+                <p>A conversation has ended on your widget "${conv.widget_name}".</p>
+                <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                  <p><strong>Visitor:</strong> ${conv.visitor_name || 'Anonymous'}</p>
+                  <p><strong>Email:</strong> ${conv.visitor_email || 'Not provided'}</p>
+                  <p><strong>Conversation ID:</strong> #${conversationId}</p>
+                  <p><strong>Started:</strong> ${new Date(conv.created_at).toLocaleString()}</p>
+                  <p><strong>Total Messages:</strong> ${summary.messageCount}</p>
+                </div>
+                <p><a href="https://marketingby.wetechforu.com/app/chat-conversations/${conversationId}" 
+                     style="background: #2E86AB; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                    View Full Conversation →
+                  </a></p>
+              </div>
+            `,
+            text: `Conversation Summary\n\nVisitor: ${conv.visitor_name || 'Anonymous'}\nEmail: ${conv.visitor_email || 'Not provided'}\nConversation ID: #${conversationId}\nTotal Messages: ${summary.messageCount}`
+          });
+          console.log(`✅ Summary email sent to client: ${conv.client_email}`);
+        } catch (emailError) {
+          console.error('❌ Error sending summary email to client:', emailError);
+        }
+      }
+      
+      return res.sendStatus(200);
+    }
+
+    // Store agent's WhatsApp message in widget_messages (normal message, not stop command)
     await pool.query(`
       INSERT INTO widget_messages (
         conversation_id,
@@ -604,7 +752,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
     `, [
       conversationId,
       'human', // Agent response
-      Body || '',
+      messageBody,
       'WhatsApp Agent'
     ]);
 
@@ -619,7 +767,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
         human_response_count = COALESCE(human_response_count, 0) + 1,
         updated_at = NOW()
       WHERE id = $2
-    `, [Body?.substring(0, 500) || '', conversationId]);
+    `, [messageBody.substring(0, 500), conversationId]);
 
     // Store in whatsapp_messages table for tracking
     await pool.query(`

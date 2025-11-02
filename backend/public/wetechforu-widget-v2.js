@@ -59,6 +59,7 @@
       displayedMessageIds: [], // Track displayed agent messages
       pollingInterval: null, // Polling timer
       agentTookOver: false, // ✅ NEW: Track if agent took over conversation
+      conversationEnded: false, // ✅ Track if conversation has ended
       unsuccessfulAttempts: 0, // Track failed knowledge base matches
       compatibility: {
         supported: true,
@@ -2479,6 +2480,14 @@
         console.log('📦 Response data:', data);
         
         this.hideTyping();
+        
+        // ✅ Check if conversation has ended
+        if (data.conversation_ended) {
+          this.addBotMessage(data.message || '📞 This conversation has ended. A summary has been sent to your email.');
+          this.state.conversationEnded = true;
+          this.stopPollingForAgentMessages(); // Stop polling
+          return;
+        }
         
         // ✅ Check if agent has taken over conversation
         if (data.agent_handoff) {

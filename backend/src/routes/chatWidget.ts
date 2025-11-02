@@ -865,12 +865,23 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
     const widget_id = widget.id;
     const client_id = widget.client_id;
 
-    // ✅ CHECK IF AGENT HAS TAKEN OVER (HANDOFF) OR HANDOFF REQUESTED
+    // ✅ CHECK IF AGENT HAS TAKEN OVER (HANDOFF) OR HANDOFF REQUESTED OR CONVERSATION ENDED
     const convCheck = await pool.query(
-      `SELECT agent_handoff, handoff_requested, preferred_contact_method
+      `SELECT agent_handoff, handoff_requested, preferred_contact_method, status
        FROM widget_conversations WHERE id = $1`,
       [conversation_id]
     );
+
+    // ✅ If conversation is ended, don't process messages
+    if (convCheck.rows.length > 0 && convCheck.rows[0].status === 'ended') {
+      return res.json({
+        response: null,
+        agent_handoff: false,
+        conversation_ended: true,
+        message: 'This conversation has ended. Please start a new conversation if you need further assistance.',
+        timestamp: new Date().toISOString()
+      });
+    }
 
     const isAgentHandoff = convCheck.rows.length > 0 && (convCheck.rows[0].agent_handoff || convCheck.rows[0].handoff_requested);
     const preferredMethod = convCheck.rows.length > 0 ? convCheck.rows[0].preferred_contact_method : null;
