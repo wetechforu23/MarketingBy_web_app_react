@@ -74,6 +74,8 @@
         isActive: false,
         isComplete: false
       },
+      waitingForFirstInput: false, // ✅ Wait for user's first message before showing form
+      pendingFormQuestions: null, // ✅ Store questions to show after first input
       // 📊 Visitor tracking state
       tracking: {
         sessionId: null,
@@ -941,18 +943,12 @@
               }
             }
             
-            // ✅ If form data doesn't exist, show form IMMEDIATELY after greeting
+            // ✅ If form data doesn't exist, WAIT for user's first input before showing form
             if (!formDataExists) {
-              // Show "Thanks" message, then form immediately
-              setTimeout(() => {
-                this.addBotMessage("Thank you for reaching out! 😊 Before I assist you better, please fill in the information below:");
-              }, 1500);
-              
-              setTimeout(() => {
-                this.showIntroForm(enabledQuestions);
-              }, 2500);
-              
-              console.log('📋 Showing intro form immediately after greeting');
+              // Set flag to wait for user's first message
+              this.state.waitingForFirstInput = true;
+              this.state.pendingFormQuestions = enabledQuestions;
+              console.log('⏳ Waiting for user input before showing form');
             }
           } else {
             // No questions configured - use default intro
@@ -2490,6 +2486,25 @@
           // Stop polling for bot, start polling for agent messages (including WhatsApp)
           this.state.agentTookOver = true;
           this.startPollingForAgentMessages(); // Start polling for agent replies (WhatsApp or portal)
+          return;
+        }
+        
+        // ✅ If waiting for first input, show form after user's first message
+        if (this.state.waitingForFirstInput && this.state.pendingFormQuestions) {
+          console.log('✅ User provided first input - showing form now');
+          this.state.waitingForFirstInput = false;
+          
+          // Show "Thank you" message and form
+          setTimeout(() => {
+            this.addBotMessage("Thank you for reaching out! 😊 Before I assist you better, please fill in the information below:");
+          }, 500);
+          
+          setTimeout(() => {
+            this.showIntroForm(this.state.pendingFormQuestions);
+            this.state.pendingFormQuestions = null; // Clear pending questions
+          }, 1500);
+          
+          // Don't process this message yet - wait for form to be completed
           return;
         }
         
