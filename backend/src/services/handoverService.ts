@@ -312,7 +312,7 @@ export class HandoverService {
 
       // 2) Get client info
       const clientInfo = await client.query(`
-        SELECT name as client_name
+        SELECT client_name
         FROM clients
         WHERE id = $1
       `, [handoverRequest.client_id]);

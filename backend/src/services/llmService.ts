@@ -660,14 +660,14 @@ Answer the customer's question based on the context above.`;
           tokens_used_today, tokens_used_this_month,
           requests_made_today, requests_made_this_month,
           total_tokens_used, total_requests_made
-        ) VALUES ($1, $2, $3, $3, 1, 1, $3, 1)
+        ) VALUES ($1, $2, $3::bigint, $3::bigint, 1, 1, $3::bigint, 1)
         ON CONFLICT (client_id, widget_id) 
         DO UPDATE SET
-          tokens_used_today = client_llm_usage.tokens_used_today + $3,
-          tokens_used_this_month = client_llm_usage.tokens_used_this_month + $3,
+          tokens_used_today = client_llm_usage.tokens_used_today + $3::bigint,
+          tokens_used_this_month = client_llm_usage.tokens_used_this_month + $3::bigint,
           requests_made_today = client_llm_usage.requests_made_today + 1,
           requests_made_this_month = client_llm_usage.requests_made_this_month + 1,
-          total_tokens_used = client_llm_usage.total_tokens_used + $3,
+          total_tokens_used = client_llm_usage.total_tokens_used + $3::bigint,
           total_requests_made = client_llm_usage.total_requests_made + 1,
           updated_at = CURRENT_TIMESTAMP`,
         [clientId, widgetId, tokensUsed]

@@ -1289,9 +1289,7 @@
         this.addBotMessage("✅ Thank you! I have all the information I need.");
       }, 500);
       
-      setTimeout(() => {
-        this.addBotMessage("How can I help you today? Feel free to ask me anything! 😊");
-      }, 1500);
+      // Note: "How can I help" message is shown later in the function - don't duplicate it here
       
       // ✅ FIX: Ensure conversation exists before saving intro data
       const conversationId = await this.ensureConversation();
