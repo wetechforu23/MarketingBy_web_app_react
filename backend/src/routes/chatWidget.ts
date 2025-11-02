@@ -867,11 +867,13 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
 
     // ✅ CHECK IF AGENT HAS TAKEN OVER (HANDOFF) OR HANDOFF REQUESTED
     const convCheck = await pool.query(
-      'SELECT agent_handoff, handoff_requested FROM widget_conversations WHERE id = $1',
+      `SELECT agent_handoff, handoff_requested, preferred_contact_method
+       FROM widget_conversations WHERE id = $1`,
       [conversation_id]
     );
 
     const isAgentHandoff = convCheck.rows.length > 0 && (convCheck.rows[0].agent_handoff || convCheck.rows[0].handoff_requested);
+    const preferredMethod = convCheck.rows.length > 0 ? convCheck.rows[0].preferred_contact_method : null;
 
     // Save user message
     await pool.query(
@@ -938,7 +940,62 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       }
     }
 
-    // ✅ IF AGENT HAS TAKEN OVER, BOT DOESN'T RESPOND
+    // ✅ IF AGENT HAS TAKEN OVER, FORWARD TO WHATSAPP AND BOT DOESN'T RESPOND
+    if (isAgentHandoff && preferredMethod === 'whatsapp') {
+      // Forward visitor message to WhatsApp
+      try {
+        const convInfo = await pool.query(`
+          SELECT wc.handover_whatsapp_number, wc.client_id, wconv.visitor_name, wconv.visitor_email
+          FROM widget_configs wc
+          JOIN widget_conversations wconv ON wconv.widget_id = wc.id
+          WHERE wconv.id = $1
+        `, [conversation_id]);
+
+        if (convInfo.rows.length > 0 && convInfo.rows[0].handover_whatsapp_number) {
+          const { WhatsAppService } = await import('../services/whatsappService');
+          const whatsappService = WhatsAppService.getInstance();
+          
+          const handoverNumber = convInfo.rows[0].handover_whatsapp_number;
+          const visitorName = convInfo.rows[0].visitor_name || 'Visitor';
+          
+          // Normalize phone number for WhatsApp
+          let cleanNumber = handoverNumber.replace('whatsapp:', '').trim();
+          if (!cleanNumber.startsWith('+')) {
+            cleanNumber = '+' + cleanNumber.replace(/\D/g, '');
+          } else {
+            cleanNumber = '+' + cleanNumber.replace(/[^\d]/g, '');
+          }
+
+          // Send visitor message to agent's WhatsApp
+          const whatsappMessage = `💬 *New message from ${visitorName}:*\n\n${message_text}`;
+          
+          await whatsappService.sendMessage({
+            clientId: convInfo.rows[0].client_id,
+            widgetId: widget_id,
+            conversationId: conversation_id,
+            toNumber: `whatsapp:${cleanNumber}`,
+            message: whatsappMessage,
+            sentByAgentName: visitorName,
+            visitorName: visitorName
+          });
+
+          console.log(`📱 Forwarded visitor message to WhatsApp: ${cleanNumber}`);
+        }
+      } catch (whatsappError) {
+        console.error('❌ Error forwarding message to WhatsApp:', whatsappError);
+        // Don't fail the request if WhatsApp forwarding fails
+      }
+      
+      console.log(`🤝 Agent handoff active for conversation ${conversation_id} - Bot staying silent`);
+      return res.json({
+        response: null, // No bot response
+        agent_handoff: true,
+        message: 'Your message has been sent to our team. An agent will respond shortly.',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Handle other handover methods (portal, email, etc.) - bot doesn't respond
     if (isAgentHandoff) {
       console.log(`🤝 Agent handoff active for conversation ${conversation_id} - Bot staying silent`);
       return res.json({

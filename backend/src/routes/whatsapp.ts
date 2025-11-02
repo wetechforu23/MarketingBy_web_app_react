@@ -526,5 +526,133 @@ router.post('/status-callback', async (req: Request, res: Response) => {
   }
 });
 
+// ==========================================
+// POST /api/whatsapp/incoming
+// Twilio webhook for incoming WhatsApp messages from agents
+// (PUBLIC - No auth required)
+// ==========================================
+
+router.post('/incoming', async (req: Request, res: Response) => {
+  try {
+    const {
+      MessageSid,
+      AccountSid,
+      From, // Agent's WhatsApp number (client's handover number)
+      To, // Our Twilio WhatsApp number
+      Body, // Message text
+      NumMedia
+    } = req.body;
+
+    console.log('📱 Incoming WhatsApp Message:', {
+      MessageSid,
+      From,
+      To,
+      Body: Body?.substring(0, 100),
+      NumMedia
+    });
+
+    // Normalize phone number (remove whatsapp: prefix if present)
+    const normalizePhone = (phone: string): string => {
+      return phone.replace(/^whatsapp:/, '').trim();
+    };
+
+    const fromNumber = normalizePhone(From);
+    const toNumber = normalizePhone(To);
+
+    // Find the client and active conversation by matching the From number
+    // The From number should match the client's handover_whatsapp_number
+    const clientResult = await pool.query(`
+      SELECT DISTINCT wc.id as widget_id, wc.client_id, wc.handover_whatsapp_number,
+             hr.conversation_id, hr.id as handover_request_id
+      FROM widget_configs wc
+      JOIN handover_requests hr ON hr.widget_id = wc.id
+      JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
+      WHERE hr.requested_method = 'whatsapp'
+        AND hr.status IN ('notified', 'completed')
+        AND wconv.status = 'active'
+        AND wconv.agent_handoff = true
+        AND (
+          REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+          OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+        )
+      ORDER BY hr.created_at DESC
+      LIMIT 1
+    `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+
+    if (clientResult.rows.length === 0) {
+      console.log(`⚠️ No active WhatsApp handover found for number: ${fromNumber}`);
+      // Still send 200 to Twilio to acknowledge receipt
+      return res.sendStatus(200);
+    }
+
+    const match = clientResult.rows[0];
+    const conversationId = match.conversation_id;
+    const widgetId = match.widget_id;
+    const clientId = match.client_id;
+
+    console.log(`✅ Matched conversation ${conversationId} for widget ${widgetId}, client ${clientId}`);
+
+    // Store agent's WhatsApp message in widget_messages
+    await pool.query(`
+      INSERT INTO widget_messages (
+        conversation_id,
+        message_type,
+        message_text,
+        agent_name,
+        created_at
+      ) VALUES ($1, $2, $3, $4, NOW())
+    `, [
+      conversationId,
+      'human', // Agent response
+      Body || '',
+      'WhatsApp Agent'
+    ]);
+
+    // Update conversation to mark agent response
+    await pool.query(`
+      UPDATE widget_conversations
+      SET 
+        last_message = $1,
+        last_message_at = NOW(),
+        last_activity_at = NOW(),
+        message_count = COALESCE(message_count, 0) + 1,
+        human_response_count = COALESCE(human_response_count, 0) + 1,
+        updated_at = NOW()
+      WHERE id = $2
+    `, [Body?.substring(0, 500) || '', conversationId]);
+
+    // Store in whatsapp_messages table for tracking
+    await pool.query(`
+      INSERT INTO whatsapp_messages (
+        client_id,
+        widget_id,
+        conversation_id,
+        twilio_message_sid,
+        message_type,
+        message_text,
+        sent_by_agent_name,
+        sent_at,
+        twilio_status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 'received')
+    `, [
+      clientId,
+      widgetId,
+      conversationId,
+      MessageSid,
+      'incoming',
+      Body || '',
+      'WhatsApp Agent'
+    ]);
+
+    console.log(`✅ Agent WhatsApp message synced to conversation ${conversationId}`);
+
+    res.sendStatus(200);
+  } catch (error) {
+    console.error('❌ Error processing incoming WhatsApp message:', error);
+    // Still send 200 to prevent Twilio from retrying
+    res.sendStatus(200);
+  }
+});
+
 export default router;
 

@@ -2198,6 +2198,13 @@
                 console.log('✅ Intro already completed - skipping intro flow');
               }
               
+              // ✅ Check if agent handoff is active (WhatsApp or portal)
+              if (statusData.agent_handoff) {
+                this.state.agentTookOver = true;
+                this.startPollingForAgentMessages(); // Start polling for agent replies
+                console.log('✅ Agent handoff active - started polling for agent messages');
+              }
+              
               // ✅ Start inactivity monitoring
               this.startInactivityMonitoring(convData.conversation_id);
               
@@ -2484,8 +2491,9 @@
         // ✅ Check if agent has taken over conversation
         if (data.agent_handoff) {
           this.addBotMessage('👨‍💼 Your message has been sent to our team. An agent will respond shortly...');
-          // Stop polling for bot, start polling for agent
+          // Stop polling for bot, start polling for agent messages (including WhatsApp)
           this.state.agentTookOver = true;
+          this.startPollingForAgentMessages(); // Start polling for agent replies (WhatsApp or portal)
           return;
         }
         
