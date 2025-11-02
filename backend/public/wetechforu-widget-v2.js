@@ -2578,6 +2578,27 @@
           return;
         }
         
+        // ✅ Check if we're waiting for first input before showing form
+        if (this.state.waitingForFirstInput && this.state.pendingFormQuestions) {
+          console.log('✅ User provided first input - now showing form');
+          this.state.waitingForFirstInput = false;
+          
+          // Show the "Thank you for reaching out!" message and form
+          this.addBotMessage("Thank you for reaching out! 😊 Before I assist you better, please fill in the information below:");
+          
+          setTimeout(() => {
+            this.showIntroForm(this.state.pendingFormQuestions);
+            this.state.introFlow.enabled = true;
+            this.state.introFlow.questions = this.state.pendingFormQuestions;
+            this.state.introFlow.isActive = true;
+            this.state.pendingFormQuestions = null;
+            console.log('✅ Intro form displayed after user input');
+          }, 300);
+          
+          // Don't process this message as a chat message - it was just the trigger to show the form
+          return;
+        }
+        
         // ✅ If intro form is not completed, check if form exists and block messages
         if (!this.state.introFlow.isComplete && this.state.introFlow.enabled) {
           // Check if form is actually displayed on the page
