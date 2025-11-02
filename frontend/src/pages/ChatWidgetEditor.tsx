@@ -428,6 +428,9 @@ export default function ChatWidgetEditor() {
             messages_this_month: 0,
             conversations_this_month: 0,
             estimated_cost_this_month: 0,
+            actual_cost_this_month: 0,
+            cost_this_month: 0,
+            has_actual_prices: false,
             next_reset_date: null
           })
         }
@@ -1973,12 +1976,12 @@ export default function ChatWidgetEditor() {
                   <div>
                     <span style={{ color: '#666' }}>Cost (This Month):</span>
                     <strong style={{ marginLeft: '8px', color: '#4682B4' }}>
-                      {whatsappUsage.cost_this_month !== undefined && whatsappUsage.cost_this_month > 0 
-                        ? `$${Number(whatsappUsage.cost_this_month).toFixed(2)} USD (Actual)`
+                      {(whatsappUsage.has_actual_prices || (whatsappUsage.cost_this_month !== undefined && whatsappUsage.actual_cost_this_month !== undefined))
+                        ? `$${Number(whatsappUsage.cost_this_month || whatsappUsage.actual_cost_this_month || 0).toFixed(2)} USD (Actual)`
                         : `$${(Number(whatsappUsage.estimated_cost_this_month) || 0).toFixed(2)} USD (Estimated)`
                       }
                     </strong>
-                    {whatsappUsage.cost_this_month !== undefined && whatsappUsage.cost_this_month > 0 && whatsappUsage.estimated_cost_this_month && whatsappUsage.estimated_cost_this_month > 0 && (
+                    {(whatsappUsage.has_actual_prices || (whatsappUsage.cost_this_month !== undefined && whatsappUsage.actual_cost_this_month !== undefined)) && whatsappUsage.estimated_cost_this_month && whatsappUsage.estimated_cost_this_month > 0 && (
                       <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
                         (Est: ${Number(whatsappUsage.estimated_cost_this_month).toFixed(2)})
                       </div>

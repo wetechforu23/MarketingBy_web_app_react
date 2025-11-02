@@ -777,13 +777,16 @@ export class WhatsAppService {
       stats.messages_this_month = stats.messages_sent_this_month; // Alias
       stats.free_messages_remaining = Math.max(0, 1000 - (stats.conversations_this_month || 0));
       
-      // Use actual cost if available, otherwise fall back to estimated
-      stats.cost_this_month = stats.actual_cost_this_month > 0 
+      // Use actual cost if available (even if 0), otherwise fall back to estimated
+      // Check if we have any messages with actual prices to determine if we should use actual or estimated
+      const hasActualPrices = stats.actual_cost_this_month !== null && stats.actual_cost_this_month !== undefined;
+      stats.cost_this_month = hasActualPrices 
         ? stats.actual_cost_this_month 
         : stats.estimated_cost_this_month;
-      stats.total_cost = stats.total_actual_cost > 0 
+      stats.total_cost = (stats.total_actual_cost !== null && stats.total_actual_cost !== undefined)
         ? stats.total_actual_cost 
         : stats.total_estimated_cost;
+      stats.has_actual_prices = hasActualPrices;
       stats.next_reset_date = stats.last_monthly_reset 
         ? (() => {
             const lastReset = new Date(stats.last_monthly_reset);
