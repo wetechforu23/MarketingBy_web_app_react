@@ -563,7 +563,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
     // The From number should match the client's handover_whatsapp_number
     const clientResult = await pool.query(`
       SELECT DISTINCT wc.id as widget_id, wc.client_id, wc.handover_whatsapp_number,
-             hr.conversation_id, hr.id as handover_request_id
+             hr.conversation_id, hr.id as handover_request_id, hr.created_at
       FROM widget_configs wc
       JOIN handover_requests hr ON hr.widget_id = wc.id
       JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
