@@ -678,7 +678,7 @@ export class WhatsAppService {
           estimated_cost_this_month,
           total_estimated_cost,
           last_daily_reset,
-          last_monthly_reset
+          last_monthly_reset,
           actual_cost_today,
           actual_cost_this_month,
           total_actual_cost

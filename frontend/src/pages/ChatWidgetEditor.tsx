@@ -1971,10 +1971,18 @@ export default function ChatWidgetEditor() {
                     </strong>
                   </div>
                   <div>
-                    <span style={{ color: '#666' }}>Estimated Cost:</span>
+                    <span style={{ color: '#666' }}>Cost (This Month):</span>
                     <strong style={{ marginLeft: '8px', color: '#4682B4' }}>
-                      ${(Number(whatsappUsage.estimated_cost_this_month) || 0).toFixed(2)} USD
+                      {whatsappUsage.cost_this_month !== undefined && whatsappUsage.cost_this_month > 0 
+                        ? `$${Number(whatsappUsage.cost_this_month).toFixed(2)} USD (Actual)`
+                        : `$${(Number(whatsappUsage.estimated_cost_this_month) || 0).toFixed(2)} USD (Estimated)`
+                      }
                     </strong>
+                    {whatsappUsage.cost_this_month !== undefined && whatsappUsage.cost_this_month > 0 && whatsappUsage.estimated_cost_this_month && whatsappUsage.estimated_cost_this_month > 0 && (
+                      <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
+                        (Est: ${Number(whatsappUsage.estimated_cost_this_month).toFixed(2)})
+                      </div>
+                    )}
                   </div>
                   <div style={{ gridColumn: '1 / -1', fontSize: '12px', color: '#666', marginTop: '4px' }}>
                     <i className="fas fa-calendar-alt" style={{ marginRight: '6px' }}></i>
