@@ -886,6 +886,21 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
     const isAgentHandoff = convCheck.rows.length > 0 && (convCheck.rows[0].agent_handoff || convCheck.rows[0].handoff_requested);
     const preferredMethod = convCheck.rows.length > 0 ? convCheck.rows[0].preferred_contact_method : null;
 
+    // ✅ CHECK FOR EXTENSION REQUEST (for visitor)
+    const { ConversationInactivityService } = await import('../services/conversationInactivityService');
+    const inactivityService = ConversationInactivityService.getInstance();
+    const extensionResult = await inactivityService.handleExtensionRequest(conversation_id, message_text, false);
+    
+    if (extensionResult.extended) {
+      // Extension granted, send response and return
+      return res.json({
+        response: extensionResult.message || 'Conversation extended successfully',
+        extension_granted: true,
+        minutes: extensionResult.minutes,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     // Save user message
     await pool.query(
       `INSERT INTO widget_messages (conversation_id, message_type, message_text)
@@ -895,9 +910,19 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
 
     // Update conversation message count, last_activity_at, and unread count (for notifications)
     await pool.query(
-      'UPDATE widget_conversations SET message_count = message_count + 1, updated_at = CURRENT_TIMESTAMP, last_activity_at = CURRENT_TIMESTAMP, unread_agent_messages = unread_agent_messages + 1 WHERE id = $1',
+      `UPDATE widget_conversations 
+       SET message_count = message_count + 1, 
+           updated_at = CURRENT_TIMESTAMP, 
+           last_activity_at = CURRENT_TIMESTAMP,
+           last_visitor_activity_at = CURRENT_TIMESTAMP,
+           visitor_extension_reminders_count = 0,
+           unread_agent_messages = unread_agent_messages + 1 
+       WHERE id = $1`,
       [conversation_id]
     );
+    
+    // ✅ Update activity timestamp via service
+    await inactivityService.updateActivityTimestamp(conversation_id, false);
 
     // 📧 SEND EMAIL NOTIFICATION TO AGENT (for EVERY new message)
     // This ensures agents are notified in real-time for all customer messages

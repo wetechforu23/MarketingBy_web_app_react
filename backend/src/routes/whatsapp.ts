@@ -594,6 +594,17 @@ router.post('/incoming', async (req: Request, res: Response) => {
 
     const messageBody = (Body || '').trim();
     
+    // ✅ CHECK FOR EXTENSION REQUEST (before stop command)
+    const { ConversationInactivityService } = await import('../services/conversationInactivityService');
+    const inactivityService = ConversationInactivityService.getInstance();
+    const extensionResult = await inactivityService.handleExtensionRequest(conversationId, messageBody, true);
+    
+    if (extensionResult.extended) {
+      // Extension granted, update activity and return
+      await inactivityService.updateActivityTimestamp(conversationId, true);
+      return res.sendStatus(200);
+    }
+    
     // ✅ CHECK FOR "STOP CONVERSATION" COMMAND
     const stopCommands = ['stop conversation', 'end conversation', 'stop', 'end', 'close conversation', 'finish conversation'];
     const isStopCommand = stopCommands.some(cmd => messageBody.toLowerCase().includes(cmd.toLowerCase()));
@@ -765,11 +776,16 @@ router.post('/incoming', async (req: Request, res: Response) => {
         last_message = $1,
         last_message_at = NOW(),
         last_activity_at = NOW(),
+        last_agent_activity_at = NOW(),
+        extension_reminders_count = 0,
         message_count = COALESCE(message_count, 0) + 1,
         human_response_count = COALESCE(human_response_count, 0) + 1,
         updated_at = NOW()
       WHERE id = $2
     `, [messageBody.substring(0, 500), conversationId]);
+    
+    // ✅ Update activity timestamp via service
+    await inactivityService.updateActivityTimestamp(conversationId, true);
 
     // Store in whatsapp_messages table for tracking
     await pool.query(`

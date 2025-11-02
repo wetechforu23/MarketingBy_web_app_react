@@ -241,6 +241,17 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
+// Initialize conversation inactivity monitoring service
+(async () => {
+  try {
+    const { ConversationInactivityService } = await import('./services/conversationInactivityService');
+    ConversationInactivityService.getInstance(); // This starts the periodic checks
+    console.log('✅ Conversation inactivity monitoring service initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize conversation inactivity service:', error);
+  }
+})();
+
 app.listen(PORT, () => {
   console.log(`🚀 MarketingBy Backend running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
