@@ -722,6 +722,11 @@ export class WhatsAppService {
       // First, recalculate actual costs from messages (more accurate than incrementally tracking)
       await this.recalculateActualCosts(clientId, widgetId);
       
+      // Also fetch missing prices in background (don't wait)
+      this.fetchMissingPrices(clientId).catch(err => 
+        console.warn('Background price fetch failed:', err)
+      );
+      
       let query = `
         SELECT 
           messages_sent_today,
