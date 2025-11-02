@@ -929,6 +929,7 @@
                     // Show summary of existing data
                     setTimeout(() => {
                       this.showFormSummary(statusData.intro_data);
+                      // Show ready message since form is already complete
                       setTimeout(() => {
                         this.addBotMessage("How can I help you today? Feel free to ask me anything! 😊");
                       }, 1000);

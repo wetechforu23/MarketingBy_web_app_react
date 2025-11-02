@@ -439,15 +439,22 @@ export class HandoverService {
         // Remove 'whatsapp:' prefix from number if present, ensure it's just digits with + prefix
         let cleanNumber = clientWhatsAppNumber.replace('whatsapp:', '').trim();
         
-        // Ensure E.164 format: + followed by digits only
+        // Ensure E.164 format: + followed by digits only (no spaces, dashes, etc)
         if (!cleanNumber.startsWith('+')) {
           cleanNumber = '+' + cleanNumber.replace(/\D/g, '');
         } else {
-          cleanNumber = '+' + cleanNumber.replace(/[^\d]/g, '');
+          // Already has +, just remove all non-digits after it
+          cleanNumber = '+' + cleanNumber.substring(1).replace(/\D/g, '');
         }
         
-        console.log(`📱 Sending WhatsApp to clean number: ${cleanNumber} (original: ${clientWhatsAppNumber})`);
-        console.log(`📱 Client ID: ${handoverRequest.client_id}, Widget ID: ${handoverRequest.widget_id}, Conversation ID: ${handoverRequest.conversation_id}`);
+        console.log(`📱 WhatsApp Handover Debug:`, {
+          original: clientWhatsAppNumber,
+          cleaned: cleanNumber,
+          client_id: handoverRequest.client_id,
+          widget_id: handoverRequest.widget_id,
+          conversation_id: handoverRequest.conversation_id,
+          handover_number: clientHandoverNumber
+        });
         
         let result = await whatsappService.sendTemplateMessage({
           clientId: handoverRequest.client_id,
