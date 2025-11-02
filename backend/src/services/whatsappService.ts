@@ -568,11 +568,25 @@ export class WhatsAppService {
 
   private async trackUsage(clientId: number, widgetId: number, trackConversation: boolean = false): Promise<void> {
     try {
-      // Estimate cost per message (average US rate)
-      const estimatedCost = 0.006; // $0.006 per message (user-initiated conversation)
+      // Twilio WhatsApp Actual Pricing (2024):
+      // 1. Twilio charges: $0.005 per message sent/received (always applies)
+      // 2. Meta charges for template messages (varies by category/country):
+      //    - Utility template (outside 24h window): ~$0.004 per message
+      //    - Within 24h window: No Meta fee (only Twilio $0.005)
+      //    - Authentication/Marketing: Higher rates
+      //
+      // Since we use template messages (Content API) for handover notifications:
+      // - Template message cost: $0.005 (Twilio) + $0.004 (Meta utility) = $0.009
+      // - Session message cost: $0.005 (Twilio only, within 24h)
+      //
+      // For handover template messages (conversation initiation):
+      const templateMessageCost = 0.009; // $0.005 (Twilio) + $0.004 (Meta utility template)
       
-      // Estimate cost per conversation (first message in 24h window)
-      const conversationCost = 0.005; // $0.005 per conversation (session initiation)
+      // For regular messages within 24h session (if any):
+      const sessionMessageCost = 0.005; // $0.005 (Twilio only)
+      
+      // We primarily use template messages, so use that rate
+      const estimatedCost = trackConversation ? templateMessageCost : sessionMessageCost;
 
       const conversationIncrement = trackConversation ? 1 : 0;
       
@@ -600,11 +614,11 @@ export class WhatsAppService {
           conversations_today = whatsapp_usage.conversations_today + $3,
           conversations_this_month = whatsapp_usage.conversations_this_month + $3,
           total_conversations = whatsapp_usage.total_conversations + $3,
-          estimated_cost_today = whatsapp_usage.estimated_cost_today + $4 + ($5 * $3),
-          estimated_cost_this_month = whatsapp_usage.estimated_cost_this_month + $4 + ($5 * $3),
-          total_estimated_cost = whatsapp_usage.total_estimated_cost + $4 + ($5 * $3),
+          estimated_cost_today = whatsapp_usage.estimated_cost_today + $4,
+          estimated_cost_this_month = whatsapp_usage.estimated_cost_this_month + $4,
+          total_estimated_cost = whatsapp_usage.total_estimated_cost + $4,
           updated_at = NOW()`,
-        [clientId, widgetId, conversationIncrement, estimatedCost, conversationCost]
+        [clientId, widgetId, conversationIncrement, estimatedCost]
       );
       
       console.log(`✅ Tracked WhatsApp usage: Client ${clientId}, Widget ${widgetId}, Message: +1${trackConversation ? ', Conversation: +1' : ''}`);
