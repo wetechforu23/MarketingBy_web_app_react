@@ -1001,21 +1001,12 @@
               }
             }
             
-            // ✅ If form data doesn't exist, show welcome then form immediately
+            // ✅ If form data doesn't exist, wait for user input before showing form
             if (!formDataExists) {
-              // Show welcome message first
-              setTimeout(() => {
-                this.addBotMessage("Thank you for reaching out! 😊 Before I assist you better, please fill in the information below:");
-                
-                // Show form immediately after welcome message
-                setTimeout(() => {
-                  this.showIntroForm(enabledQuestions);
-                  this.state.introFlow.enabled = true;
-                  console.log('✅ Intro form displayed');
-                }, 300);
-              }, 500);
-              
-              console.log('✅ Showing intro form after welcome message');
+              // Set flag to wait for user's first input
+              this.state.waitingForFirstInput = true;
+              this.state.pendingFormQuestions = enabledQuestions;
+              console.log('✅ Welcome message shown - waiting for user input before showing form');
             }
           } else {
             // No questions configured - use default intro
