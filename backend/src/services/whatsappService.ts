@@ -784,14 +784,34 @@ export class WhatsAppService {
       
       // Use actual cost if available (even if 0), otherwise fall back to estimated
       // Check if we have any messages with actual prices to determine if we should use actual or estimated
-      const hasActualPrices = stats.actual_cost_this_month !== null && stats.actual_cost_this_month !== undefined;
-      stats.cost_this_month = hasActualPrices 
-        ? stats.actual_cost_this_month 
+      // Also check if there are messages with prices in the database (even if not yet aggregated)
+      const hasActualPrices = (stats.actual_cost_this_month !== null && stats.actual_cost_this_month !== undefined);
+      
+      // Double-check: query messages directly to see if any have prices
+      let hasMessagesWithPrices = false;
+      if (!hasActualPrices) {
+        try {
+          let priceCheckQuery = `SELECT COUNT(*) as count FROM whatsapp_messages 
+                                 WHERE client_id = $1 AND twilio_price IS NOT NULL AND direction = 'outbound'`;
+          const priceCheckParams: any[] = [clientId];
+          if (widgetId) {
+            priceCheckQuery += ' AND widget_id = $2';
+            priceCheckParams.push(widgetId);
+          }
+          const priceCheckResult = await pool.query(priceCheckQuery, priceCheckParams);
+          hasMessagesWithPrices = parseInt(priceCheckResult.rows[0]?.count || '0') > 0;
+        } catch (e) {
+          console.warn('Could not check for messages with prices:', e);
+        }
+      }
+      
+      stats.cost_this_month = (hasActualPrices || hasMessagesWithPrices)
+        ? (stats.actual_cost_this_month || 0)
         : stats.estimated_cost_this_month;
       stats.total_cost = (stats.total_actual_cost !== null && stats.total_actual_cost !== undefined)
         ? stats.total_actual_cost 
         : stats.total_estimated_cost;
-      stats.has_actual_prices = hasActualPrices;
+      stats.has_actual_prices = hasActualPrices || hasMessagesWithPrices;
       stats.next_reset_date = stats.last_monthly_reset 
         ? (() => {
             const lastReset = new Date(stats.last_monthly_reset);
