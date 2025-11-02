@@ -325,7 +325,8 @@ export class WhatsAppService {
         ]
       );
 
-      await this.trackUsage(clientId, widgetId);
+      // Track usage - handover template message counts as both message and conversation
+      await this.trackUsage(clientId, widgetId, true); // true = track as conversation
       return { success: true, messageSid: twilioData.sid, status: twilioData.status };
     } catch (error: any) {
       const twilioError = error.response?.data || {};
@@ -565,11 +566,16 @@ export class WhatsAppService {
   // USAGE TRACKING
   // ==========================================
 
-  private async trackUsage(clientId: number, widgetId: number): Promise<void> {
+  private async trackUsage(clientId: number, widgetId: number, trackConversation: boolean = false): Promise<void> {
     try {
       // Estimate cost per message (average US rate)
       const estimatedCost = 0.006; // $0.006 per message (user-initiated conversation)
+      
+      // Estimate cost per conversation (first message in 24h window)
+      const conversationCost = 0.005; // $0.005 per conversation (session initiation)
 
+      const conversationIncrement = trackConversation ? 1 : 0;
+      
       await pool.query(
         `INSERT INTO whatsapp_usage (
           client_id,
@@ -582,19 +588,26 @@ export class WhatsAppService {
           total_conversations,
           estimated_cost_today,
           estimated_cost_this_month,
-          total_estimated_cost
-        ) VALUES ($1, $2, 1, 1, 1, 0, 0, 0, $3, $3, $3)
+          total_estimated_cost,
+          last_daily_reset,
+          last_monthly_reset
+        ) VALUES ($1, $2, 1, 1, 1, $3, $3, $3, $4, $4, $4, CURRENT_DATE, date_trunc('month', CURRENT_DATE))
         ON CONFLICT (client_id, widget_id)
         DO UPDATE SET
           messages_sent_today = whatsapp_usage.messages_sent_today + 1,
           messages_sent_this_month = whatsapp_usage.messages_sent_this_month + 1,
           total_messages_sent = whatsapp_usage.total_messages_sent + 1,
-          estimated_cost_today = whatsapp_usage.estimated_cost_today + $3,
-          estimated_cost_this_month = whatsapp_usage.estimated_cost_this_month + $3,
-          total_estimated_cost = whatsapp_usage.total_estimated_cost + $3,
+          conversations_today = whatsapp_usage.conversations_today + $3,
+          conversations_this_month = whatsapp_usage.conversations_this_month + $3,
+          total_conversations = whatsapp_usage.total_conversations + $3,
+          estimated_cost_today = whatsapp_usage.estimated_cost_today + $4 + ($5 * $3),
+          estimated_cost_this_month = whatsapp_usage.estimated_cost_this_month + $4 + ($5 * $3),
+          total_estimated_cost = whatsapp_usage.total_estimated_cost + $4 + ($5 * $3),
           updated_at = NOW()`,
-        [clientId, widgetId, estimatedCost]
+        [clientId, widgetId, conversationIncrement, estimatedCost, conversationCost]
       );
+      
+      console.log(`✅ Tracked WhatsApp usage: Client ${clientId}, Widget ${widgetId}, Message: +1${trackConversation ? ', Conversation: +1' : ''}`);
     } catch (error) {
       console.error('Error tracking WhatsApp usage:', error);
     }
