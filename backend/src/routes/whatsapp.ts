@@ -70,6 +70,11 @@ router.get('/settings/:clientId', requireAuth, async (req: Request, res: Respons
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    // Fetch missing prices from Twilio (async, don't wait)
+    whatsappService.fetchMissingPrices(clientId).catch(err => 
+      console.warn('Background price fetch failed:', err)
+    );
+
     // Check if configured
     const isConfigured = await whatsappService.isWhatsAppEnabled(clientId);
 
@@ -496,7 +501,9 @@ router.post('/status-callback', async (req: Request, res: Response) => {
       From,
       SmsStatus,
       ErrorCode,
-      ErrorMessage
+      ErrorMessage,
+      Price,
+      PriceUnit
     } = req.body;
 
     console.log('📱 WhatsApp Status Callback:', {
@@ -505,16 +512,20 @@ router.post('/status-callback', async (req: Request, res: Response) => {
       To,
       From,
       ErrorCode,
-      ErrorMessage
+      ErrorMessage,
+      Price,
+      PriceUnit
     });
 
-    // Update message status in database
+    // Update message status in database (including price if available)
     if (MessageSid && (MessageStatus || SmsStatus)) {
       await whatsappService.updateMessageStatus(
         MessageSid,
         MessageStatus || SmsStatus,
         ErrorCode,
-        ErrorMessage
+        ErrorMessage,
+        Price ? Math.abs(parseFloat(Price)) : null,
+        PriceUnit || 'USD'
       );
     }
 

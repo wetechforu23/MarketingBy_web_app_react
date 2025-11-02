@@ -719,6 +719,9 @@ export class WhatsAppService {
 
   async getUsageStats(clientId: number, widgetId?: number): Promise<any> {
     try {
+      // First, recalculate actual costs from messages (more accurate than incrementally tracking)
+      await this.recalculateActualCosts(clientId, widgetId);
+      
       let query = `
         SELECT 
           messages_sent_today,
@@ -804,7 +807,9 @@ export class WhatsAppService {
     messageSid: string,
     status: string,
     errorCode?: string,
-    errorMessage?: string
+    errorMessage?: string,
+    price?: number | null,
+    priceUnit?: string
   ): Promise<void> {
     try {
       const updateFields: any = {
@@ -820,20 +825,180 @@ export class WhatsAppService {
         updateFields.twilio_error_message = errorMessage;
       }
 
+      // Update price if provided (from status callback)
+      if (price !== undefined && price !== null) {
+        updateFields.twilio_price = price;
+        updateFields.twilio_price_unit = priceUnit || 'USD';
+      }
+
       const setClause = Object.keys(updateFields)
         .map((key, idx) => `${key} = $${idx + 2}`)
         .join(', ');
 
-      await pool.query(
+      const result = await pool.query(
         `UPDATE whatsapp_messages 
          SET ${setClause}
-         WHERE twilio_message_sid = $1`,
+         WHERE twilio_message_sid = $1
+         RETURNING client_id, widget_id, twilio_price`,
         [messageSid, ...Object.values(updateFields)]
       );
 
-      console.log(`✅ Updated WhatsApp message ${messageSid} status to ${status}`);
+      // If we just got the price, update usage stats with actual cost
+      if (price !== undefined && price !== null && result.rows.length > 0) {
+        const row = result.rows[0];
+        // Only update if price wasn't set before (to avoid double counting)
+        if (!row.twilio_price) {
+          await pool.query(
+            `UPDATE whatsapp_usage
+             SET actual_cost_today = COALESCE(actual_cost_today, 0) + $1,
+                 actual_cost_this_month = COALESCE(actual_cost_this_month, 0) + $1,
+                 total_actual_cost = COALESCE(total_actual_cost, 0) + $1,
+                 updated_at = NOW()
+             WHERE client_id = $2 AND widget_id = $3`,
+            [price, row.client_id, row.widget_id]
+          );
+          console.log(`✅ Updated actual cost for message ${messageSid}: $${price}`);
+        }
+      }
+
+      console.log(`✅ Updated WhatsApp message ${messageSid} status to ${status}${price !== undefined && price !== null ? ` (Price: $${price})` : ''}`);
     } catch (error) {
       console.error('Error updating message status:', error);
+    }
+  }
+
+  /**
+   * Fetch and update missing message prices from Twilio API
+   * Called periodically or after status updates to ensure all messages have actual prices
+   */
+  async fetchMissingPrices(clientId?: number): Promise<void> {
+    try {
+      // Get messages without prices that have been sent
+      let query = `
+        SELECT 
+          wm.twilio_message_sid,
+          wm.client_id,
+          wm.widget_id,
+          wm.created_at,
+          ec.credential_value->>'accountSid' as account_sid,
+          ec.credential_value->>'authToken' as auth_token
+        FROM whatsapp_messages wm
+        LEFT JOIN encrypted_credentials ec ON ec.service = 'whatsapp_client_' || wm.client_id::text
+        WHERE wm.twilio_message_sid IS NOT NULL
+          AND wm.twilio_price IS NULL
+          AND wm.direction = 'outbound'
+          AND wm.created_at > NOW() - INTERVAL '30 days'
+      `;
+      
+      const params: any[] = [];
+      if (clientId) {
+        query += ' AND wm.client_id = $1';
+        params.push(clientId);
+      }
+      
+      query += ' LIMIT 100'; // Process 100 at a time
+      
+      const result = await pool.query(query, params);
+      
+      if (result.rows.length === 0) {
+        return;
+      }
+
+      console.log(`🔄 Fetching prices for ${result.rows.length} messages...`);
+
+      for (const row of result.rows) {
+        try {
+          if (!row.account_sid || !row.auth_token) {
+            continue;
+          }
+
+          const price = await this.getMessagePriceFromTwilio(
+            row.twilio_message_sid,
+            row.account_sid,
+            row.auth_token,
+            true // Assume template/conversation messages
+          );
+
+          if (price && price !== 0.009 && price !== 0.005) {
+            // Only update if we got a real price (not fallback estimate)
+            await pool.query(
+              `UPDATE whatsapp_messages 
+               SET twilio_price = $1, twilio_price_unit = 'USD'
+               WHERE twilio_message_sid = $2`,
+              [price, row.twilio_message_sid]
+            );
+
+            // Update usage stats
+            await pool.query(
+              `UPDATE whatsapp_usage
+               SET actual_cost_today = COALESCE(actual_cost_today, 0) + $1,
+                   actual_cost_this_month = COALESCE(actual_cost_this_month, 0) + $1,
+                   total_actual_cost = COALESCE(total_actual_cost, 0) + $1,
+                   updated_at = NOW()
+               WHERE client_id = $2 AND widget_id = $3`,
+              [price, row.client_id, row.widget_id]
+            );
+          }
+        } catch (err) {
+          console.warn(`⚠️ Could not fetch price for ${row.twilio_message_sid}:`, err);
+        }
+        
+        // Small delay to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    } catch (error) {
+      console.error('Error fetching missing prices:', error);
+    }
+  }
+
+  /**
+   * Recalculate actual costs from messages for accurate billing
+   * This ensures we always show the most up-to-date actual costs
+   */
+  async recalculateActualCosts(clientId: number, widgetId?: number): Promise<void> {
+    try {
+      let query = `
+        SELECT 
+          client_id,
+          widget_id,
+          SUM(CASE WHEN DATE_TRUNC('day', sent_at) = CURRENT_DATE AND twilio_price IS NOT NULL 
+                   THEN twilio_price ELSE 0 END) as cost_today,
+          SUM(CASE WHEN DATE_TRUNC('month', sent_at) = DATE_TRUNC('month', CURRENT_DATE) 
+                      AND twilio_price IS NOT NULL 
+                   THEN twilio_price ELSE 0 END) as cost_this_month,
+          SUM(CASE WHEN twilio_price IS NOT NULL THEN twilio_price ELSE 0 END) as total_cost
+        FROM whatsapp_messages
+        WHERE client_id = $1 AND direction = 'outbound'
+      `;
+      
+      const params: any[] = [clientId];
+      if (widgetId) {
+        query += ' AND widget_id = $2';
+        params.push(widgetId);
+      }
+      query += ' GROUP BY client_id, widget_id';
+      
+      const result = await pool.query(query, params);
+      
+      for (const row of result.rows) {
+        await pool.query(
+          `UPDATE whatsapp_usage
+           SET actual_cost_today = $1,
+               actual_cost_this_month = $2,
+               total_actual_cost = $3,
+               updated_at = NOW()
+           WHERE client_id = $4 AND widget_id = $5`,
+          [
+            parseFloat(row.cost_today) || 0,
+            parseFloat(row.cost_this_month) || 0,
+            parseFloat(row.total_cost) || 0,
+            row.client_id,
+            row.widget_id
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Error recalculating actual costs:', error);
     }
   }
 
