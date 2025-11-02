@@ -1007,24 +1007,61 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
     }
 
     // ==========================================
-    // 🤖 LLM-POWERED RESPONSE (if enabled)
+    // 📚 KNOWLEDGE BASE FIRST (Priority 1)
     // ==========================================
     let botResponse: string;
     let confidence = 0.3;
     let knowledge_base_id = null;
     let suggestions: any[] = [];
     let llmUsed = false;
+    let kbMatchFound = false;
 
-    // 🔍 DEBUG: Log LLM configuration
-    console.log(`🔍 LLM Debug - widget_id: ${widget_id}, client_id: ${client_id}`);
-    console.log(`🔍 LLM Debug - llm_enabled: ${widget.llm_enabled}, llm_provider: ${widget.llm_provider}`);
-    console.log(`🔍 LLM Debug - Condition check: llm_enabled=${widget.llm_enabled}, client_id=${client_id}, both=${widget.llm_enabled && client_id}`);
+    // 🎯 STEP 1: Try Knowledge Base FIRST
+    const similarQuestions = await findSimilarQuestions(message_text, widget_id, 0.5);
 
-    if (widget.llm_enabled && client_id) {
-      console.log(`🤖 LLM enabled for widget ${widget_id} - Attempting AI response...`);
+    if (similarQuestions.length > 0 && similarQuestions[0].similarity >= 0.85) {
+      // ✅ HIGH CONFIDENCE MATCH (85%+) - Answer directly from Knowledge Base
+      const bestMatch = similarQuestions[0];
+      botResponse = bestMatch.answer;
+      confidence = bestMatch.similarity;
+      knowledge_base_id = bestMatch.id;
+      kbMatchFound = true;
+
+      // Update usage stats
+      await pool.query(
+        'UPDATE widget_knowledge_base SET times_used = times_used + 1 WHERE id = $1',
+        [knowledge_base_id]
+      );
+
+      console.log(`✅ Knowledge base answer (${Math.round(confidence * 100)}% match): "${bestMatch.question}"`);
+
+    } else if (similarQuestions.length > 0) {
+      // 🤔 MEDIUM CONFIDENCE (50-85%) - Suggest similar questions
+      const suggestionText = `I'm not sure I understood that exactly. Did you mean one of these?\n\n` +
+        similarQuestions.map((q, i) => 
+          `${i + 1}. ${q.question}`
+        ).join('\n') +
+        `\n\nPlease type the number or rephrase your question.`;
+      
+      botResponse = suggestionText;
+      confidence = similarQuestions[0].similarity;
+      suggestions = similarQuestions.map(q => ({
+        id: q.id,
+        question: q.question
+      }));
+
+      console.log(`🤔 Showing ${suggestions.length} similar question suggestions`);
+      kbMatchFound = true; // We found something, just not high confidence
+    }
+
+    // ==========================================
+    // 🤖 LLM-POWERED RESPONSE (if KB didn't help)
+    // ==========================================
+    if (!kbMatchFound && widget.llm_enabled && client_id) {
+      console.log(`🤖 Knowledge base didn't help - Trying AI for widget ${widget_id}...`);
       
       try {
-        // Build context from knowledge base
+        // Build context from knowledge base for AI
         const kbResult = await pool.query(
           `SELECT question, answer, category 
            FROM widget_knowledge_base 
@@ -1063,82 +1100,31 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
 
           console.log(`✅ LLM response generated (${llmResponse.tokensUsed} tokens, ${llmResponse.responseTimeMs}ms)`);
         } else if (llmResponse.error === 'credits_exhausted') {
-          // ⚠️ CREDITS EXHAUSTED - Fall back to knowledge base
-          console.log(`⚠️ LLM credits exhausted for client ${client_id} - Using knowledge base fallback`);
-          
-          // Add a notice about credits
-          botResponse = `[Note: You've reached your free AI assistant limit for this month. Upgrade for unlimited AI responses!]\n\n`;
-          
-          // Fall through to knowledge base logic below
+          // ⚠️ CREDITS EXHAUSTED
+          console.log(`⚠️ LLM credits exhausted for client ${client_id}`);
+          botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Could you tell me a bit more about what you're looking for?\n\nOr would you like to speak with one of our team members who can assist you better? 😊`;
+          confidence = 0.3;
         } else {
-          // ❌ LLM FAILED - Fall back to knowledge base
-          console.log(`❌ LLM failed: ${llmResponse.error} - Using knowledge base fallback`);
+          // ❌ LLM FAILED
+          console.log(`❌ LLM failed: ${llmResponse.error}`);
+          botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Could you tell me a bit more about what you're looking for?\n\nOr would you like to speak with one of our team members who can assist you better? 😊`;
+          confidence = 0.3;
         }
       } catch (llmError) {
         console.error('LLM error:', llmError);
-        // Fall through to knowledge base
+        botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Could you tell me a bit more about what you're looking for?\n\nOr would you like to speak with one of our team members who can assist you better? 😊`;
+        confidence = 0.3;
       }
     }
 
     // ==========================================
-    // 📚 KNOWLEDGE BASE FALLBACK (if LLM not used or failed)
+    // ❌ NO RESPONSE YET - Default fallback (should not happen if KB or AI was tried)
     // ==========================================
-    if (!llmUsed) {
-      // 🎯 SMART MATCHING: Find best matching knowledge base entry
-      const similarQuestions = await findSimilarQuestions(message_text, widget_id, 0.5);
-
-      if (similarQuestions.length > 0 && similarQuestions[0].similarity >= 0.85) {
-        // ✅ HIGH CONFIDENCE MATCH (85%+) - Answer directly
-        const bestMatch = similarQuestions[0];
-        
-        // If we already have a "credits exhausted" message, append the answer
-        if (botResponse && botResponse.includes('free AI assistant limit')) {
-          botResponse += bestMatch.answer;
-        } else {
-          botResponse = bestMatch.answer;
-        }
-        
-        confidence = bestMatch.similarity;
-        knowledge_base_id = bestMatch.id;
-
-        // Update usage stats
-        await pool.query(
-          'UPDATE widget_knowledge_base SET times_used = times_used + 1 WHERE id = $1',
-          [knowledge_base_id]
-        );
-
-        console.log(`✅ Knowledge base answer (${Math.round(confidence * 100)}% match): "${bestMatch.question}"`);
-
-      } else if (similarQuestions.length > 0) {
-        // 🤔 MEDIUM CONFIDENCE (50-85%) - Suggest similar questions (NO percentages shown to user)
-        const suggestionText = `I'm not sure I understood that exactly. Did you mean one of these?\n\n` +
-          similarQuestions.map((q, i) => 
-            `${i + 1}. ${q.question}`  // ✅ NO PERCENTAGE SHOWN
-          ).join('\n') +
-          `\n\nPlease type the number or rephrase your question.`;
-        
-        if (botResponse && botResponse.includes('free AI assistant limit')) {
-          botResponse += suggestionText;
-        } else {
-          botResponse = suggestionText;
-        }
-        
-        confidence = similarQuestions[0].similarity;
-        suggestions = similarQuestions.map(q => ({
-          id: q.id,
-          question: q.question
-          // ✅ NO similarity field sent to frontend
-        }));
-
-        console.log(`🤔 Showing ${suggestions.length} similar question suggestions`);
-
-      } else if (!botResponse) {
-        // ❌ NO MATCH - Friendly default response (only if no LLM credits message)
-        botResponse = `I'd love to help you with that! I'm still learning about all our services. Could you tell me a bit more about what you're looking for?\n\nSome things I can help with:\n• Our services and offerings\n• Business hours and location\n• Booking an appointment\n• General questions\n\nOr feel free to rephrase your question, and I'll do my best to assist! 😊`;
-        confidence = 0.3;
-
-        console.log(`❌ No matching questions found for: "${message_text}"`);
-      }
+    if (!botResponse) {
+      // Final fallback - offer agent handover
+      botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Could you tell me a bit more about what you're looking for?\n\nOr would you like to speak with one of our team members who can assist you better? 😊`;
+      confidence = 0.3;
+      console.log(`❌ No response generated for: "${message_text}"`);
     }
 
     const responseTime = Date.now() - startTime;

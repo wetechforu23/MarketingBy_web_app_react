@@ -940,14 +940,18 @@
               }
             }
             
-            // ✅ If form data doesn't exist, wait for user input FIRST before showing form
+            // ✅ If form data doesn't exist, show form IMMEDIATELY after greeting
             if (!formDataExists) {
-              // Set flag to show form after first user message
-              this.state.shouldShowFormAfterInput = true;
-              this.state.pendingFormQuestions = enabledQuestions;
+              // Show "Thanks" message, then form immediately
+              setTimeout(() => {
+                this.addBotMessage("Thank you for reaching out! 😊 Before I assist you better, please fill in the information below:");
+              }, 1500);
               
-              // Don't show form immediately - wait for user to send a message first
-              console.log('⏳ Waiting for user input before showing form');
+              setTimeout(() => {
+                this.showIntroForm(enabledQuestions);
+              }, 2500);
+              
+              console.log('📋 Showing intro form immediately after greeting');
             }
           } else {
             // No questions configured - use default intro
@@ -1279,8 +1283,14 @@
       this.state.introFlow.isActive = false;
       this.state.introFlow.isComplete = true;
 
-      // Show completion message
-      this.addBotMessage("✅ Thank you! I have all the information I need.");
+      // Show completion message and ready to help
+      setTimeout(() => {
+        this.addBotMessage("✅ Thank you! I have all the information I need.");
+      }, 500);
+      
+      setTimeout(() => {
+        this.addBotMessage("How can I help you today? Feel free to ask me anything! 😊");
+      }, 1500);
       
       // ✅ FIX: Ensure conversation exists before saving intro data
       const conversationId = await this.ensureConversation();
@@ -1794,28 +1804,15 @@
         return;
       }
       
-      // If intro flow is active, treat as intro answer
-      if (this.state.introFlow.isActive) {
-        const question = this.state.introFlow.questions[this.state.introFlow.currentQuestionIndex];
-        
-        // Validate required fields
-        if (question.required && !message) {
-          this.addBotMessage("This field is required. Please provide an answer.");
-          return;
-        }
-
-        // Save answer
-        this.saveIntroAnswer(question.id, message);
-
-        // Move to next question
-        setTimeout(() => {
-          this.state.introFlow.currentQuestionIndex++;
-          this.askIntroQuestion();
-        }, 500);
-      } else {
-        // Normal chat mode
-        this.sendMessageToBackend(message);
+      // ✅ OLD ONE-BY-ONE QUESTION LOGIC DISABLED - We use form now
+      // If intro flow is enabled but not completed, show reminder
+      if (this.state.introFlow.enabled && !this.state.introFlow.isComplete) {
+        this.addBotMessage("Please complete the information form above first. 😊");
+        return;
       }
+
+      // Normal chat mode (intro completed or not enabled)
+      this.sendMessageToBackend(message);
     },
     
     // 🚨 Detect emergency keywords in user message
@@ -2497,22 +2494,11 @@
           return;
         }
         
-        // ✅ Check if we need to show form after first user input
-        if (this.state.shouldShowFormAfterInput && this.state.pendingFormQuestions) {
-          this.state.shouldShowFormAfterInput = false; // Reset flag
-          const questions = this.state.pendingFormQuestions;
-          this.state.pendingFormQuestions = null;
-          
-          // Show form after a brief delay
-          setTimeout(() => {
-            this.addBotMessage("Please complete the information below so we can assist you better:");
-          }, 1500);
-          
-          setTimeout(() => {
-            this.showIntroForm(questions);
-          }, 2000);
-          
-          return; // Don't process bot response, just show form
+        // ✅ If intro form is not completed, don't process user messages yet
+        if (!this.state.introFlow.isComplete && this.state.introFlow.enabled) {
+          // User is trying to send a message but form isn't completed
+          this.addBotMessage("Please complete the information form above first before sending a message. 😊");
+          return; // Don't process the message
         }
         
         if (data.response) {
