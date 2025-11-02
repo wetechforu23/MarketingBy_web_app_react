@@ -182,3 +182,7 @@ Thumbs.db
 !tsconfig.json
 set_heroku_env_vars.sh
 HEROKU_SETUP_STEP_BY_STEP.md
+
+# Uploads directory (user-generated files)
+backend/uploads/
+frontend/uploads/
