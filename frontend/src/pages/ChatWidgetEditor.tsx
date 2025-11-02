@@ -414,9 +414,24 @@ export default function ChatWidgetEditor() {
         setWhatsappCredentialsPartial(null)
       }
       
-      // Fetch usage stats
-      const usageResponse = await api.get(`/whatsapp/usage/${clientId}`)
-      setWhatsappUsage(usageResponse.data)
+      // Fetch usage stats (returned from settings endpoint)
+      if (response.data.usage) {
+        setWhatsappUsage(response.data.usage)
+      } else {
+        // Fallback: try separate endpoint if it exists
+        try {
+          const usageResponse = await api.get(`/whatsapp/usage/${clientId}`)
+          setWhatsappUsage(usageResponse.data)
+        } catch (e) {
+          console.warn('Usage endpoint not available, using default values')
+          setWhatsappUsage({
+            messages_this_month: 0,
+            conversations_this_month: 0,
+            estimated_cost_this_month: 0,
+            next_reset_date: null
+          })
+        }
+      }
 
       // Fetch per-client handover (phone + template SID)
       try {
@@ -1950,7 +1965,9 @@ export default function ChatWidgetEditor() {
                   <div>
                     <span style={{ color: '#666' }}>Remaining (Free):</span>
                     <strong style={{ marginLeft: '8px', color: '#28a745' }}>
-                      {Math.max(0, 1000 - (whatsappUsage.conversations_this_month || 0))}
+                      {whatsappUsage.free_messages_remaining !== undefined 
+                        ? whatsappUsage.free_messages_remaining 
+                        : Math.max(0, 1000 - (whatsappUsage.conversations_this_month || 0))}
                     </strong>
                   </div>
                   <div>
@@ -1961,7 +1978,13 @@ export default function ChatWidgetEditor() {
                   </div>
                   <div style={{ gridColumn: '1 / -1', fontSize: '12px', color: '#666', marginTop: '4px' }}>
                     <i className="fas fa-calendar-alt" style={{ marginRight: '6px' }}></i>
-                    Resets on: {whatsappUsage.next_reset_date ? new Date(whatsappUsage.next_reset_date).toLocaleDateString() : 'Not available'}
+                    Resets on: {whatsappUsage.next_reset_date 
+                      ? new Date(whatsappUsage.next_reset_date + 'T00:00:00').toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric', 
+                          year: 'numeric' 
+                        }) 
+                      : 'Not available'}
                   </div>
                 </div>
               </div>

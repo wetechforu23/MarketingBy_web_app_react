@@ -610,7 +610,8 @@ export class WhatsAppService {
           conversations_this_month,
           estimated_cost_today,
           estimated_cost_this_month,
-          total_estimated_cost
+          total_estimated_cost,
+          last_monthly_reset
         FROM whatsapp_usage
         WHERE client_id = $1
       `;
@@ -624,21 +625,38 @@ export class WhatsAppService {
 
       const result = await pool.query(query, params);
 
+      // Calculate next reset date (first day of next month)
+      const now = new Date();
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const nextResetDate = nextMonth.toISOString().split('T')[0];
+
       if (result.rows.length === 0) {
         return {
           messages_sent_today: 0,
           messages_sent_this_month: 0,
+          messages_this_month: 0, // Alias for frontend compatibility
           total_messages_sent: 0,
           conversations_this_month: 0,
           estimated_cost_today: 0,
           estimated_cost_this_month: 0,
           total_estimated_cost: 0,
-          free_messages_remaining: 1000 // First 1,000 per month free
+          free_messages_remaining: 1000, // First 1,000 per month free
+          next_reset_date: nextResetDate
         };
       }
 
       const stats = result.rows[0];
-      stats.free_messages_remaining = Math.max(0, 1000 - stats.messages_sent_this_month);
+      
+      // Add aliases and calculated fields for frontend compatibility
+      stats.messages_this_month = stats.messages_sent_this_month; // Alias
+      stats.free_messages_remaining = Math.max(0, 1000 - (stats.conversations_this_month || 0));
+      stats.next_reset_date = stats.last_monthly_reset 
+        ? (() => {
+            const lastReset = new Date(stats.last_monthly_reset);
+            const nextMonth = new Date(lastReset.getFullYear(), lastReset.getMonth() + 1, 1);
+            return nextMonth.toISOString().split('T')[0];
+          })()
+        : nextResetDate;
 
       return stats;
     } catch (error) {
