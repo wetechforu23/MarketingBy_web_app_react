@@ -8,7 +8,8 @@
     "start": "node dist/server.js",
     "build": "tsc",
     "postinstall": "npm run build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "migrate:inactivity": "node run-inactivity-migration.js"
   },
   "dependencies": {
     "@azure/communication-email": "^1.0.0",

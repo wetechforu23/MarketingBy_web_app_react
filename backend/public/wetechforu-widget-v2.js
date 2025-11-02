@@ -944,12 +944,21 @@
               }
             }
             
-            // ✅ If form data doesn't exist, WAIT for user's first input before showing form
+            // ✅ If form data doesn't exist, show welcome then form immediately
             if (!formDataExists) {
-              // Set flag to wait for user's first message
-              this.state.waitingForFirstInput = true;
-              this.state.pendingFormQuestions = enabledQuestions;
-              console.log('⏳ Waiting for user input before showing form');
+              // Show welcome message first
+              setTimeout(() => {
+                this.addBotMessage("Thank you for reaching out! 😊 Before I assist you better, please fill in the information below:");
+                
+                // Show form immediately after welcome message
+                setTimeout(() => {
+                  this.showIntroForm(enabledQuestions);
+                  this.state.introFlow.enabled = true;
+                  console.log('✅ Intro form displayed');
+                }, 300);
+              }, 500);
+              
+              console.log('✅ Showing intro form after welcome message');
             }
           } else {
             // No questions configured - use default intro
@@ -1800,10 +1809,22 @@
         return;
       }
       
-      // ✅ OLD ONE-BY-ONE QUESTION LOGIC DISABLED - We use form now
-      // If intro flow is enabled but not completed, show reminder
+      // ✅ Check if intro form is displayed and not completed
       if (this.state.introFlow.enabled && !this.state.introFlow.isComplete) {
-        this.addBotMessage("Please complete the information form above first. 😊");
+        const formExists = document.getElementById('wetechforu-intro-form') !== null;
+        if (formExists) {
+          this.addBotMessage("Please complete the information form above first. 😊");
+        } else {
+          // Form should exist but doesn't - try to show it
+          if (this.config.introQuestions && this.config.introQuestions.length > 0) {
+            const enabledQuestions = this.config.introQuestions.filter(q => q.enabled !== false);
+            this.addBotMessage("Thank you for reaching out! 😊 Before I assist you better, please fill in the information below:");
+            setTimeout(() => {
+              this.showIntroForm(enabledQuestions);
+            }, 300);
+          }
+          this.addBotMessage("Please complete the information form above first. 😊");
+        }
         return;
       }
 
@@ -2498,30 +2519,29 @@
           return;
         }
         
-        // ✅ If waiting for first input, show form after user's first message
-        if (this.state.waitingForFirstInput && this.state.pendingFormQuestions) {
-          console.log('✅ User provided first input - showing form now');
-          this.state.waitingForFirstInput = false;
-          
-          // Show "Thank you" message and form
-          setTimeout(() => {
-            this.addBotMessage("Thank you for reaching out! 😊 Before I assist you better, please fill in the information below:");
-          }, 500);
-          
-          setTimeout(() => {
-            this.showIntroForm(this.state.pendingFormQuestions);
-            this.state.pendingFormQuestions = null; // Clear pending questions
-          }, 1500);
-          
-          // Don't process this message yet - wait for form to be completed
-          return;
-        }
-        
-        // ✅ If intro form is not completed, don't process user messages yet
+        // ✅ If intro form is not completed, check if form exists and block messages
         if (!this.state.introFlow.isComplete && this.state.introFlow.enabled) {
-          // User is trying to send a message but form isn't completed
-          this.addBotMessage("Please complete the information form above first before sending a message. 😊");
-          return; // Don't process the message
+          // Check if form is actually displayed on the page
+          const formExists = document.getElementById('wetechforu-intro-form') !== null;
+          
+          if (formExists) {
+            // Form exists - remind user to complete it
+            this.addBotMessage("Please complete the information form above first before sending a message. 😊");
+            return; // Don't process the message
+          } else {
+            // Form doesn't exist but intro is enabled - show form now
+            console.log('⚠️ Form not found but intro enabled - showing form');
+            // The form should have been shown in startIntroFlow, but if it wasn't, show it now
+            const formDiv = document.getElementById('wetechforu-intro-form');
+            if (!formDiv && this.config.introQuestions && this.config.introQuestions.length > 0) {
+              this.addBotMessage("Thank you for reaching out! 😊 Before I assist you better, please fill in the information below:");
+              setTimeout(() => {
+                this.showIntroForm(this.config.introQuestions.filter(q => q.enabled !== false));
+              }, 300);
+            }
+            this.addBotMessage("Please complete the information form above first before sending a message. 😊");
+            return;
+          }
         }
         
         if (data.response) {
