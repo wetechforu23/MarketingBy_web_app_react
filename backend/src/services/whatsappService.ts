@@ -325,9 +325,35 @@ export class WhatsAppService {
         ]
       );
 
-      // Track usage - handover template message counts as both message and conversation
-      await this.trackUsage(clientId, widgetId, true); // true = track as conversation
-      return { success: true, messageSid: twilioData.sid, status: twilioData.status };
+      // Extract actual price from Twilio response
+      // Twilio returns: price (e.g., "-0.00900") and price_unit (e.g., "USD")
+      // Note: price is negative for outbound messages (debit from account)
+      const actualPrice = twilioData.price ? Math.abs(parseFloat(twilioData.price)) : null;
+      
+      // Store actual price in database if available
+      if (actualPrice && twilioData.sid) {
+        try {
+          await pool.query(
+            `UPDATE whatsapp_messages 
+             SET twilio_price = $1, twilio_price_unit = $2 
+             WHERE twilio_message_sid = $3`,
+            [actualPrice, twilioData.price_unit || 'USD', twilioData.sid]
+          );
+        } catch (err) {
+          console.warn('Could not update message price:', err);
+        }
+      }
+      
+      // Track usage with actual price from Twilio, fallback to estimated if not available
+      const costToTrack = actualPrice || (trackConversation ? 0.009 : 0.005);
+      await this.trackUsage(clientId, widgetId, true, costToTrack); // true = track as conversation
+      
+      return { 
+        success: true, 
+        messageSid: twilioData.sid, 
+        status: twilioData.status,
+        cost: actualPrice || undefined
+      };
     } catch (error: any) {
       const twilioError = error.response?.data || {};
       const errorCode = twilioError.code || error.code || 'unknown';
@@ -486,16 +512,36 @@ export class WhatsAppService {
         ]
       );
 
-      // Update usage tracking
-      await this.trackUsage(clientId, widgetId);
+      // Extract actual price from Twilio response
+      // Twilio returns: price (e.g., "-0.00500") and price_unit (e.g., "USD")
+      // Note: price is negative for outbound messages (debit from account)
+      const actualPrice = twilioData.price ? Math.abs(parseFloat(twilioData.price)) : null;
+      
+      // Store actual price in database if available
+      if (actualPrice && twilioData.sid) {
+        try {
+          await pool.query(
+            `UPDATE whatsapp_messages 
+             SET twilio_price = $1, twilio_price_unit = $2 
+             WHERE twilio_message_sid = $3`,
+            [actualPrice, twilioData.price_unit || 'USD', twilioData.sid]
+          );
+        } catch (err) {
+          console.warn('Could not update message price:', err);
+        }
+      }
+      
+      // Track usage with actual price from Twilio, fallback to estimated if not available
+      const costToTrack = actualPrice || 0.005;
+      await this.trackUsage(clientId, widgetId, false, costToTrack);
 
-      console.log(`✅ WhatsApp message sent: ${twilioData.sid}`);
+      console.log(`✅ WhatsApp message sent: ${twilioData.sid}${actualPrice ? ` (Cost: $${actualPrice})` : ''}`);
 
       return {
         success: true,
         messageSid: twilioData.sid,
         status: twilioData.status,
-        cost: parseFloat(twilioData.price || '0')
+        cost: actualPrice || undefined
       };
 
     } catch (error: any) {
@@ -566,27 +612,55 @@ export class WhatsAppService {
   // USAGE TRACKING
   // ==========================================
 
-  private async trackUsage(clientId: number, widgetId: number, trackConversation: boolean = false): Promise<void> {
+  /**
+   * Get actual message price from Twilio API
+   * Falls back to estimated cost if API call fails
+   */
+  private async getMessagePriceFromTwilio(
+    messageSid: string, 
+    accountSid: string, 
+    authToken: string,
+    trackConversation: boolean
+  ): Promise<number> {
     try {
-      // Twilio WhatsApp Actual Pricing (2024):
-      // 1. Twilio charges: $0.005 per message sent/received (always applies)
-      // 2. Meta charges for template messages (varies by category/country):
-      //    - Utility template (outside 24h window): ~$0.004 per message
-      //    - Within 24h window: No Meta fee (only Twilio $0.005)
-      //    - Authentication/Marketing: Higher rates
-      //
-      // Since we use template messages (Content API) for handover notifications:
-      // - Template message cost: $0.005 (Twilio) + $0.004 (Meta utility) = $0.009
-      // - Session message cost: $0.005 (Twilio only, within 24h)
-      //
-      // For handover template messages (conversation initiation):
-      const templateMessageCost = 0.009; // $0.005 (Twilio) + $0.004 (Meta utility template)
+      const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages/${messageSid}.json`;
+      const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
       
-      // For regular messages within 24h session (if any):
-      const sessionMessageCost = 0.005; // $0.005 (Twilio only)
+      const response = await axios.get(url, {
+        headers: {
+          Authorization: `Basic ${auth}`
+        },
+        validateStatus: () => true
+      });
       
-      // We primarily use template messages, so use that rate
-      const estimatedCost = trackConversation ? templateMessageCost : sessionMessageCost;
+      if (response.status === 200 && response.data.price) {
+        // Twilio returns negative price for outbound messages, make it positive
+        const actualPrice = Math.abs(parseFloat(response.data.price));
+        console.log(`✅ Fetched actual price from Twilio for ${messageSid}: $${actualPrice}`);
+        return actualPrice;
+      }
+    } catch (error) {
+      console.warn(`⚠️ Could not fetch price from Twilio for ${messageSid}, using estimate:`, error);
+    }
+    
+    // Fallback to estimated costs
+    return trackConversation ? 0.009 : 0.005;
+  }
+
+  private async trackUsage(
+    clientId: number, 
+    widgetId: number, 
+    trackConversation: boolean = false,
+    actualCost?: number
+  ): Promise<void> {
+    try {
+      // Use actual cost from Twilio if provided, otherwise estimate
+      // Default estimates:
+      // - Template message (conversation initiation): $0.009
+      // - Session message (within 24h): $0.005
+      const costToUse = actualCost !== undefined 
+        ? actualCost 
+        : (trackConversation ? 0.009 : 0.005);
 
       const conversationIncrement = trackConversation ? 1 : 0;
       
@@ -605,7 +679,10 @@ export class WhatsAppService {
           total_estimated_cost,
           last_daily_reset,
           last_monthly_reset
-        ) VALUES ($1, $2, 1, 1, 1, $3, $3, $3, $4, $4, $4, CURRENT_DATE, date_trunc('month', CURRENT_DATE))
+          actual_cost_today,
+          actual_cost_this_month,
+          total_actual_cost
+        ) VALUES ($1, $2, 1, 1, 1, $3, $3, $3, $4, $4, $4, CURRENT_DATE, date_trunc('month', CURRENT_DATE), COALESCE($5, 0), COALESCE($5, 0), COALESCE($5, 0))
         ON CONFLICT (client_id, widget_id)
         DO UPDATE SET
           messages_sent_today = whatsapp_usage.messages_sent_today + 1,
@@ -617,11 +694,23 @@ export class WhatsAppService {
           estimated_cost_today = whatsapp_usage.estimated_cost_today + $4,
           estimated_cost_this_month = whatsapp_usage.estimated_cost_this_month + $4,
           total_estimated_cost = whatsapp_usage.total_estimated_cost + $4,
+          actual_cost_today = CASE 
+            WHEN $5 IS NOT NULL THEN whatsapp_usage.actual_cost_today + $5
+            ELSE whatsapp_usage.actual_cost_today
+          END,
+          actual_cost_this_month = CASE 
+            WHEN $5 IS NOT NULL THEN whatsapp_usage.actual_cost_this_month + $5
+            ELSE whatsapp_usage.actual_cost_this_month
+          END,
+          total_actual_cost = CASE 
+            WHEN $5 IS NOT NULL THEN whatsapp_usage.total_actual_cost + $5
+            ELSE whatsapp_usage.total_actual_cost
+          END,
           updated_at = NOW()`,
-        [clientId, widgetId, conversationIncrement, estimatedCost]
+        [clientId, widgetId, conversationIncrement, costToUse, actualCost || null]
       );
       
-      console.log(`✅ Tracked WhatsApp usage: Client ${clientId}, Widget ${widgetId}, Message: +1${trackConversation ? ', Conversation: +1' : ''}`);
+      console.log(`✅ Tracked WhatsApp usage: Client ${clientId}, Widget ${widgetId}, Message: +1${trackConversation ? ', Conversation: +1' : ''}, Cost: $${costToUse.toFixed(4)}${actualCost !== undefined ? ' (actual)' : ' (estimated)'}`);
     } catch (error) {
       console.error('Error tracking WhatsApp usage:', error);
     }
@@ -638,6 +727,9 @@ export class WhatsAppService {
           estimated_cost_today,
           estimated_cost_this_month,
           total_estimated_cost,
+          COALESCE(actual_cost_today, 0) as actual_cost_today,
+          COALESCE(actual_cost_this_month, 0) as actual_cost_this_month,
+          COALESCE(total_actual_cost, 0) as total_actual_cost,
           last_monthly_reset
         FROM whatsapp_usage
         WHERE client_id = $1
@@ -667,6 +759,9 @@ export class WhatsAppService {
           estimated_cost_today: 0,
           estimated_cost_this_month: 0,
           total_estimated_cost: 0,
+          actual_cost_today: 0,
+          actual_cost_this_month: 0,
+          total_actual_cost: 0,
           free_messages_remaining: 1000, // First 1,000 per month free
           next_reset_date: nextResetDate
         };
@@ -677,6 +772,14 @@ export class WhatsAppService {
       // Add aliases and calculated fields for frontend compatibility
       stats.messages_this_month = stats.messages_sent_this_month; // Alias
       stats.free_messages_remaining = Math.max(0, 1000 - (stats.conversations_this_month || 0));
+      
+      // Use actual cost if available, otherwise fall back to estimated
+      stats.cost_this_month = stats.actual_cost_this_month > 0 
+        ? stats.actual_cost_this_month 
+        : stats.estimated_cost_this_month;
+      stats.total_cost = stats.total_actual_cost > 0 
+        ? stats.total_actual_cost 
+        : stats.total_estimated_cost;
       stats.next_reset_date = stats.last_monthly_reset 
         ? (() => {
             const lastReset = new Date(stats.last_monthly_reset);
