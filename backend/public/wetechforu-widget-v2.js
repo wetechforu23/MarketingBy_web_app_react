@@ -815,45 +815,80 @@
 
       // ✅ FIRST: Try to restore existing conversation BEFORE showing welcome message
       let conversationRestored = false;
+      let hasMessages = false;
       try {
-        const conversationId = await this.ensureConversation();
-        if (conversationId && this.state.conversationId) {
-          // Messages were loaded in ensureConversation() -> loadPreviousMessages()
-          conversationRestored = true;
-          console.log('✅ Conversation restored with messages');
-          
-          // If messages were loaded, don't show welcome message again
-          // The loadPreviousMessages() already shows "Welcome back!" message
-          const hasShownWelcome = sessionStorage.getItem(`wetechforu_welcome_shown_${this.config.widgetKey}`);
-          if (!hasShownWelcome) {
-            sessionStorage.setItem(`wetechforu_welcome_shown_${this.config.widgetKey}`, 'true');
+        // Try to find existing active conversation first
+        const visitorSessionId = this.getVisitorSessionId();
+        try {
+          const findConvResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversation/by-visitor/${visitorSessionId}`);
+          if (findConvResponse.ok) {
+            const convData = await findConvResponse.json();
+            
+            // Check conversation status
+            const statusResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${convData.conversation_id}/status`);
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json();
+              
+              // Only restore if conversation is active and not expired
+              if (convData.conversation_id && statusData.status === 'active' && !statusData.is_expired) {
+                this.state.conversationId = convData.conversation_id;
+                localStorage.setItem(`wetechforu_conversation_${this.config.widgetKey}`, convData.conversation_id);
+                console.log('✅ Found active conversation:', convData.conversation_id);
+                
+                // Try to load messages
+                const messagesLoaded = await this.loadPreviousMessages(convData.conversation_id);
+                if (messagesLoaded) {
+                  conversationRestored = true;
+                  hasMessages = true;
+                  console.log('✅ Conversation restored with messages');
+                  
+                  // Mark welcome as shown since we're showing "Welcome back!"
+                  sessionStorage.setItem(`wetechforu_welcome_shown_${this.config.widgetKey}`, 'true');
+                  
+                  // Check if intro was completed
+                  if (statusData.intro_completed) {
+                    this.state.introFlow.isComplete = true;
+                    this.state.hasShownIntro = true;
+                    console.log('✅ Intro already completed - skipping intro flow');
+                  }
+                } else {
+                  console.log('ℹ️ No previous messages found - will show welcome');
+                }
+              }
+            }
           }
+        } catch (error) {
+          console.warn('Could not find conversation by visitorSessionId:', error);
         }
       } catch (error) {
         console.warn('Could not restore conversation on open:', error);
       }
 
-      // ✅ Only show welcome message if conversation was NOT restored
-      if (!conversationRestored) {
-        const hasShownWelcome = sessionStorage.getItem(`wetechforu_welcome_shown_${this.config.widgetKey}`);
+      // ✅ Only show welcome message if conversation was NOT restored OR has no messages
+      if (!conversationRestored || !hasMessages) {
+        // For new conversations, always show welcome (ignore sessionStorage)
+        console.log('🎉 New conversation or no messages - showing welcome message');
         
-        if (!hasShownWelcome) {
-          console.log('🎉 First visit - showing welcome message');
-          // Mark welcome as shown for this session
-          sessionStorage.setItem(`wetechforu_welcome_shown_${this.config.widgetKey}`, 'true');
-          
-          // Start intro flow or show welcome
-          if (this.config.enableIntroFlow) {
-            setTimeout(() => {
-              this.startIntroFlow();
-            }, 500);
-          } else {
-            setTimeout(() => {
-              this.startDefaultIntroFlow();
-            }, 500);
-          }
+        // Ensure conversation exists (creates new one if needed)
+        await this.ensureConversation();
+        
+        // Start intro flow or show welcome
+        if (this.config.enableIntroFlow) {
+          setTimeout(() => {
+            this.startIntroFlow();
+          }, 500);
         } else {
-          console.log('👋 Returning visitor - skipping welcome message');
+          setTimeout(() => {
+            this.startDefaultIntroFlow();
+          }, 500);
+        }
+      } else {
+        // Conversation was restored with messages - check if we should still show something
+        const hasShownWelcome = sessionStorage.getItem(`wetechforu_welcome_shown_${this.config.widgetKey}`);
+        if (!hasShownWelcome) {
+          // Even though we restored messages, if this is first time in this session, 
+          // we've already shown "Welcome back!" in loadPreviousMessages()
+          sessionStorage.setItem(`wetechforu_welcome_shown_${this.config.widgetKey}`, 'true');
         }
       }
 
