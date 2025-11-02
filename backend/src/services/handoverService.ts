@@ -456,6 +456,8 @@ export class HandoverService {
           handover_number: clientHandoverNumber
         });
         
+        // Ensure all variables are strings and match template expectations
+        // Twilio Content API requires all values to be strings
         let result = await whatsappService.sendTemplateMessage({
           clientId: handoverRequest.client_id,
           widgetId: handoverRequest.widget_id,
@@ -463,13 +465,13 @@ export class HandoverService {
           toNumber: cleanNumber,
           templateType: 'handover',
           variables: {
-            client_name: clientName,
-            widget_name: widgetConfig.rows[0].widget_name || 'Widget',
-            conversation_id: handoverRequest.conversation_id,
-            visitor_name: handoverRequest.visitor_name || 'Visitor',
-            visitor_phone: handoverRequest.visitor_phone || 'N/A',
-            visitor_email: handoverRequest.visitor_email || 'N/A',
-            visitor_message: handoverRequest.visitor_message || 'Visitor requested agent support',
+            client_name: String(clientName || 'Client'),
+            widget_name: String(widgetConfig.rows[0].widget_name || 'Widget'),
+            conversation_id: String(handoverRequest.conversation_id || ''),
+            visitor_name: String(handoverRequest.visitor_name || 'Visitor'),
+            visitor_phone: String(handoverRequest.visitor_phone || 'N/A'),
+            visitor_email: String(handoverRequest.visitor_email || 'N/A'),
+            visitor_message: String(handoverRequest.visitor_message || 'Visitor requested agent support'),
           }
         });
 
@@ -484,9 +486,10 @@ export class HandoverService {
           clientId: handoverRequest.client_id
         });
 
-        // If template not configured, fallback to freeform
-        if (!result.success && /template/i.test(result.error || '')) {
-          console.log(`📱 Falling back to freeform message...`);
+        // If template fails (invalid variables, template not configured, etc.), fallback to freeform
+        // Error 21656 = Invalid Content Variables, 21608 = Template not approved, etc.
+        if (!result.success && (result.errorCode === '21656' || result.errorCode === '21608' || /template|variable|content/i.test(result.error || ''))) {
+          console.log(`📱 Template failed (${result.errorCode}), falling back to freeform message...`);
           result = await whatsappService.sendMessage({
             clientId: handoverRequest.client_id,
             widgetId: handoverRequest.widget_id,
