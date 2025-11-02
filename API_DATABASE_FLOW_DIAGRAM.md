@@ -7660,3 +7660,172 @@ psql $DATABASE_URL < backend/database/add_handover_whatsapp_number.sql
 - Uses existing WhatsApp usage tracking per client/widget
 - No new quota tracking needed
 
+---
+
+## 📝 Versioned Change Log - Smart Inactivity Monitoring with Extension Requests
+
+**DATE:** 2025-11-02 02:15:00 CDT  
+**VERSION:** v377  
+**AUTHOR:** AI Assistant  
+
+**FEATURE / CHANGE TITLE:** Smart Inactivity Monitoring with Extension Requests for Agent and Visitor
+
+**SUMMARY:**
+Implemented an intelligent inactivity monitoring system that tracks agent and visitor activity separately, sends reminders after 5 and 10 minutes of inactivity, asks for time extension at 12 minutes, and auto-ends conversations after 15 minutes if no extension is granted. This reduces unnecessary active conversations and Twilio WhatsApp conversation charges.
+
+**IMPACTED SERVICES/TABLES/APIs:**
+- **Database**: `widget_conversations` table (added 5 new columns)
+- **Backend Service**: `conversationInactivityService.ts` (NEW - Singleton service with periodic monitoring)
+- **Backend Routes**: 
+  - `whatsapp.ts` - Added extension request handling and activity tracking
+  - `chatWidget.ts` - Added visitor extension request handling and activity tracking
+- **Server**: `server.ts` - Initialize inactivity monitoring service on startup
+- **Migration**: `backend/database/add_inactivity_extension_tracking.sql` (NEW)
+
+**DATABASE CHANGES:**
+- Added column: `widget_conversations.last_agent_activity_at` (TIMESTAMP, nullable)
+  - Tracks when agent last sent a message via WhatsApp or portal
+  - Separate from visitor activity tracking
+- Added column: `widget_conversations.last_visitor_activity_at` (TIMESTAMP, nullable)
+  - Tracks when visitor last sent a message via widget
+  - Separate from agent activity tracking
+- Added column: `widget_conversations.extension_reminders_count` (INTEGER, DEFAULT 0)
+  - Counts number of extension reminders sent to agent (0-3)
+  - Resets to 0 when agent responds
+- Added column: `widget_conversations.visitor_extension_reminders_count` (INTEGER, DEFAULT 0)
+  - Counts number of extension reminders sent to visitor (0-3)
+  - Resets to 0 when visitor responds
+- Added column: `widget_conversations.extension_granted_until` (TIMESTAMP, nullable)
+  - Stores timestamp until which conversation is extended
+  - Prevents reminders during extension period
+- Created indexes:
+  - `idx_conversations_agent_activity` on `last_agent_activity_at`
+  - `idx_conversations_visitor_activity` on `last_visitor_activity_at`
+  - `idx_conversations_extension_until` on `extension_granted_until`
+
+**BACKEND CHANGES:**
+1. **`conversationInactivityService.ts` (NEW):**
+   - Singleton service that starts periodic monitoring (checks every 60 seconds)
+   - Tracks inactive conversations with agent handoff active
+   - Sends reminders via WhatsApp (agent) and widget messages (visitor)
+   - Handles extension requests from both agent and visitor
+   - Auto-ends conversations after 15 minutes if no extension granted
+   - Methods:
+     - `checkInactiveConversations()` - Main monitoring loop
+     - `handleExtensionRequest()` - Parse and process extension requests
+     - `updateActivityTimestamp()` - Update activity timestamps when messages sent
+     - `sendAgentReminder()` - Send WhatsApp reminder to agent
+     - `askAgentForExtension()` - Ask agent if they need more time
+     - `sendVisitorReminder()` - Add system message to widget
+     - `askVisitorForExtension()` - Ask visitor if they need more time
+     - `autoEndConversation()` - End conversation and send summary email
+
+2. **`whatsapp.ts` - Incoming Message Handler:**
+   - Checks for extension requests BEFORE processing stop commands
+   - Parses extension requests: "yes", "yes 5", "yes 10", "yes 15", etc.
+   - Updates `last_agent_activity_at` and resets `extension_reminders_count` when agent responds
+   - Handles extension requests (1-60 minutes, defaults to 10 if not specified)
+
+3. **`chatWidget.ts` - Visitor Message Handler:**
+   - Checks for extension requests BEFORE processing normal messages
+   - Parses extension requests from visitor
+   - Updates `last_visitor_activity_at` and resets `visitor_extension_reminders_count` when visitor responds
+   - Returns extension confirmation message to widget
+
+4. **`server.ts`:**
+   - Initializes `ConversationInactivityService` singleton on startup
+   - Service automatically starts periodic monitoring (60-second intervals)
+
+**INACTIVITY TIMELINE:**
+- **5 minutes**: First reminder sent
+  - Agent (WhatsApp): "⏰ Reminder: This conversation has been inactive for 5+ minutes..."
+  - Visitor (Widget): "⏰ This conversation has been inactive for 5+ minutes. Are you still there?"
+- **10 minutes**: Second reminder sent
+  - Agent (WhatsApp): "⏰ Second Reminder: This conversation has been inactive for 10+ minutes..."
+  - Visitor (Widget): "⏰ This conversation has been inactive for 10+ minutes. Do you need more time to respond?"
+- **12 minutes**: Extension request sent
+  - Agent (WhatsApp): "⏰ Time Extension Request... Do you need more time? Reply: 'yes', 'yes 10', 'yes 5', etc."
+  - Visitor (Widget): "⏰ Time Extension Request... Do you need more time? Type: 'yes', 'yes 10', 'yes 5', etc."
+- **15 minutes**: Auto-end conversation (if no extension granted)
+  - Conversation status set to 'ended'
+  - Summary email sent to visitor (if email provided)
+  - System message added: "📞 This conversation has been automatically ended due to inactivity..."
+
+**EXTENSION REQUEST FORMAT:**
+- Agent/Visitor can respond with:
+  - `"yes"` → Extends by 10 minutes (default)
+  - `"yes 5"` → Extends by 5 minutes
+  - `"yes 10"` → Extends by 10 minutes
+  - `"yes 15"` → Extends by 15 minutes
+  - `"yes 30"` → Extends by 30 minutes
+  - `"yes 60"` → Extends by 60 minutes (maximum)
+  - `"no"` or `"stop conversation"` → Ends conversation immediately
+
+**FLOW:**
+1. Conversation starts with agent handoff active
+2. System tracks `last_agent_activity_at` and `last_visitor_activity_at` separately
+3. Every 60 seconds, service checks all active conversations
+4. If inactive for 5+ minutes → First reminder
+5. If inactive for 10+ minutes → Second reminder
+6. If inactive for 12+ minutes → Extension request question
+7. If inactive for 15+ minutes → Auto-end conversation (unless extension granted)
+8. Extension granted → Reminders paused until extension expires
+9. When agent/visitor responds → Activity timestamp updated, reminder counter reset
+
+**MIGRATION REQUIRED:**
+```bash
+# Run migration to add inactivity tracking columns
+psql $DATABASE_URL < backend/database/add_inactivity_extension_tracking.sql
+
+# Or via Heroku:
+heroku pg:psql -a marketingby-wetechforu -f backend/database/add_inactivity_extension_tracking.sql
+```
+
+**ROLLBACK PLAN:**
+- Drop new columns: 
+  ```sql
+  ALTER TABLE widget_conversations 
+  DROP COLUMN IF EXISTS last_agent_activity_at,
+  DROP COLUMN IF EXISTS last_visitor_activity_at,
+  DROP COLUMN IF EXISTS extension_reminders_count,
+  DROP COLUMN IF EXISTS visitor_extension_reminders_count,
+  DROP COLUMN IF EXISTS extension_granted_until;
+  ```
+- Remove `conversationInactivityService.ts`
+- Revert `whatsapp.ts` and `chatWidget.ts` to previous versions
+- Remove service initialization from `server.ts`
+
+**TESTING:**
+- [x] Test agent inactivity reminders (5, 10, 12 minutes)
+- [x] Test visitor inactivity reminders (5, 10, 12 minutes)
+- [x] Test extension requests from agent ("yes", "yes 10", etc.)
+- [x] Test extension requests from visitor ("yes", "yes 5", etc.)
+- [x] Test auto-end after 15 minutes if no extension
+- [x] Test activity timestamp updates when messages sent
+- [x] Test reminder counter reset when activity resumes
+- [x] Test extension period respects granted time
+- [x] Test summary email sent on auto-end
+
+**DEPLOYMENT NOTES:**
+- Migration is backward compatible (new columns are nullable with defaults)
+- Service starts automatically on server startup
+- Monitoring begins immediately after deployment
+- Existing active conversations will initialize activity timestamps from `last_activity_at` or `updated_at`
+- No feature flags required (always active)
+
+**FEATURE FLAGS:**
+- None required (always enabled for active conversations with agent handoff)
+
+**QUOTA TRACKING:**
+- Reduces Twilio WhatsApp conversation charges by auto-ending inactive conversations
+- Tracks activity separately for accurate billing
+- No new quota tracking tables needed
+
+**BENEFITS:**
+- ✅ Reduces unnecessary active conversations
+- ✅ Lowers Twilio WhatsApp conversation charges
+- ✅ Smart extension requests give users control
+- ✅ Automatic cleanup of abandoned conversations
+- ✅ Separate tracking for agent and visitor activity
+- ✅ Proactive reminders prevent conversation abandonment
+
