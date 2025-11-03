@@ -46,9 +46,13 @@ router.use(requireAuth);
 router.get('/schema', async (req, res) => {
   try {
     // Verify user is super admin
+    if (!req.session.userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
     const userResponse = await pool.query(
       'SELECT role FROM users WHERE id = $1',
-      [req.user?.id]
+      [req.session.userId]
     );
 
     if (!userResponse.rows[0] || userResponse.rows[0].role !== 'super_admin') {
