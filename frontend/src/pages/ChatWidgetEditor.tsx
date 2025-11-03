@@ -14,6 +14,7 @@ export default function ChatWidgetEditor() {
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null)
   const [userRole, setUserRole] = useState('')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [isInitialLoad, setIsInitialLoad] = useState(true) // Track if we're still loading initial data
 
   const [formData, setFormData] = useState({
     widget_name: '',
@@ -44,7 +45,9 @@ export default function ChatWidgetEditor() {
   const [introFlowEnabled, setIntroFlowEnabledState] = useState(true)
   const setIntroFlowEnabled = (value: boolean) => {
     setIntroFlowEnabledState(value)
-    setHasUnsavedChanges(true)
+    if (!isInitialLoad) {
+      setHasUnsavedChanges(true)
+    }
   }
   const [introQuestions, setIntroQuestions] = useState([
     { id: 'first_name', question: 'What is your first name?', type: 'text', required: true, order: 1 },
@@ -61,7 +64,9 @@ export default function ChatWidgetEditor() {
   const [whatsappEnabled, setWhatsappEnabledState] = useState(false)
   const setWhatsappEnabled = (value: boolean) => {
     setWhatsappEnabledState(value)
-    setHasUnsavedChanges(true)
+    if (!isInitialLoad) {
+      setHasUnsavedChanges(true)
+    }
   }
   const [whatsappSettings, setWhatsappSettings] = useState({
     account_sid: '',
@@ -91,6 +96,7 @@ export default function ChatWidgetEditor() {
   const [handoverTemplateSid, setHandoverTemplateSid] = useState('')
   const [enableMultipleWhatsAppChats, setEnableMultipleWhatsAppChats] = useState(false)
   const [savingHandover, setSavingHandover] = useState(false)
+  const [whatsappEditMode, setWhatsappEditMode] = useState(false)
   const [testingWebhook, setTestingWebhook] = useState(false)
   const [webhookTestResult, setWebhookTestResult] = useState<string | null>(null)
   const [testingHandoverWhatsApp, setTestingHandoverWhatsApp] = useState(false)
@@ -99,7 +105,9 @@ export default function ChatWidgetEditor() {
   const [enableAI, setEnableAIState] = useState(false)
   const setEnableAI = (value: boolean) => {
     setEnableAIState(value)
-    setHasUnsavedChanges(true)
+    if (!isInitialLoad) {
+      setHasUnsavedChanges(true)
+    }
   }
   const [aiApiKey, setAiApiKey] = useState('')
   const [aiMaxTokens, setAiMaxTokens] = useState(1000)
@@ -197,6 +205,7 @@ export default function ChatWidgetEditor() {
 
   const fetchWidget = async () => {
     try {
+      setIsInitialLoad(true) // Prevent hasUnsavedChanges from being set during load
       setHasUnsavedChanges(false) // Reset unsaved changes flag when loading widget (not a change)
       // Use single-widget endpoint so we can determine configured flags without exposing secrets
       const response = await api.get(`/chat-widget/widgets/${id}`)
@@ -355,11 +364,19 @@ export default function ChatWidgetEditor() {
         if (widget.enable_multiple_whatsapp_chats !== undefined) {
           setEnableMultipleWhatsAppChats(widget.enable_multiple_whatsapp_chats)
         }
+        
+        // Reset edit mode when widget loads
+        setWhatsappEditMode(false)
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load widget')
     } finally {
       setLoading(false)
+      // Mark initial load as complete after a short delay to ensure all state updates are done
+      setTimeout(() => {
+        setIsInitialLoad(false)
+        setHasUnsavedChanges(false) // Final reset to ensure no false positives
+      }, 100)
     }
   }
 
@@ -479,8 +496,9 @@ export default function ChatWidgetEditor() {
       setWhatsappConfigured(true)
       alert('✅ WhatsApp settings saved successfully!')
       
-      // Refresh usage stats
+      // Refresh usage stats and exit edit mode
       fetchWhatsAppSettings(selectedClientId)
+      setWhatsappEditMode(false)
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to save WhatsApp settings')
     } finally {
@@ -724,7 +742,9 @@ export default function ChatWidgetEditor() {
 
   const handleChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    setHasUnsavedChanges(true) // Track unsaved changes
+    if (!isInitialLoad) {
+      setHasUnsavedChanges(true) // Track unsaved changes
+    }
   }
 
   // 🤖 Question Management Functions
@@ -1851,7 +1871,7 @@ export default function ChatWidgetEditor() {
           )}
         </div>
 
-        {/* 💬 WhatsApp / Twilio Integration */}
+        {/* 💬 WhatsApp / Twilio Integration - Standard Format */}
         {selectedClientId && (
           <div style={{
             background: 'white',
@@ -1860,89 +1880,116 @@ export default function ChatWidgetEditor() {
             marginBottom: '1.5rem',
             boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
           }}>
-            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <i className="fab fa-whatsapp" style={{ color: '#25D366', fontSize: '1.8rem' }}></i>
-              WhatsApp Integration (Agent Handoff)
-            </h3>
-            <p style={{ fontSize: '14px', color: '#666', marginBottom: '1.5rem' }}>
-              Connect your Twilio WhatsApp Business Account to enable agent handoff via WhatsApp. 
-              Includes <strong>1,000 free conversations/month</strong> per client! 🎉
-            </p>
-
-            {/* Configured Status Badge */}
-            {whatsappConfigured && (
-              <div style={{
-                background: '#d4edda',
-                border: '2px solid #28a745',
-                borderRadius: '8px',
-                padding: '12px',
-                marginBottom: '1rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <i className="fas fa-check-circle" style={{ color: '#28a745', fontSize: '1.2rem' }}></i>
-                <span style={{ fontWeight: '600', color: '#155724' }}>
-                  WhatsApp Configured ✅
-                </span>
+            {/* Header with Edit Button */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div>
+                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="fab fa-whatsapp" style={{ color: '#25D366', fontSize: '1.8rem' }}></i>
+                  WhatsApp Integration
+                </h3>
+                <p style={{ fontSize: '14px', color: '#666', marginTop: '8px', marginBottom: 0 }}>
+                  Enable agent handoff via WhatsApp. Includes <strong>1,000 free conversations/month</strong> per client! 🎉
+                </p>
               </div>
-            )}
-
-            {/* ✅ Configuration Status Display */}
-            <div style={{
-              padding: '1rem',
-              background: whatsappConfigured ? '#e8f5e9' : '#fff3cd',
-              borderRadius: '8px',
-              border: `2px solid ${whatsappConfigured ? '#4caf50' : '#ffc107'}`,
-              marginBottom: '1.5rem'
-            }}>
-              <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: whatsappConfigured ? '#2e7d32' : '#856404' }}>
-                📊 Configuration Status
-              </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
-                <div>
-                  <span style={{ color: '#666' }}>WhatsApp Status:</span>
-                  <strong style={{ marginLeft: '8px', color: whatsappConfigured ? '#2e7d32' : '#d32f2f' }}>
-                    {whatsappConfigured ? '✅ Configured' : '❌ Not Configured'}
-                  </strong>
-                </div>
-                <div>
-                  <span style={{ color: '#666' }}>Enabled for Handoff:</span>
-                  <strong style={{ marginLeft: '8px', color: whatsappEnabled ? '#2e7d32' : '#666' }}>
-                    {whatsappEnabled ? '✅ Yes' : '❌ No'}
-                  </strong>
-                </div>
-                {handoverWhatsAppNumber && (
-                  <div>
-                    <span style={{ color: '#666' }}>Handover Number:</span>
-                    <strong style={{ marginLeft: '8px', color: '#2e7d32' }}>
-                      {handoverWhatsAppNumber}
-                    </strong>
-                  </div>
-                )}
-                {handoverTemplateSid && (
-                  <div>
-                    <span style={{ color: '#666' }}>Template SID:</span>
-                    <strong style={{ marginLeft: '8px', color: '#2e7d32', fontSize: '11px', fontFamily: 'monospace' }}>
-                      {handoverTemplateSid.substring(0, 20)}...
-                    </strong>
-                  </div>
-                )}
-              </div>
+              <button
+                type="button"
+                onClick={() => setWhatsappEditMode(!whatsappEditMode)}
+                style={{
+                  padding: '10px 20px',
+                  background: whatsappEditMode ? '#6c757d' : '#25D366',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <i className={`fas fa-${whatsappEditMode ? 'times' : 'edit'}`}></i>
+                {whatsappEditMode ? 'Cancel' : 'Edit'}
+              </button>
             </div>
 
-            {/* Usage Stats */}
-            {whatsappUsage && (
-              <div style={{
-                background: '#f8f9fa',
-                borderRadius: '8px',
-                padding: '1rem',
-                marginBottom: '1.5rem',
-                border: '1px solid #dee2e6'
-              }}>
-                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600' }}>
-                  📊 Current Usage (This Month)
-                </h4>
+            {!whatsappEditMode ? (
+              /* VIEW MODE - Summary Cards */
+              <>
+                {/* Status Card */}
+                <div style={{
+                  padding: '1.5rem',
+                  background: whatsappConfigured ? '#e8f5e9' : '#fff3cd',
+                  borderRadius: '8px',
+                  border: `2px solid ${whatsappConfigured ? '#4caf50' : '#ffc107'}`,
+                  marginBottom: '1rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: whatsappConfigured ? '#2e7d32' : '#856404' }}>
+                      Configuration Status
+                    </h4>
+                    {whatsappConfigured && (
+                      <span style={{
+                        background: '#28a745',
+                        color: 'white',
+                        padding: '4px 12px',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: '600'
+                      }}>
+                        ✓ Configured
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', fontSize: '14px' }}>
+                    <div>
+                      <span style={{ color: '#666', display: 'block', marginBottom: '4px' }}>Status</span>
+                      <strong style={{ color: whatsappConfigured ? '#2e7d32' : '#d32f2f' }}>
+                        {whatsappConfigured ? '✅ Configured' : '❌ Not Configured'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#666', display: 'block', marginBottom: '4px' }}>Enabled for Handoff</span>
+                      <strong style={{ color: whatsappEnabled ? '#2e7d32' : '#666' }}>
+                        {whatsappEnabled ? '✅ Yes' : '❌ No'}
+                      </strong>
+                    </div>
+                    {enableMultipleWhatsAppChats && (
+                      <div>
+                        <span style={{ color: '#666', display: 'block', marginBottom: '4px' }}>Multiple Chats</span>
+                        <strong style={{ color: '#2e7d32' }}>✅ Enabled</strong>
+                      </div>
+                    )}
+                    {handoverWhatsAppNumber && (
+                      <div>
+                        <span style={{ color: '#666', display: 'block', marginBottom: '4px' }}>Handover Number</span>
+                        <strong style={{ color: '#2e7d32', fontFamily: 'monospace' }}>{handoverWhatsAppNumber}</strong>
+                      </div>
+                    )}
+                  </div>
+                  {whatsappCredentialsPartial && (
+                    <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+                      <span style={{ color: '#666', fontSize: '12px', display: 'block', marginBottom: '4px' }}>Credentials (Last 4 digits)</span>
+                      <div style={{ display: 'flex', gap: '1rem', fontSize: '12px', fontFamily: 'monospace' }}>
+                        {whatsappCredentialsPartial.account_sid && <span>SID: <strong>{whatsappCredentialsPartial.account_sid}</strong></span>}
+                        {whatsappCredentialsPartial.auth_token && <span>Token: <strong>{whatsappCredentialsPartial.auth_token}</strong></span>}
+                        {whatsappCredentialsPartial.from_number && <span>From: <strong>{whatsappCredentialsPartial.from_number}</strong></span>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Usage Stats */}
+                {whatsappUsage && (
+                  <div style={{
+                    background: '#f8f9fa',
+                    borderRadius: '8px',
+                    padding: '1.5rem',
+                    marginBottom: '1rem',
+                    border: '1px solid #dee2e6'
+                  }}>
+                    <h4 style={{ margin: '0 0 1rem 0', fontSize: '16px', fontWeight: '600' }}>
+                      Usage Statistics (This Month)
+                    </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '14px' }}>
                   <div>
                     <span style={{ color: '#666' }}>Conversations:</span>
@@ -2009,49 +2056,33 @@ export default function ChatWidgetEditor() {
               </div>
             )}
 
-            {/* Enable WhatsApp Toggle */}
-            <label style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={whatsappEnabled}
-                onChange={(e) => setWhatsappEnabled(e.target.checked)}
-                style={{ marginRight: '0.5rem', width: '20px', height: '20px' }}
-              />
-              <span style={{ fontWeight: '700', fontSize: '16px' }}>
-                Enable WhatsApp for Agent Handoff
-                {whatsappConfigured && (
-                  <span style={{
-                    marginLeft: '10px',
-                    padding: '3px 8px',
-                    background: '#28a745',
-                    color: 'white',
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    fontWeight: '600'
-                  }}>
-                    ✓ Configured
-                  </span>
-                )}
-              </span>
-            </label>
-
-            {whatsappEnabled && (
-              <>
+              </>
+            ) : (
+              /* EDIT MODE - All Settings Editable */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* Enable WhatsApp Checkbox */}
                 <div style={{
-                  background: '#e7f3ff',
                   padding: '1rem',
+                  background: '#f8f9fa',
                   borderRadius: '8px',
-                  marginBottom: '1.5rem',
-                  fontSize: '13px',
-                  lineHeight: '1.6'
+                  border: '1px solid #dee2e6'
                 }}>
-                  <strong>📱 How it works:</strong>
-                  <ol style={{ margin: '8px 0 0 20px', padding: 0 }}>
-                    <li>When a visitor requests agent handoff, the conversation switches to WhatsApp</li>
-                    <li>Agent receives WhatsApp message notification on their phone</li>
-                    <li>Agent responds via WhatsApp, conversation syncs back to portal in real-time</li>
-                    <li>First 1,000 conversations/month are FREE per client! 🎉</li>
-                  </ol>
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={whatsappEnabled}
+                      onChange={(e) => setWhatsappEnabled(e.target.checked)}
+                      style={{ marginRight: '12px', width: '20px', height: '20px' }}
+                    />
+                    <div>
+                      <span style={{ fontWeight: '600', fontSize: '16px' }}>
+                        Enable WhatsApp for Agent Handoff
+                      </span>
+                      <p style={{ fontSize: '13px', color: '#666', margin: '4px 0 0 0' }}>
+                        When enabled, visitors can request agent handoff via WhatsApp. First 1,000 conversations/month are FREE.
+                      </p>
+                    </div>
+                  </label>
                 </div>
 
                 {/* ✅ WhatsApp Handover Settings (Moved here - right after enable toggle) */}
@@ -2078,7 +2109,9 @@ export default function ChatWidgetEditor() {
                         checked={enableMultipleWhatsAppChats}
                         onChange={(e) => {
                           setEnableMultipleWhatsAppChats(e.target.checked)
-                          setHasUnsavedChanges(true)
+                          if (!isInitialLoad) {
+                            setHasUnsavedChanges(true)
+                          }
                         }}
                         style={{ marginRight: '8px', width: '18px', height: '18px' }}
                       />
@@ -2100,7 +2133,9 @@ export default function ChatWidgetEditor() {
                         value={handoverWhatsAppNumber}
                         onChange={(e) => {
                           setHandoverWhatsAppNumber(e.target.value)
-                          setHasUnsavedChanges(true)
+                          if (!isInitialLoad) {
+                            setHasUnsavedChanges(true)
+                          }
                         }}
                         style={{
                           width: '100%',
@@ -2120,7 +2155,9 @@ export default function ChatWidgetEditor() {
                         value={handoverTemplateSid}
                         onChange={(e) => {
                           setHandoverTemplateSid(e.target.value)
-                          setHasUnsavedChanges(true)
+                          if (!isInitialLoad) {
+                            setHasUnsavedChanges(true)
+                          }
                         }}
                         style={{
                           width: '100%',
@@ -2439,28 +2476,348 @@ export default function ChatWidgetEditor() {
                   )}
                 </div>
 
-                {/* Setup Guide */}
+                {/* Multiple WhatsApp Chats Checkbox */}
                 <div style={{
-                  marginTop: '1.5rem',
                   padding: '1rem',
-                  background: '#fff3cd',
+                  background: '#f8f9fa',
                   borderRadius: '8px',
-                  border: '1px solid #ffc107',
-                  fontSize: '13px'
+                  border: '1px solid #dee2e6'
                 }}>
-                  <strong>📚 Don't have Twilio WhatsApp setup?</strong>
-                  <ol style={{ margin: '8px 0 0 20px', padding: 0 }}>
-                    <li>Go to <a href="https://www.twilio.com/console" target="_blank" rel="noopener noreferrer">Twilio Console</a></li>
-                    <li>Navigate to: Messaging → Try it Out → Send a WhatsApp message</li>
-                    <li>Follow the setup wizard to enable WhatsApp on your Twilio number</li>
-                    <li>Copy your Account SID, Auth Token, and WhatsApp number</li>
-                    <li>Paste them above and click Save!</li>
-                  </ol>
-                  <p style={{ margin: '8px 0 0 0' }}>
-                    💡 <strong>Pricing:</strong> First 1,000 conversations/month are FREE, then ~$0.005 per conversation.
-                  </p>
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={enableMultipleWhatsAppChats}
+                      onChange={(e) => {
+                        setEnableMultipleWhatsAppChats(e.target.checked)
+                        setHasUnsavedChanges(true)
+                      }}
+                      style={{ marginRight: '12px', width: '20px', height: '20px' }}
+                    />
+                    <div>
+                      <span style={{ fontWeight: '600', fontSize: '16px' }}>
+                        Enable Multiple Simultaneous WhatsApp Chats
+                      </span>
+                      <p style={{ fontSize: '13px', color: '#666', margin: '4px 0 0 0' }}>
+                        Allow agent to chat with multiple users simultaneously. Agent must prefix replies with <strong>#conversation_id</strong> to specify which conversation.
+                      </p>
+                    </div>
+                  </label>
                 </div>
-              </>
+
+                {/* Handover Settings */}
+                <div style={{
+                  padding: '1.5rem',
+                  background: '#e8f5e9',
+                  borderRadius: '8px',
+                  border: '2px solid #25d366'
+                }}>
+                  <h4 style={{ marginTop: 0, fontSize: '16px', fontWeight: '600', marginBottom: '1rem' }}>
+                    WhatsApp Handover Settings
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>
+                        Handover Phone Number *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="+14698880705"
+                        value={handoverWhatsAppNumber}
+                        onChange={(e) => {
+                          setHandoverWhatsAppNumber(e.target.value)
+                          if (!isInitialLoad) {
+                            setHasUnsavedChanges(true)
+                          }
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          border: '2px solid #25d366',
+                          borderRadius: '6px',
+                          fontSize: '14px'
+                        }}
+                      />
+                      <p style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>Include country code (e.g., +14698880705)</p>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>
+                        Template SID (Content SID) *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="HX659835c73e53f7d35320f3d3c3e5f259"
+                        value={handoverTemplateSid}
+                        onChange={(e) => {
+                          setHandoverTemplateSid(e.target.value)
+                          if (!isInitialLoad) {
+                            setHasUnsavedChanges(true)
+                          }
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          border: '2px solid #25d366',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontFamily: 'monospace'
+                        }}
+                      />
+                      <p style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>Twilio Content Template SID</p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!selectedClientId) {
+                          alert('Select a client first')
+                          return
+                        }
+                        try {
+                          setSavingHandover(true)
+                          await api.put(`/handover/config/client/${selectedClientId}`, {
+                            handover_whatsapp_number: handoverWhatsAppNumber,
+                            whatsapp_handover_content_sid: handoverTemplateSid
+                          })
+                          alert('✅ Handover settings saved')
+                          setHasUnsavedChanges(false)
+                          setWhatsappEditMode(false)
+                          // Refresh widget data to show updated state
+                          if (id) {
+                            fetchWidget()
+                          }
+                        } catch (e: any) {
+                          alert(`❌ Failed to save: ${e?.response?.data?.error || e.message}`)
+                        } finally {
+                          setSavingHandover(false)
+                        }
+                      }}
+                      disabled={savingHandover}
+                      style={{
+                        padding: '10px 20px',
+                        background: '#25d366',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: '600',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {savingHandover ? (
+                        <><i className="fas fa-spinner fa-spin" style={{ marginRight: '6px' }}></i> Saving...</>
+                      ) : (
+                        <><i className="fas fa-save" style={{ marginRight: '6px' }}></i> Save Handover Settings</>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!selectedClientId) {
+                          alert('Select a client first')
+                          return
+                        }
+                        if (!handoverWhatsAppNumber.trim()) {
+                          alert('Enter phone number')
+                          return
+                        }
+                        setTestingHandoverWhatsApp(true)
+                        try {
+                          await api.post('/handover/test-whatsapp', {
+                            client_id: selectedClientId,
+                            phone_number: handoverWhatsAppNumber.trim()
+                          })
+                          alert('✅ Test message sent')
+                        } catch (e: any) {
+                          alert(`❌ Test failed: ${e?.response?.data?.error || e.message}`)
+                        } finally {
+                          setTestingHandoverWhatsApp(false)
+                        }
+                      }}
+                      disabled={testingHandoverWhatsApp || !handoverWhatsAppNumber.trim()}
+                      style={{
+                        padding: '10px 20px',
+                        background: '#075e54',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: '600',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {testingHandoverWhatsApp ? (
+                        <><i className="fas fa-spinner fa-spin" style={{ marginRight: '6px' }}></i> Sending...</>
+                      ) : (
+                        <><i className="fas fa-paper-plane" style={{ marginRight: '6px' }}></i> Send Test Message</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Twilio Credentials */}
+                <div style={{
+                  padding: '1.5rem',
+                  background: '#fafbfc',
+                  borderRadius: '8px',
+                  border: '1px solid #e1e4e8'
+                }}>
+                  <h4 style={{ marginTop: 0, fontSize: '16px', fontWeight: '600', marginBottom: '1rem' }}>
+                    Twilio WhatsApp Credentials
+                    {whatsappConfigured && (
+                      <span style={{
+                        marginLeft: '10px',
+                        background: '#28a745',
+                        color: 'white',
+                        padding: '4px 12px',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: '600'
+                      }}>
+                        ✓ Configured
+                      </span>
+                    )}
+                  </h4>
+                  
+                  {whatsappConfigured && whatsappCredentialsPartial && (
+                    <div style={{
+                      padding: '12px',
+                      background: '#d4edda',
+                      border: '1px solid #c3e6cb',
+                      borderRadius: '6px',
+                      marginBottom: '1rem',
+                      fontSize: '13px'
+                    }}>
+                      <strong>Current credentials (last 4 digits):</strong>
+                      <div style={{ marginTop: '8px', fontFamily: 'monospace', fontSize: '12px' }}>
+                        {whatsappCredentialsPartial.account_sid && <div>Account SID: <strong>{whatsappCredentialsPartial.account_sid}</strong></div>}
+                        {whatsappCredentialsPartial.auth_token && <div>Auth Token: <strong>{whatsappCredentialsPartial.auth_token}</strong></div>}
+                        {whatsappCredentialsPartial.from_number && <div>From Number: <strong>{whatsappCredentialsPartial.from_number}</strong></div>}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div style={{ display: 'grid', gap: '1rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>
+                        Account SID *
+                      </label>
+                      <input
+                        type="text"
+                        value={whatsappSettings.account_sid}
+                        onChange={(e) => setWhatsappSettings({ ...whatsappSettings, account_sid: e.target.value })}
+                        placeholder={whatsappConfigured ? (whatsappCredentialsPartial?.account_sid || "AC•••••••••••••••••••••••••••••") : "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          border: '2px solid #e0e0e0',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontFamily: 'monospace'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>
+                        Auth Token *
+                      </label>
+                      <input
+                        type="password"
+                        value={whatsappSettings.auth_token}
+                        onChange={(e) => setWhatsappSettings({ ...whatsappSettings, auth_token: e.target.value })}
+                        placeholder={whatsappConfigured ? (whatsappCredentialsPartial?.auth_token || "••••••••••••••••••••••••••••••") : "Your Twilio Auth Token"}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          border: '2px solid #e0e0e0',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontFamily: 'monospace'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>
+                        WhatsApp From Number *
+                      </label>
+                      <input
+                        type="text"
+                        value={whatsappSettings.from_number}
+                        onChange={(e) => setWhatsappSettings({ ...whatsappSettings, from_number: e.target.value })}
+                        placeholder={whatsappConfigured ? (whatsappCredentialsPartial?.from_number || "whatsapp:+1••••••••••") : "whatsapp:+14155238886"}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          border: '2px solid #e0e0e0',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontFamily: 'monospace'
+                        }}
+                      />
+                      <p style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                        Format: whatsapp:+1234567890 (must be a Twilio WhatsApp-enabled number)
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '1.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={handleSaveWhatsAppSettings}
+                      disabled={savingWhatsApp || !whatsappSettings.account_sid || !whatsappSettings.auth_token || !whatsappSettings.from_number}
+                      style={{
+                        padding: '12px 20px',
+                        background: '#4682B4',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        opacity: (savingWhatsApp || !whatsappSettings.account_sid || !whatsappSettings.auth_token || !whatsappSettings.from_number) ? 0.5 : 1
+                      }}
+                    >
+                      {savingWhatsApp ? (
+                        <><i className="fas fa-spinner fa-spin"></i> Saving...</>
+                      ) : (
+                        <><i className="fas fa-save"></i> Save Credentials</>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleTestWhatsAppComplete}
+                      disabled={testingWhatsApp || !whatsappConfigured || !handoverWhatsAppNumber.trim()}
+                      style={{
+                        padding: '12px 20px',
+                        background: '#28a745',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        opacity: (testingWhatsApp || !whatsappConfigured || !handoverWhatsAppNumber.trim()) ? 0.5 : 1
+                      }}
+                    >
+                      {testingWhatsApp ? (
+                        <><i className="fas fa-spinner fa-spin"></i> Testing...</>
+                      ) : (
+                        <><i className="fas fa-check-circle"></i> Test Connection & Message</>
+                      )}
+                    </button>
+                  </div>
+                  
+                  {whatsappTestResult && (
+                    <div style={{
+                      marginTop: '1rem',
+                      padding: '12px',
+                      background: whatsappTestResult.startsWith('✅') ? '#d4edda' : '#f8d7da',
+                      border: `2px solid ${whatsappTestResult.startsWith('✅') ? '#28a745' : '#dc3545'}`,
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      whiteSpace: 'pre-line'
+                    }}>
+                      {whatsappTestResult}
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -2529,7 +2886,9 @@ export default function ChatWidgetEditor() {
                             return
                           }
                           setHandoverOptions(newOptions)
-                          setHasUnsavedChanges(true)
+                          if (!isInitialLoad) {
+                            setHasUnsavedChanges(true)
+                          }
                         }}
                         style={{ marginRight: '8px', width: '18px', height: '18px' }}
                       />
@@ -2554,7 +2913,9 @@ export default function ChatWidgetEditor() {
                             return
                           }
                           setHandoverOptions(newOptions)
-                          setHasUnsavedChanges(true)
+                          if (!isInitialLoad) {
+                            setHasUnsavedChanges(true)
+                          }
                         }}
                         disabled={!whatsappConfigured}
                         style={{ marginRight: '8px', width: '18px', height: '18px' }}
@@ -2580,7 +2941,9 @@ export default function ChatWidgetEditor() {
                             return
                           }
                           setHandoverOptions(newOptions)
-                          setHasUnsavedChanges(true)
+                          if (!isInitialLoad) {
+                            setHasUnsavedChanges(true)
+                          }
                         }}
                         style={{ marginRight: '8px', width: '18px', height: '18px' }}
                       />
@@ -2605,7 +2968,9 @@ export default function ChatWidgetEditor() {
                             return
                           }
                           setHandoverOptions(newOptions)
-                          setHasUnsavedChanges(true)
+                          if (!isInitialLoad) {
+                            setHasUnsavedChanges(true)
+                          }
                         }}
                         disabled={!whatsappConfigured}
                         style={{ marginRight: '8px', width: '18px', height: '18px' }}
@@ -2631,7 +2996,9 @@ export default function ChatWidgetEditor() {
                             return
                           }
                           setHandoverOptions(newOptions)
-                          setHasUnsavedChanges(true)
+                          if (!isInitialLoad) {
+                            setHasUnsavedChanges(true)
+                          }
                         }}
                         style={{ marginRight: '8px', width: '18px', height: '18px' }}
                       />

@@ -15,18 +15,23 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 
 // Custom Node Component for Database Tables
-const TableNode = ({ data }: any) => {
+const TableNode = ({ data, selected }: any) => {
+  const isHighlighted = data.highlighted || selected;
   return (
     <div style={{
       background: data.color || '#e3f2fd',
-      border: `2px solid ${data.borderColor || '#2E86AB'}`,
+      border: isHighlighted ? `3px solid #ff5722` : `2px solid ${data.borderColor || '#2E86AB'}`,
       borderRadius: '8px',
       padding: '12px',
       minWidth: '220px',
       maxWidth: '280px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+      boxShadow: isHighlighted 
+        ? '0 4px 12px rgba(255, 87, 34, 0.4)' 
+        : '0 2px 8px rgba(0,0,0,0.1)',
       fontFamily: 'system-ui, -apple-system, sans-serif',
-      cursor: 'move'
+      cursor: 'move',
+      transition: 'all 0.2s ease',
+      transform: isHighlighted ? 'scale(1.02)' : 'scale(1)'
     }}>
       <div style={{
         fontWeight: 'bold',
@@ -208,59 +213,74 @@ export default function SystemArchitecture() {
         if (col.fk) {
           // Handle different FK formats
           let sourceTable: string;
+          let targetTable: string = table.name;
           let fkColumnName: string = col.name;
+          let referencedColumn: string = '';
           
           if (typeof col.fk === 'string') {
             // Format: "table.column" or just "table"
             const parts = col.fk.split('.');
             sourceTable = parts[0];
-          } else if (col.fk.table) {
+            if (parts.length > 1) {
+              referencedColumn = parts[1];
+            }
+          } else if (col.fk && typeof col.fk === 'object' && col.fk.table) {
+            // Backend format: { table: "referenced_table", column: "referenced_column" }
             sourceTable = col.fk.table;
             if (col.fk.column) {
-              // Show FK column name → referenced column name
-              fkColumnName = `${col.name} → ${col.fk.column}`;
+              referencedColumn = col.fk.column;
             }
           } else {
-            return;
+            return; // Skip if FK format is invalid
           }
           
           const sourceId = sourceTable;
-          const targetId = table.name;
+          const targetId = targetTable;
 
           // Only create edge if both tables exist
           if (nodeMap[sourceId] && nodeMap[targetId] && sourceId !== targetId) {
-            const edge: Edge = {
-              id: `e${sourceId}-${targetId}-${col.name}`,
-              source: sourceId,
-              target: targetId,
-              label: col.name, // FK column name displayed on the line
-              type: 'smoothstep',
-              animated: false,
-              style: { 
-                stroke: '#2E86AB', 
-                strokeWidth: 2.5,
-              },
-              markerEnd: {
-                type: 'arrowclosed',
-                color: '#2E86AB',
-                width: 20,
-                height: 20,
-              },
-              labelStyle: { 
-                fontSize: '11px', 
-                fontWeight: '600',
-                fill: '#1976d2',
-                background: 'white',
-                padding: '2px 4px',
-              },
-              labelBgStyle: {
-                fill: 'white',
-                fillOpacity: 0.9,
-              },
-            };
+            // Create unique edge ID
+            const edgeId = `e${sourceId}-${targetId}-${col.name}`;
+            
+            // Check if edge already exists (avoid duplicates)
+            if (!newEdges.find(e => e.id === edgeId)) {
+              // Build label: FK column name, optionally showing referenced column
+              const edgeLabel = referencedColumn 
+                ? `${col.name} → ${referencedColumn}`
+                : col.name;
+              
+              const edge: Edge = {
+                id: edgeId,
+                source: sourceId,
+                target: targetId,
+                label: edgeLabel,
+                type: 'smoothstep',
+                animated: false,
+                style: { 
+                  stroke: '#2E86AB', 
+                  strokeWidth: 3,
+                },
+                markerEnd: {
+                  type: 'arrowclosed',
+                  color: '#2E86AB',
+                  width: 24,
+                  height: 24,
+                },
+                labelStyle: { 
+                  fontSize: '12px', 
+                  fontWeight: '700',
+                  fill: '#155a8a',
+                  background: 'white',
+                  padding: '4px 8px',
+                  border: '1px solid #2E86AB',
+                  borderRadius: '4px',
+                },
+                labelBgStyle: {
+                  fill: 'white',
+                  fillOpacity: 0.95,
+                },
+              };
 
-            // Check if edge already exists
-            if (!newEdges.find(e => e.source === sourceId && e.target === targetId && e.label === col.name)) {
               newEdges.push(edge);
             }
           }
@@ -294,8 +314,9 @@ export default function SystemArchitecture() {
     // Find matching nodes (tables that match search)
     const matchingNodeIds = new Set<string>();
     nodesToFilter.forEach(node => {
-      const tableName = (node.data?.label || '').toLowerCase();
-      if (tableName.includes(queryLower)) {
+      const tableName = (node.data?.label || node.id || '').toLowerCase();
+      const tableNameClean = tableName.replace(/\s+/g, '_'); // Also match underscore format
+      if (tableName.includes(queryLower) || tableNameClean.includes(queryLower) || node.id.toLowerCase().includes(queryLower)) {
         matchingNodeIds.add(node.id);
       }
     });
@@ -307,24 +328,27 @@ export default function SystemArchitecture() {
       return;
     }
     
-    // Find all connected nodes (via edges)
+    // Find all connected nodes (via edges) - BFS traversal
     const connectedNodeIds = new Set<string>(matchingNodeIds);
-    let foundNew = true;
+    const queue = Array.from(matchingNodeIds);
+    const visited = new Set<string>(matchingNodeIds);
     
-    // Iteratively find all connected tables
-    while (foundNew) {
-      foundNew = false;
+    // BFS to find all connected tables
+    while (queue.length > 0) {
+      const currentNodeId = queue.shift()!;
+      
+      // Find all edges connected to this node
       edgesToFilter.forEach(edge => {
-        const sourceMatch = connectedNodeIds.has(edge.source);
-        const targetMatch = connectedNodeIds.has(edge.target);
-        
-        if (sourceMatch && !connectedNodeIds.has(edge.target)) {
+        // Check if edge connects to current node
+        if (edge.source === currentNodeId && !visited.has(edge.target)) {
           connectedNodeIds.add(edge.target);
-          foundNew = true;
+          visited.add(edge.target);
+          queue.push(edge.target);
         }
-        if (targetMatch && !connectedNodeIds.has(edge.source)) {
+        if (edge.target === currentNodeId && !visited.has(edge.source)) {
           connectedNodeIds.add(edge.source);
-          foundNew = true;
+          visited.add(edge.source);
+          queue.push(edge.source);
         }
       });
     }
@@ -337,7 +361,16 @@ export default function SystemArchitecture() {
       connectedNodeIds.has(edge.source) && connectedNodeIds.has(edge.target)
     );
     
-    setNodes(filteredNodes);
+    // Highlight matching nodes (search results get orange border via TableNode component)
+    const highlightedNodes = filteredNodes.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        highlighted: matchingNodeIds.has(node.id) // TableNode will use this to show orange border
+      }
+    }));
+    
+    setNodes(highlightedNodes);
     setEdges(filteredEdges);
   };
   
@@ -777,29 +810,35 @@ export default function SystemArchitecture() {
                 nodeTypes={nodeTypes}
                 connectionMode={ConnectionMode.Loose}
                 fitView
+                fitViewOptions={{ padding: 0.2, maxZoom: 1.5 }}
                 attributionPosition="bottom-left"
                 minZoom={0.2}
                 maxZoom={2}
                 defaultEdgeOptions={{
                   type: 'smoothstep',
                   animated: false,
-                  style: { stroke: '#2E86AB', strokeWidth: 2.5 },
+                  style: { 
+                    stroke: '#2E86AB', 
+                    strokeWidth: 3,
+                  },
                   markerEnd: {
                     type: 'arrowclosed',
                     color: '#2E86AB',
-                    width: 20,
-                    height: 20,
+                    width: 24,
+                    height: 24,
                   },
                   labelStyle: { 
-                    fontSize: '11px', 
-                    fontWeight: '600',
-                    fill: '#1976d2',
+                    fontSize: '12px', 
+                    fontWeight: '700',
+                    fill: '#155a8a',
                     background: 'white',
-                    padding: '2px 4px',
+                    padding: '4px 8px',
+                    border: '1px solid #2E86AB',
+                    borderRadius: '4px',
                   },
                   labelBgStyle: {
                     fill: 'white',
-                    fillOpacity: 0.9,
+                    fillOpacity: 0.95,
                   },
                 }}
               >
@@ -1218,7 +1257,7 @@ export default function SystemArchitecture() {
         )}
       </div>
       
-      {/* Fullscreen Modal */}
+      {/* Fullscreen Modal - Covers Entire Browser Viewport */}
       {isFullscreen && (
         <div style={{
           position: 'fixed',
@@ -1226,10 +1265,15 @@ export default function SystemArchitecture() {
           left: 0,
           right: 0,
           bottom: 0,
+          width: '100vw',
+          height: '100vh',
           background: 'white',
-          zIndex: 9999,
+          zIndex: 99999,
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          margin: 0,
+          padding: 0,
+          overflow: 'hidden'
         }}>
           {/* Fullscreen Header */}
           <div style={{
@@ -1281,7 +1325,13 @@ export default function SystemArchitecture() {
           </div>
           
           {/* Fullscreen ERD Content */}
-          <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+          <div style={{ 
+            flex: 1, 
+            position: 'relative', 
+            overflow: 'hidden',
+            width: '100%',
+            height: 'calc(100vh - 80px)' // Full viewport minus header
+          }}>
             {/* Search Bar in Fullscreen */}
             <div style={{
               position: 'absolute',
@@ -1331,33 +1381,40 @@ export default function SystemArchitecture() {
               )}
             </div>
             
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              nodeTypes={nodeTypes}
-              connectionMode={ConnectionMode.Loose}
-              fitView
-              attributionPosition="bottom-left"
-              minZoom={0.1}
-              maxZoom={3}
+            <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                nodeTypes={nodeTypes}
+                connectionMode={ConnectionMode.Loose}
+                fitView
+                fitViewOptions={{ padding: 0.2, maxZoom: 1.5 }}
+                attributionPosition="bottom-left"
+                minZoom={0.1}
+                maxZoom={3}
               defaultEdgeOptions={{
                 type: 'smoothstep',
                 animated: false,
-                style: { stroke: '#2E86AB', strokeWidth: 2.5 },
+                style: { 
+                  stroke: '#2E86AB', 
+                  strokeWidth: 3,
+                },
                 markerEnd: {
                   type: 'arrowclosed',
                   color: '#2E86AB',
-                  width: 20,
-                  height: 20,
+                  width: 24,
+                  height: 24,
                 },
                 labelStyle: { 
                   fontSize: '12px', 
-                  fontWeight: '600',
-                  fill: '#1976d2',
+                  fontWeight: '700',
+                  fill: '#155a8a',
                   background: 'white',
-                  padding: '3px 6px',
+                  padding: '4px 8px',
+                  border: '1px solid #2E86AB',
+                  borderRadius: '4px',
                 },
                 labelBgStyle: {
                   fill: 'white',
@@ -1375,7 +1432,8 @@ export default function SystemArchitecture() {
                 style={{ backgroundColor: '#f5f5f5', border: '1px solid #e0e0e0' }}
                 maskColor="rgba(0, 0, 0, 0.05)"
               />
-            </ReactFlow>
+              </ReactFlow>
+            </div>
           </div>
         </div>
       )}
