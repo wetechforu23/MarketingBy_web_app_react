@@ -894,10 +894,11 @@ export default function SystemArchitecture() {
               border: '1px solid #e0e0e0',
               borderRadius: '8px',
               overflow: 'hidden',
-              height: '800px'
+              height: '800px',
+              position: 'relative'
             }}>
               <iframe
-                src={`${process.env.NODE_ENV === 'production' 
+                src={`${window.location.protocol === 'https:' 
                   ? 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com' 
                   : 'http://localhost:3001'}/api-docs`}
                 style={{
@@ -906,7 +907,38 @@ export default function SystemArchitecture() {
                   border: 'none'
                 }}
                 title="Swagger API Documentation"
+                allow="fullscreen"
+                sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-top-navigation"
               />
+              <div style={{
+                position: 'absolute',
+                top: '10px',
+                right: '10px',
+                zIndex: 10
+              }}>
+                <a
+                  href={`${window.location.protocol === 'https:' 
+                    ? 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com' 
+                    : 'http://localhost:3001'}/api-docs`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    padding: '8px 16px',
+                    background: '#2E86AB',
+                    color: 'white',
+                    textDecoration: 'none',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <i className="fas fa-external-link-alt"></i>
+                  Open in New Window
+                </a>
+              </div>
             </div>
             <div style={{
               marginTop: '1rem',

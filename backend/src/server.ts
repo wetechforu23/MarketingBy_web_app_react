@@ -94,6 +94,8 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https:", "data:"],
       imgSrc: ["'self'", "data:", "https:", "https://maps.googleapis.com", "https://maps.gstatic.com"],
       fontSrc: ["'self'", "https:", "data:"],
+      frameSrc: ["'self'", "https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com", "http://localhost:3001"],
+      frameAncestors: ["'self'", "https://marketingby.wetechforu.com", "https://www.marketingby.wetechforu.com"],
     },
   },
 }));
