@@ -1656,7 +1656,119 @@ router.post('/conversations/:conversationId/handback-to-ai', async (req, res) =>
 });
 
 // ==========================================
-// END CONVERSATION & SEND SUMMARY EMAIL TO CLIENT
+// END CONVERSATION (PUBLIC - Visitor can end their own conversation)
+// ==========================================
+router.post('/public/widget/:widgetKey/conversations/:conversationId/end', async (req, res) => {
+  try {
+    const { widgetKey, conversationId } = req.params;
+    const { send_email, email } = req.body;
+
+    // Get conversation details
+    const convResult = await pool.query(
+      `SELECT wc.*, w.widget_name, w.notification_email, w.client_id, c.client_name
+       FROM widget_conversations wc
+       JOIN widget_configs w ON w.id = wc.widget_id AND w.widget_key = $1
+       LEFT JOIN clients c ON c.id = w.client_id
+       WHERE wc.id = $2`,
+      [widgetKey, conversationId]
+    );
+
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    const conversation = convResult.rows[0];
+
+    // Update conversation status to 'ended'
+    await pool.query(
+      `UPDATE widget_conversations SET
+        status = 'ended',
+        updated_at = NOW()
+      WHERE id = $1`,
+      [conversationId]
+    );
+
+    // Add system message
+    await pool.query(
+      `INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+       VALUES ($1, $2, $3, NOW())`,
+      [conversationId, 'system', 'Conversation ended by visitor']
+    );
+
+    // Send email summary if requested
+    if (send_email && email) {
+      try {
+        // Get all messages for summary
+        const messagesResult = await pool.query(
+          `SELECT message_type, message_text, agent_name, created_at
+           FROM widget_messages
+           WHERE conversation_id = $1
+           ORDER BY created_at ASC`,
+          [conversationId]
+        );
+
+        const messagesSummary = messagesResult.rows
+          .map((m: any) => {
+            const sender = m.message_type === 'user' ? conversation.visitor_name || 'You' :
+                          m.message_type === 'human' ? m.agent_name || 'Agent' :
+                          'Bot';
+            return `${sender}: ${m.message_text}`;
+          })
+          .join('\n\n');
+
+        const clientBrandedName = conversation.widget_name || 'WeTechForU';
+
+        await emailService.sendEmail({
+          to: email,
+          from: `"${clientBrandedName}" <info@wetechforu.com>`,
+          subject: `Conversation Summary - ${clientBrandedName}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #4682B4;">Thank You for Contacting ${clientBrandedName}!</h2>
+              
+              <p>Hi ${conversation.visitor_name || 'there'},</p>
+              
+              <p>Thank you for chatting with us! Here's a summary of our conversation:</p>
+              
+              <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="margin-top: 0;">Conversation Transcript:</h3>
+                <pre style="white-space: pre-wrap; font-size: 14px; line-height: 1.6;">${messagesSummary}</pre>
+              </div>
+              
+              <p style="color: #666; font-size: 14px;">
+                If you have any further questions, feel free to start a new chat anytime!
+              </p>
+              
+              <p style="margin-top: 30px; color: #999; font-size: 12px;">
+                This is an automated summary of your conversation with ${clientBrandedName}.
+              </p>
+            </div>
+          `,
+          text: `Thank you for contacting ${clientBrandedName}!\n\nConversation Summary:\n\n${messagesSummary}`
+        });
+
+        console.log(`✅ Conversation summary email sent to ${email}`);
+      } catch (emailError) {
+        console.error('Failed to send conversation summary email:', emailError);
+        // Don't fail the request if email fails
+      }
+    }
+
+    console.log(`✅ Conversation ${conversationId} ended by visitor`);
+
+    res.json({ 
+      success: true, 
+      message: 'Conversation ended successfully',
+      email_sent: send_email && email ? true : false
+    });
+  } catch (error) {
+    console.error('❌ End conversation error:', error);
+    res.status(500).json({ error: 'Failed to end conversation' });
+  }
+});
+
+// ==========================================
+// END CONVERSATION & SEND SUMMARY EMAIL TO CLIENT (AUTHENTICATED - Agent endpoint)
 // ==========================================
 router.post('/conversations/:conversationId/end', async (req, res) => {
   try {

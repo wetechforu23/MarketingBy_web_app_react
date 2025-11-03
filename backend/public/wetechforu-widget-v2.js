@@ -901,11 +901,346 @@
       this.startPollingForAgentMessages();
     },
 
-    // Close chat
-    closeChat() {
+    // Close chat with confirmation and email summary option
+    async closeChat() {
+      // Check if there's an active conversation
+      const conversationId = this.state.conversationId;
+      if (!conversationId) {
+        // No conversation - just close
+        this.performClose();
+        return;
+      }
+
+      // Show confirmation dialog
+      const shouldClose = await this.showCloseConfirmation();
+      if (!shouldClose) {
+        return; // User cancelled
+      }
+
+      // Check if user wants email summary
+      const wantsEmail = await this.askForEmailSummary();
+      let emailToSend = null;
+
+      if (wantsEmail) {
+        // Get email from form data or ask
+        const formEmail = this.state.introFlow?.answers?.email || 
+                         this.state.introFlow?.answers?.email_address ||
+                         this.state.contactInfo?.email;
+
+        if (formEmail) {
+          emailToSend = formEmail;
+        } else {
+          // Ask for email
+          emailToSend = await this.askForEmail();
+          if (!emailToSend) {
+            // User cancelled email - still close
+            this.performClose();
+            return;
+          }
+        }
+
+        // Send email summary
+        if (emailToSend) {
+          try {
+            await fetch(`${this.config.backendUrl}/api/chat-widget/conversations/${conversationId}/send-expiry-email`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: emailToSend })
+            });
+            this.addBotMessage(`📧 Conversation summary will be sent to ${emailToSend}`);
+          } catch (error) {
+            console.error('Failed to send email summary:', error);
+          }
+        }
+      }
+
+      // End conversation on backend
+      try {
+        await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/end`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ send_email: wantsEmail, email: emailToSend })
+        });
+      } catch (error) {
+        console.error('Failed to end conversation:', error);
+      }
+
+      // Perform close
+      this.performClose();
+    },
+
+    // Show close confirmation dialog
+    showCloseConfirmation() {
+      return new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0,0,0,0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        `;
+
+        modal.innerHTML = `
+          <div style="
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+          ">
+            <h3 style="margin-top: 0; color: #333; font-size: 18px;">⚠️ Close Chat?</h3>
+            <p style="color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+              After closing this conversation, you will <strong>lose all chat history</strong> in this window.
+            </p>
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+              <button id="close-cancel" style="
+                padding: 10px 20px;
+                border: 2px solid #e0e0e0;
+                border-radius: 6px;
+                background: white;
+                color: #333;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+              ">Cancel</button>
+              <button id="close-confirm" style="
+                padding: 10px 20px;
+                border: none;
+                border-radius: 6px;
+                background: #dc3545;
+                color: white;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+              ">Close Chat</button>
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        modal.querySelector('#close-cancel').addEventListener('click', () => {
+          document.body.removeChild(modal);
+          resolve(false);
+        });
+
+        modal.querySelector('#close-confirm').addEventListener('click', () => {
+          document.body.removeChild(modal);
+          resolve(true);
+        });
+
+        // Close on background click
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            document.body.removeChild(modal);
+            resolve(false);
+          }
+        });
+      });
+    },
+
+    // Ask if user wants email summary
+    askForEmailSummary() {
+      return new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0,0,0,0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        `;
+
+        modal.innerHTML = `
+          <div style="
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+          ">
+            <h3 style="margin-top: 0; color: #333; font-size: 18px;">📧 Email Summary?</h3>
+            <p style="color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+              Would you like us to send a summary of this conversation to your email?
+            </p>
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+              <button id="email-no" style="
+                padding: 10px 20px;
+                border: 2px solid #e0e0e0;
+                border-radius: 6px;
+                background: white;
+                color: #333;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+              ">No, Thanks</button>
+              <button id="email-yes" style="
+                padding: 10px 20px;
+                border: none;
+                border-radius: 6px;
+                background: #2E86AB;
+                color: white;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+              ">Yes, Send Email</button>
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        modal.querySelector('#email-no').addEventListener('click', () => {
+          document.body.removeChild(modal);
+          resolve(false);
+        });
+
+        modal.querySelector('#email-yes').addEventListener('click', () => {
+          document.body.removeChild(modal);
+          resolve(true);
+        });
+
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            document.body.removeChild(modal);
+            resolve(false);
+          }
+        });
+      });
+    },
+
+    // Ask for email if not provided
+    askForEmail() {
+      return new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0,0,0,0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        `;
+
+        modal.innerHTML = `
+          <div style="
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+          ">
+            <h3 style="margin-top: 0; color: #333; font-size: 18px;">📧 Enter Your Email</h3>
+            <p style="color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 16px;">
+              Please enter your email address to receive the conversation summary:
+            </p>
+            <input 
+              type="email" 
+              id="close-email-input" 
+              placeholder="your.email@example.com"
+              style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #e0e0e0;
+                border-radius: 6px;
+                font-size: 14px;
+                margin-bottom: 16px;
+                box-sizing: border-box;
+              "
+            />
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+              <button id="email-skip" style="
+                padding: 10px 20px;
+                border: 2px solid #e0e0e0;
+                border-radius: 6px;
+                background: white;
+                color: #333;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+              ">Skip</button>
+              <button id="email-submit" style="
+                padding: 10px 20px;
+                border: none;
+                border-radius: 6px;
+                background: #2E86AB;
+                color: white;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+              ">Send</button>
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const input = modal.querySelector('#close-email-input');
+        input.focus();
+
+        modal.querySelector('#email-skip').addEventListener('click', () => {
+          document.body.removeChild(modal);
+          resolve(null);
+        });
+
+        const submitEmail = () => {
+          const email = input.value.trim();
+          if (email && email.includes('@')) {
+            document.body.removeChild(modal);
+            resolve(email);
+          } else {
+            alert('Please enter a valid email address');
+            input.focus();
+          }
+        };
+
+        modal.querySelector('#email-submit').addEventListener('click', submitEmail);
+        input.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') submitEmail();
+        });
+
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            document.body.removeChild(modal);
+            resolve(null);
+          }
+        });
+      });
+    },
+
+    // Perform the actual close (after confirmation)
+    performClose() {
       const chatWindow = document.getElementById('wetechforu-chat-window');
       chatWindow.style.display = 'none';
       this.state.isOpen = false;
+      
+      // ✅ Clear conversation from localStorage
+      const conversationId = this.state.conversationId;
+      if (conversationId) {
+        localStorage.removeItem(`wetechforu_conversation_${this.config.widgetKey}`);
+        console.log('🗑️ Removed conversation from localStorage:', conversationId);
+      }
       
       // ✅ Mark bot as closed for this session (don't auto-popup again)
       sessionStorage.setItem(`wetechforu_closed_${this.config.widgetKey}`, 'true');
@@ -913,6 +1248,10 @@
       
       // 📨 Stop polling for agent messages
       this.stopPollingForAgentMessages();
+      
+      // Reset conversation state
+      this.state.conversationId = null;
+      this.state.conversationEnded = true;
     },
 
     // Start intro flow (Enhanced with database questions)
