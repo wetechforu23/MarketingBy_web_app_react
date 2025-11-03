@@ -747,19 +747,25 @@ export default function ChatWidgetEditor() {
         }
       }
 
-      // Save WhatsApp settings if configured and client is selected
-      if (selectedClientId && (whatsappSettings.account_sid || whatsappConfigured)) {
+      // Save WhatsApp settings ONLY if user has entered new credentials (all three fields required)
+      // The enable_whatsapp flag is already saved in widget_configs above
+      if (selectedClientId && 
+          whatsappSettings.account_sid && 
+          whatsappSettings.account_sid.trim() &&
+          whatsappSettings.auth_token && 
+          whatsappSettings.auth_token.trim() &&
+          whatsappSettings.from_number && 
+          whatsappSettings.from_number.trim()) {
         try {
           await api.post('/whatsapp/settings', {
             client_id: selectedClientId,
-            account_sid: whatsappSettings.account_sid || undefined,
-            auth_token: whatsappSettings.auth_token || undefined,
-            from_number: whatsappSettings.from_number || undefined,
-            enable_whatsapp: whatsappEnabled
+            account_sid: whatsappSettings.account_sid.trim(),
+            auth_token: whatsappSettings.auth_token.trim(),
+            from_number: whatsappSettings.from_number.trim()
           })
         } catch (err: any) {
           console.error('Failed to save WhatsApp settings:', err)
-          // Don't fail the whole operation
+          // Don't fail the whole operation - widget settings are already saved
         }
       }
 
