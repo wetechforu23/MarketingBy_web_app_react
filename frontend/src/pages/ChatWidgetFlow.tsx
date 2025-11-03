@@ -662,31 +662,59 @@ export default function ChatWidgetFlow() {
                   </p>
                 </div>
                 {whatsappEnabled && (
-                  <div style={{
-                    background: '#f9f9f9',
-                    padding: '1rem',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    color: '#666'
-                  }}>
-                    <p>💡 To configure WhatsApp credentials and settings, please use the full Widget Editor page.</p>
-                    <button
-                      onClick={() => navigate(`/app/chat-widgets/${id}/edit`)}
-                      style={{
-                        marginTop: '1rem',
-                        padding: '10px 20px',
-                        background: '#2E86AB',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: '600'
-                      }}
-                    >
-                      <i className="fas fa-external-link-alt" style={{ marginRight: '8px' }}></i>
-                      Open Full Editor
-                    </button>
+                  <div style={{ display: 'grid', gap: '1rem' }}>
+                    {/* Enable Multiple WhatsApp Chats */}
+                    <div style={{
+                      padding: '12px',
+                      background: '#fff',
+                      borderRadius: '6px',
+                      border: '1px solid #ddd'
+                    }}>
+                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={enableMultipleWhatsAppChats}
+                          onChange={(e) => {
+                            setEnableMultipleWhatsAppChats(e.target.checked);
+                            setHasUnsavedChanges(true);
+                          }}
+                          style={{ marginRight: '8px', width: '18px', height: '18px' }}
+                        />
+                        <div>
+                          <span style={{ fontWeight: '600', fontSize: '14px' }}>💬 Enable Multiple Simultaneous WhatsApp Chats</span>
+                          <p style={{ fontSize: '12px', color: '#666', margin: '4px 0 0 0', lineHeight: '1.5' }}>
+                            Allow agent to chat with multiple users simultaneously via WhatsApp. When enabled, agent must prefix replies with <strong>#conversation_id</strong> to specify which conversation. Each message will show visitor name or session ID.
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+                    
+                    <div style={{
+                      background: '#f9f9f9',
+                      padding: '1rem',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      color: '#666'
+                    }}>
+                      <p>💡 To configure WhatsApp credentials and handover settings, please use the full Widget Editor page.</p>
+                      <button
+                        onClick={() => navigate(`/app/chat-widgets/${id}/edit`)}
+                        style={{
+                          marginTop: '1rem',
+                          padding: '10px 20px',
+                          background: '#2E86AB',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: '600'
+                        }}
+                      >
+                        <i className="fas fa-external-link-alt" style={{ marginRight: '8px' }}></i>
+                        Open Full Editor
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
