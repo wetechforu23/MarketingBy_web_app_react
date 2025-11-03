@@ -88,6 +88,14 @@ export default function SystemArchitecture() {
   // React Flow state
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  
+  // Search and filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Store original nodes/edges for filtering
+  const [allNodes, setAllNodes] = useState<Node[]>([]);
+  const [allEdges, setAllEdges] = useState<Edge[]>([]);
 
   // Color scheme for different table types
   const tableColors: { [key: string]: { bg: string; border: string } } = {
@@ -453,27 +461,49 @@ export default function SystemArchitecture() {
           </p>
         </div>
         {activeTab === 'erd' && (
-          <button
-            onClick={fetchSchema}
-            disabled={refreshing}
-            style={{
-              padding: '12px 24px',
-              background: refreshing ? '#ccc' : '#2E86AB',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: refreshing ? 'not-allowed' : 'pointer',
-              fontSize: '15px',
-              fontWeight: '600',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.2s'
-            }}
-          >
-            <i className={`fas ${refreshing ? 'fa-spinner fa-spin' : 'fa-sync-alt'}`}></i>
-            {refreshing ? 'Refreshing...' : 'Refresh Schema'}
-          </button>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setIsFullscreen(true)}
+              style={{
+                padding: '12px 24px',
+                background: '#4caf50',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '15px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s'
+              }}
+            >
+              <i className="fas fa-expand"></i>
+              Fullscreen
+            </button>
+            <button
+              onClick={fetchSchema}
+              disabled={refreshing}
+              style={{
+                padding: '12px 24px',
+                background: refreshing ? '#ccc' : '#2E86AB',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: refreshing ? 'not-allowed' : 'pointer',
+                fontSize: '15px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s'
+              }}
+            >
+              <i className={`fas ${refreshing ? 'fa-spinner fa-spin' : 'fa-sync-alt'}`}></i>
+              {refreshing ? 'Refreshing...' : 'Refresh Schema'}
+            </button>
+          </div>
         )}
       </div>
 
@@ -521,7 +551,56 @@ export default function SystemArchitecture() {
       <div style={{ background: 'white', borderRadius: '12px', padding: '2rem', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', minHeight: '600px' }}>
         {/* ERD Diagram Tab */}
         {activeTab === 'erd' && (
-          <div style={{ height: '800px', width: '100%' }}>
+          <div style={{ height: '800px', width: '100%', position: 'relative' }}>
+            {/* Search Bar */}
+            <div style={{
+              position: 'absolute',
+              top: '10px',
+              left: '10px',
+              zIndex: 10,
+              width: '300px',
+              background: 'white',
+              borderRadius: '8px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              padding: '8px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <i className="fas fa-search" style={{ color: '#666' }}></i>
+              <input
+                type="text"
+                placeholder="Search table (shows connected tables)..."
+                value={searchQuery}
+                onChange={handleSearchChange}
+                style={{
+                  border: 'none',
+                  outline: 'none',
+                  flex: 1,
+                  fontSize: '14px',
+                  color: '#333'
+                }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setNodes(allNodes);
+                    setEdges(allEdges);
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#666',
+                    padding: '4px'
+                  }}
+                >
+                  <i className="fas fa-times"></i>
+                </button>
+              )}
+            </div>
+            
             {error && (
               <div style={{
                 padding: '1rem',
@@ -545,6 +624,19 @@ export default function SystemArchitecture() {
                 color: '#2e7d32'
               }}>
                 ✅ Schema loaded at {new Date(schemaData.fetchedAt).toLocaleString()}
+              </div>
+            )}
+            {searchQuery && (
+              <div style={{
+                padding: '0.5rem 1rem',
+                background: '#fff3cd',
+                border: '1px solid #ffc107',
+                borderRadius: '8px',
+                marginBottom: '1rem',
+                fontSize: '13px',
+                color: '#856404'
+              }}>
+                🔍 Showing {nodes.length} connected table{nodes.length !== 1 ? 's' : ''} for "{searchQuery}"
               </div>
             )}
             {loading && !schemaData ? (
@@ -580,6 +672,28 @@ export default function SystemArchitecture() {
                 attributionPosition="bottom-left"
                 minZoom={0.2}
                 maxZoom={2}
+                defaultEdgeOptions={{
+                  type: 'smoothstep',
+                  animated: false,
+                  style: { stroke: '#2E86AB', strokeWidth: 2.5 },
+                  markerEnd: {
+                    type: 'arrowclosed',
+                    color: '#2E86AB',
+                    width: 20,
+                    height: 20,
+                  },
+                  labelStyle: { 
+                    fontSize: '11px', 
+                    fontWeight: '600',
+                    fill: '#1976d2',
+                    background: 'white',
+                    padding: '2px 4px',
+                  },
+                  labelBgStyle: {
+                    fill: 'white',
+                    fillOpacity: 0.9,
+                  },
+                }}
               >
                 <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
                 <Controls showInteractive={false} />
