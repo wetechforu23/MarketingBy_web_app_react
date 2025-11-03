@@ -15,6 +15,8 @@ export default function ChatWidgetEditor() {
   const [userRole, setUserRole] = useState('')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [isInitialLoad, setIsInitialLoad] = useState(true) // Track if we're still loading initial data
+  const [changesSummary, setChangesSummary] = useState<string[]>([]) // Track what changed
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false) // Show cancel confirmation dialog
 
   const [formData, setFormData] = useState({
     widget_name: '',
@@ -46,7 +48,7 @@ export default function ChatWidgetEditor() {
   const setIntroFlowEnabled = (value: boolean) => {
     setIntroFlowEnabledState(value)
     if (!isInitialLoad) {
-      setHasUnsavedChanges(true)
+      trackChange(`Intro Flow ${value ? 'Enabled' : 'Disabled'}`)
     }
   }
   const [introQuestions, setIntroQuestions] = useState([
@@ -65,7 +67,7 @@ export default function ChatWidgetEditor() {
   const setWhatsappEnabled = (value: boolean) => {
     setWhatsappEnabledState(value)
     if (!isInitialLoad) {
-      setHasUnsavedChanges(true)
+      trackChange(`WhatsApp Agent Handoff ${value ? 'Enabled' : 'Disabled'}`)
     }
   }
   const [whatsappSettings, setWhatsappSettings] = useState({
@@ -98,7 +100,7 @@ export default function ChatWidgetEditor() {
   const setEnableMultipleWhatsAppChatsWithTracking = (value: boolean) => {
     setEnableMultipleWhatsAppChats(value)
     if (!isInitialLoad) {
-      setHasUnsavedChanges(true)
+      trackChange(`Multiple WhatsApp Chats ${value ? 'Enabled' : 'Disabled'}`)
     }
   }
   const [savingHandover, setSavingHandover] = useState(false)
@@ -211,8 +213,9 @@ export default function ChatWidgetEditor() {
 
   const fetchWidget = async () => {
     try {
-      setIsInitialLoad(true) // Prevent hasUnsavedChanges from being set during load
-      setHasUnsavedChanges(false) // Reset unsaved changes flag when loading widget (not a change)
+        setIsInitialLoad(true) // Prevent hasUnsavedChanges from being set during load
+        setHasUnsavedChanges(false) // Reset unsaved changes flag when loading widget (not a change)
+        setChangesSummary([]) // Reset changes summary
       // Use single-widget endpoint so we can determine configured flags without exposing secrets
       const response = await api.get(`/chat-widget/widgets/${id}`)
       const widget = response.data
@@ -731,13 +734,62 @@ export default function ChatWidgetEditor() {
         widgetData.widget_specific_llm_key = aiApiKey
       }
 
+      let savedWidgetId = id
+      
       if (isEditMode) {
         await api.put(`/chat-widget/widgets/${id}`, widgetData)
-        setHasUnsavedChanges(false) // Clear unsaved changes flag after successful save
+        savedWidgetId = id
       } else {
-        await api.post('/chat-widget/widgets', widgetData)
-        setHasUnsavedChanges(false) // Clear unsaved changes flag after successful save
+        const createResponse = await api.post('/chat-widget/widgets', widgetData)
+        savedWidgetId = createResponse.data?.id
+        if (!savedWidgetId) {
+          throw new Error('Failed to create widget - no ID returned')
+        }
       }
+
+      // Save WhatsApp settings if configured and client is selected
+      if (selectedClientId && (whatsappSettings.account_sid || whatsappConfigured)) {
+        try {
+          await api.post('/whatsapp/settings', {
+            client_id: selectedClientId,
+            account_sid: whatsappSettings.account_sid || undefined,
+            auth_token: whatsappSettings.auth_token || undefined,
+            from_number: whatsappSettings.from_number || undefined,
+            enable_whatsapp: whatsappEnabled
+          })
+        } catch (err: any) {
+          console.error('Failed to save WhatsApp settings:', err)
+          // Don't fail the whole operation
+        }
+      }
+
+      // Save Handover Configuration if widget ID exists
+      if (savedWidgetId) {
+        try {
+          await api.put(`/handover/config/${savedWidgetId}`, {
+            enable_handover_choice: false,
+            handover_options: handoverOptions,
+            default_handover_method: defaultHandoverMethod,
+            webhook_url: webhookUrl || null,
+            webhook_secret: webhookSecret || null,
+            handover_whatsapp_number: handoverWhatsAppNumber || null
+          })
+
+          // Also save to client config if client_id is set
+          if (selectedClientId) {
+            await api.put(`/handover/config/client/${selectedClientId}`, {
+              handover_whatsapp_number: handoverWhatsAppNumber,
+              whatsapp_handover_content_sid: handoverTemplateSid
+            })
+          }
+        } catch (err: any) {
+          console.error('Failed to save handover config:', err)
+          // Don't fail the whole operation
+        }
+      }
+
+      setHasUnsavedChanges(false) // Clear unsaved changes flag after successful save
+      setChangesSummary([]) // Clear changes summary
       navigate('/app/chat-widgets')
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to save widget')
@@ -746,10 +798,25 @@ export default function ChatWidgetEditor() {
     }
   }
 
-  const handleChange = (field: string, value: any) => {
+  // Track changes with descriptive names
+  const trackChange = (description: string) => {
+    if (!isInitialLoad && !changesSummary.includes(description)) {
+      setChangesSummary(prev => [...prev, description])
+      setHasUnsavedChanges(true)
+    }
+  }
+
+  const handleChange = (field: string, value: any, description?: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     if (!isInitialLoad) {
-      setHasUnsavedChanges(true) // Track unsaved changes
+      setHasUnsavedChanges(true)
+      if (description) {
+        trackChange(description)
+      } else {
+        // Auto-generate description from field name
+        const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+        trackChange(`Changed ${fieldName}`)
+      }
     }
   }
 
@@ -2135,7 +2202,7 @@ export default function ChatWidgetEditor() {
                         onChange={(e) => {
                           setHandoverWhatsAppNumber(e.target.value)
                           if (!isInitialLoad) {
-                            setHasUnsavedChanges(true)
+                            trackChange('Changed WhatsApp Handover Phone Number')
                           }
                         }}
                         style={{
@@ -2157,7 +2224,7 @@ export default function ChatWidgetEditor() {
                         onChange={(e) => {
                           setHandoverTemplateSid(e.target.value)
                           if (!isInitialLoad) {
-                            setHasUnsavedChanges(true)
+                            trackChange('Changed WhatsApp Template SID')
                           }
                         }}
                         style={{
@@ -2173,37 +2240,7 @@ export default function ChatWidgetEditor() {
                   </div>
 
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      className="connect-btn"
-                      style={{ backgroundColor: '#25d366', color: '#fff' }}
-                      onClick={async () => {
-                        if (!selectedClientId) {
-                          alert('Select a client first')
-                          return
-                        }
-                        try {
-                          setSavingHandover(true)
-                          await api.put(`/handover/config/client/${selectedClientId}`, {
-                            handover_whatsapp_number: handoverWhatsAppNumber,
-                            whatsapp_handover_content_sid: handoverTemplateSid
-                          })
-                          alert('✅ Handover settings saved')
-                          setHasUnsavedChanges(false)
-                        } catch (e: any) {
-                          alert(`❌ Failed to save: ${e?.response?.data?.error || e.message}`)
-                        } finally {
-                          setSavingHandover(false)
-                        }
-                      }}
-                      disabled={savingHandover}
-                    >
-                      {savingHandover ? (
-                        <><i className="fas fa-spinner fa-spin" style={{ marginRight: '6px' }}></i> Saving...</>
-                      ) : (
-                        <><i className="fas fa-save" style={{ marginRight: '6px' }}></i> Save Handover Settings</>
-                      )}
-                    </button>
+                    {/* Save button removed - use main "Save Changes" button at bottom of page */}
                     <button
                       type="button"
                       className="connect-btn"
@@ -2374,29 +2411,7 @@ export default function ChatWidgetEditor() {
 
                   {/* Action Buttons */}
                   <div style={{ display: 'flex', gap: '10px', marginTop: '1.5rem', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      onClick={handleSaveWhatsAppSettings}
-                      disabled={savingWhatsApp || !whatsappSettings.account_sid || !whatsappSettings.auth_token || !whatsappSettings.from_number}
-                      style={{
-                        flex: 1,
-                        minWidth: '150px',
-                        padding: '12px',
-                        background: '#4682B4',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        opacity: (savingWhatsApp || !whatsappSettings.account_sid || !whatsappSettings.auth_token || !whatsappSettings.from_number) ? 0.5 : 1
-                      }}
-                    >
-                      {savingWhatsApp ? (
-                        <><i className="fas fa-spinner fa-spin"></i> Saving...</>
-                      ) : (
-                        <><i className="fas fa-save"></i> Save WhatsApp Settings</>
-                      )}
-                    </button>
+                    {/* Save button removed - use main "Save Changes" button at bottom of page */}
 
                     <button
                       type="button"
@@ -2524,7 +2539,7 @@ export default function ChatWidgetEditor() {
                         onChange={(e) => {
                           setHandoverWhatsAppNumber(e.target.value)
                           if (!isInitialLoad) {
-                            setHasUnsavedChanges(true)
+                            trackChange('Changed WhatsApp Handover Phone Number')
                           }
                         }}
                         style={{
@@ -2548,7 +2563,7 @@ export default function ChatWidgetEditor() {
                         onChange={(e) => {
                           setHandoverTemplateSid(e.target.value)
                           if (!isInitialLoad) {
-                            setHasUnsavedChanges(true)
+                            trackChange('Changed WhatsApp Template SID')
                           }
                         }}
                         style={{
@@ -2601,11 +2616,8 @@ export default function ChatWidgetEditor() {
                         cursor: 'pointer'
                       }}
                     >
-                      {savingHandover ? (
-                        <><i className="fas fa-spinner fa-spin" style={{ marginRight: '6px' }}></i> Saving...</>
-                      ) : (
-                        <><i className="fas fa-save" style={{ marginRight: '6px' }}></i> Save Handover Settings</>
-                      )}
+                      {/* Save button removed - use main "Save Changes" button at bottom */}
+                      Test Message
                     </button>
                     <button
                       type="button"
@@ -2885,7 +2897,8 @@ export default function ChatWidgetEditor() {
                           }
                           setHandoverOptions(newOptions)
                           if (!isInitialLoad) {
-                            setHasUnsavedChanges(true)
+                            const methodName = method === 'portal' ? 'Portal' : method === 'whatsapp' ? 'WhatsApp' : method === 'email' ? 'Email' : method === 'phone' ? 'Phone/SMS' : 'Webhook'
+                            trackChange(`${methodName} handover ${newOptions[method] ? 'enabled' : 'disabled'}`)
                           }
                         }}
                         style={{ marginRight: '8px', width: '18px', height: '18px' }}
@@ -2912,7 +2925,8 @@ export default function ChatWidgetEditor() {
                           }
                           setHandoverOptions(newOptions)
                           if (!isInitialLoad) {
-                            setHasUnsavedChanges(true)
+                            const methodName = method === 'portal' ? 'Portal' : method === 'whatsapp' ? 'WhatsApp' : method === 'email' ? 'Email' : method === 'phone' ? 'Phone/SMS' : 'Webhook'
+                            trackChange(`${methodName} handover ${newOptions[method] ? 'enabled' : 'disabled'}`)
                           }
                         }}
                         disabled={!whatsappConfigured}
@@ -2940,7 +2954,8 @@ export default function ChatWidgetEditor() {
                           }
                           setHandoverOptions(newOptions)
                           if (!isInitialLoad) {
-                            setHasUnsavedChanges(true)
+                            const methodName = method === 'portal' ? 'Portal' : method === 'whatsapp' ? 'WhatsApp' : method === 'email' ? 'Email' : method === 'phone' ? 'Phone/SMS' : 'Webhook'
+                            trackChange(`${methodName} handover ${newOptions[method] ? 'enabled' : 'disabled'}`)
                           }
                         }}
                         style={{ marginRight: '8px', width: '18px', height: '18px' }}
@@ -2967,7 +2982,8 @@ export default function ChatWidgetEditor() {
                           }
                           setHandoverOptions(newOptions)
                           if (!isInitialLoad) {
-                            setHasUnsavedChanges(true)
+                            const methodName = method === 'portal' ? 'Portal' : method === 'whatsapp' ? 'WhatsApp' : method === 'email' ? 'Email' : method === 'phone' ? 'Phone/SMS' : 'Webhook'
+                            trackChange(`${methodName} handover ${newOptions[method] ? 'enabled' : 'disabled'}`)
                           }
                         }}
                         disabled={!whatsappConfigured}
@@ -2995,7 +3011,8 @@ export default function ChatWidgetEditor() {
                           }
                           setHandoverOptions(newOptions)
                           if (!isInitialLoad) {
-                            setHasUnsavedChanges(true)
+                            const methodName = method === 'portal' ? 'Portal' : method === 'whatsapp' ? 'WhatsApp' : method === 'email' ? 'Email' : method === 'phone' ? 'Phone/SMS' : 'Webhook'
+                            trackChange(`${methodName} handover ${newOptions[method] ? 'enabled' : 'disabled'}`)
                           }
                         }}
                         style={{ marginRight: '8px', width: '18px', height: '18px' }}
@@ -3018,7 +3035,12 @@ export default function ChatWidgetEditor() {
                   </p>
                   <select
                     value={defaultHandoverMethod}
-                    onChange={(e) => setDefaultHandoverMethod(e.target.value)}
+                    onChange={(e) => {
+                      setDefaultHandoverMethod(e.target.value)
+                      if (!isInitialLoad) {
+                        trackChange(`Changed Default Handover Method to ${e.target.value}`)
+                      }
+                    }}
                     style={{
                       width: '100%',
                       padding: '10px',
@@ -3058,7 +3080,12 @@ export default function ChatWidgetEditor() {
                       <input
                         type="url"
                         value={webhookUrl}
-                        onChange={(e) => setWebhookUrl(e.target.value)}
+                        onChange={(e) => {
+                          setWebhookUrl(e.target.value)
+                          if (!isInitialLoad) {
+                            trackChange('Changed Webhook URL')
+                          }
+                        }}
                         placeholder="https://your-crm.com/webhooks/marketingby"
                         style={{
                           width: '100%',
@@ -3133,30 +3160,20 @@ export default function ChatWidgetEditor() {
                   </div>
                 )}
 
-                {/* Save Button */}
-                <button
-                  type="button"
-                  onClick={handleSaveHandoverConfig}
-                  disabled={savingHandover}
-                  style={{
-                    width: '100%',
-                    padding: '14px',
-                    background: '#2E86AB',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    opacity: savingHandover ? 0.6 : 1
-                  }}
-                >
-                  {savingHandover ? (
-                    <><i className="fas fa-spinner fa-spin"></i> Saving...</>
-                  ) : (
-                    <><i className="fas fa-save"></i> Save Handover Configuration</>
-                  )}
-                </button>
+                {/* Save button removed - use main "Save Changes" button at bottom of page */}
+                <div style={{
+                  padding: '12px',
+                  background: '#e3f2fd',
+                  borderRadius: '8px',
+                  border: '1px solid #2E86AB',
+                  fontSize: '14px',
+                  color: '#1976d2',
+                  textAlign: 'center',
+                  marginTop: '1rem'
+                }}>
+                  <i className="fas fa-info-circle" style={{ marginRight: '8px' }}></i>
+                  Use the "Save Changes" button at the bottom of the page to save all settings
+                </div>
           </div>
         )}
 
@@ -3717,7 +3734,13 @@ export default function ChatWidgetEditor() {
 
           <button
             type="button"
-            onClick={() => navigate('/app/chat-widgets')}
+            onClick={() => {
+              if (hasUnsavedChanges) {
+                setShowCancelConfirm(true)
+              } else {
+                navigate('/app/chat-widgets')
+              }
+            }}
             style={{
               padding: '14px 24px',
               background: '#6c757d',
@@ -3733,6 +3756,93 @@ export default function ChatWidgetEditor() {
           </button>
         </div>
       </form>
+
+      {/* Cancel Confirmation Dialog */}
+      {showCancelConfirm && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '2rem',
+            maxWidth: '500px',
+            width: '90%',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '1rem', color: '#d32f2f', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <i className="fas fa-exclamation-triangle"></i>
+              You have unsaved changes
+            </h3>
+            <p style={{ marginBottom: '1rem', color: '#666' }}>
+              Are you sure you want to leave? All unsaved changes will be lost.
+            </p>
+            {changesSummary.length > 0 && (
+              <div style={{
+                background: '#f5f5f5',
+                padding: '1rem',
+                borderRadius: '8px',
+                marginBottom: '1rem',
+                maxHeight: '200px',
+                overflowY: 'auto'
+              }}>
+                <strong style={{ display: 'block', marginBottom: '0.5rem', color: '#333' }}>Changes Summary:</strong>
+                <ul style={{ margin: 0, paddingLeft: '1.5rem', color: '#555' }}>
+                  {changesSummary.map((change, idx) => (
+                    <li key={idx} style={{ marginBottom: '0.25rem' }}>{change}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                style={{
+                  padding: '10px 20px',
+                  background: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '600'
+                }}
+              >
+                Continue Editing
+              </button>
+              <button
+                onClick={() => {
+                  setShowCancelConfirm(false)
+                  setHasUnsavedChanges(false)
+                  setChangesSummary([])
+                  navigate('/app/chat-widgets')
+                }}
+                style={{
+                  padding: '10px 20px',
+                  background: '#d32f2f',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '600'
+                }}
+              >
+                Discard Changes & Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
