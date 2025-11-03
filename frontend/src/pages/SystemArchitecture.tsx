@@ -14,17 +14,17 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-// Custom Node Component for Database Tables
+// Custom Node Component for Database Tables - Larger Size
 const TableNode = ({ data, selected }: any) => {
   const isHighlighted = data.highlighted || selected;
   return (
     <div style={{
       background: data.color || '#e3f2fd',
       border: isHighlighted ? `3px solid #ff5722` : `2px solid ${data.borderColor || '#2E86AB'}`,
-      borderRadius: '8px',
-      padding: '12px',
-      minWidth: '220px',
-      maxWidth: '280px',
+      borderRadius: '10px',
+      padding: '16px',
+      minWidth: '300px',
+      maxWidth: '320px',
       boxShadow: isHighlighted 
         ? '0 4px 12px rgba(255, 87, 34, 0.4)' 
         : '0 2px 8px rgba(0,0,0,0.1)',
@@ -35,16 +35,16 @@ const TableNode = ({ data, selected }: any) => {
     }}>
       <div style={{
         fontWeight: 'bold',
-        fontSize: '14px',
-        marginBottom: '8px',
+        fontSize: '16px',
+        marginBottom: '10px',
         color: data.borderColor || '#1976d2',
-        borderBottom: `1px solid ${data.borderColor || '#1976d2'}`,
-        paddingBottom: '4px'
+        borderBottom: `2px solid ${data.borderColor || '#1976d2'}`,
+        paddingBottom: '6px'
       }}>
         {data.label}
       </div>
-      <div style={{ fontSize: '11px', color: '#333', lineHeight: '1.5' }}>
-        {data.columns?.slice(0, 6).map((col: any, idx: number) => (
+      <div style={{ fontSize: '12px', color: '#333', lineHeight: '1.6' }}>
+        {data.columns?.slice(0, 12).map((col: any, idx: number) => (
           <div key={idx} style={{ marginBottom: '3px', padding: '2px 0' }}>
             <span style={{ fontWeight: '600', color: '#2c3e50' }}>
               {col.pk && '🔑 '}
@@ -52,14 +52,14 @@ const TableNode = ({ data, selected }: any) => {
               {col.fk && '🔗 '}
               {col.name}
             </span>
-            <span style={{ color: '#666', marginLeft: '6px', fontSize: '10px', fontFamily: 'monospace' }}>
+            <span style={{ color: '#666', marginLeft: '8px', fontSize: '11px', fontFamily: 'monospace' }}>
               ({col.type})
             </span>
           </div>
         ))}
-        {data.columns?.length > 6 && (
-          <div style={{ color: '#999', fontStyle: 'italic', marginTop: '4px', fontSize: '10px' }}>
-            +{data.columns.length - 6} more columns...
+        {data.columns?.length > 12 && (
+          <div style={{ color: '#999', fontStyle: 'italic', marginTop: '6px', fontSize: '11px' }}>
+            +{data.columns.length - 12} more columns...
           </div>
         )}
       </div>
@@ -158,53 +158,141 @@ export default function SystemArchitecture() {
     const newNodes: Node[] = [];
     const newEdges: Edge[] = [];
     const nodeMap: { [key: string]: Node } = {};
+    
+    // Build relationship graph: track which tables reference which tables
+    const referencedBy: { [key: string]: Set<string> } = {}; // table -> set of tables that reference it
+    const references: { [key: string]: Set<string> } = {}; // table -> set of tables it references
+    
+    // Initialize maps
+    tables.forEach(table => {
+      referencedBy[table.name] = new Set<string>();
+      references[table.name] = new Set<string>();
+    });
 
-    // Calculate positions in a grid layout
-    const cols = Math.ceil(Math.sqrt(tables.length));
-    let row = 0, col = 0;
-    const spacingX = 300;
-    const spacingY = 250;
+    // First pass: collect all foreign key relationships
+    tables.forEach((table) => {
+      (table.columns || []).forEach((col: any) => {
+        if (col.fk) {
+          let sourceTable: string;
+          
+          if (typeof col.fk === 'string') {
+            const parts = col.fk.split('.');
+            sourceTable = parts[0];
+          } else if (col.fk && typeof col.fk === 'object' && col.fk.table) {
+            sourceTable = col.fk.table;
+          } else {
+            return;
+          }
+          
+          const targetTable = table.name;
+          
+          if (sourceTable !== targetTable && tables.some(t => t.name === sourceTable)) {
+            // targetTable references sourceTable
+            references[targetTable].add(sourceTable);
+            referencedBy[sourceTable].add(targetTable);
+          }
+        }
+      });
+    });
 
-    tables.forEach((table, index) => {
-      const category = getTableCategory(table.name);
-      const colors = tableColors[category] || tableColors.core;
+    // Determine hierarchy levels: main tables (referenced but don't reference many) go to top
+    // Tables that reference others but aren't referenced go to top
+    // Tables that are referenced by many go to top
+    const getTableLevel = (tableName: string): number => {
+      const refCount = references[tableName].size;
+      const referencedByCount = referencedBy[tableName].size;
       
-      const nodeId = table.name;
-      const position = { x: col * spacingX + 50, y: row * spacingY + 50 };
+      // Main tables: high referencedBy count, low ref count
+      if (referencedByCount > 2 && refCount <= 1) return 0; // Top level
+      if (referencedByCount > 0 && refCount === 0) return 0; // Top level
+      if (referencedByCount === 0 && refCount === 0) return 0; // Standalone
+      if (referencedByCount === 0 && refCount > 0) return 1; // Second level
+      return 2; // Third level and below
+    };
 
-      // Get columns for display
-      const displayColumns = (table.columns || []).map((col: any) => ({
-        name: col.name,
-        type: col.type || col.data_type || 'unknown',
-        pk: col.pk || false,
-        uk: col.uk || false,
-        fk: col.fk || null
-      })).slice(0, 8);
+    // Sort tables by level, then by name
+    const sortedTables = [...tables].sort((a, b) => {
+      const levelA = getTableLevel(a.name);
+      const levelB = getTableLevel(b.name);
+      if (levelA !== levelB) return levelA - levelB;
+      return a.name.localeCompare(b.name);
+    });
 
-      const node: Node = {
-        id: nodeId,
-        type: 'tableNode',
-        position,
-        data: {
-          label: table.name.toUpperCase().replace(/_/g, ' '),
-          columns: displayColumns,
-          color: colors.bg,
-          borderColor: colors.border,
-          fullColumns: table.columns || [],
-          description: table.description
-        },
-        draggable: true,
-      };
+    // Hierarchical layout: larger tables, bigger spacing
+    const spacingX = 400; // Increased spacing
+    const spacingY = 350; // Increased vertical spacing
+    const nodeWidth = 320; // Larger table width
+    const nodeHeight = 280; // Larger table height
+    
+    const levelGroups: { [level: number]: any[] } = {};
+    sortedTables.forEach(table => {
+      const level = getTableLevel(table.name);
+      if (!levelGroups[level]) levelGroups[level] = [];
+      levelGroups[level].push(table);
+    });
 
-      newNodes.push(node);
-      nodeMap[nodeId] = node;
+    // Position tables hierarchically
+    let currentY = 50;
+    Object.keys(levelGroups).sort((a, b) => Number(a) - Number(b)).forEach(levelStr => {
+      const level = Number(levelStr);
+      const tablesInLevel = levelGroups[level];
+      
+      // Calculate how many columns we can fit (assuming max width of 2000px per level)
+      const maxWidth = 2400;
+      const colsPerLevel = Math.floor(maxWidth / spacingX);
+      const cols = Math.min(colsPerLevel, tablesInLevel.length);
+      
+      let col = 0;
+      let row = 0;
+      
+      tablesInLevel.forEach((table, index) => {
+        const category = getTableCategory(table.name);
+        const colors = tableColors[category] || tableColors.core;
+        
+        const nodeId = table.name;
+        const x = col * spacingX + 100;
+        const y = currentY + row * spacingY;
 
-      // Move to next position
-      col++;
-      if (col >= cols) {
-        col = 0;
-        row++;
-      }
+        // Get ALL columns for display (show more)
+        const displayColumns = (table.columns || []).map((col: any) => ({
+          name: col.name,
+          type: col.type || col.data_type || 'unknown',
+          pk: col.pk || false,
+          uk: col.uk || false,
+          fk: col.fk || null
+        })).slice(0, 12); // Show more columns
+
+        const node: Node = {
+          id: nodeId,
+          type: 'tableNode',
+          position: { x, y },
+          data: {
+            label: table.name.toUpperCase().replace(/_/g, ' '),
+            columns: displayColumns,
+            color: colors.bg,
+            borderColor: colors.border,
+            fullColumns: table.columns || [],
+            description: table.description
+          },
+          draggable: true,
+          style: {
+            width: nodeWidth,
+            height: 'auto',
+          }
+        };
+
+        newNodes.push(node);
+        nodeMap[nodeId] = node;
+
+        col++;
+        if (col >= cols) {
+          col = 0;
+          row++;
+        }
+      });
+      
+      // Move to next level (add spacing between levels)
+      currentY += (row + 1) * spacingY + 100;
     });
 
     // Generate edges from foreign keys
@@ -692,7 +780,7 @@ export default function SystemArchitecture() {
       <div style={{ background: 'white', borderRadius: '12px', padding: '2rem', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', minHeight: '600px' }}>
         {/* ERD Diagram Tab */}
         {activeTab === 'erd' && (
-          <div style={{ height: '800px', width: '100%', position: 'relative' }}>
+          <div style={{ height: '800px', width: '100%', position: 'relative', overflow: 'hidden' }}>
             {/* Search Bar */}
             <div style={{
               position: 'absolute',
@@ -810,35 +898,38 @@ export default function SystemArchitecture() {
                 nodeTypes={nodeTypes}
                 connectionMode={ConnectionMode.Loose}
                 fitView
-                fitViewOptions={{ padding: 0.2, maxZoom: 1.5 }}
+                fitViewOptions={{ padding: 0.3, maxZoom: 1.2 }}
                 attributionPosition="bottom-left"
-                minZoom={0.2}
-                maxZoom={2}
+                minZoom={0.1}
+                maxZoom={3}
+                panOnScroll={true}
+                panOnDrag={true}
                 defaultEdgeOptions={{
                   type: 'smoothstep',
                   animated: false,
                   style: { 
                     stroke: '#2E86AB', 
-                    strokeWidth: 3,
+                    strokeWidth: 4,
+                    zIndex: 1,
                   },
                   markerEnd: {
                     type: 'arrowclosed',
                     color: '#2E86AB',
-                    width: 24,
-                    height: 24,
+                    width: 28,
+                    height: 28,
                   },
                   labelStyle: { 
-                    fontSize: '12px', 
+                    fontSize: '13px', 
                     fontWeight: '700',
                     fill: '#155a8a',
                     background: 'white',
-                    padding: '4px 8px',
-                    border: '1px solid #2E86AB',
-                    borderRadius: '4px',
+                    padding: '5px 10px',
+                    border: '2px solid #2E86AB',
+                    borderRadius: '5px',
                   },
                   labelBgStyle: {
                     fill: 'white',
-                    fillOpacity: 0.95,
+                    fillOpacity: 0.98,
                   },
                 }}
               >
@@ -1324,13 +1415,13 @@ export default function SystemArchitecture() {
             </button>
           </div>
           
-          {/* Fullscreen ERD Content */}
+          {/* Fullscreen ERD Content - Uses Full Browser Viewport */}
           <div style={{ 
-            flex: 1, 
             position: 'relative', 
             overflow: 'hidden',
-            width: '100%',
-            height: 'calc(100vh - 80px)' // Full viewport minus header
+            width: '100vw',
+            height: 'calc(100vh - 80px)', // Full viewport height minus header (~80px)
+            flex: '1 1 auto'
           }}>
             {/* Search Bar in Fullscreen */}
             <div style={{
@@ -1381,7 +1472,7 @@ export default function SystemArchitecture() {
               )}
             </div>
             
-            <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
+            <div style={{ width: '100%', height: '100%' }}>
               <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -1390,38 +1481,41 @@ export default function SystemArchitecture() {
                 nodeTypes={nodeTypes}
                 connectionMode={ConnectionMode.Loose}
                 fitView
-                fitViewOptions={{ padding: 0.2, maxZoom: 1.5 }}
+                fitViewOptions={{ padding: 0.3, maxZoom: 1.2 }}
                 attributionPosition="bottom-left"
                 minZoom={0.1}
                 maxZoom={3}
-              defaultEdgeOptions={{
-                type: 'smoothstep',
-                animated: false,
-                style: { 
-                  stroke: '#2E86AB', 
-                  strokeWidth: 3,
-                },
-                markerEnd: {
-                  type: 'arrowclosed',
-                  color: '#2E86AB',
-                  width: 24,
-                  height: 24,
-                },
-                labelStyle: { 
-                  fontSize: '12px', 
-                  fontWeight: '700',
-                  fill: '#155a8a',
-                  background: 'white',
-                  padding: '4px 8px',
-                  border: '1px solid #2E86AB',
-                  borderRadius: '4px',
-                },
-                labelBgStyle: {
-                  fill: 'white',
-                  fillOpacity: 0.95,
-                },
-              }}
-            >
+                panOnScroll={true}
+                panOnDrag={true}
+                defaultEdgeOptions={{
+                  type: 'smoothstep',
+                  animated: false,
+                  style: { 
+                    stroke: '#2E86AB', 
+                    strokeWidth: 4,
+                    zIndex: 1,
+                  },
+                  markerEnd: {
+                    type: 'arrowclosed',
+                    color: '#2E86AB',
+                    width: 28,
+                    height: 28,
+                  },
+                  labelStyle: { 
+                    fontSize: '13px', 
+                    fontWeight: '700',
+                    fill: '#155a8a',
+                    background: 'white',
+                    padding: '5px 10px',
+                    border: '2px solid #2E86AB',
+                    borderRadius: '5px',
+                  },
+                  labelBgStyle: {
+                    fill: 'white',
+                    fillOpacity: 0.98,
+                  },
+                }}
+              >
               <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
               <Controls showInteractive={false} />
               <MiniMap

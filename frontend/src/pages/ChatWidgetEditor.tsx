@@ -95,6 +95,12 @@ export default function ChatWidgetEditor() {
   const [handoverWhatsAppNumber, setHandoverWhatsAppNumber] = useState('')
   const [handoverTemplateSid, setHandoverTemplateSid] = useState('')
   const [enableMultipleWhatsAppChats, setEnableMultipleWhatsAppChats] = useState(false)
+  const setEnableMultipleWhatsAppChatsWithTracking = (value: boolean) => {
+    setEnableMultipleWhatsAppChats(value)
+    if (!isInitialLoad) {
+      setHasUnsavedChanges(true)
+    }
+  }
   const [savingHandover, setSavingHandover] = useState(false)
   const [whatsappEditMode, setWhatsappEditMode] = useState(false)
   const [testingWebhook, setTestingWebhook] = useState(false)
@@ -2107,12 +2113,7 @@ export default function ChatWidgetEditor() {
                       <input
                         type="checkbox"
                         checked={enableMultipleWhatsAppChats}
-                        onChange={(e) => {
-                          setEnableMultipleWhatsAppChats(e.target.checked)
-                          if (!isInitialLoad) {
-                            setHasUnsavedChanges(true)
-                          }
-                        }}
+                      onChange={(e) => setEnableMultipleWhatsAppChatsWithTracking(e.target.checked)}
                         style={{ marginRight: '8px', width: '18px', height: '18px' }}
                       />
                       <div>
@@ -2487,10 +2488,7 @@ export default function ChatWidgetEditor() {
                     <input
                       type="checkbox"
                       checked={enableMultipleWhatsAppChats}
-                      onChange={(e) => {
-                        setEnableMultipleWhatsAppChats(e.target.checked)
-                        setHasUnsavedChanges(true)
-                      }}
+                      onChange={(e) => setEnableMultipleWhatsAppChatsWithTracking(e.target.checked)}
                       style={{ marginRight: '12px', width: '20px', height: '20px' }}
                     />
                     <div>
