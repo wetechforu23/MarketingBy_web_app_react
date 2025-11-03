@@ -3399,24 +3399,45 @@
                 });
               }
               
-              // Show expiration message (but DON'T clear existing messages)
+              // Notify and CLEAR previous messages for privacy
+              const messagesDiv = document.getElementById('wetechforu-messages');
               this.addBotMessage('⏰ This conversation has been inactive for a while. I\'m turning off the chat here.');
+              this.addBotMessage('🔒 For your privacy, I\'ll remove previous messages from this chat window.');
               if (statusData.visitor_email) {
-                this.addBotMessage(`📧 I've sent a summary of our conversation to ${statusData.visitor_email}. All conversation history will be removed.`);
+                this.addBotMessage(`📧 A summary has been sent to ${statusData.visitor_email}, and shared with our agent if needed.`);
+              } else {
+                this.addBotMessage('📧 A summary has been shared with our agent if needed.');
               }
-              this.addBotMessage('🔄 Let\'s start fresh! I\'ll ask you a few questions again to help you better.');
-              
+
+              if (messagesDiv) {
+                setTimeout(() => {
+                  messagesDiv.innerHTML = '';
+                  const separator = document.createElement('div');
+                  separator.style.cssText = `
+                    text-align: center;
+                    margin: 12px 0;
+                    padding: 6px 0;
+                    border-top: 1px solid #ddd;
+                    border-bottom: 1px solid #ddd;
+                    color: #666;
+                    font-size: 12px;
+                    background: #f9f9f9;
+                  `;
+                  separator.textContent = '— Session Ended —';
+                  messagesDiv.appendChild(separator);
+                  this.addBotMessage('🔄 Let\'s start fresh! I\'ll ask you a few questions again to help you better.');
+                }, 800);
+              }
+
               // Clear conversation from localStorage
               localStorage.removeItem(`wetechforu_conversation_${this.config.widgetKey}`);
-              
-              // Reset state (but keep messages visible)
+
+              // Reset state
               this.state.conversationId = null;
               this.state.introFlow.isComplete = false;
               this.state.hasShownIntro = false;
-              
-              // DON'T clear messages UI - keep them visible
-              
-              console.log('⏰ Conversation expired - reset');
+
+              console.log('⏰ Conversation expired - reset and cleared');
             } else if (statusData.is_warning_threshold && !hasShownWarning) {
               // Show warning only once
               hasShownWarning = true;

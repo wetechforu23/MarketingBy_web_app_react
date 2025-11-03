@@ -294,15 +294,36 @@ export class ConversationInactivityService {
       WHERE id = $2
     `, [`Auto-ended due to ${reason}`, conv.conversation_id]);
 
-    // Add system message
+    // Add system message (ephemeral - will be purged after email is sent)
     await pool.query(`
       INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
       VALUES ($1, 'system', $2, NOW())
-    `, [conv.conversation_id, '📞 This conversation has been automatically ended due to inactivity. A summary has been sent to your email if available.']);
+    `, [conv.conversation_id, '📞 This conversation has been automatically ended due to inactivity. We will send a summary to you (if email available) and to our agent. Conversation history will now be removed for your privacy.']);
 
     // Send summary email if visitor email exists
     if (conv.visitor_email) {
       await this.sendInactivitySummaryEmail(conv);
+    }
+
+    // Purge conversation messages to keep only high-level status (privacy + cost control)
+    try {
+      await pool.query(`
+        DELETE FROM widget_messages
+        WHERE conversation_id = $1
+      `, [conv.conversation_id]);
+
+      // Optionally leave a lightweight audit in conversation row
+      await pool.query(`
+        UPDATE widget_conversations
+        SET last_message = 'Conversation purged after inactivity',
+            message_count = 0,
+            updated_at = NOW()
+        WHERE id = $1
+      `, [conv.conversation_id]);
+
+      console.log(`🧹 Purged messages for conversation ${conv.conversation_id}`);
+    } catch (purgeErr) {
+      console.error('❌ Error purging conversation messages:', purgeErr);
     }
 
     console.log(`✅ Auto-ended conversation ${conv.conversation_id}`);
