@@ -1345,6 +1345,36 @@
       this.state.introFlow.isActive = false;
       this.state.introFlow.isComplete = true;
 
+      // ✅ IMPORTANT: Store form data in a way that's accessible for agent handoff
+      // Map form answers to contact info format for easy access
+      if (this.state.introFlow.answers) {
+        const answers = this.state.introFlow.answers;
+        
+        // Build full name from first_name and last_name
+        let fullName = '';
+        if (answers.first_name && answers.last_name) {
+          fullName = `${answers.first_name} ${answers.last_name}`;
+        } else if (answers.first_name) {
+          fullName = answers.first_name;
+        } else if (answers.name) {
+          fullName = answers.name;
+        }
+        
+        const email = answers.email || answers.email_address || null;
+        const phone = answers.phone || answers.phone_number || answers.mobile || null;
+        
+        // Store in both formats for compatibility
+        if (fullName && (email || phone)) {
+          this.state.contactInfo = {
+            name: fullName,
+            email: email,
+            phone: phone,
+            reason: answers.message || answers.question || answers.reason || 'Visitor requested to speak with an agent'
+          };
+          console.log('✅ Contact info stored from intro flow:', this.state.contactInfo);
+        }
+      }
+
       // Show completion message and ready to help
       setTimeout(() => {
         this.addBotMessage("✅ Thank you! I have all the information I need.");
@@ -1598,13 +1628,27 @@
     // Request live agent - Collect contact info
     requestLiveAgent() {
       console.log('🔍 requestLiveAgent() called');
-      console.log('📋 Intro flow state:', this.state.introFlow);
+      console.log('📋 Intro flow state:', {
+        isComplete: this.state.introFlow?.isComplete,
+        hasAnswers: !!this.state.introFlow?.answers,
+        answers: this.state.introFlow?.answers
+      });
       console.log('📋 Contact info state:', this.state.contactInfo);
       
-      // ✅ FIRST: Check if we already have contact info from intro flow
+      // ✅ FIRST: Check if contact info already exists (from form or previous collection)
+      if (this.state.contactInfo && this.state.contactInfo.name && (this.state.contactInfo.email || this.state.contactInfo.phone)) {
+        console.log('✅ Contact info already exists, skipping questions:', this.state.contactInfo);
+        this.addBotMessage("⏳ Processing your request...");
+        setTimeout(() => {
+          this.submitToLiveAgent();
+        }, 500);
+        return;
+      }
+      
+      // ✅ SECOND: Check if we have contact info from intro flow
       if (this.state.introFlow && this.state.introFlow.isComplete && this.state.introFlow.answers) {
         const answers = this.state.introFlow.answers;
-        console.log('📝 Intro flow answers:', answers);
+        console.log('📝 Intro flow answers found:', answers);
         
         // Build full name from first_name and last_name
         let fullName = '';
@@ -1630,20 +1674,12 @@
           };
           
           // Skip asking questions - go directly to submit
+          this.addBotMessage("⏳ Processing your request...");
           setTimeout(() => {
             this.submitToLiveAgent();
           }, 500);
           return;
         }
-      }
-      
-      // ✅ SECOND: If contact info already collected, skip questions
-      if (this.state.contactInfo && this.state.contactInfo.name && (this.state.contactInfo.email || this.state.contactInfo.phone)) {
-        console.log('✅ Contact info already exists, skipping questions');
-        setTimeout(() => {
-          this.submitToLiveAgent();
-        }, 500);
-        return;
       }
       
       // ✅ THIRD: Only ask if we don't have the info
