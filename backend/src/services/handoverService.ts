@@ -386,14 +386,22 @@ export class HandoverService {
   private static async handleWhatsAppHandover(handoverRequest: any) {
     const client = await pool.connect();
     try {
-      // ✅ Check if multiple chats are enabled
-      const widgetSettings = await client.query(`
-        SELECT enable_multiple_whatsapp_chats
+      // ✅ Get widget config (including multiple chats setting) in one query
+      const widgetConfig = await client.query(`
+        SELECT 
+          handover_whatsapp_number,
+          widget_name,
+          client_id,
+          enable_multiple_whatsapp_chats
         FROM widget_configs
         WHERE id = $1
       `, [handoverRequest.widget_id]);
       
-      const enableMultipleChats = widgetSettings.rows[0]?.enable_multiple_whatsapp_chats || false;
+      if (widgetConfig.rows.length === 0) {
+        throw new Error('Widget configuration not found');
+      }
+      
+      const enableMultipleChats = widgetConfig.rows[0]?.enable_multiple_whatsapp_chats || false;
       
       // ✅ Only check if agent is busy if multiple chats are NOT enabled
       if (!enableMultipleChats) {
@@ -421,20 +429,6 @@ export class HandoverService {
           
           throw new Error('AGENT_BUSY'); // Special error to handle in createHandoverRequest
         }
-      }
-
-      // 1) Get widget config to find client's handover WhatsApp number
-      const widgetConfig = await client.query(`
-        SELECT 
-          handover_whatsapp_number,
-          widget_name,
-          client_id
-        FROM widget_configs
-        WHERE id = $1
-      `, [handoverRequest.widget_id]);
-
-      if (widgetConfig.rows.length === 0) {
-        throw new Error('Widget configuration not found');
       }
 
       // 2) Get client info
@@ -542,16 +536,7 @@ export class HandoverService {
         visitorInfo.push(`Email: ${handoverRequest.visitor_email}`);
       }
 
-      // Get widget config to check if multiple chats are enabled
-      const widgetSettings = await client.query(`
-        SELECT enable_multiple_whatsapp_chats
-        FROM widget_configs
-        WHERE id = $1
-      `, [handoverRequest.widget_id]);
-      
-      const enableMultipleChats = widgetSettings.rows[0]?.enable_multiple_whatsapp_chats || false;
-      
-      // Build notification message with conversation identifier
+      // Build notification message with conversation identifier (enableMultipleChats already set above)
       const visitorName = handoverRequest.visitor_name || `Visitor ${handoverRequest.conversation_id}`;
       const conversationIdentifier = enableMultipleChats 
         ? `[#${handoverRequest.conversation_id}] ${visitorName}`
