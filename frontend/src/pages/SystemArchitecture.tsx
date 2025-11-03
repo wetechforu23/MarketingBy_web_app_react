@@ -947,18 +947,33 @@ export default function SystemArchitecture() {
               marginBottom: '1rem'
             }}>
               <strong>🔐 How to Authenticate in Swagger:</strong>
-              <ol style={{ marginTop: '0.5rem', paddingLeft: '1.5rem', lineHeight: '1.8' }}>
-                <li>Make sure you're logged in to the MarketingBy platform in the same browser</li>
-                <li>Open browser DevTools (F12 or Right-click → Inspect)</li>
-                <li>Go to <strong>Application</strong> tab → <strong>Cookies</strong> → Your domain</li>
-                <li>Find <strong>connect.sid</strong> cookie and copy its <strong>Value</strong></li>
-                <li>In Swagger UI, click the <strong>🔒 Authorize</strong> button (top right)</li>
-                <li>In the modal, paste the <strong>connect.sid</strong> value into the "Value" field</li>
-                <li>Click <strong>Authorize</strong> and then <strong>Close</strong></li>
-                <li>Now you can test authenticated endpoints!</li>
-              </ol>
-              <p style={{ marginTop: '0.75rem', marginBottom: 0, fontStyle: 'italic' }}>
-                <strong>Note:</strong> If Swagger UI is in an iframe from a different domain, you may need to open it in a new window to access cookies.
+              <div style={{ marginTop: '0.75rem' }}>
+                <div style={{ marginBottom: '1rem', padding: '0.75rem', background: '#e3f2fd', borderRadius: '6px', borderLeft: '4px solid #2196f3' }}>
+                  <strong style={{ color: '#1976d2' }}>Method 1: Open in New Window (Easiest)</strong>
+                  <ol style={{ marginTop: '0.5rem', paddingLeft: '1.5rem', lineHeight: '1.8', fontSize: '12px' }}>
+                    <li>Click the <strong>"Open in New Window"</strong> button above (top right of iframe)</li>
+                    <li>This opens Swagger UI in a new tab from the same origin</li>
+                    <li>Your session cookies are automatically included!</li>
+                    <li>You can test APIs immediately without manual authorization</li>
+                  </ol>
+                </div>
+                <div style={{ padding: '0.75rem', background: '#fff9e6', borderRadius: '6px', borderLeft: '4px solid #ff9800' }}>
+                  <strong style={{ color: '#f57c00' }}>Method 2: Manual Cookie Authorization</strong>
+                  <ol style={{ marginTop: '0.5rem', paddingLeft: '1.5rem', lineHeight: '1.8', fontSize: '12px' }}>
+                    <li>Make sure you're logged in to MarketingBy in the same browser</li>
+                    <li>Open DevTools (Press <strong>F12</strong> or Right-click → Inspect)</li>
+                    <li>Go to <strong>Application</strong> tab → <strong>Cookies</strong> → Your domain</li>
+                    <li>Find the session cookie (name: <strong>connect.sid</strong> or <strong>marketingby.sid</strong>)</li>
+                    <li>Copy the entire <strong>Value</strong> (it's a long string starting with something like <code>s%3A...</code>)</li>
+                    <li>In Swagger UI, click the <strong>🔒 Authorize</strong> button (top right)</li>
+                    <li>In the modal under "cookieAuth", paste the cookie value into the <strong>"Value"</strong> field</li>
+                    <li>Click <strong>Authorize</strong> and then <strong>Close</strong></li>
+                    <li>Now you can test authenticated endpoints!</li>
+                  </ol>
+                </div>
+              </div>
+              <p style={{ marginTop: '1rem', marginBottom: 0, fontStyle: 'italic', fontSize: '12px' }}>
+                <strong>💡 Pro Tip:</strong> If you see the Swagger UI in an iframe, click "Open in New Window" for the best experience - cookies work automatically!
               </p>
             </div>
             <div style={{
