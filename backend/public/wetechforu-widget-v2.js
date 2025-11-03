@@ -1597,18 +1597,39 @@
 
     // Request live agent - Collect contact info
     requestLiveAgent() {
-      // Check if we already have contact info from intro flow
+      console.log('🔍 requestLiveAgent() called');
+      console.log('📋 Intro flow state:', this.state.introFlow);
+      console.log('📋 Contact info state:', this.state.contactInfo);
+      
+      // ✅ FIRST: Check if we already have contact info from intro flow
       if (this.state.introFlow && this.state.introFlow.isComplete && this.state.introFlow.answers) {
         const answers = this.state.introFlow.answers;
-        if (answers.name && (answers.email || answers.phone)) {
-          // Use intro flow data
+        console.log('📝 Intro flow answers:', answers);
+        
+        // Build full name from first_name and last_name
+        let fullName = '';
+        if (answers.first_name && answers.last_name) {
+          fullName = `${answers.first_name} ${answers.last_name}`;
+        } else if (answers.first_name) {
+          fullName = answers.first_name;
+        } else if (answers.name) {
+          fullName = answers.name;
+        }
+        
+        const email = answers.email || answers.email_address || null;
+        const phone = answers.phone || answers.phone_number || answers.mobile || null;
+        
+        // If we have name + (email or phone), use intro flow data directly
+        if (fullName && (email || phone)) {
+          console.log('✅ Using intro flow data directly:', { fullName, email, phone });
           this.state.contactInfo = {
-            name: answers.name || answers.first_name || answers.full_name,
-            email: answers.email || answers.email_address,
-            phone: answers.phone || answers.phone_number || answers.mobile,
+            name: fullName,
+            email: email,
+            phone: phone,
             reason: answers.message || answers.question || answers.reason || 'Visitor requested to speak with an agent'
           };
           
+          // Skip asking questions - go directly to submit
           setTimeout(() => {
             this.submitToLiveAgent();
           }, 500);
@@ -1616,14 +1637,17 @@
         }
       }
       
-      // If contact info already collected, skip questions
+      // ✅ SECOND: If contact info already collected, skip questions
       if (this.state.contactInfo && this.state.contactInfo.name && (this.state.contactInfo.email || this.state.contactInfo.phone)) {
+        console.log('✅ Contact info already exists, skipping questions');
         setTimeout(() => {
           this.submitToLiveAgent();
         }, 500);
         return;
       }
       
+      // ✅ THIRD: Only ask if we don't have the info
+      console.log('⚠️  No contact info found, will ask for details');
       this.addBotMessage("Let me connect you with a live agent. To get started, I need a few details:");
       
       // 📊 Track live agent request event
@@ -1838,8 +1862,8 @@
         }
       }
       
-        // ✅ Detect agent requests in message
-      const agentKeywords = ['agent', 'human', 'person', 'live', 'real person', 'talk to someone', 'speak with', 'connect with agent'];
+        // ✅ Detect agent requests in message (including "staff")
+      const agentKeywords = ['agent', 'staff', 'human', 'person', 'live', 'real person', 'talk to someone', 'speak with', 'connect with agent', 'help from', 'representative', 'rep'];
       const messageLower = message.toLowerCase();
       const wantsAgent = agentKeywords.some(keyword => messageLower.includes(keyword));
       
@@ -2554,6 +2578,19 @@
       console.log('📨 sendMessageToBackend() called with:', message);
       console.log('🔑 Widget Key:', this.config.widgetKey);
       console.log('🔗 Backend URL:', this.config.backendUrl);
+      
+      // ✅ FIRST: Check for agent keywords BEFORE sending to backend (including "staff")
+      const agentKeywords = ['agent', 'staff', 'human', 'person', 'live', 'real person', 'talk to someone', 'speak with', 'connect with agent', 'help from', 'representative', 'rep'];
+      const messageLower = message.toLowerCase();
+      const wantsAgent = agentKeywords.some(keyword => messageLower.includes(keyword));
+      
+      if (wantsAgent && !this.state.currentContactField && !this.state.contactInfoStep && !this.state.agentTookOver) {
+        console.log('✅ Agent keyword detected, skipping backend and requesting agent directly');
+        setTimeout(() => {
+          this.requestLiveAgent();
+        }, 300);
+        return; // Don't send to backend
+      }
       
       // 🛡️ Rate Limiting Check
       const now = Date.now();
