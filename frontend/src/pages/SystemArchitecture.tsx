@@ -206,8 +206,25 @@ export default function SystemArchitecture() {
     tables.forEach((table) => {
       (table.columns || []).forEach((col: any) => {
         if (col.fk) {
-          const fkInfo = typeof col.fk === 'string' ? { table: col.fk } : col.fk;
-          const sourceId = fkInfo.table || fkInfo;
+          // Handle different FK formats
+          let sourceTable: string;
+          let fkColumnName: string = col.name;
+          
+          if (typeof col.fk === 'string') {
+            // Format: "table.column" or just "table"
+            const parts = col.fk.split('.');
+            sourceTable = parts[0];
+          } else if (col.fk.table) {
+            sourceTable = col.fk.table;
+            if (col.fk.column) {
+              // Show FK column name → referenced column name
+              fkColumnName = `${col.name} → ${col.fk.column}`;
+            }
+          } else {
+            return;
+          }
+          
+          const sourceId = sourceTable;
           const targetId = table.name;
 
           // Only create edge if both tables exist
@@ -216,15 +233,30 @@ export default function SystemArchitecture() {
               id: `e${sourceId}-${targetId}-${col.name}`,
               source: sourceId,
               target: targetId,
-              label: col.name,
+              label: col.name, // FK column name displayed on the line
               type: 'smoothstep',
               animated: false,
-              style: { stroke: '#2E86AB', strokeWidth: 2 },
+              style: { 
+                stroke: '#2E86AB', 
+                strokeWidth: 2.5,
+              },
               markerEnd: {
                 type: 'arrowclosed',
                 color: '#2E86AB',
+                width: 20,
+                height: 20,
               },
-              labelStyle: { fontSize: '11px', fontWeight: '600' },
+              labelStyle: { 
+                fontSize: '11px', 
+                fontWeight: '600',
+                fill: '#1976d2',
+                background: 'white',
+                padding: '2px 4px',
+              },
+              labelBgStyle: {
+                fill: 'white',
+                fillOpacity: 0.9,
+              },
             };
 
             // Check if edge already exists
@@ -236,8 +268,84 @@ export default function SystemArchitecture() {
       });
     });
 
-    setNodes(newNodes);
-    setEdges(newEdges);
+    // Store all nodes and edges for filtering
+    setAllNodes(newNodes);
+    setAllEdges(newEdges);
+    
+    // Apply initial filter if search query exists
+    if (searchQuery) {
+      filterERD(searchQuery, newNodes, newEdges);
+    } else {
+      setNodes(newNodes);
+      setEdges(newEdges);
+    }
+  };
+  
+  // Filter ERD based on search query - show only connected tables
+  const filterERD = (query: string, nodesToFilter: Node[] = allNodes, edgesToFilter: Edge[] = allEdges) => {
+    if (!query.trim()) {
+      setNodes(allNodes);
+      setEdges(allEdges);
+      return;
+    }
+    
+    const queryLower = query.toLowerCase().trim();
+    
+    // Find matching nodes (tables that match search)
+    const matchingNodeIds = new Set<string>();
+    nodesToFilter.forEach(node => {
+      const tableName = (node.data?.label || '').toLowerCase();
+      if (tableName.includes(queryLower)) {
+        matchingNodeIds.add(node.id);
+      }
+    });
+    
+    if (matchingNodeIds.size === 0) {
+      // No matches - show empty
+      setNodes([]);
+      setEdges([]);
+      return;
+    }
+    
+    // Find all connected nodes (via edges)
+    const connectedNodeIds = new Set<string>(matchingNodeIds);
+    let foundNew = true;
+    
+    // Iteratively find all connected tables
+    while (foundNew) {
+      foundNew = false;
+      edgesToFilter.forEach(edge => {
+        const sourceMatch = connectedNodeIds.has(edge.source);
+        const targetMatch = connectedNodeIds.has(edge.target);
+        
+        if (sourceMatch && !connectedNodeIds.has(edge.target)) {
+          connectedNodeIds.add(edge.target);
+          foundNew = true;
+        }
+        if (targetMatch && !connectedNodeIds.has(edge.source)) {
+          connectedNodeIds.add(edge.source);
+          foundNew = true;
+        }
+      });
+    }
+    
+    // Filter nodes to only connected ones
+    const filteredNodes = nodesToFilter.filter(node => connectedNodeIds.has(node.id));
+    
+    // Filter edges to only those between filtered nodes
+    const filteredEdges = edgesToFilter.filter(edge => 
+      connectedNodeIds.has(edge.source) && connectedNodeIds.has(edge.target)
+    );
+    
+    setNodes(filteredNodes);
+    setEdges(filteredEdges);
+  };
+  
+  // Handle search input
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    filterERD(query);
   };
 
   // Core Database Tables with relationships (fallback static data)
@@ -1109,6 +1217,168 @@ export default function SystemArchitecture() {
           </div>
         )}
       </div>
+      
+      {/* Fullscreen Modal */}
+      {isFullscreen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'white',
+          zIndex: 9999,
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          {/* Fullscreen Header */}
+          <div style={{
+            padding: '1rem 2rem',
+            background: '#2E86AB',
+            color: 'white',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+          }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <i className="fas fa-sitemap"></i>
+                ERD Diagram - Fullscreen View
+              </h2>
+              {searchQuery && (
+                <p style={{ margin: '0.5rem 0 0 0', fontSize: '14px', opacity: 0.9 }}>
+                  Showing {nodes.length} connected table{nodes.length !== 1 ? 's' : ''} for "{searchQuery}"
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => setIsFullscreen(false)}
+              style={{
+                padding: '10px 20px',
+                background: 'rgba(255,255,255,0.2)',
+                color: 'white',
+                border: '2px solid white',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '15px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
+              }}
+            >
+              <i className="fas fa-times"></i>
+              Close Fullscreen
+            </button>
+          </div>
+          
+          {/* Fullscreen ERD Content */}
+          <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+            {/* Search Bar in Fullscreen */}
+            <div style={{
+              position: 'absolute',
+              top: '10px',
+              left: '10px',
+              zIndex: 10,
+              width: '350px',
+              background: 'white',
+              borderRadius: '8px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              padding: '10px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <i className="fas fa-search" style={{ color: '#666' }}></i>
+              <input
+                type="text"
+                placeholder="Search table (shows connected tables)..."
+                value={searchQuery}
+                onChange={handleSearchChange}
+                style={{
+                  border: 'none',
+                  outline: 'none',
+                  flex: 1,
+                  fontSize: '15px',
+                  color: '#333'
+                }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setNodes(allNodes);
+                    setEdges(allEdges);
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#666',
+                    padding: '4px'
+                  }}
+                >
+                  <i className="fas fa-times"></i>
+                </button>
+              )}
+            </div>
+            
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              nodeTypes={nodeTypes}
+              connectionMode={ConnectionMode.Loose}
+              fitView
+              attributionPosition="bottom-left"
+              minZoom={0.1}
+              maxZoom={3}
+              defaultEdgeOptions={{
+                type: 'smoothstep',
+                animated: false,
+                style: { stroke: '#2E86AB', strokeWidth: 2.5 },
+                markerEnd: {
+                  type: 'arrowclosed',
+                  color: '#2E86AB',
+                  width: 20,
+                  height: 20,
+                },
+                labelStyle: { 
+                  fontSize: '12px', 
+                  fontWeight: '600',
+                  fill: '#1976d2',
+                  background: 'white',
+                  padding: '3px 6px',
+                },
+                labelBgStyle: {
+                  fill: 'white',
+                  fillOpacity: 0.95,
+                },
+              }}
+            >
+              <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+              <Controls showInteractive={false} />
+              <MiniMap
+                nodeColor={(node) => {
+                  const category = getTableCategory(node.data?.label || '');
+                  return tableColors[category]?.border || '#2E86AB';
+                }}
+                style={{ backgroundColor: '#f5f5f5', border: '1px solid #e0e0e0' }}
+                maskColor="rgba(0, 0, 0, 0.05)"
+              />
+            </ReactFlow>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
