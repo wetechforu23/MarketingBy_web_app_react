@@ -1002,8 +1002,22 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
             cleanNumber = '+' + cleanNumber.replace(/[^\d]/g, '');
           }
 
+          // Check if multiple chats are enabled
+          const widgetSettings = await pool.query(`
+            SELECT enable_multiple_whatsapp_chats
+            FROM widget_configs
+            WHERE id = $1
+          `, [widget_id]);
+          
+          const enableMultipleChats = widgetSettings.rows[0]?.enable_multiple_whatsapp_chats || false;
+          
+          // Build message with conversation identifier if multiple chats enabled
+          const conversationIdentifier = enableMultipleChats 
+            ? `[#${conversation_id}] ${visitorName}`
+            : visitorName;
+          
           // Send visitor message to agent's WhatsApp
-          const whatsappMessage = `💬 *New message from ${visitorName}:*\n\n${message_text}`;
+          const whatsappMessage = `💬 *New message from ${conversationIdentifier}:*\n\n${message_text}`;
           
           await whatsappService.sendMessage({
             clientId: convInfo.rows[0].client_id,

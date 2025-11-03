@@ -386,30 +386,41 @@ export class HandoverService {
   private static async handleWhatsAppHandover(handoverRequest: any) {
     const client = await pool.connect();
     try {
-      // ✅ FIRST: Check if agent is already busy with another WhatsApp conversation
-      const isBusy = await this.isAgentBusyWithWhatsApp(handoverRequest.client_id);
+      // ✅ Check if multiple chats are enabled
+      const widgetSettings = await client.query(`
+        SELECT enable_multiple_whatsapp_chats
+        FROM widget_configs
+        WHERE id = $1
+      `, [handoverRequest.widget_id]);
       
-      if (isBusy) {
-        console.log(`⚠️ Agent is busy with WhatsApp handover for client ${handoverRequest.client_id}`);
-        await this.updateHandoverStatus(handoverRequest.id, 'queued', 'Agent is currently busy with another WhatsApp conversation');
+      const enableMultipleChats = widgetSettings.rows[0]?.enable_multiple_whatsapp_chats || false;
+      
+      // ✅ Only check if agent is busy if multiple chats are NOT enabled
+      if (!enableMultipleChats) {
+        const isBusy = await this.isAgentBusyWithWhatsApp(handoverRequest.client_id);
         
-        // Update conversation to indicate handover is queued
-        await client.query(`
-          UPDATE widget_conversations
-          SET 
-            handoff_requested = true,
-            preferred_contact_method = 'whatsapp',
-            handoff_requested_at = CURRENT_TIMESTAMP
-          WHERE id = $1
-        `, [handoverRequest.conversation_id]);
-        
-        // Add system message to conversation
-        await client.query(`
-          INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
-          VALUES ($1, 'system', 'Agent handover request queued - agent is currently busy', NOW())
-        `, [handoverRequest.conversation_id]);
-        
-        throw new Error('AGENT_BUSY'); // Special error to handle in createHandoverRequest
+        if (isBusy) {
+          console.log(`⚠️ Agent is busy with WhatsApp handover for client ${handoverRequest.client_id}`);
+          await this.updateHandoverStatus(handoverRequest.id, 'queued', 'Agent is currently busy with another WhatsApp conversation');
+          
+          // Update conversation to indicate handover is queued
+          await client.query(`
+            UPDATE widget_conversations
+            SET 
+              handoff_requested = true,
+              preferred_contact_method = 'whatsapp',
+              handoff_requested_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+          `, [handoverRequest.conversation_id]);
+          
+          // Add system message to conversation
+          await client.query(`
+            INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+            VALUES ($1, 'system', 'Agent handover request queued - agent is currently busy', NOW())
+          `, [handoverRequest.conversation_id]);
+          
+          throw new Error('AGENT_BUSY'); // Special error to handle in createHandoverRequest
+        }
       }
 
       // 1) Get widget config to find client's handover WhatsApp number
@@ -531,12 +542,30 @@ export class HandoverService {
         visitorInfo.push(`Email: ${handoverRequest.visitor_email}`);
       }
 
+      // Get widget config to check if multiple chats are enabled
+      const widgetSettings = await client.query(`
+        SELECT enable_multiple_whatsapp_chats
+        FROM widget_configs
+        WHERE id = $1
+      `, [handoverRequest.widget_id]);
+      
+      const enableMultipleChats = widgetSettings.rows[0]?.enable_multiple_whatsapp_chats || false;
+      
+      // Build notification message with conversation identifier
+      const visitorName = handoverRequest.visitor_name || `Visitor ${handoverRequest.conversation_id}`;
+      const conversationIdentifier = enableMultipleChats 
+        ? `[#${handoverRequest.conversation_id}] ${visitorName}`
+        : visitorName;
+      
       const notificationMessage = `🔔 *New Agent Handover Request*\n\n` +
         `A visitor has requested to speak with an agent.\n\n` +
         (visitorInfo.length > 0 ? `*Visitor Details:*\n${visitorInfo.join('\n')}\n\n` : '') +
         `*Message:*\n${handoverRequest.visitor_message || 'Visitor requested agent support'}\n\n` +
         `*Conversation ID:* ${handoverRequest.conversation_id}\n` +
         `*Widget:* ${widgetConfig.rows[0].widget_name || 'N/A'}\n\n` +
+        (enableMultipleChats 
+          ? `💬 *Reply Format:* Start your message with #${handoverRequest.conversation_id} to reply to this conversation.\n\n`
+          : '') +
         `Please respond to the visitor at your earliest convenience.`;
 
       try {

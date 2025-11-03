@@ -571,40 +571,83 @@ router.post('/incoming', async (req: Request, res: Response) => {
     const fromNumber = normalizePhone(From);
     const toNumber = normalizePhone(To);
 
-    // Find the client and active conversation by matching the From number
+    let messageBody = (Body || '').trim();
+
+    // ✅ FIRST: Try to parse conversation ID from message (format: #123: message or #123 message)
+    const conversationIdMatch = messageBody.match(/^#(\d+)[\s:]/);
+    let conversationId: number | null = null;
+    
+    if (conversationIdMatch) {
+      conversationId = parseInt(conversationIdMatch[1]);
+      // Remove conversation ID prefix from message
+      messageBody = messageBody.replace(/^#\d+[\s:]+/, '').trim();
+      console.log(`📌 Agent specified conversation ID: ${conversationId}`);
+    }
+
+    // Find the client and active conversation(s) by matching the From number
     // The From number should match the client's handover_whatsapp_number
-    const clientResult = await pool.query(`
-      SELECT DISTINCT wc.id as widget_id, wc.client_id, wc.handover_whatsapp_number,
-             hr.conversation_id, hr.id as handover_request_id, hr.created_at
-      FROM widget_configs wc
-      JOIN handover_requests hr ON hr.widget_id = wc.id
-      JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
-      WHERE hr.requested_method = 'whatsapp'
-        AND hr.status IN ('notified', 'completed')
-        AND wconv.status = 'active'
-        AND wconv.agent_handoff = true
-        AND (
-          REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
-          OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
-        )
-      ORDER BY hr.created_at DESC
-      LIMIT 1
-    `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+    let clientResult;
+    
+    if (conversationId) {
+      // If conversation ID specified, use it directly
+      clientResult = await pool.query(`
+        SELECT DISTINCT wc.id as widget_id, wc.client_id, wc.handover_whatsapp_number,
+               hr.conversation_id, hr.id as handover_request_id, hr.created_at,
+               wc.enable_multiple_whatsapp_chats, wconv.visitor_name, wconv.visitor_session_id
+        FROM widget_configs wc
+        JOIN handover_requests hr ON hr.widget_id = wc.id
+        JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
+        WHERE hr.requested_method = 'whatsapp'
+          AND hr.status IN ('notified', 'completed')
+          AND wconv.status = 'active'
+          AND wconv.agent_handoff = true
+          AND wconv.id = $1
+          AND (
+            REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $2
+            OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($2, '+', '')
+          )
+        LIMIT 1
+      `, [conversationId, fromNumber.replace(/[\s\-\(\)]/g, '')]);
+    } else {
+      // No conversation ID specified - use most recent (backward compatibility)
+      clientResult = await pool.query(`
+        SELECT DISTINCT wc.id as widget_id, wc.client_id, wc.handover_whatsapp_number,
+               hr.conversation_id, hr.id as handover_request_id, hr.created_at,
+               wc.enable_multiple_whatsapp_chats, wconv.visitor_name, wconv.visitor_session_id
+        FROM widget_configs wc
+        JOIN handover_requests hr ON hr.widget_id = wc.id
+        JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
+        WHERE hr.requested_method = 'whatsapp'
+          AND hr.status IN ('notified', 'completed')
+          AND wconv.status = 'active'
+          AND wconv.agent_handoff = true
+          AND (
+            REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+            OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+          )
+        ORDER BY hr.created_at DESC
+        LIMIT 1
+      `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+    }
 
     if (clientResult.rows.length === 0) {
-      console.log(`⚠️ No active WhatsApp handover found for number: ${fromNumber}`);
+      console.log(`⚠️ No active WhatsApp handover found for number: ${fromNumber}${conversationId ? ` and conversation ID: ${conversationId}` : ''}`);
       // Still send 200 to Twilio to acknowledge receipt (empty response prevents "OK" auto-replies)
       return res.status(200).send('');
     }
 
     const match = clientResult.rows[0];
-    const conversationId = match.conversation_id;
+    conversationId = match.conversation_id;
     const widgetId = match.widget_id;
     const clientId = match.client_id;
+    const enableMultipleChats = match.enable_multiple_whatsapp_chats || false;
+    const visitorName = match.visitor_name || `Visitor ${conversationId}`;
+    const visitorSessionId = match.visitor_session_id || 'N/A';
 
     console.log(`✅ Matched conversation ${conversationId} for widget ${widgetId}, client ${clientId}`);
-
-    const messageBody = (Body || '').trim();
+    if (enableMultipleChats) {
+      console.log(`💬 Multiple chats enabled - showing visitor: ${visitorName} (Session: ${visitorSessionId.substring(0, 20)}...)`);
+    }
     
     // ✅ CHECK FOR EXTENSION REQUEST (before stop command)
     const { ConversationInactivityService } = await import('../services/conversationInactivityService');

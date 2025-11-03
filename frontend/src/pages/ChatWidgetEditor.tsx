@@ -89,6 +89,7 @@ export default function ChatWidgetEditor() {
   const [webhookSecret, setWebhookSecret] = useState('')
   const [handoverWhatsAppNumber, setHandoverWhatsAppNumber] = useState('')
   const [handoverTemplateSid, setHandoverTemplateSid] = useState('')
+  const [enableMultipleWhatsAppChats, setEnableMultipleWhatsAppChats] = useState(false)
   const [savingHandover, setSavingHandover] = useState(false)
   const [testingWebhook, setTestingWebhook] = useState(false)
   const [webhookTestResult, setWebhookTestResult] = useState<string | null>(null)
@@ -349,6 +350,11 @@ export default function ChatWidgetEditor() {
         
         // Fetch handover configuration
         fetchHandoverConfig(widget.id)
+        
+        // Load multiple WhatsApp chats setting
+        if (widget.enable_multiple_whatsapp_chats !== undefined) {
+          setEnableMultipleWhatsAppChats(widget.enable_multiple_whatsapp_chats)
+        }
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load widget')
@@ -686,6 +692,7 @@ export default function ChatWidgetEditor() {
         emergency_contact: emergencyContact,
         // WhatsApp
         enable_whatsapp: whatsappEnabled,
+        enable_multiple_whatsapp_chats: enableMultipleWhatsAppChats,
         // Handover Options
         enable_handover_choice: false, // Visitors don't choose - system uses configured default
         handover_options: JSON.stringify(handoverOptions),
@@ -2062,6 +2069,27 @@ export default function ChatWidgetEditor() {
                   <p style={{ fontSize: '13px', color: '#666', marginBottom: '1rem', lineHeight: '1.6' }}>
                     Configure where WhatsApp handover notifications are sent.
                   </p>
+
+                  {/* Enable Multiple WhatsApp Chats */}
+                  <div style={{ marginBottom: '1rem', padding: '12px', background: '#fff', borderRadius: '6px', border: '1px solid #ddd' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={enableMultipleWhatsAppChats}
+                        onChange={(e) => {
+                          setEnableMultipleWhatsAppChats(e.target.checked)
+                          setHasUnsavedChanges(true)
+                        }}
+                        style={{ marginRight: '8px', width: '18px', height: '18px' }}
+                      />
+                      <div>
+                        <span style={{ fontWeight: '600', fontSize: '14px' }}>💬 Enable Multiple Simultaneous WhatsApp Chats</span>
+                        <p style={{ fontSize: '12px', color: '#666', margin: '4px 0 0 0', lineHeight: '1.5' }}>
+                          Allow agent to chat with multiple users simultaneously via WhatsApp. When enabled, agent must prefix replies with <strong>#conversation_id</strong> to specify which conversation. Each message will show visitor name or session ID.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                     <div>
