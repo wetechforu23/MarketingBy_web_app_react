@@ -28,7 +28,8 @@ const options: swaggerJsdoc.Options = {
         cookieAuth: {
           type: 'apiKey',
           in: 'cookie',
-          name: 'connect.sid'
+          name: 'connect.sid',
+          description: 'Session cookie from browser. If testing from Swagger UI, you may need to manually copy the cookie value from your browser\'s DevTools (Application > Cookies > connect.sid). Alternatively, use the "Authorize" button and enter the cookie value.'
         }
       }
     },

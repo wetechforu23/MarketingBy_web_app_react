@@ -939,18 +939,42 @@ export default function SystemArchitecture() {
             <div style={{
               marginTop: '1rem',
               padding: '1rem',
+              background: '#fff3cd',
+              border: '2px solid #ffc107',
+              borderRadius: '8px',
+              fontSize: '13px',
+              color: '#856404',
+              marginBottom: '1rem'
+            }}>
+              <strong>🔐 How to Authenticate in Swagger:</strong>
+              <ol style={{ marginTop: '0.5rem', paddingLeft: '1.5rem', lineHeight: '1.8' }}>
+                <li>Make sure you're logged in to the MarketingBy platform in the same browser</li>
+                <li>Open browser DevTools (F12 or Right-click → Inspect)</li>
+                <li>Go to <strong>Application</strong> tab → <strong>Cookies</strong> → Your domain</li>
+                <li>Find <strong>connect.sid</strong> cookie and copy its <strong>Value</strong></li>
+                <li>In Swagger UI, click the <strong>🔒 Authorize</strong> button (top right)</li>
+                <li>In the modal, paste the <strong>connect.sid</strong> value into the "Value" field</li>
+                <li>Click <strong>Authorize</strong> and then <strong>Close</strong></li>
+                <li>Now you can test authenticated endpoints!</li>
+              </ol>
+              <p style={{ marginTop: '0.75rem', marginBottom: 0, fontStyle: 'italic' }}>
+                <strong>Note:</strong> If Swagger UI is in an iframe from a different domain, you may need to open it in a new window to access cookies.
+              </p>
+            </div>
+            <div style={{
+              padding: '1rem',
               background: '#f9f9f9',
               borderRadius: '8px',
               fontSize: '13px',
               color: '#666'
             }}>
-              <strong>💡 Tips:</strong>
+              <strong>💡 Additional Tips:</strong>
               <ul style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
                 <li>Click "Try it out" on any endpoint to test it</li>
                 <li>Enter required parameters and click "Execute"</li>
                 <li>View response body, headers, and status codes</li>
                 <li>All endpoints require authentication except public ones</li>
-                <li>Use the "Authorize" button (🔒) to authenticate with your session</li>
+                <li>Session cookies are automatically included when opened in new window</li>
               </ul>
             </div>
           </div>

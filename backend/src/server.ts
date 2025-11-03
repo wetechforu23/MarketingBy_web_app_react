@@ -220,9 +220,20 @@ app.use('/api', facebookConnectRoutes);
 app.use('/api/system', systemRoutes);
 
 // Swagger API Documentation (before generic API route)
+// Note: Swagger UI automatically sends cookies from the same origin
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'MarketingBy API Documentation'
+  customSiteTitle: 'MarketingBy API Documentation',
+  swaggerOptions: {
+    persistAuthorization: true,
+    // Try to use credentials automatically
+    withCredentials: true,
+    requestInterceptor: (req: any) => {
+      // Swagger UI will automatically include cookies if same-origin
+      req.credentials = 'include';
+      return req;
+    }
+  }
 }));
 
 // GENERIC API ROUTE (Catches all other /api/* routes) - MUST BE LAST
