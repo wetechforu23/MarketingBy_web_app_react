@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import pool from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import { WhatsAppService } from '../services/whatsappService';
+import HandoverService from '../services/handoverService';
 
 const router = express.Router();
 const whatsappService = WhatsAppService.getInstance();
