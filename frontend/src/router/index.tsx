@@ -27,6 +27,7 @@ import SecureReportPage from "../pages/SecureReportPage";
 import CalendarPage from "../pages/CalendarPage";
 import Credentials from "../pages/Credentials";
 import Settings from "../pages/Settings";
+import SystemArchitecture from "../pages/SystemArchitecture";
 import ClientManagementDashboard from "../pages/ClientManagementDashboard";
 // Facebook Connect Integration
 import FacebookConnect from "../pages/FacebookConnect";
@@ -80,6 +81,7 @@ export const router = createBrowserRouter([
       { path: "calendar", element: <CalendarPage /> },
       { path: "compliance", element: <CalendarPage /> }, // Compliance route (using Calendar page for now)
       { path: "credentials", element: <Credentials /> }, // Credentials management page
+      { path: "system-architecture", element: <SystemArchitecture /> }, // System architecture & ERD page
       { path: "settings", element: <Settings /> }, // System settings page
       { path: "settings/clients", element: <Clients /> }, // Clients management in settings
       // Social Media Content Management routes

@@ -594,6 +594,16 @@ export default function RoleBasedNav({ isCollapsed = false, onNavigate }: RoleBa
                   </Link>
                 </li>
               )}
+              {isSuperAdmin && (
+                <li>
+                  <Link 
+                    className={`nav-link ${isActive('/app/system-architecture') ? 'active' : ''}`} 
+                    to="/app/system-architecture"
+                  >
+                    System Architecture
+                  </Link>
+                </li>
+              )}
               {hasPageAccess('settings') && (
                 <li>
                   <Link 
