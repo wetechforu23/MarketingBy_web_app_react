@@ -46,6 +46,11 @@ import whatsappRoutes from './routes/whatsapp';
 import handoverRoutes from './routes/handover';
 // Facebook Connect routes (2-Way Integration)
 import facebookConnectRoutes from './routes/facebookConnect';
+// System routes (Schema, Architecture)
+import systemRoutes from './routes/system';
+// Swagger documentation
+import swaggerSpec from './config/swagger';
+import swaggerUi from 'swagger-ui-express';
 
 dotenv.config();
 
@@ -209,6 +214,14 @@ app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/handover', handoverRoutes);
 // Facebook Connect routes (2-Way Integration)
 app.use('/api', facebookConnectRoutes);
+
+app.use('/api/system', systemRoutes);
+
+// Swagger API Documentation (before generic API route)
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'MarketingBy API Documentation'
+}));
 
 // GENERIC API ROUTE (Catches all other /api/* routes) - MUST BE LAST
 app.use('/api', apiRoutes);

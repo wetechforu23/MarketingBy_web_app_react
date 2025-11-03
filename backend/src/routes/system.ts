@@ -7,7 +7,42 @@ const router = express.Router();
 // All routes require authentication
 router.use(requireAuth);
 
-// Get database schema information
+/**
+ * @swagger
+ * /system/schema:
+ *   get:
+ *     summary: Get database schema information
+ *     description: Returns complete database schema including tables, columns, constraints, and relationships. Requires Super Admin access.
+ *     tags: [System]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Schema information retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 tables:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       name:
+ *                         type: string
+ *                       columns:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                 fetchedAt:
+ *                   type: string
+ *                   format: date-time
+ *       403:
+ *         description: Super admin access required
+ *       500:
+ *         description: Failed to fetch schema
+ */
 router.get('/schema', async (req, res) => {
   try {
     // Verify user is super admin

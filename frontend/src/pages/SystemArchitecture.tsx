@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/http';
 
 export default function SystemArchitecture() {
-  const [activeTab, setActiveTab] = useState<'erd' | 'dictionary' | 'apis' | 'flow'>('erd');
+  const [activeTab, setActiveTab] = useState<'erd' | 'dictionary' | 'apis' | 'flow' | 'swagger'>('erd');
   const [schemaData, setSchemaData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -407,7 +407,8 @@ export default function SystemArchitecture() {
           { id: 'erd', label: 'ERD Diagram', icon: '🔗' },
           { id: 'dictionary', label: 'Data Dictionary', icon: '📚' },
           { id: 'apis', label: 'API Endpoints', icon: '🔌' },
-          { id: 'flow', label: 'Architecture Flow', icon: '🔄' }
+          { id: 'flow', label: 'Architecture Flow', icon: '🔄' },
+          { id: 'swagger', label: 'API Tester (Swagger)', icon: '🧪' }
         ].map(tab => (
           <button
             key={tab.id}
@@ -876,6 +877,53 @@ export default function SystemArchitecture() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Swagger API Tester Tab */}
+        {activeTab === 'swagger' && (
+          <div>
+            <h2 style={{ marginTop: 0, marginBottom: '1.5rem', color: '#333' }}>
+              🧪 API Tester (Swagger UI)
+            </h2>
+            <p style={{ marginBottom: '1.5rem', color: '#666' }}>
+              Interactive API documentation and testing interface. Test endpoints directly from the browser.
+            </p>
+            <div style={{
+              border: '1px solid #e0e0e0',
+              borderRadius: '8px',
+              overflow: 'hidden',
+              height: '800px'
+            }}>
+              <iframe
+                src={`${process.env.NODE_ENV === 'production' 
+                  ? 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com' 
+                  : 'http://localhost:3001'}/api-docs`}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  border: 'none'
+                }}
+                title="Swagger API Documentation"
+              />
+            </div>
+            <div style={{
+              marginTop: '1rem',
+              padding: '1rem',
+              background: '#f9f9f9',
+              borderRadius: '8px',
+              fontSize: '13px',
+              color: '#666'
+            }}>
+              <strong>💡 Tips:</strong>
+              <ul style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
+                <li>Click "Try it out" on any endpoint to test it</li>
+                <li>Enter required parameters and click "Execute"</li>
+                <li>View response body, headers, and status codes</li>
+                <li>All endpoints require authentication except public ones</li>
+                <li>Use the "Authorize" button (🔒) to authenticate with your session</li>
+              </ul>
             </div>
           </div>
         )}
