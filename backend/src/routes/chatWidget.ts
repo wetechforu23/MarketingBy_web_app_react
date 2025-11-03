@@ -1683,10 +1683,28 @@ router.post('/public/widget/:widgetKey/conversations/:conversationId/end', async
     await pool.query(
       `UPDATE widget_conversations SET
         status = 'ended',
+        agent_handoff = false,
         updated_at = NOW()
       WHERE id = $1`,
       [conversationId]
     );
+    
+    // ✅ When conversation ends, check for queued WhatsApp handovers
+    try {
+      const convResult = await pool.query(
+        'SELECT client_id FROM widget_configs w JOIN widget_conversations wc ON w.id = wc.widget_id WHERE wc.id = $1',
+        [conversationId]
+      );
+      if (convResult.rows.length > 0) {
+        const clientId = convResult.rows[0].client_id;
+        console.log(`🔄 Conversation ${conversationId} ended - checking for queued WhatsApp handovers for client ${clientId}`);
+        const { HandoverService } = await import('../services/handoverService');
+        await HandoverService.processQueuedWhatsAppHandovers(clientId);
+      }
+    } catch (queueError) {
+      console.error('Error processing queued handovers:', queueError);
+      // Don't fail the request if queue processing fails
+    }
 
     // Add system message
     await pool.query(

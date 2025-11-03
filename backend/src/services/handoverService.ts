@@ -203,9 +203,21 @@ export class HandoverService {
       ]);
 
       // Process the handover based on method
-      await this.processHandover(handoverRequest);
-
-      return { success: true, handover_id: handoverRequest.id };
+      try {
+        await this.processHandover(handoverRequest);
+        return { success: true, handover_id: handoverRequest.id };
+      } catch (error: any) {
+        // Handle special "AGENT_BUSY" error
+        if (error.message === 'AGENT_BUSY') {
+          return { 
+            success: false, 
+            handover_id: handoverRequest.id,
+            agent_busy: true,
+            message: 'Agent is currently busy with another conversation. We will notify you when the agent is available.'
+          };
+        }
+        throw error; // Re-throw other errors
+      }
     } finally {
       client.release();
     }
@@ -290,12 +302,66 @@ export class HandoverService {
   }
 
   /**
+   * Check if agent is currently busy with WhatsApp handover
+   * Returns true if there's an active WhatsApp conversation for this client
+   */
+  static async isAgentBusyWithWhatsApp(clientId: number): Promise<boolean> {
+    const client = await pool.connect();
+    try {
+      // Check for active WhatsApp handovers for this client
+      const busyCheck = await client.query(`
+        SELECT COUNT(*) as active_count
+        FROM widget_conversations wc
+        JOIN widget_configs w ON w.id = wc.widget_id
+        JOIN handover_requests hr ON hr.conversation_id = wc.id
+        WHERE w.client_id = $1
+          AND wc.status = 'active'
+          AND wc.agent_handoff = true
+          AND hr.requested_method = 'whatsapp'
+          AND hr.status IN ('notified', 'completed')
+          AND wc.updated_at > NOW() - INTERVAL '1 hour'
+        `, [clientId]);
+
+      const activeCount = parseInt(busyCheck.rows[0]?.active_count || '0');
+      return activeCount > 0;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
    * Handle WhatsApp-based handover
    * Sends notification to CLIENT's WhatsApp number (not visitor's)
    */
   private static async handleWhatsAppHandover(handoverRequest: any) {
     const client = await pool.connect();
     try {
+      // ✅ FIRST: Check if agent is already busy with another WhatsApp conversation
+      const isBusy = await this.isAgentBusyWithWhatsApp(handoverRequest.client_id);
+      
+      if (isBusy) {
+        console.log(`⚠️ Agent is busy with WhatsApp handover for client ${handoverRequest.client_id}`);
+        await this.updateHandoverStatus(handoverRequest.id, 'queued', 'Agent is currently busy with another WhatsApp conversation');
+        
+        // Update conversation to indicate handover is queued
+        await client.query(`
+          UPDATE widget_conversations
+          SET 
+            handoff_requested = true,
+            preferred_contact_method = 'whatsapp',
+            handoff_requested_at = CURRENT_TIMESTAMP
+          WHERE id = $1
+        `, [handoverRequest.conversation_id]);
+        
+        // Add system message to conversation
+        await client.query(`
+          INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+          VALUES ($1, 'system', 'Agent handover request queued - agent is currently busy', NOW())
+        `, [handoverRequest.conversation_id]);
+        
+        throw new Error('AGENT_BUSY'); // Special error to handle in createHandoverRequest
+      }
+
       // 1) Get widget config to find client's handover WhatsApp number
       const widgetConfig = await client.query(`
         SELECT 

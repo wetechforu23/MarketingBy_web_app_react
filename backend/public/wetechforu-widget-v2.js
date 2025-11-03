@@ -2589,6 +2589,16 @@
         const data = await response.json();
         console.log('✅ Handover response:', data);
 
+        // ✅ Check if agent is busy (for WhatsApp handover)
+        if (data.agent_busy && data.queued) {
+          setTimeout(() => {
+            this.addBotMessage("⏳ Our agent is currently busy with another conversation. We will notify you as soon as they're available. Thank you for your patience!");
+            // Mark handover as queued (not active yet)
+            this.state.handoverQueued = true;
+          }, 800);
+          return; // Don't mark as agent took over yet
+        }
+
         if (data.success) {
           // Show generic confirmation only (no method details in chat)
           setTimeout(() => {

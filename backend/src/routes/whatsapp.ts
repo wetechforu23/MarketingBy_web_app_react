@@ -621,6 +621,13 @@ router.post('/incoming', async (req: Request, res: Response) => {
     const isStopCommand = stopCommands.some(cmd => messageBody.toLowerCase().includes(cmd.toLowerCase()));
     
     if (isStopCommand) {
+      // ✅ When conversation ends, check for queued handovers
+      console.log(`🔄 Conversation ${conversationId} ended - checking for queued WhatsApp handovers`);
+      try {
+        await HandoverService.processQueuedWhatsAppHandovers(clientId);
+      } catch (queueError) {
+        console.error('Error processing queued handovers:', queueError);
+      }
       console.log(`🛑 Agent requested to end conversation ${conversationId}`);
       
       // Get conversation details for summary

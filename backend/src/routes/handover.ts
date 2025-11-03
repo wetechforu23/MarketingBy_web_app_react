@@ -183,6 +183,16 @@ router.post('/request', async (req, res) => {
       visitor_message
     });
 
+    // If agent is busy with WhatsApp, return special response
+    if (!result.success && result.agent_busy) {
+      return res.status(200).json({
+        success: false,
+        agent_busy: true,
+        message: 'Agent is currently busy with another conversation. We will notify you when the agent is available.',
+        queued: true
+      });
+    }
+
     res.json(result);
   } catch (error: any) {
     console.error('Error creating handover request:', error);
