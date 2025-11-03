@@ -28,8 +28,8 @@ const options: swaggerJsdoc.Options = {
         cookieAuth: {
           type: 'apiKey',
           in: 'cookie',
-          name: 'connect.sid',
-          description: 'Session cookie. Cookie name may be "connect.sid" (default) or "marketingby.sid" (custom). Look in browser DevTools → Application → Cookies to find the session cookie value.'
+          name: 'marketingby.sid',
+          description: 'Session cookie named "marketingby.sid". Look in browser DevTools → Application → Cookies to find the cookie value. Copy the entire value (long string) and paste it in the Authorize modal.'
         }
       }
     },
