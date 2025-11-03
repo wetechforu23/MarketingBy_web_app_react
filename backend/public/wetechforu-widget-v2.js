@@ -2600,11 +2600,32 @@
     // Get or create persistent visitor session ID (across tabs/devices)
     getVisitorSessionId() {
       const STORAGE_KEY = 'wetechforu_visitor_session_id';
-      let visitorSessionId = localStorage.getItem(STORAGE_KEY);
+      
+      // ✅ Safari compatibility: Check if localStorage is available
+      let storage = localStorage;
+      try {
+        localStorage.setItem('__test__', 'test');
+        localStorage.removeItem('__test__');
+      } catch (e) {
+        console.warn('⚠️ localStorage not available (Safari private mode?), using sessionStorage');
+        storage = sessionStorage; // Fallback to sessionStorage for Safari private mode
+      }
+      
+      let visitorSessionId = storage.getItem(STORAGE_KEY);
       if (!visitorSessionId) {
         visitorSessionId = 'visitor_' + Math.random().toString(36).substr(2, 12) + Date.now();
-        localStorage.setItem(STORAGE_KEY, visitorSessionId);
-        console.log('✅ Generated new visitorSessionId:', visitorSessionId);
+        try {
+          storage.setItem(STORAGE_KEY, visitorSessionId);
+          console.log('✅ Generated new visitorSessionId:', visitorSessionId);
+        } catch (e) {
+          console.warn('⚠️ Storage not available, using in-memory session ID');
+          // If storage completely fails, use in-memory (will reset on page refresh)
+          if (!this.state.tracking) this.state.tracking = {};
+          if (!this.state.tracking.visitorSessionId) {
+            this.state.tracking.visitorSessionId = visitorSessionId;
+          }
+          return this.state.tracking.visitorSessionId;
+        }
       }
       return visitorSessionId;
     },
