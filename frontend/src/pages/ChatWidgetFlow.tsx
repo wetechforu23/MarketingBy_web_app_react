@@ -44,6 +44,7 @@ export default function ChatWidgetFlow() {
   const [aiApiKey, setAiApiKey] = useState('');
   const [aiMaxTokens, setAiMaxTokens] = useState(1000);
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+  const [enableMultipleWhatsAppChats, setEnableMultipleWhatsAppChats] = useState(false);
   const [enableHandoverChoice, setEnableHandoverChoice] = useState(true);
   const [handoverOptions, setHandoverOptions] = useState({
     portal: true,
@@ -105,6 +106,7 @@ export default function ChatWidgetFlow() {
         setEnableAI(widgetData.llm_enabled || false);
         setAiMaxTokens(widgetData.llm_max_tokens || 1000);
         setWhatsappEnabled(widgetData.enable_whatsapp || false);
+        setEnableMultipleWhatsAppChats(widgetData.enable_multiple_whatsapp_chats || false);
         
         if (widgetData.handover_options) {
           try {
@@ -135,6 +137,7 @@ export default function ChatWidgetFlow() {
         llm_enabled: enableAI,
         llm_max_tokens: aiMaxTokens,
         enable_whatsapp: whatsappEnabled,
+        enable_multiple_whatsapp_chats: enableMultipleWhatsAppChats,
         handover_options: handoverOptions,
         enable_handover_choice: enableHandoverChoice
       };
