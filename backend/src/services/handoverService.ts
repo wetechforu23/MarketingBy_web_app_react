@@ -330,6 +330,56 @@ export class HandoverService {
   }
 
   /**
+   * Check for queued WhatsApp handovers and notify when agent becomes available
+   * This should be called periodically or when a conversation ends
+   */
+  static async processQueuedWhatsAppHandovers(clientId: number): Promise<void> {
+    const client = await pool.connect();
+    try {
+      // Check if agent is now available
+      const isBusy = await this.isAgentBusyWithWhatsApp(clientId);
+      
+      if (!isBusy) {
+        // Agent is available - process queued handovers
+        const queuedHandovers = await client.query(`
+          SELECT hr.*, wc.visitor_name, wc.visitor_email, wc.visitor_phone
+          FROM handover_requests hr
+          JOIN widget_conversations wc ON wc.id = hr.conversation_id
+          JOIN widget_configs w ON w.id = wc.widget_id
+          WHERE w.client_id = $1
+            AND hr.requested_method = 'whatsapp'
+            AND hr.status = 'queued'
+            AND wc.status = 'active'
+          ORDER BY hr.created_at ASC
+          LIMIT 1
+        `, [clientId]);
+
+        if (queuedHandovers.rows.length > 0) {
+          const queuedHandover = queuedHandovers.rows[0];
+          console.log(`✅ Processing queued WhatsApp handover: ${queuedHandover.id}`);
+          
+          // Process the handover now that agent is available
+          await this.processHandover(queuedHandover);
+          
+          // Update status
+          await this.updateHandoverStatus(queuedHandover.id, 'notified', null);
+          
+          // Mark conversation as handed off
+          await client.query(`
+            UPDATE widget_conversations
+            SET agent_handoff = true,
+                handoff_requested = false,
+                updated_at = NOW()
+            WHERE id = $1
+          `, [queuedHandover.conversation_id]);
+        }
+      }
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
    * Handle WhatsApp-based handover
    * Sends notification to CLIENT's WhatsApp number (not visitor's)
    */
