@@ -11,13 +11,16 @@ import { Request } from 'express';
 
 export interface ApprovalAction {
   contentId: number;
-  approvedBy: number;
+  approvedBy: number | null; // Can be null for secure link approvals (no user logged in)
   notes?: string;
   requestedChanges?: any;
+  approverName?: string; // For secure link approvals
+  approverEmail?: string; // For secure link approvals
+  accessMethod?: 'portal_login' | 'secure_link'; // Track how approval was done
 }
 
 /**
- * Submit content for WeTechForU approval
+ * Submit content for approval (skips WeTechForU, goes directly to client approval)
  */
 export async function submitForWTFUApproval(contentId: number, submittedBy: number) {
   const client = await pool.connect();
@@ -42,10 +45,12 @@ export async function submitForWTFUApproval(contentId: number, submittedBy: numb
       throw new Error(`Cannot submit content with status: ${content.status}`);
     }
 
-    // Update content status
+    // Update content status directly to pending_client_approval (skip WeTechForU approval)
+    // Note: destination_url should already be saved via updateContent before this is called
+    // This only updates status and doesn't touch other fields
     await client.query(
       'UPDATE social_media_content SET status = $1, updated_at = NOW() WHERE id = $2',
-      ['pending_wtfu_approval', contentId]
+      ['pending_client_approval', contentId]
     );
 
     // Log the submission in approval history
@@ -61,28 +66,28 @@ export async function submitForWTFUApproval(contentId: number, submittedBy: numb
       ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
         contentId,
-        'wtfu_submission',
+        'submission',
         submittedBy,
         'submitted',
         content.status,
-        'pending_wtfu_approval',
-        'Submitted for WeTechForU approval'
+        'pending_client_approval',
+        'Submitted for client approval'
       ]
     );
 
     await client.query('COMMIT');
 
-    // TODO: Send notification to WeTechForU team
-    // await sendNotificationToWTFUTeam(contentId);
+    // TODO: Send notification to client admin
+    // await sendNotificationToClient(content.client_id, contentId);
 
     return {
       success: true,
-      message: 'Content submitted for WeTechForU approval',
-      content: { ...content, status: 'pending_wtfu_approval' }
+      message: 'Content submitted for client approval',
+      content: { ...content, status: 'pending_client_approval' }
     };
   } catch (error: any) {
     await client.query('ROLLBACK');
-    console.error('Error submitting for WTFU approval:', error);
+    console.error('Error submitting for approval:', error);
     return { success: false, error: error.message };
   } finally {
     client.release();
@@ -264,9 +269,17 @@ export async function approveClient(action: ApprovalAction) {
     }
 
     // Update content status to approved (ready to schedule/post)
+    // Also set approved_by to track who approved the content
+    // Clear approval token if it exists (for secure link approvals)
     await client.query(
-      'UPDATE social_media_content SET status = $1, updated_at = NOW() WHERE id = $2',
-      ['approved', action.contentId]
+      `UPDATE social_media_content 
+       SET status = $1, 
+           approved_by = $2, 
+           approval_token = NULL,
+           approval_token_expires_at = NULL,
+           updated_at = NOW() 
+       WHERE id = $3`,
+      ['approved', action.approvedBy, action.contentId]
     );
 
     // Log the approval in history
@@ -287,7 +300,7 @@ export async function approveClient(action: ApprovalAction) {
         'approved',
         'pending_client_approval',
         'approved',
-        action.notes || 'Approved by client'
+        action.notes || `Approved by ${action.approverName || 'client'} (${action.accessMethod || 'portal_login'})`
       ]
     );
 
@@ -337,9 +350,16 @@ export async function rejectClient(action: ApprovalAction) {
     }
 
     // Update content status to rejected
+    // Clear approval token if it exists (for secure link approvals)
     await client.query(
-      'UPDATE social_media_content SET status = $1, updated_at = NOW() WHERE id = $2',
-      ['rejected', action.contentId]
+      `UPDATE social_media_content 
+       SET status = $1, 
+           rejection_reason = $2,
+           approval_token = NULL,
+           approval_token_expires_at = NULL,
+           updated_at = NOW() 
+       WHERE id = $3`,
+      ['rejected', action.notes || `Rejected by ${action.approverName || 'client'} (${action.accessMethod || 'portal_login'})`, action.contentId]
     );
 
     // Log the rejection in history
@@ -361,7 +381,7 @@ export async function rejectClient(action: ApprovalAction) {
         'rejected',
         'pending_client_approval',
         'rejected',
-        action.notes || 'Rejected by client',
+        action.notes || `Rejected by ${action.approverName || 'client'} (${action.accessMethod || 'portal_login'})`,
         action.requestedChanges ? JSON.stringify(action.requestedChanges) : null
       ]
     );
@@ -409,9 +429,7 @@ export async function requestChanges(action: ApprovalAction) {
 
     // Determine approval type based on current status
     let approvalType = 'changes_requested';
-    if (content.status === 'pending_wtfu_approval') {
-      approvalType = 'wtfu_changes_requested';
-    } else if (content.status === 'pending_client_approval') {
+    if (content.status === 'pending_client_approval') {
       approvalType = 'client_changes_requested';
     }
 
@@ -440,7 +458,7 @@ export async function requestChanges(action: ApprovalAction) {
         'changes_requested',
         content.status,
         'draft',
-        action.notes || 'Changes requested',
+        action.notes || `Changes requested by ${action.approverName || 'client'} (${action.accessMethod || 'portal_login'})`,
         action.requestedChanges ? JSON.stringify(action.requestedChanges) : null
       ]
     );
@@ -502,9 +520,10 @@ export async function getPendingApprovals(req: Request) {
   let paramIndex = 1;
 
   // Determine which approvals to show based on role
+  // Note: WeTechForU approval step has been removed - content goes directly to client approval
   if (role === 'super_admin' || role?.startsWith('wtfu_')) {
-    // WeTechForU users see content pending WTFU approval
-    statusFilter = 'pending_wtfu_approval';
+    // WeTechForU users see content pending client approval (for all clients)
+    statusFilter = 'pending_client_approval';
     whereConditions.push(`c.status = $${paramIndex}`);
     params.push(statusFilter);
     paramIndex++;
@@ -581,7 +600,6 @@ export async function getApprovalStats(req: Request) {
 
   const query = `
     SELECT 
-      COUNT(*) FILTER (WHERE status = 'pending_wtfu_approval') as pending_wtfu,
       COUNT(*) FILTER (WHERE status = 'pending_client_approval') as pending_client,
       COUNT(*) FILTER (WHERE status = 'approved') as approved,
       COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
@@ -614,5 +632,368 @@ export function canUserApprove(role: string | undefined, approvalType: 'wtfu' | 
   }
 
   return false;
+}
+
+/**
+ * Send content for approval with secure link (email method)
+ * Generates token and sends email to client
+ */
+export async function sendForApprovalWithLink(
+  contentId: number, 
+  sendEmail: boolean = true
+): Promise<{ success: boolean; token?: string; approvalUrl?: string; error?: string }> {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+
+    // Generate secure token
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
+
+    // Get content and client details
+    // Prefer client admin email from users table, fallback to clients.email
+    const contentResult = await client.query(
+      `SELECT 
+         c.*, 
+         cl.client_name, 
+         cl.email as client_company_email,
+         (SELECT u_admin.email 
+          FROM users u_admin 
+          WHERE u_admin.client_id = c.client_id 
+            AND u_admin.role = 'client_admin'
+            AND u_admin.is_active = true
+            AND u_admin.email IS NOT NULL 
+            AND u_admin.email != ''
+          ORDER BY u_admin.id DESC
+          LIMIT 1) as client_admin_email
+       FROM social_media_content c
+       JOIN clients cl ON cl.id = c.client_id
+       WHERE c.id = $1`,
+      [contentId]
+    );
+
+    if (contentResult.rows.length === 0) {
+      throw new Error('Content not found');
+    }
+
+    // Determine the best email to use (prefer client admin email, fallback to company email)
+    const content = contentResult.rows[0];
+    content.client_email = content.client_admin_email || content.client_company_email || null;
+
+    // Update content with approval token
+    await client.query(
+      `UPDATE social_media_content 
+       SET status = 'pending_client_approval',
+           approval_token = $1,
+           approval_token_expires_at = $2,
+           updated_at = NOW()
+       WHERE id = $3`,
+      [token, expiresAt, contentId]
+    );
+
+    // Log submission in history
+    await client.query(
+      `INSERT INTO content_approval_history (
+        content_id, approval_type, approved_by, approval_status,
+        previous_status, new_status, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        contentId,
+        'submission',
+        content.created_by,
+        'submitted',
+        content.status,
+        'pending_client_approval',
+        'Sent for client approval via secure link'
+      ]
+    );
+
+    await client.query('COMMIT');
+
+    const approvalUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/content/approve/${token}`;
+
+    // Send email if requested
+    console.log('📧 Email sending check:', {
+      sendEmail,
+      hasClientEmail: !!content.client_email,
+      clientEmail: content.client_email,
+      clientAdminEmail: content.client_admin_email,
+      clientCompanyEmail: content.client_company_email,
+      clientName: content.client_name,
+      contentId,
+      clientId: content.client_id
+    });
+
+    if (sendEmail && content.client_email) {
+      try {
+        const { EmailService } = require('./emailService');
+        const emailService = new EmailService();
+        const expiryDate = new Date(expiresAt).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        // Get platforms as string
+        const platforms = content.target_platforms || [];
+        const platformsText = platforms.length > 0 ? platforms.join(', ') : 'N/A';
+
+        console.log('📧 Sending approval email to:', content.client_email);
+        await emailService.sendEmail({
+          to: content.client_email,
+          subject: `📱 Social Media Content Ready for Approval: ${content.title}`,
+          html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                <h1 style="color: white; margin: 0; font-size: 28px;">📱 Content Ready for Approval</h1>
+              </div>
+              
+              <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px;">
+                <p style="font-size: 16px; margin-bottom: 20px;">Hello <strong>${content.client_name}</strong>,</p>
+                
+                <p style="font-size: 16px; margin-bottom: 20px;">
+                  We have a new social media content ready for your review and approval.
+                </p>
+                
+                <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4682B4;">
+                  <h2 style="margin-top: 0; color: #333; font-size: 20px;">${content.title}</h2>
+                  <p style="color: #666; margin-bottom: 10px;">${(content.content_text || '').substring(0, 200)}${(content.content_text || '').length > 200 ? '...' : ''}</p>
+                  <div style="display: flex; gap: 20px; margin-top: 15px; font-size: 14px; flex-wrap: wrap;">
+                    <div><strong>Platforms:</strong> ${platformsText}</div>
+                    <div><strong>Type:</strong> ${content.content_type || 'Text'}</div>
+                  </div>
+                </div>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${approvalUrl}" style="display: inline-block; background: linear-gradient(135deg, #4682B4, #5a9fd4); color: white; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">
+                    ✅ Review & Approve Content
+                  </a>
+                </div>
+                
+                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+                  <p style="margin: 0; font-size: 14px; color: #856404;">
+                    <strong>⏰ Important:</strong> This approval link will expire on <strong>${expiryDate}</strong> (48 hours from now).
+                  </p>
+                </div>
+                
+                <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
+                
+                <p style="font-size: 12px; color: #999; text-align: center; margin: 0;">
+                  If you're unable to click the button above, copy and paste this link into your browser:<br>
+                  <a href="${approvalUrl}" style="color: #4682B4; word-break: break-all;">${approvalUrl}</a>
+                </p>
+              </div>
+            </body>
+            </html>
+          `,
+          text: `
+Hello ${content.client_name},
+
+We have a new social media content ready for your review and approval.
+
+Content Title: ${content.title}
+Content Preview: ${(content.content_text || '').substring(0, 200)}${(content.content_text || '').length > 200 ? '...' : ''}
+Platforms: ${platformsText}
+Type: ${content.content_type || 'Text'}
+
+To review and approve this content, please visit:
+${approvalUrl}
+
+⏰ Important: This approval link will expire on ${expiryDate} (48 hours from now).
+
+If the link above doesn't work, copy and paste this URL into your browser:
+${approvalUrl}
+          `.trim()
+        });
+
+        console.log('✅ Approval email sent successfully to:', content.client_email);
+      } catch (emailError: any) {
+        console.error('❌ Failed to send approval email:', emailError);
+        console.error('❌ Email error details:', {
+          message: emailError.message,
+          stack: emailError.stack,
+          to: content.client_email,
+          code: emailError.code,
+          response: emailError.response
+        });
+        
+        // Check if it's a configuration issue
+        if (emailError.message?.includes('your-azure') || 
+            emailError.message?.includes('SmtpClientAuthentication is disabled') ||
+            emailError.message?.includes('Authentication unsuccessful')) {
+          console.error('⚠️ EMAIL SERVICE CONFIGURATION ISSUE:');
+          console.error('   - Azure credentials may not be configured properly');
+          console.error('   - Or SMTP authentication is disabled');
+          console.error('   - Please check your .env file for email service credentials');
+        }
+        // Don't throw error - token is still valid, but log the issue
+      }
+    } else if (sendEmail && !content.client_email) {
+      console.warn('⚠️ Email requested but client email is missing:', {
+        contentId,
+        clientId: content.client_id,
+        clientName: content.client_name,
+        clientCompanyEmail: content.client_company_email,
+        clientAdminEmail: content.client_admin_email,
+        note: 'No client admin email found in users table, and clients.email is also empty'
+      });
+      
+      // Try to find any client user email as last resort
+      const fallbackResult = await client.query(
+        `SELECT email FROM users 
+         WHERE client_id = $1 AND is_active = true AND email IS NOT NULL AND email != ''
+         ORDER BY CASE WHEN role = 'client_admin' THEN 1 ELSE 2 END
+         LIMIT 1`,
+        [content.client_id]
+      );
+      
+      if (fallbackResult.rows.length > 0) {
+        const fallbackEmail = fallbackResult.rows[0].email;
+        console.log('📧 Found fallback email, attempting to send:', fallbackEmail);
+        
+        try {
+          const { EmailService } = require('./emailService');
+          const emailService = new EmailService();
+          const expiryDate = new Date(expiresAt).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+
+          const platforms = content.target_platforms || [];
+          const platformsText = platforms.length > 0 ? platforms.join(', ') : 'N/A';
+
+          console.log('📧 Sending approval email to fallback email:', fallbackEmail);
+          await emailService.sendEmail({
+            to: fallbackEmail,
+            subject: `📱 Social Media Content Ready for Approval: ${content.title}`,
+            html: `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              </head>
+              <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                  <h1 style="color: white; margin: 0; font-size: 28px;">📱 Content Ready for Approval</h1>
+                </div>
+                
+                <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px;">
+                  <p style="font-size: 16px; margin-bottom: 20px;">Hello <strong>${content.client_name}</strong>,</p>
+                  
+                  <p style="font-size: 16px; margin-bottom: 20px;">
+                    We have a new social media content ready for your review and approval.
+                  </p>
+                  
+                  <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4682B4;">
+                    <h2 style="margin-top: 0; color: #333; font-size: 20px;">${content.title}</h2>
+                    <p style="color: #666; margin-bottom: 10px;">${(content.content_text || '').substring(0, 200)}${(content.content_text || '').length > 200 ? '...' : ''}</p>
+                    <div style="display: flex; gap: 20px; margin-top: 15px; font-size: 14px; flex-wrap: wrap;">
+                      <div><strong>Platforms:</strong> ${platformsText}</div>
+                      <div><strong>Type:</strong> ${content.content_type || 'Text'}</div>
+                    </div>
+                  </div>
+                  
+                  <div style="text-align: center; margin: 30px 0;">
+                    <a href="${approvalUrl}" style="display: inline-block; background: linear-gradient(135deg, #4682B4, #5a9fd4); color: white; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">
+                      ✅ Review & Approve Content
+                    </a>
+                  </div>
+                  
+                  <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+                    <p style="margin: 0; font-size: 14px; color: #856404;">
+                      <strong>⏰ Important:</strong> This approval link will expire on <strong>${expiryDate}</strong> (48 hours from now).
+                    </p>
+                  </div>
+                  
+                  <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
+                  
+                  <p style="font-size: 12px; color: #999; text-align: center; margin: 0;">
+                    If you're unable to click the button above, copy and paste this link into your browser:<br>
+                    <a href="${approvalUrl}" style="color: #4682B4; word-break: break-all;">${approvalUrl}</a>
+                  </p>
+                </div>
+              </body>
+              </html>
+            `,
+            text: `
+Hello ${content.client_name},
+
+We have a new social media content ready for your review and approval.
+
+Content Title: ${content.title}
+Content Preview: ${(content.content_text || '').substring(0, 200)}${(content.content_text || '').length > 200 ? '...' : ''}
+Platforms: ${platformsText}
+Type: ${content.content_type || 'Text'}
+
+To review and approve this content, please visit:
+${approvalUrl}
+
+⏰ Important: This approval link will expire on ${expiryDate} (48 hours from now).
+
+If the link above doesn't work, copy and paste this URL into your browser:
+${approvalUrl}
+            `.trim()
+          });
+
+          console.log('✅ Approval email sent successfully to fallback email:', fallbackEmail);
+        } catch (fallbackError: any) {
+          console.error('❌ Failed to send approval email to fallback email:', fallbackError);
+        }
+      } else {
+        console.error('❌ No email addresses found for client:', {
+          clientId: content.client_id,
+          clientName: content.client_name
+        });
+      }
+    }
+
+    return {
+      success: true,
+      token,
+      approvalUrl
+    };
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    console.error('❌ Error sending content for approval:', error);
+    return { success: false, error: error.message };
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Verify approval token (for secure link approval)
+ */
+export async function verifyApprovalToken(token: string): Promise<any | null> {
+  try {
+    const result = await pool.query(
+      `SELECT c.*, cl.client_name
+       FROM social_media_content c
+       LEFT JOIN clients cl ON cl.id = c.client_id
+       WHERE c.approval_token = $1
+       AND c.approval_token_expires_at > CURRENT_TIMESTAMP
+       AND c.status = 'pending_client_approval'`,
+      [token]
+    );
+
+    return result.rows[0] || null;
+  } catch (error: any) {
+    console.error('❌ Error verifying approval token:', error);
+    return null;
+  }
 }
 

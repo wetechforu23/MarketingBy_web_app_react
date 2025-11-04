@@ -735,7 +735,9 @@ class FacebookService {
    */
   async createTextPost(
     clientId: number,
-    message: string
+    message: string,
+    contentId?: number | null,
+    destinationUrl?: string | null
   ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
     try {
       const credentials = await this.getClientCredentials(clientId);
@@ -746,63 +748,54 @@ class FacebookService {
 
       console.log(`📘 Creating Facebook text post for page ${credentials.page_id}...`);
 
-      // NEW: Get client name for UTM campaign generation
-      let clientName = 'client';
-      let trackedMessage = message;
-      let utmCampaign = '';
+      // UTM Tracking: Generate tracked URL if destinationUrl is provided
       let originalUrls: string[] = [];
       let trackedUrls: string[] = [];
+      let utmCampaign: string | null = null;
+      let linkUrl: string | undefined = undefined;
 
-      try {
-        const clientResult = await this.pool.query(
-          'SELECT client_name FROM clients WHERE id = $1',
-          [clientId]
-        );
-        
-        if (clientResult.rows.length > 0) {
-          clientName = clientResult.rows[0].client_name;
+      if (destinationUrl && destinationUrl.trim() && contentId) {
+        try {
+          const { generateUTMUrl } = require('../utils/utmTracking');
+          
+          const trackedUrl = generateUTMUrl(destinationUrl.trim(), contentId);
+          originalUrls = [destinationUrl.trim()];
+          trackedUrls = [trackedUrl];
+          utmCampaign = contentId.toString();
+          linkUrl = trackedUrl;
+
+          console.log(`🔗 UTM tracking enabled:`);
+          console.log(`   Original URL: ${destinationUrl}`);
+          console.log(`   Tracked URL: ${trackedUrl}`);
+          console.log(`   Campaign ID: ${utmCampaign}`);
+        } catch (utmError: any) {
+          console.warn('⚠️  UTM tracking failed, posting without tracking:', utmError.message);
         }
-
-        // NEW: Process message content with UTM tracking
-        // console.log('🔗 Processing content with UTM tracking...');
-        // const utmResult = UTMTrackingService.processPostContent(
-        //   message,
-        //   clientId,
-        //   clientName,
-        //   'text'
-        // );
-
-        // Temporarily use original message (UTM tracking disabled for deployment)
-        trackedMessage = message;
-        utmCampaign = null;
-        originalUrls = [];
-        trackedUrls = [];
-
-        if (originalUrls.length > 0) {
-          console.log(`✅ UTM tracking applied to ${originalUrls.length} URL(s)`);
-          console.log(`   Campaign: ${utmCampaign}`);
-        }
-      } catch (utmError: any) {
-        // Graceful fallback: if UTM tracking fails, post without tracking
-        console.warn('⚠️  UTM tracking failed, posting without tracking:', utmError.message);
-        trackedMessage = message; // Use original message
       }
 
-      // Post to Facebook with tracked content
+      // Post to Facebook with tracked URL if available
+      const postPayload: any = {
+        message: message,
+        access_token: credentials.access_token
+      };
+
+      // Add link parameter if we have a tracked URL
+      if (linkUrl) {
+        postPayload.link = linkUrl;
+        console.log(`📎 Adding link to post: ${linkUrl}`);
+      }
+
       const response = await axios.post(
         `${this.baseUrl}/${credentials.page_id}/feed`,
-        {
-          message: trackedMessage,
-          access_token: credentials.access_token
-        }
+        postPayload
       );
 
       const postId = response.data.id;
       const postUrl = `https://www.facebook.com/${postId.replace('_', '/posts/')}`;
       console.log(`✅ Facebook text post created: ${postId}`);
 
-      // NEW: Store UTM data in database (optional - graceful if migration not run)
-      if (utmCampaign && originalUrls.length > 0) {
+      // Store UTM data in database (using existing facebook_posts columns)
+      if (utmCampaign && originalUrls.length > 0 && trackedUrls.length > 0) {
         try {
           await this.pool.query(
             `INSERT INTO facebook_posts (
@@ -821,20 +814,19 @@ class FacebookService {
             [
               clientId,
               postId,
-              trackedMessage,
+              message,
               postUrl,
               utmCampaign,
               'facebook',
-              'social',
+              'social-post',
               originalUrls,
               trackedUrls
             ]
           );
           console.log(`📊 UTM tracking data stored in database`);
         } catch (dbError: any) {
-          // Graceful: if DB storage fails (e.g., migration not run), just log it
+          // Graceful: if DB storage fails, just log it
           console.warn('⚠️  Could not store UTM data in database:', dbError.message);
-          console.warn('   (This is OK if you haven\'t run the UTM migration yet)');
         }
       }
 
@@ -849,6 +841,72 @@ class FacebookService {
         success: false,
         error: error.response?.data?.error?.message || error.message
       };
+    }
+  }
+
+  /**
+   * Helper: Update UTM tracked URL in social_media_content table
+   */
+  private async updateContentUTMUrl(
+    contentId: number,
+    trackedUrl: string
+  ): Promise<void> {
+    try {
+      await this.pool.query(
+        `UPDATE social_media_content 
+         SET utm_tracked_url = $1, updated_at = NOW()
+         WHERE id = $2`,
+        [trackedUrl, contentId]
+      );
+      console.log(`📊 UTM tracked URL saved to social_media_content (ID: ${contentId})`);
+    } catch (dbError: any) {
+      console.warn('⚠️  Could not update UTM URL in social_media_content:', dbError.message);
+    }
+  }
+
+  /**
+   * Helper: Store UTM tracking data in database
+   */
+  private async storeUTMData(
+    clientId: number,
+    postId: string,
+    message: string,
+    postUrl: string,
+    utmCampaign: string,
+    originalUrls: string[],
+    trackedUrls: string[]
+  ): Promise<void> {
+    try {
+      await this.pool.query(
+        `INSERT INTO facebook_posts (
+          client_id, post_id, message, created_time, permalink_url,
+          utm_campaign, utm_source, utm_medium, original_urls, tracked_urls,
+          synced_at
+        ) VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7, $8, $9, NOW())
+        ON CONFLICT (post_id) DO UPDATE SET
+          message = EXCLUDED.message,
+          utm_campaign = EXCLUDED.utm_campaign,
+          utm_source = EXCLUDED.utm_source,
+          utm_medium = EXCLUDED.utm_medium,
+          original_urls = EXCLUDED.original_urls,
+          tracked_urls = EXCLUDED.tracked_urls,
+          synced_at = NOW()`,
+        [
+          clientId,
+          postId,
+          message,
+          postUrl,
+          utmCampaign,
+          'facebook',
+          'social-post',
+          originalUrls,
+          trackedUrls
+        ]
+      );
+      console.log(`📊 UTM tracking data stored in database`);
+    } catch (dbError: any) {
+      // Graceful: if DB storage fails, just log it
+      console.warn('⚠️  Could not store UTM data in database:', dbError.message);
     }
   }
 
@@ -880,7 +938,9 @@ class FacebookService {
   async createImagePost(
     clientId: number,
     message: string,
-    imageUrl: string
+    imageUrl: string,
+    contentId?: number | null,
+    destinationUrl?: string | null
   ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
     try {
       const credentials = await this.getClientCredentials(clientId);
@@ -892,57 +952,201 @@ class FacebookService {
       console.log(`📘 Creating Facebook image post for page ${credentials.page_id}...`);
       console.log(`📸 Image URL: ${imageUrl}`);
 
+      // UTM Tracking: Generate tracked URL if destinationUrl is provided
+      let originalUrls: string[] = [];
+      let trackedUrls: string[] = [];
+      let utmCampaign: string | null = null;
+      let linkUrl: string | undefined = undefined;
+
+      if (destinationUrl && destinationUrl.trim() && contentId) {
+        try {
+          const { generateUTMUrl } = require('../utils/utmTracking');
+          
+          const trackedUrl = generateUTMUrl(destinationUrl.trim(), contentId);
+          originalUrls = [destinationUrl.trim()];
+          trackedUrls = [trackedUrl];
+          utmCampaign = contentId.toString();
+          linkUrl = trackedUrl;
+
+          console.log(`🔗 UTM tracking enabled:`);
+          console.log(`   Original URL: ${destinationUrl}`);
+          console.log(`   Tracked URL: ${trackedUrl}`);
+          console.log(`   Campaign ID: ${utmCampaign}`);
+        } catch (utmError: any) {
+          console.warn('⚠️  UTM tracking failed, posting without tracking:', utmError.message);
+        }
+      }
+
       // Check if it's a local file
       const localFilePath = this.getLocalFilePath(imageUrl);
       
       if (localFilePath) {
         console.log(`📤 Uploading local file: ${localFilePath}`);
         
-        // Upload file directly to Facebook
-        const form = new FormData();
-        form.append('message', message);
-        form.append('source', fs.createReadStream(localFilePath));
-        form.append('access_token', credentials.access_token);
+        // For local file uploads with links, we need to use /feed endpoint
+        if (linkUrl) {
+          console.log(`📎 Creating photo post with link via /feed endpoint (local file)`);
+          
+          // First upload the photo
+          const uploadForm = new FormData();
+          uploadForm.append('source', fs.createReadStream(localFilePath));
+          uploadForm.append('published', 'false'); // Don't publish, use in feed post
+          uploadForm.append('access_token', credentials.access_token);
+          
+          const photoResponse = await axios.post(
+            `${this.baseUrl}/${credentials.page_id}/photos`,
+            uploadForm,
+            {
+              headers: {
+                ...uploadForm.getHeaders(),
+              },
+            }
+          );
+          
+          const mediaId = photoResponse.data.id;
+          console.log(`📸 Photo uploaded, media_id: ${mediaId}`);
+          
+          // Create feed post with attached media and link
+          const feedPayload: any = {
+            message: message,
+            attached_media: [{ media_fbid: mediaId }],
+            link: linkUrl,
+            access_token: credentials.access_token
+          };
+          
+          const response = await axios.post(
+            `${this.baseUrl}/${credentials.page_id}/feed`,
+            feedPayload
+          );
+          
+          const postId = response.data.id;
+          const postUrl = `https://www.facebook.com/${postId.replace('_', '/posts/')}`;
+          console.log(`✅ Facebook image post with link created: ${postId}`);
 
-        const response = await axios.post(
-          `${this.baseUrl}/${credentials.page_id}/photos`,
-          form,
-          {
-            headers: {
-              ...form.getHeaders(),
-            },
+          // Store UTM data in both facebook_posts and social_media_content
+          if (utmCampaign && originalUrls.length > 0 && trackedUrls.length > 0 && contentId) {
+            await this.storeUTMData(clientId, postId, message, postUrl, utmCampaign, originalUrls, trackedUrls);
+            await this.updateContentUTMUrl(contentId, trackedUrls[0]);
           }
-        );
 
-        const postId = response.data.post_id || response.data.id;
-        console.log(`✅ Facebook image post created: ${postId}`);
+          return {
+            success: true,
+            postId: postId,
+            postUrl: postUrl
+          };
+        } else {
+          // No link - simple photo upload
+          const form = new FormData();
+          form.append('message', message);
+          form.append('source', fs.createReadStream(localFilePath));
+          form.append('access_token', credentials.access_token);
 
-        return {
-          success: true,
-          postId: postId,
-          postUrl: `https://www.facebook.com/${postId.replace('_', '/posts/')}`
-        };
+          const response = await axios.post(
+            `${this.baseUrl}/${credentials.page_id}/photos`,
+            form,
+            {
+              headers: {
+                ...form.getHeaders(),
+              },
+            }
+          );
+
+          const postId = response.data.post_id || response.data.id;
+          const postUrl = `https://www.facebook.com/${postId.replace('_', '/posts/')}`;
+          console.log(`✅ Facebook image post created: ${postId}`);
+
+          // Store UTM data in both facebook_posts and social_media_content
+          if (utmCampaign && originalUrls.length > 0 && trackedUrls.length > 0 && contentId) {
+            await this.storeUTMData(clientId, postId, message, postUrl, utmCampaign, originalUrls, trackedUrls);
+            await this.updateContentUTMUrl(contentId, trackedUrls[0]);
+          }
+
+          return {
+            success: true,
+            postId: postId,
+            postUrl: postUrl
+          };
+        }
       } else {
         // Use URL method for external images
         console.log(`🔗 Using URL method for external image`);
         
-        const response = await axios.post(
-          `${this.baseUrl}/${credentials.page_id}/photos`,
-          {
+        // For image posts with links, we need to use /feed endpoint instead of /photos
+        // This allows us to properly include both the image and the link
+        if (linkUrl) {
+          console.log(`📎 Creating photo post with link via /feed endpoint`);
+          
+          // First upload the photo to get media_id
+          const photoResponse = await axios.post(
+            `${this.baseUrl}/${credentials.page_id}/photos`,
+            {
+              url: imageUrl,
+              published: false, // Don't publish, we'll use it in feed post
+              access_token: credentials.access_token
+            }
+          );
+          
+          const mediaId = photoResponse.data.id;
+          console.log(`📸 Photo uploaded, media_id: ${mediaId}`);
+          
+          // Create feed post with attached media and link
+          const feedPayload: any = {
+            message: message,
+            attached_media: [{ media_fbid: mediaId }],
+            link: linkUrl,
+            access_token: credentials.access_token
+          };
+          
+          const response = await axios.post(
+            `${this.baseUrl}/${credentials.page_id}/feed`,
+            feedPayload
+          );
+          
+          const postId = response.data.id;
+          const postUrl = `https://www.facebook.com/${postId.replace('_', '/posts/')}`;
+          console.log(`✅ Facebook image post with link created: ${postId}`);
+
+          // Store UTM data in both facebook_posts and social_media_content
+          if (utmCampaign && originalUrls.length > 0 && trackedUrls.length > 0 && contentId) {
+            await this.storeUTMData(clientId, postId, message, postUrl, utmCampaign, originalUrls, trackedUrls);
+            await this.updateContentUTMUrl(contentId, trackedUrls[0]);
+          }
+
+          return {
+            success: true,
+            postId: postId,
+            postUrl: postUrl
+          };
+        } else {
+          // No link - use simple photo upload
+          const postPayload: any = {
             message: message,
             url: imageUrl,
             access_token: credentials.access_token
+          };
+          
+          const response = await axios.post(
+            `${this.baseUrl}/${credentials.page_id}/photos`,
+            postPayload
+          );
+          
+          const postId = response.data.post_id || response.data.id;
+          const postUrl = `https://www.facebook.com/${postId.replace('_', '/posts/')}`;
+          console.log(`✅ Facebook image post created: ${postId}`);
+
+          // Store UTM data in both facebook_posts and social_media_content
+          if (utmCampaign && originalUrls.length > 0 && trackedUrls.length > 0 && contentId) {
+            await this.storeUTMData(clientId, postId, message, postUrl, utmCampaign, originalUrls, trackedUrls);
+            await this.updateContentUTMUrl(contentId, trackedUrls[0]);
           }
-        );
 
-        const postId = response.data.post_id || response.data.id;
-        console.log(`✅ Facebook image post created: ${postId}`);
+          return {
+            success: true,
+            postId: postId,
+            postUrl: postUrl
+          };
+        }
 
-        return {
-          success: true,
-          postId: postId,
-          postUrl: `https://www.facebook.com/${postId.replace('_', '/posts/')}`
-        };
       }
     } catch (error: any) {
       console.error('❌ Error creating Facebook image post:', error.response?.data || error.message);
@@ -960,7 +1164,9 @@ class FacebookService {
   async createMultiImagePost(
     clientId: number,
     message: string,
-    imageUrls: string[]
+    imageUrls: string[],
+    contentId?: number | null,
+    destinationUrl?: string | null
   ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
     try {
       const credentials = await this.getClientCredentials(clientId);
@@ -971,6 +1177,31 @@ class FacebookService {
 
       console.log(`📘 Creating Facebook multi-image post for page ${credentials.page_id}...`);
       console.log(`📸 Number of images: ${imageUrls.length}`);
+
+      // UTM Tracking: Generate tracked URL if destinationUrl is provided
+      let originalUrls: string[] = [];
+      let trackedUrls: string[] = [];
+      let utmCampaign: string | null = null;
+      let linkUrl: string | undefined = undefined;
+
+      if (destinationUrl && destinationUrl.trim() && contentId) {
+        try {
+          const { generateUTMUrl } = require('../utils/utmTracking');
+          
+          const trackedUrl = generateUTMUrl(destinationUrl.trim(), contentId);
+          originalUrls = [destinationUrl.trim()];
+          trackedUrls = [trackedUrl];
+          utmCampaign = contentId.toString();
+          linkUrl = trackedUrl;
+
+          console.log(`🔗 UTM tracking enabled:`);
+          console.log(`   Original URL: ${destinationUrl}`);
+          console.log(`   Tracked URL: ${trackedUrl}`);
+          console.log(`   Campaign ID: ${utmCampaign}`);
+        } catch (utmError: any) {
+          console.warn('⚠️  UTM tracking failed, posting without tracking:', utmError.message);
+        }
+      }
 
       // Upload each image and get media IDs
       const attached_media = [];
@@ -1024,22 +1255,39 @@ class FacebookService {
       }
 
       // Create the multi-photo post
+      // Note: Facebook doesn't support 'link' parameter with attached_media in /feed endpoint
+      // So we'll append the link to the message text for multi-image posts
+      let finalMessage = message;
+      if (linkUrl) {
+        finalMessage = message + (message.trim().length > 0 ? '\n\n' : '') + linkUrl;
+        console.log(`📎 Adding link to message text for multi-image post: ${linkUrl}`);
+      }
+      
+      const postPayload: any = {
+        message: finalMessage,
+        attached_media: attached_media,
+        access_token: credentials.access_token
+      };
+
       const response = await axios.post(
         `${this.baseUrl}/${credentials.page_id}/feed`,
-        {
-          message: message,
-          attached_media: attached_media,
-          access_token: credentials.access_token
-        }
+        postPayload
       );
 
       const postId = response.data.id;
+      const postUrl = `https://www.facebook.com/${postId.replace('_', '/posts/')}`;
       console.log(`✅ Facebook multi-image post created: ${postId}`);
+
+      // Store UTM data in both facebook_posts and social_media_content
+      if (utmCampaign && originalUrls.length > 0 && trackedUrls.length > 0 && contentId) {
+        await this.storeUTMData(clientId, postId, message, postUrl, utmCampaign, originalUrls, trackedUrls);
+        await this.updateContentUTMUrl(contentId, trackedUrls[0]);
+      }
 
       return {
         success: true,
         postId: postId,
-        postUrl: `https://www.facebook.com/${postId.replace('_', '/posts/')}`
+        postUrl: postUrl
       };
     } catch (error: any) {
       console.error('❌ Error creating Facebook multi-image post:', error.response?.data || error.message);
@@ -1058,6 +1306,8 @@ class FacebookService {
     clientId: number,
     message: string,
     videoUrl: string,
+    contentId?: number | null,
+    destinationUrl?: string | null,
     title?: string,
     description?: string
   ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
@@ -1069,6 +1319,31 @@ class FacebookService {
       }
 
       console.log(`📘 Creating Facebook video post for page ${credentials.page_id}...`);
+
+      // UTM Tracking: Generate tracked URL if destinationUrl is provided
+      let originalUrls: string[] = [];
+      let trackedUrls: string[] = [];
+      let utmCampaign: string | null = null;
+      let linkUrl: string | undefined = undefined;
+
+      if (destinationUrl && destinationUrl.trim() && contentId) {
+        try {
+          const { generateUTMUrl } = require('../utils/utmTracking');
+          
+          const trackedUrl = generateUTMUrl(destinationUrl.trim(), contentId);
+          originalUrls = [destinationUrl.trim()];
+          trackedUrls = [trackedUrl];
+          utmCampaign = contentId.toString();
+          linkUrl = trackedUrl;
+
+          console.log(`🔗 UTM tracking enabled:`);
+          console.log(`   Original URL: ${destinationUrl}`);
+          console.log(`   Tracked URL: ${trackedUrl}`);
+          console.log(`   Campaign ID: ${utmCampaign}`);
+        } catch (utmError: any) {
+          console.warn('⚠️  UTM tracking failed, posting without tracking:', utmError.message);
+        }
+      }
 
       const videoData: any = {
         file_url: videoUrl,
@@ -1084,18 +1359,35 @@ class FacebookService {
         videoData.description = description;
       }
 
+      // Add link parameter if we have a tracked URL
+      if (linkUrl) {
+        videoData.call_to_action = {
+          type: 'LEARN_MORE',
+          value: {
+            link: linkUrl
+          }
+        };
+      }
+
       const response = await axios.post(
         `${this.baseUrl}/${credentials.page_id}/videos`,
         videoData
       );
 
       const postId = response.data.id;
+      const postUrl = `https://www.facebook.com/watch/?v=${postId}`;
       console.log(`✅ Facebook video post created: ${postId}`);
+
+      // Store UTM data in both facebook_posts and social_media_content
+      if (utmCampaign && originalUrls.length > 0 && trackedUrls.length > 0 && contentId) {
+        await this.storeUTMData(clientId, postId, message, postUrl, utmCampaign, originalUrls, trackedUrls);
+        await this.updateContentUTMUrl(contentId, trackedUrls[0]);
+      }
 
       return {
         success: true,
         postId: postId,
-        postUrl: `https://www.facebook.com/watch/?v=${postId}`
+        postUrl: postUrl
       };
     } catch (error: any) {
       console.error('❌ Error creating Facebook video post:', error.response?.data || error.message);
@@ -1112,11 +1404,13 @@ class FacebookService {
   async createPost(
     clientId: number,
     message: string,
-    mediaUrls?: string[]
+    mediaUrls?: string[],
+    contentId?: number | null,
+    destinationUrl?: string | null
   ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
     // No media - text only
     if (!mediaUrls || mediaUrls.length === 0) {
-      return this.createTextPost(clientId, message);
+      return this.createTextPost(clientId, message, contentId, destinationUrl);
     }
 
     // Determine media types
@@ -1128,17 +1422,17 @@ class FacebookService {
       if (videos.length > 1) {
         return { success: false, error: 'Facebook only supports one video per post' };
       }
-      return this.createVideoPost(clientId, message, videos[0]);
+      return this.createVideoPost(clientId, message, videos[0], contentId, destinationUrl, undefined, undefined);
     }
 
     // Single image post
     if (images.length === 1) {
-      return this.createImagePost(clientId, message, images[0]);
+      return this.createImagePost(clientId, message, images[0], contentId, destinationUrl);
     }
 
     // Multiple images (carousel)
     if (images.length > 1) {
-      return this.createMultiImagePost(clientId, message, images);
+      return this.createMultiImagePost(clientId, message, images, contentId, destinationUrl);
     }
 
     return { success: false, error: 'No valid media found' };
@@ -1435,7 +1729,6 @@ class FacebookService {
     try {
       console.log(`\n👥 [FOLLOWER INSIGHTS] Fetching follower data for ${days} days...`);
 
-      const metrics = ['page_fans', 'page_fan_adds', 'page_fan_removes'];
       const followerData: any = {
         currentFollowers: 0,
         totalAdds: 0,
@@ -1444,15 +1737,30 @@ class FacebookService {
         history: []
       };
 
+      // Fetch current total followers using direct endpoint (new format)
+      try {
+        const followersResponse = await axios.get(`${this.baseUrl}/${pageId}`, {
+          params: {
+            fields: 'followers_count',
+            access_token: accessToken
+          }
+        });
+        followerData.currentFollowers = followersResponse.data.followers_count || 0;
+        console.log(`✅ [FOLLOWER INSIGHTS] Current followers: ${followerData.currentFollowers}`);
+      } catch (error: any) {
+        console.log(`⚠️ [FOLLOWER INSIGHTS] Failed to fetch current followers:`, error.message);
+      }
+
+      // Fetch historical data for fan adds and removes using insights API
+      const metrics = ['page_fan_adds', 'page_fan_removes'];
       for (const metric of metrics) {
         try {
-          const period = metric === 'page_fans' ? 'lifetime' : 'day';
           const response = await axios.get(
             `https://graph.facebook.com/v18.0/${pageId}/insights/${metric}`,
             {
               params: {
                 access_token: accessToken,
-                period: period,
+                period: 'day',
                 since: Math.floor(Date.now() / 1000) - (days * 24 * 60 * 60)
               }
             }
@@ -1462,9 +1770,7 @@ class FacebookService {
             const insight = response.data.data[0];
             const values = insight.values || [];
 
-            if (metric === 'page_fans' && values.length > 0) {
-              followerData.currentFollowers = values[values.length - 1].value;
-            } else if (metric === 'page_fan_adds') {
+            if (metric === 'page_fan_adds') {
               followerData.totalAdds = values.reduce((sum: number, v: any) => sum + (v.value || 0), 0);
             } else if (metric === 'page_fan_removes') {
               followerData.totalRemoves = values.reduce((sum: number, v: any) => sum + (v.value || 0), 0);
@@ -1586,16 +1892,17 @@ class FacebookService {
 
   /**
    * Get follower statistics - FROM WORKING REFERENCE
+   * Updated to use direct followers_count endpoint for total followers
    */
   async getFollowerStats(pageId: string, pageAccessToken: string): Promise<any> {
     try {
       console.log(`📊 [FOLLOWER STATS] Fetching follower statistics for page ${pageId}...`);
 
-      // Fetch current total followers
-      const fansResponse = await axios.get(`${this.baseUrl}/${pageId}/insights/page_fans`, {
+      // Fetch current total followers using direct endpoint (new format)
+      const followersResponse = await axios.get(`${this.baseUrl}/${pageId}`, {
         params: {
-          access_token: pageAccessToken,
-          period: 'lifetime'
+          fields: 'followers_count',
+          access_token: pageAccessToken
         }
       });
 
@@ -1615,7 +1922,7 @@ class FacebookService {
         }
       });
 
-      const totalFollowers = fansResponse.data.data?.[0]?.values?.[0]?.value || 0;
+      const totalFollowers = followersResponse.data.followers_count || 0;
       const fanAdds = fanAddsResponse.data.data?.[0]?.values || [];
       const fanRemoves = fanRemovesResponse.data.data?.[0]?.values || [];
 
@@ -1754,24 +2061,20 @@ class FacebookService {
         engagement: 0
       };
 
-      // 1. Fetch Total Followers using page_fans with 'day' period
+      // 1. Fetch Total Followers using direct endpoint (new format)
       try {
-        console.log(`  📊 Fetching page_fans (day)...`);
-        const fansResponse = await axios.get(`${this.baseUrl}/${pageId}/insights/page_fans`, {
+        console.log(`  📊 Fetching followers_count...`);
+        const followersResponse = await axios.get(`${this.baseUrl}/${pageId}`, {
           params: {
-            access_token: accessToken,
-            period: 'day'
+            fields: 'followers_count',
+            access_token: accessToken
           }
         });
         
-        if (fansResponse.data.data && fansResponse.data.data[0]?.values) {
-          const values = fansResponse.data.data[0].values;
-          const latestValue = values[values.length - 1]?.value || 0;
-          metrics.totalFollowers = latestValue;
-          console.log(`  ✅ Total Followers (page_fans): ${latestValue}`);
-        }
+        metrics.totalFollowers = followersResponse.data.followers_count || 0;
+        console.log(`  ✅ Total Followers (followers_count): ${metrics.totalFollowers}`);
       } catch (error: any) {
-        console.log(`  ⚠️ page_fans error: ${error.message}`);
+        console.log(`  ⚠️ followers_count error: ${error.message}`);
       }
 
       // 2. Fetch other metrics using days_28 period

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/auth';
+import pool from '../config/database';
 import * as contentService from '../services/contentManagementService';
 import * as approvalService from '../services/approvalWorkflowService';
 import * as validationService from '../services/platformValidationService';
@@ -7,7 +8,181 @@ import * as postingService from '../services/socialMediaPostingService';
 
 const router = Router();
 
-// All routes require authentication
+// Public routes (no authentication required)
+/**
+ * GET /api/content/approve/:token
+ * Verify approval token and get content (for secure link approval)
+ */
+router.get('/approve/:token', async (req: Request, res: Response) => {
+  try {
+    const token = req.params.token;
+    const content = await approvalService.verifyApprovalToken(token);
+
+    if (!content) {
+      return res.status(404).json({ error: 'Invalid or expired approval token' });
+    }
+
+    res.json({ success: true, content });
+  } catch (error: any) {
+    console.error('❌ Error verifying approval token:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/content/:id/approve-client
+ * Approve content (supports both secure link AND portal approval)
+ */
+router.post('/:id/approve-client', async (req: Request, res: Response) => {
+  try {
+    const contentId = parseInt(req.params.id);
+    const { notes, token, approver_name, approver_email, access_method } = req.body;
+    const userId = req.session?.userId;
+
+    // If using secure link, verify token first (no auth required)
+    if (access_method === 'secure_link' && token) {
+      const verifiedContent = await approvalService.verifyApprovalToken(token);
+      if (!verifiedContent || verifiedContent.id !== contentId) {
+        return res.status(400).json({ error: 'Invalid approval token' });
+      }
+
+      // Try to find user by email for secure link approvals
+      let approverUserId = null;
+      if (approver_email) {
+        try {
+          const userResult = await pool.query(
+            'SELECT id FROM users WHERE email = $1 LIMIT 1',
+            [approver_email]
+          );
+          if (userResult.rows.length > 0) {
+            approverUserId = userResult.rows[0].id;
+          }
+        } catch (error) {
+          console.warn('Could not find user by email for secure link approval:', approver_email);
+        }
+      }
+
+      const result = await approvalService.approveClient({
+        contentId,
+        approvedBy: approverUserId, // Use user ID if found, otherwise null
+        notes,
+        approverName: approver_name,
+        approverEmail: approver_email,
+        accessMethod: 'secure_link'
+      });
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      return res.json(result);
+    } else {
+      // Portal approval - require authentication
+      // Check if session exists and user is authenticated
+      if (!req.session || !userId) {
+        console.error('❌ Portal approval failed - no session or userId:', {
+          hasSession: !!req.session,
+          userId: userId,
+          sessionId: req.session?.id,
+          role: req.session?.role
+        });
+        return res.status(401).json({ error: 'Authentication required for portal approvals. Please log in and try again.' });
+      }
+      
+      if (!approvalService.canUserApprove(req.session.role, 'client')) {
+        return res.status(403).json({ error: 'You do not have permission to approve content' });
+      }
+
+      const result = await approvalService.approveClient({
+        contentId,
+        approvedBy: userId,
+        notes,
+        approverName: approver_name,
+        approverEmail: approver_email,
+        accessMethod: 'portal_login'
+      });
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      return res.json(result);
+    }
+  } catch (error: any) {
+    console.error('Error approving content (client):', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/content/:id/reject-client
+ * Reject content (supports both secure link AND portal rejection)
+ */
+router.post('/:id/reject-client', async (req: Request, res: Response) => {
+  try {
+    const contentId = parseInt(req.params.id);
+    const { notes, requestedChanges, token, approver_name, approver_email, access_method } = req.body;
+    const userId = req.session?.userId;
+
+    if (!notes && !requestedChanges) {
+      return res.status(400).json({ error: 'Feedback is required when rejecting content' });
+    }
+
+    // If using secure link, verify token first (no auth required)
+    if (access_method === 'secure_link' && token) {
+      const verifiedContent = await approvalService.verifyApprovalToken(token);
+      if (!verifiedContent || verifiedContent.id !== contentId) {
+        return res.status(400).json({ error: 'Invalid approval token' });
+      }
+
+      const result = await approvalService.rejectClient({
+        contentId,
+        approvedBy: null, // null for secure link approvals
+        notes,
+        requestedChanges,
+        approverName: approver_name,
+        approverEmail: approver_email,
+        accessMethod: 'secure_link'
+      });
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      return res.json(result);
+    } else {
+      // Portal rejection - require authentication
+      if (!userId) {
+        return res.status(401).json({ error: 'Authentication required for portal rejections' });
+      }
+      
+      if (!approvalService.canUserApprove(req.session.role, 'client')) {
+        return res.status(403).json({ error: 'You do not have permission to reject content' });
+      }
+
+      const result = await approvalService.rejectClient({
+        contentId,
+        approvedBy: userId,
+        notes,
+        requestedChanges,
+        approverName: approver_name,
+        approverEmail: approver_email,
+        accessMethod: 'portal_login'
+      });
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      return res.json(result);
+    }
+  } catch (error: any) {
+    console.error('Error rejecting content (client):', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// All other routes require authentication
 router.use(requireAuth);
 
 // ============================================================================
@@ -20,7 +195,7 @@ router.use(requireAuth);
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { clientId, title, contentType, contentText, mediaUrls, hashtags, mentions, targetPlatforms } = req.body;
+    const { clientId, title, contentType, contentText, destinationUrl, mediaUrls, hashtags, mentions, targetPlatforms } = req.body;
     const userId = req.session.userId!;
 
     // Validate required fields
@@ -41,6 +216,7 @@ router.post('/', async (req: Request, res: Response) => {
       title,
       contentType,
       contentText,
+      destinationUrl,
       mediaUrls,
       hashtags,
       mentions,
@@ -78,11 +254,30 @@ router.get('/', async (req: Request, res: Response) => {
     };
 
     console.log('📋 Content filters:', filters);
+    console.log('👤 User session:', {
+      userId: req.session.userId,
+      role: req.session.role,
+      clientId: req.session.clientId
+    });
+    
     const result = await contentService.listContent(req, filters);
 
     if (!result.success) {
-      return res.status(400).json({ error: result.error });
+      console.error('❌ Content listing failed:', result.error);
+      console.error('❌ Filters:', filters);
+      console.error('❌ Session:', {
+        userId: req.session.userId,
+        role: req.session.role,
+        clientId: req.session.clientId
+      });
+      return res.status(400).json({ error: result.error || 'Failed to fetch content' });
     }
+
+    console.log('✅ Content listing success:', {
+      contentCount: result.content?.length || 0,
+      total: result.total,
+      hasMore: result.hasMore
+    });
 
     res.json(result);
   } catch (error: any) {
@@ -301,69 +496,86 @@ router.post('/:id/reject-wtfu', async (req: Request, res: Response) => {
 });
 
 /**
- * APPROVE: Client approval
- * POST /api/content/:id/approve-client
+ * GET /api/content/:id/approval-link
+ * Get approval link for existing content (if token exists)
  */
-router.post('/:id/approve-client', async (req: Request, res: Response) => {
+router.get('/:id/approval-link', requireAuth, async (req: Request, res: Response) => {
   try {
     const contentId = parseInt(req.params.id);
-    const userId = req.session.userId!;
-    const { notes } = req.body;
+    
+    // Check if content has approval token
+    const result = await pool.query(
+      `SELECT approval_token, approval_token_expires_at, status
+       FROM social_media_content
+       WHERE id = $1`,
+      [contentId]
+    );
 
-    // Check permission
-    if (!approvalService.canUserApprove(req.session.role, 'client')) {
-      return res.status(403).json({ error: 'You do not have permission to approve content' });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Content not found' });
     }
 
-    const result = await approvalService.approveClient({
-      contentId,
-      approvedBy: userId,
-      notes
+    const content = result.rows[0];
+
+    if (!content.approval_token) {
+      return res.json({
+        success: false,
+        message: 'No approval token found. Content may need to be sent for approval first.'
+      });
+    }
+
+    // Check if token is expired
+    if (content.approval_token_expires_at && new Date(content.approval_token_expires_at) < new Date()) {
+      return res.json({
+        success: false,
+        message: 'Approval token has expired'
+      });
+    }
+
+    const approvalUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/content/approve/${content.approval_token}`;
+
+    res.json({
+      success: true,
+      approval_url: approvalUrl,
+      token: content.approval_token,
+      expires_at: content.approval_token_expires_at
     });
-
-    if (!result.success) {
-      return res.status(400).json({ error: result.error });
-    }
-
-    res.json(result);
   } catch (error: any) {
-    console.error('Error approving content (client):', error);
+    console.error('❌ Error getting approval link:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 /**
- * REJECT: Client rejection
- * POST /api/content/:id/reject-client
+ * POST /api/content/:id/send-approval-link
+ * Send content for approval with secure link (email method)
  */
-router.post('/:id/reject-client', async (req: Request, res: Response) => {
+router.post('/:id/send-approval-link', requireAuth, async (req: Request, res: Response) => {
   try {
     const contentId = parseInt(req.params.id);
-    const userId = req.session.userId!;
-    const { notes, requestedChanges } = req.body;
+    const { sendEmail } = req.body;
 
-    // Check permission
-    if (!approvalService.canUserApprove(req.session.role, 'client')) {
-      return res.status(403).json({ error: 'You do not have permission to reject content' });
-    }
-
-    const result = await approvalService.rejectClient({
-      contentId,
-      approvedBy: userId,
-      notes,
-      requestedChanges
-    });
+    const result = await approvalService.sendForApprovalWithLink(
+      contentId, 
+      sendEmail !== false // Default to true
+    );
 
     if (!result.success) {
       return res.status(400).json({ error: result.error });
     }
 
-    res.json(result);
+    res.json({
+      success: true,
+      message: 'Content sent for approval via secure link',
+      approval_url: result.approvalUrl,
+      token: result.token
+    });
   } catch (error: any) {
-    console.error('Error rejecting content (client):', error);
+    console.error('❌ Error sending approval link:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
 
 /**
  * REQUEST CHANGES: Either WTFU or client
@@ -466,13 +678,16 @@ router.post('/:id/schedule', async (req: Request, res: Response) => {
 /**
  * POST NOW: Immediately post content
  * POST /api/content/:id/post-now
+ * Workflow: Only super admin/WeTechForU users can post to social media after client approval
  */
 router.post('/:id/post-now', async (req: Request, res: Response) => {
   try {
     const contentId = parseInt(req.params.id);
     const { platforms } = req.body;
+    const role = req.session.role;
+    const userId = req.session.userId!;
 
-    // Get content
+    // Get content first to check permissions
     const contentResult = await contentService.getContentById(contentId, req);
     if (!contentResult.success) {
       return res.status(404).json({ error: 'Content not found' });
@@ -480,9 +695,30 @@ router.post('/:id/post-now', async (req: Request, res: Response) => {
 
     const content = contentResult.content;
 
-    // Check if approved
-    if (content.status !== 'approved') {
+    // Permission check: 
+    // 1. Super Admin/WeTechForU users can always post
+    // 2. Clients can post content they created (created_by = userId)
+    const isAdminUser = role === 'super_admin' || role?.startsWith('wtfu_');
+    const isContentCreator = content.created_by === userId;
+    
+    if (!isAdminUser && !isContentCreator) {
+      return res.status(403).json({ 
+        error: 'Only WeTechForU team members or the content creator can post to social media' 
+      });
+    }
+
+    // For admin users: content must be approved
+    // For content creators: can post even if draft (they own it)
+    if (isAdminUser && content.status !== 'approved') {
       return res.status(400).json({ error: 'Content must be approved before posting' });
+    }
+    
+    // If client created content, allow posting even from draft status
+    // (optional: you can still require approval if needed)
+    if (isContentCreator && content.status === 'draft') {
+      // Option 1: Allow direct posting (client owns it)
+      // Option 2: Require approval first - uncomment below if needed
+      // return res.status(400).json({ error: 'Content must be approved before posting' });
     }
 
     // Post immediately (no scheduled time)

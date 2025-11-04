@@ -168,11 +168,15 @@ export async function postToPlatform(
       ).join(' ');
     }
 
+    // Get contentId and destinationUrl for UTM tracking
+    const contentId = contentData.content_id || contentData.id || null;
+    const destinationUrl = contentData.destination_url || null;
+
     let result: PostResult;
 
     switch (platform.toLowerCase()) {
       case 'facebook':
-        result = await postToFacebook(clientId, message, contentData.media_urls);
+        result = await postToFacebook(clientId, message, contentData.media_urls, contentId, destinationUrl);
         break;
 
       case 'linkedin':
@@ -212,10 +216,12 @@ export async function postToPlatform(
 async function postToFacebook(
   clientId: number,
   message: string,
-  mediaUrls?: string[]
+  mediaUrls?: string[],
+  contentId?: number | null,
+  destinationUrl?: string | null
 ): Promise<PostResult> {
   try {
-    const result = await facebookService.createPost(clientId, message, mediaUrls);
+    const result = await facebookService.createPost(clientId, message, mediaUrls, contentId, destinationUrl);
     
     if (!result.success) {
       return { success: false, error: result.error };
@@ -243,7 +249,9 @@ export async function processScheduledPosts() {
     const postsResult = await client.query(
       `SELECT 
         p.*,
+        c.id as content_id,
         c.content_text,
+        c.destination_url,
         c.media_urls,
         c.hashtags,
         c.mentions,

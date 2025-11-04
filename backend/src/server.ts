@@ -80,8 +80,37 @@ app.use('/public', (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, '../public')));
 
-// Serve uploaded images
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Serve uploaded images with CORS enabled
+app.use('/uploads', (req, res, next) => {
+  // Set CORS headers for image requests - allow all frontend origins
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+    'http://localhost:5176',
+    'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com',
+    'https://www.marketingby.wetechforu.com',
+    'https://marketingby.wetechforu.com',
+    process.env.FRONTEND_URL
+  ].filter(Boolean);
+  
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (allowedOrigins.length > 0) {
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigins[0]);
+  }
+  
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+}, express.static(path.join(__dirname, '../uploads')));
 
 // Middleware
 // Configure Helmet with relaxed CSP for production

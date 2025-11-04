@@ -5114,6 +5114,72 @@ router.post('/facebook/connect/:clientId', requireAuth, async (req, res) => {
   }
 });
 
+// Get Facebook Followers Count (direct endpoint)
+router.get('/facebook/followers-count/:clientId', requireAuth, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    console.log(`📊 Fetching Facebook followers count for client ${clientId}`);
+
+    // Get Facebook credentials
+    const credentialsResult = await pool.query(
+      'SELECT credentials FROM client_credentials WHERE client_id = $1 AND service_type = $2',
+      [clientId, 'facebook']
+    );
+
+    if (credentialsResult.rows.length === 0) {
+      return res.json({
+        success: false,
+        connected: false,
+        followers_count: 0,
+        message: 'Facebook not connected'
+      });
+    }
+
+    const credentials = credentialsResult.rows[0].credentials;
+    const pageId = credentials.page_id;
+    const accessToken = credentials.access_token;
+
+    // Fetch followers_count using direct endpoint (new format)
+    const axios = require('axios');
+    const url = `https://graph.facebook.com/v18.0/${pageId}?fields=followers_count&access_token=${accessToken}`;
+    
+    console.log(`📊 [FOLLOWERS COUNT] Calling Graph API: ${url.replace(accessToken, 'TOKEN_HIDDEN')}`);
+
+    try {
+      const response = await axios.get(url);
+      console.log(`📊 [FOLLOWERS COUNT] Graph API response:`, response.data);
+      
+      const followersCount = response.data.followers_count || 0;
+
+      console.log(`✅ [FOLLOWERS COUNT] Facebook followers count fetched: ${followersCount}`);
+
+      res.json({
+        success: true,
+        connected: true,
+        followers_count: followersCount,
+        page_id: pageId
+      });
+    } catch (apiError: any) {
+      console.error('❌ Facebook Graph API error:', apiError.response?.data || apiError.message);
+      res.status(500).json({
+        success: false,
+        connected: true,
+        followers_count: 0,
+        error: apiError.response?.data?.error?.message || 'Failed to fetch followers count'
+      });
+    }
+  } catch (error: any) {
+    console.error('❌ Get Facebook followers count error:', error);
+    res.status(500).json({
+      success: false,
+      connected: false,
+      followers_count: 0,
+      error: 'Failed to fetch Facebook followers count'
+    });
+  }
+});
+
 // Get Facebook Page insights
 router.get('/facebook/insights/:clientId', requireAuth, async (req, res) => {
   try {
@@ -5146,6 +5212,7 @@ router.get('/facebook/insights/:clientId', requireAuth, async (req, res) => {
     const accessToken = credentials.access_token;
 
     // Fetch Facebook Page insights using Graph API
+    // Updated to use new followers_count endpoint format
     const https = require('https');
     const url = `https://graph.facebook.com/v18.0/${pageId}?fields=name,fan_count,followers_count&access_token=${accessToken}`;
 
