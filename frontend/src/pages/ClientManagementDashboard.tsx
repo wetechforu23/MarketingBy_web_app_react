@@ -89,6 +89,7 @@ const ClientManagementDashboard: React.FC = () => {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [facebookPageMetrics, setFacebookPageMetrics] = useState<any>(null);
+  const [followersCount, setFollowersCount] = useState<number | null>(null);
   const [clientSettings, setClientSettings] = useState<ClientSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'social-media' | 'lead-tracking' | 'seo' | 'reports' | 'local-search' | 'settings'>('overview');
@@ -530,6 +531,50 @@ const ClientManagementDashboard: React.FC = () => {
             }
           } catch (metricsError: any) {
             console.error('❌ Error fetching Facebook Page metrics:', metricsError);
+          }
+          
+          // Fetch followers count from direct endpoint (new API) - Always try if overview shows connected
+          const isConnected = facebookResponse.data?.success && facebookResponse.data?.connected;
+          console.log(`📊 Facebook connection status:`, { 
+            success: facebookResponse.data?.success, 
+            connected: facebookResponse.data?.connected,
+            willFetch: isConnected 
+          });
+          
+          if (isConnected) {
+            try {
+              console.log(`📊 Fetching followers count for client ${clientId}...`);
+              const followersCountRes = await http.get(`/facebook/followers-count/${clientId}`);
+              console.log('📊 Followers count response:', followersCountRes.data);
+              
+              if (followersCountRes.data?.success && followersCountRes.data?.followers_count !== undefined) {
+                const count = followersCountRes.data.followers_count;
+                setFollowersCount(count);
+                console.log('✅ Followers count loaded from direct endpoint:', count);
+              } else if (followersCountRes.data?.followers_count !== undefined) {
+                // Handle case where followers_count exists but success might be false
+                const count = followersCountRes.data.followers_count || 0;
+                setFollowersCount(count);
+                console.log('✅ Followers count loaded (success may be false):', count);
+              } else {
+                console.warn('⚠️ Followers count response missing data:', followersCountRes.data);
+                // Set to 0 if no data
+                setFollowersCount(0);
+              }
+            } catch (followersErr: any) {
+              console.error('❌ Could not fetch followers count:', {
+                message: followersErr.message,
+                response: followersErr.response?.data,
+                status: followersErr.response?.status,
+                url: followersErr.config?.url
+              });
+              // Set to 0 on error so it doesn't show "..." forever
+              setFollowersCount(0);
+            }
+          } else {
+            console.log('⚠️ Facebook not connected, skipping followers count fetch');
+            // If not connected, set to 0
+            setFollowersCount(0);
           }
           
           if (facebookResponse.data.success && facebookResponse.data.connected) {
@@ -1612,6 +1657,7 @@ const ClientManagementDashboard: React.FC = () => {
               // Clear stale state while switching clients
               setClientSettings(null);
               setAnalyticsData(null);
+              setFollowersCount(null);
               setSuccessMessage(null);
               setSelectedClient(client || null);
             }}
@@ -3193,6 +3239,28 @@ const ClientManagementDashboard: React.FC = () => {
                           {facebookPageMetrics?.page_fans?.value?.toLocaleString() || analyticsData?.facebook?.followers?.toLocaleString() || 0}
                         </div>
                         <div style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>👥 Followers</div>
+                      </div>
+                      
+                      {/* Followers Count Card (Direct Endpoint) */}
+                      <div style={{ 
+                        backgroundColor: '#f8f9fa', 
+                        padding: '20px', 
+                        borderRadius: '10px',
+                        border: '3px solid #4267B2',
+                        boxShadow: '0 4px 12px rgba(66, 103, 178, 0.15)'
+                      }}>
+                        <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px', fontWeight: '600' }}>Followers Count</div>
+                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4267B2' }}>
+                          {followersCount !== null 
+                            ? followersCount.toLocaleString() 
+                            : (analyticsData?.facebook?.connected || facebookPageMetrics?.page_fans) 
+                              ? '...' 
+                              : '0'}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#4267B2', marginTop: '5px', fontWeight: '500' }}>
+                          <i className="fas fa-hashtag" style={{ marginRight: '4px' }}></i>
+                          Direct API
+                        </div>
                       </div>
                       
                       <div style={{ 

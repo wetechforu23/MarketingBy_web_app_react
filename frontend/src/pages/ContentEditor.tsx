@@ -30,11 +30,15 @@ const ContentEditor: React.FC = () => {
 
   const [clients, setClients] = useState<ClientWithIntegrations[]>([]);
   const [selectedClient, setSelectedClient] = useState<ClientWithIntegrations | null>(null);
+  const [user, setUser] = useState<any>(null);
+  const [isClientUser, setIsClientUser] = useState<boolean>(false);
+  const [contentCreatedBy, setContentCreatedBy] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     clientId: 0,
     title: '',
     contentType: 'text',
     contentText: '',
+    destinationUrl: '',
     mediaUrls: [] as string[],
     hashtags: [] as string[],
     mentions: [] as string[],
@@ -43,12 +47,18 @@ const ContentEditor: React.FC = () => {
 
   const [hashtagInput, setHashtagInput] = useState('');
   const [mediaUrlInput, setMediaUrlInput] = useState('');
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+  const [imageLoading, setImageLoading] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [contentLoading, setContentLoading] = useState(false);
   const [validationResults, setValidationResults] = useState<{ [key: string]: ValidationResult }>({});
   const [showValidation, setShowValidation] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [contentStatus, setContentStatus] = useState<string>('draft');
+  const [approvalLink, setApprovalLink] = useState<string>('');
+  const [approvalTokenExpiresAt, setApprovalTokenExpiresAt] = useState<string | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
 
   const platforms = [
     { id: 'facebook', name: 'Facebook', icon: '📘', color: '#1877f2', maxLength: 63206, recommended: 500 },
@@ -58,29 +68,120 @@ const ContentEditor: React.FC = () => {
     { id: 'google_business', name: 'Google Business', icon: '📍', color: '#4285f4', maxLength: 1500, recommended: 500 },
   ];
 
+  // Fetch current user to determine role
   useEffect(() => {
-    fetchClientsWithIntegrations();
+    const fetchUser = async () => {
+      try {
+        const response = await http.get('/auth/me');
+        const userData = response.data;
+        setUser(userData);
+        
+        // Check if user is client_admin or client_user
+        const isClient = userData.role === 'client_admin' || userData.role === 'client_user';
+        setIsClientUser(isClient);
+        
+        // Check if user is super_admin
+        setIsSuperAdmin(userData.role === 'super_admin');
+        
+        // If client user, automatically set their client_id
+        if (isClient && userData.client_id) {
+          console.log('👤 Client user detected, auto-setting client_id:', userData.client_id);
+          setFormData(prev => ({ ...prev, clientId: userData.client_id }));
+        }
+      } catch (error) {
+        console.error('❌ Error fetching user:', error);
+      }
+    };
+    
+    fetchUser();
   }, []);
 
+  // Fetch clients only once when user data is available
   useEffect(() => {
-    if (isEditMode && id) {
-      // Fetch content immediately when in edit mode, don't wait for clients
-      fetchContent();
-    } else if (clients.length > 0 && !formData.clientId) {
-      // For new content, set first client as default
-      setFormData(prev => ({ ...prev, clientId: clients[0].id }));
-      setSelectedClient(clients[0]);
-    }
+    if (!user) return; // Wait for user to be loaded
     
-    // Update selected client when clients load and we have content
-    if (clients.length > 0 && formData.clientId && !selectedClient) {
+    // Only fetch clients if user is NOT a client user (admins need to select clients)
+    if (!isClientUser) {
+      fetchClientsWithIntegrations();
+    } else if (user?.client_id) {
+      // For client users, fetch their own client's integrations
+      fetchClientUserIntegration(user.client_id);
+    }
+  }, [isClientUser, user?.id]); // Only depend on user.id, not entire user object
+
+  // Separate effect to set selectedClient when both clients and clientId are available
+  useEffect(() => {
+    if (clients.length > 0 && formData.clientId > 0) {
       const client = clients.find(c => c.id === formData.clientId);
-      if (client) {
+      if (client && (!selectedClient || selectedClient.id !== client.id)) {
         setSelectedClient(client);
-        console.log('✅ Client updated after clients loaded:', client);
+        console.log('✅ Selected client set/updated:', client);
       }
     }
-  }, [clients, isEditMode, id]);
+  }, [clients, formData.clientId, selectedClient?.id]); // Add selectedClient?.id to prevent unnecessary updates
+
+  // Fetch content and initialize clientId separately to avoid loops
+  useEffect(() => {
+    if (isEditMode && id) {
+      // Fetch content when in edit mode (only when id changes)
+      fetchContent();
+    }
+  }, [isEditMode, id]); // Only depend on isEditMode and id
+
+  // Initialize clientId for new content (separate effect to avoid triggering fetchContent)
+  useEffect(() => {
+    if (!isEditMode && !contentLoading) {
+      if (isClientUser && user?.client_id && !formData.clientId) {
+        // Client user: use their client_id
+        setFormData(prev => ({ ...prev, clientId: user.client_id }));
+      } else if (!isClientUser && clients.length > 0 && !formData.clientId) {
+        // Admin user: set first client as default
+        setFormData(prev => ({ ...prev, clientId: clients[0].id }));
+      }
+    }
+  }, [isEditMode, isClientUser, user?.client_id, clients.length, formData.clientId, contentLoading]);
+
+  // Fetch single client's integrations (for client users)
+  const fetchClientUserIntegration = async (clientId: number) => {
+    try {
+      console.log('📊 Fetching client integrations for client user:', clientId);
+      const response = await http.get(`/clients`);
+      const clientsData = response.data.clients || [];
+      const client = clientsData.find((c: any) => c.id === clientId);
+      
+      if (!client) {
+        console.error('❌ Client not found:', clientId);
+        return;
+      }
+
+      const integrations = {
+        facebook: false,
+        linkedin: false,
+        instagram: false,
+        twitter: false,
+        google_business: false,
+      };
+
+      // Check Facebook integration
+      try {
+        const fbResponse = await http.get(`/facebook/test-credentials/${clientId}`);
+        integrations.facebook = fbResponse.data.hasCredentials || false;
+      } catch (error) {
+        integrations.facebook = false;
+      }
+
+      const clientWithIntegration = {
+        ...client,
+        integrations,
+      };
+
+      setClients([clientWithIntegration]);
+      setSelectedClient(clientWithIntegration);
+      console.log('✅ Client integration loaded:', clientWithIntegration);
+    } catch (error) {
+      console.error('❌ Error fetching client integration:', error);
+    }
+  };
 
   const fetchClientsWithIntegrations = async () => {
     try {
@@ -153,6 +254,7 @@ const ContentEditor: React.FC = () => {
   };
 
   const fetchContent = async () => {
+    setContentLoading(true);
     try {
       console.log('📥 Fetching content with ID:', id);
       const response = await http.get(`/content/${id}`);
@@ -173,24 +275,31 @@ const ContentEditor: React.FC = () => {
         title: content.title,
         contentType: content.content_type,
         contentText: content.content_text || '',
+        destinationUrl: content.destination_url || '',
         mediaUrls: content.media_urls || [],
         hashtags: content.hashtags || [],
         mentions: content.mentions || [],
         targetPlatforms: content.target_platforms || [],
       });
       
-      setContentStatus(content.status || 'draft');
-      
-      // Set selected client (will update when clients are loaded if not found now)
-      if (clients.length > 0) {
-        const client = clients.find(c => c.id === content.client_id);
-        setSelectedClient(client || null);
-        console.log('✅ Client set:', client);
-      } else {
-        console.log('⏳ Clients not loaded yet, will set later');
+      // Reset image error/loading states when loading new content
+      if (content.media_urls && content.media_urls.length > 0) {
+        setImageErrors(new Set());
+        setImageLoading(new Set(content.media_urls));
       }
       
-      console.log('✅ Content loaded successfully');
+      // Note: utm_tracked_url is stored separately and auto-generated on post
+      
+      setContentStatus(content.status || 'draft');
+      setContentCreatedBy(content.created_by || null);
+      
+      // Note: selectedClient will be set automatically by the useEffect when clients load
+      console.log('✅ Content loaded successfully, client_id:', content.client_id);
+      
+      // Fetch approval link if Super Admin and content is pending approval
+      if (isSuperAdmin && id && (content.status === 'pending_client_approval' || content.status === 'draft')) {
+        fetchApprovalLink(parseInt(id));
+      }
     } catch (error: any) {
       console.error('❌ Error fetching content:', error);
       console.error('Error details:', {
@@ -199,7 +308,49 @@ const ContentEditor: React.FC = () => {
         status: error.response?.status
       });
       alert(`Failed to load content: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setContentLoading(false);
     }
+  };
+
+  const fetchApprovalLink = async (contentId: number) => {
+    try {
+      const response = await http.get(`/content/${contentId}/approval-link`);
+      if (response.data.success && response.data.approval_url) {
+        setApprovalLink(response.data.approval_url);
+        setApprovalTokenExpiresAt(response.data.expires_at || null);
+      } else {
+        setApprovalLink('');
+        setApprovalTokenExpiresAt(null);
+      }
+    } catch (error: any) {
+      console.error('❌ Error fetching approval link:', error);
+      setApprovalLink('');
+      setApprovalTokenExpiresAt(null);
+    }
+  };
+
+  const generateApprovalLink = async (contentId: number, sendEmail: boolean = true) => {
+    try {
+      const response = await http.post(`/content/${contentId}/send-approval-link`, { sendEmail });
+      if (response.data.success && response.data.approval_url) {
+        setApprovalLink(response.data.approval_url);
+        setApprovalTokenExpiresAt(response.data.expires_at || null);
+        return response.data.approval_url;
+      }
+    } catch (error: any) {
+      console.error('❌ Error generating approval link:', error);
+    }
+    return null;
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Approval link copied to clipboard!');
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+      alert('Failed to copy link. Please select and copy manually.');
+    });
   };
 
   const handleClientChange = (clientId: number) => {
@@ -234,14 +385,55 @@ const ContentEditor: React.FC = () => {
     }));
   };
 
-  const handleAddMediaUrl = () => {
-    if (!mediaUrlInput.trim()) return;
-    if (!formData.mediaUrls.includes(mediaUrlInput.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        mediaUrls: [...prev.mediaUrls, mediaUrlInput.trim()]
-      }));
+  const isValidImageUrl = (url: string): boolean => {
+    try {
+      const urlObj = new URL(url);
+      // Check if it's a valid HTTP/HTTPS URL
+      if (!['http:', 'https:'].includes(urlObj.protocol)) {
+        return false;
+      }
+      // Check if it's likely an image file (common extensions)
+      const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp'];
+      const pathname = urlObj.pathname.toLowerCase();
+      const hasImageExtension = imageExtensions.some(ext => pathname.endsWith(ext));
+      
+      // Also allow data URLs and blob URLs
+      if (url.startsWith('data:image/') || url.startsWith('blob:')) {
+        return true;
+      }
+      
+      // If no extension, assume it might still be an image (some CDNs don't use extensions)
+      // But require HTTPS for security
+      if (!hasImageExtension) {
+        return urlObj.protocol === 'https:';
+      }
+      
+      return true;
+    } catch (error) {
+      return false;
     }
+  };
+
+  const handleAddMediaUrl = () => {
+    const url = mediaUrlInput.trim();
+    if (!url) return;
+    
+    // Validate URL format
+    if (!isValidImageUrl(url)) {
+      alert('⚠️ Invalid image URL. Please enter a valid HTTPS image URL (e.g., https://example.com/image.jpg)\n\nSupported formats: JPG, PNG, GIF, WebP, SVG, BMP');
+      return;
+    }
+    
+    // Check for duplicates
+    if (formData.mediaUrls.includes(url)) {
+      alert('This image URL is already added');
+      return;
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      mediaUrls: [...prev.mediaUrls, url]
+    }));
     setMediaUrlInput('');
   };
 
@@ -252,6 +444,11 @@ const ContentEditor: React.FC = () => {
     setUploading(true);
     try {
       const uploadedUrls: string[] = [];
+
+      // Get backend base URL (without /api)
+      const backendBaseUrl = http.defaults.baseURL 
+        ? http.defaults.baseURL.replace('/api', '') 
+        : 'http://localhost:3001';
 
       for (const file of Array.from(files)) {
         const formData = new FormData();
@@ -264,8 +461,10 @@ const ContentEditor: React.FC = () => {
         });
 
         if (response.data.success) {
-          // Convert relative URL to full URL
-          const imageUrl = `${window.location.origin}${response.data.url}`;
+          // Convert relative URL to full backend URL
+          // response.data.url is like "/uploads/filename.jpg"
+          // backendBaseUrl is like "http://localhost:3001"
+          const imageUrl = `${backendBaseUrl}${response.data.url}`;
           uploadedUrls.push(imageUrl);
         }
       }
@@ -276,6 +475,18 @@ const ContentEditor: React.FC = () => {
           ...prev,
           mediaUrls: [...prev.mediaUrls, ...uploadedUrls]
         }));
+        // Mark uploaded images as loading
+        setImageLoading(prev => {
+          const newSet = new Set(prev);
+          uploadedUrls.forEach(url => newSet.add(url));
+          return newSet;
+        });
+        // Clear any errors for these URLs
+        setImageErrors(prev => {
+          const newSet = new Set(prev);
+          uploadedUrls.forEach(url => newSet.delete(url));
+          return newSet;
+        });
         alert(`✅ Successfully uploaded ${uploadedUrls.length} image(s)!`);
       }
     } catch (error: any) {
@@ -392,18 +603,61 @@ const ContentEditor: React.FC = () => {
     setLoading(true);
 
     try {
-      let contentId = id;
+      let contentId: number | undefined = id ? parseInt(id) : undefined;
 
       if (!isEditMode) {
+        // New content: save everything including destination_url
         const saveResponse = await http.post('/content', formData);
         contentId = saveResponse.data.content.id;
       } else {
-        await http.put(`/content/${id}`, formData);
+        // Edit mode: Try to save all fields first
+        try {
+          await http.put(`/content/${id}`, formData);
+        } catch (updateError: any) {
+          // If update fails because content is pending approval, 
+          // still try to save destination_url separately (it's allowed even when pending)
+          if (updateError.response?.data?.error?.includes('pending approval')) {
+            if (formData.destinationUrl) {
+              try {
+                await http.put(`/content/${id}`, { destinationUrl: formData.destinationUrl });
+                console.log('✅ Saved destination_url separately');
+              } catch (urlError: any) {
+                console.error('⚠️ Could not save destination_url:', urlError.response?.data?.error);
+                // Continue anyway - destination_url might already be saved
+              }
+            }
+          } else {
+            // Re-throw if it's a different error
+            throw updateError;
+          }
+        }
+      }
+
+      if (!contentId) {
+        alert('Error: Content ID is missing');
+        return;
       }
 
       await http.post(`/content/${contentId}/submit-approval`);
-      alert('Content submitted for approval!');
-      navigate('/app/content-library');
+      
+      // Generate approval link and send email to client for Super Admin
+      if (isSuperAdmin) {
+        const link = await generateApprovalLink(contentId, true); // sendEmail = true
+        if (link) {
+          alert(`Content submitted for approval!\n\n✅ Approval link generated and email sent to client.\nYou can also find the link in the Actions section to share via WhatsApp.`);
+        } else {
+          alert('Content submitted for approval!\n\n⚠️ Approval link generated but email may not have been sent. Please check the Actions section.');
+        }
+      } else {
+        alert('Content submitted for approval!');
+      }
+      
+      // Refresh the content to get updated status and approval link
+      if (isEditMode) {
+        await fetchContent();
+      } else {
+        navigate('/app/content-library');
+      }
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to submit for approval');
     } finally {
@@ -418,17 +672,29 @@ const ContentEditor: React.FC = () => {
     let confirmMessage = '';
     let successMessage = '';
 
+    // Check if client user created this content
+    const isClientCreator = isClientUser && contentCreatedBy === user?.id;
+
     // Determine next action based on current status
     switch (contentStatus) {
       case 'draft':
-        nextAction = 'submit-approval';
-        confirmMessage = 'Submit this content for WeTechForU approval?';
-        successMessage = 'Content submitted for approval!';
-        break;
-      case 'pending_wtfu_approval':
-        nextAction = 'approve-wtfu';
-        confirmMessage = 'Approve this content?';
-        successMessage = 'Content approved!';
+        if (isClientCreator) {
+          // Client created content: can post directly without approval
+          nextAction = 'post-now';
+          confirmMessage = 'Post this content to social media now?';
+          successMessage = 'Content posted successfully!';
+        } else {
+          // Admin created content: needs approval
+          nextAction = 'submit-approval';
+          confirmMessage = 'Submit this content for client approval?';
+          successMessage = 'Content submitted for approval!';
+          
+          // Generate approval link after submission (for Super Admin)
+          if (isSuperAdmin) {
+            // The approval link will be generated in handleSubmitForApproval
+            // But we can also generate it here if needed
+          }
+        }
         break;
       case 'pending_client_approval':
         nextAction = 'approve-client';
@@ -449,22 +715,45 @@ const ContentEditor: React.FC = () => {
 
     setLoading(true);
     try {
-      await http.post(`/content/${id}/${nextAction}`);
-      alert(successMessage);
-      navigate('/app/content-library');
-    } catch (error: any) {
-      alert(error.response?.data?.error || `Failed to ${nextAction}`);
-    } finally {
+      const response = await http.post(`/content/${id}/${nextAction}`);
+      
+      // Generate approval link and send email for Super Admin if submitting for approval
+      if (isSuperAdmin && nextAction === 'submit-approval') {
+        const link = await generateApprovalLink(parseInt(id), true); // sendEmail = true
+        if (link) {
+          alert(`${successMessage}\n\n✅ Approval link generated and email sent to client.\nYou can also find the link in the Actions section to share via WhatsApp.`);
+        } else {
+          alert(`${successMessage}\n\n⚠️ Approval link generated but email may not have been sent. Please check the Actions section.`);
+        }
+        // Refresh content to get updated status
+        await fetchContent();
+      } else {
+        alert(successMessage);
+      }
+      
+      // Reset loading state before navigation to prevent black screen
       setLoading(false);
+      
+      // Only navigate if not in edit mode or if we're not staying on the page
+      if (nextAction !== 'submit-approval' || !isSuperAdmin) {
+        navigate('/app/content-library', { replace: true });
+      }
+    } catch (error: any) {
+      setLoading(false);
+      alert(error.response?.data?.error || `Failed to ${nextAction}`);
     }
   };
 
   const getStatusActionLabel = () => {
+    // Check if client user created this content
+    const isClientCreator = isClientUser && contentCreatedBy === user?.id;
+
     switch (contentStatus) {
       case 'draft':
+        if (isClientCreator) {
+          return '🚀 Post to Social Media';
+        }
         return '📤 Submit for Approval';
-      case 'pending_wtfu_approval':
-        return '✅ Approve Content';
       case 'pending_client_approval':
         return '✅ Approve Content';
       case 'approved':
@@ -477,7 +766,7 @@ const ContentEditor: React.FC = () => {
   };
 
   const canProgressStatus = () => {
-    return ['draft', 'pending_wtfu_approval', 'pending_client_approval', 'approved'].includes(contentStatus);
+    return ['draft', 'pending_client_approval', 'approved'].includes(contentStatus);
   };
 
   const getCharacterCount = (platformId: string) => {
@@ -501,8 +790,9 @@ const ContentEditor: React.FC = () => {
   return (
     <div style={{ 
       minHeight: '100vh', 
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-      padding: '40px 20px'
+      background: 'linear-gradient(135deg, #2E86AB 0%, #1a5f7a 100%)', 
+      padding: '40px 20px',
+      fontFamily: 'Inter, sans-serif'
     }}>
       {/* Header */}
       <div style={{ 
@@ -562,8 +852,33 @@ const ContentEditor: React.FC = () => {
       }}>
         {/* Main Editor */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+          {/* Loading State */}
+          {contentLoading && (
+            <div style={{
+              background: 'white',
+              borderRadius: '16px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+              padding: '60px 30px',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                width: '60px',
+                height: '60px',
+                border: '4px solid #e2e8f0',
+                borderTop: '4px solid #2E86AB',
+                borderRadius: '50%',
+                margin: '0 auto 20px',
+                animation: 'spin 1s linear infinite'
+              }}></div>
+              <p style={{ color: '#718096', fontSize: '16px', fontWeight: '500' }}>Loading content...</p>
+              <style>
+                {`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}
+              </style>
+            </div>
+          )}
+
           {/* Client Warning if no clients */}
-          {clients.length === 0 && (
+          {!contentLoading && clients.length === 0 && (
             <div style={{
               background: '#fff3cd',
               border: '2px solid #ffc107',
@@ -596,7 +911,8 @@ const ContentEditor: React.FC = () => {
             </div>
           )}
 
-          {/* Basic Info */}
+          {/* Basic Info - Only show when not loading */}
+          {!contentLoading && (
           <div style={{
             background: 'white',
             borderRadius: '16px',
@@ -615,26 +931,27 @@ const ContentEditor: React.FC = () => {
               📋 Basic Information
             </h2>
 
-            {/* Client Selector */}
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ 
-                display: 'block', 
-                fontSize: '14px', 
-                fontWeight: '600', 
-                color: '#4a5568',
-                marginBottom: '8px'
-              }}>
-                Client * <span style={{ color: '#e53e3e', fontSize: '12px' }}>(Only clients with integrations shown)</span>
-              </label>
-              <select
-                value={formData.clientId}
-                onChange={(e) => handleClientChange(Number(e.target.value))}
-                disabled={isEditMode || clients.length === 0}
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  border: '2px solid #e2e8f0',
-                  borderRadius: '10px',
+            {/* Client Selector - Only show for admins, not for client users */}
+            {!isClientUser && (
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '14px', 
+                  fontWeight: '600', 
+                  color: '#4a5568',
+                  marginBottom: '8px'
+                }}>
+                  Client * <span style={{ color: '#e53e3e', fontSize: '12px' }}>(Only clients with integrations shown)</span>
+                </label>
+                <select
+                  value={formData.clientId}
+                  onChange={(e) => handleClientChange(Number(e.target.value))}
+                  disabled={isEditMode || clients.length === 0}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '10px',
                   fontSize: '15px',
                   backgroundColor: isEditMode ? '#f7fafc' : 'white',
                   cursor: isEditMode ? 'not-allowed' : 'pointer'
@@ -664,6 +981,7 @@ const ContentEditor: React.FC = () => {
                 </div>
               )}
             </div>
+            )}
 
             {/* Title */}
             <div style={{ marginBottom: '20px' }}>
@@ -735,8 +1053,10 @@ const ContentEditor: React.FC = () => {
               </div>
             </div>
           </div>
+          )}
 
           {/* Content Text */}
+          {!contentLoading && (
           <div style={{
             background: 'white',
             borderRadius: '16px',
@@ -797,8 +1117,63 @@ const ContentEditor: React.FC = () => {
               </div>
             </div>
           </div>
+          )}
+
+          {/* Destination URL */}
+          {!contentLoading && (
+          <div style={{
+            background: 'white',
+            borderRadius: '16px',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+            padding: '30px'
+          }}>
+            <h2 style={{ 
+              fontSize: '22px', 
+              fontWeight: '600', 
+              marginBottom: '20px',
+              color: '#2d3748',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              🔗 Destination URL
+            </h2>
+
+            <div style={{ marginBottom: '10px' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '14px', 
+                fontWeight: '600', 
+                color: '#4a5568',
+                marginBottom: '8px'
+              }}>
+                Website URL to Track
+                <span style={{ color: '#718096', fontSize: '12px', fontWeight: '400', marginLeft: '8px' }}>
+                  (Optional - for UTM tracking)
+                </span>
+              </label>
+              <input
+                type="url"
+                value={formData.destinationUrl}
+                onChange={(e) => setFormData(prev => ({ ...prev, destinationUrl: e.target.value }))}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '10px',
+                  fontSize: '15px'
+                }}
+                placeholder="https://www.example.com"
+              />
+              <div style={{ fontSize: '12px', color: '#718096', marginTop: '8px' }}>
+                This URL will be tracked with UTM parameters when posting to Facebook for Google Analytics.
+              </div>
+            </div>
+          </div>
+          )}
 
           {/* Media URLs */}
+          {!contentLoading && (
           <div style={{
             background: 'white',
             borderRadius: '16px',
@@ -821,15 +1196,15 @@ const ContentEditor: React.FC = () => {
             <div style={{ marginBottom: '20px' }}>
               <label style={{
                 display: 'inline-block',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
+                background: 'linear-gradient(135deg, #2E86AB 0%, #1a5f7a 100%)',
+                color: '#ffffff',
                 padding: '14px 28px',
                 borderRadius: '10px',
                 fontSize: '15px',
                 fontWeight: '600',
                 cursor: uploading ? 'not-allowed' : 'pointer',
                 opacity: uploading ? 0.6 : 1,
-                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+                boxShadow: '0 4px 15px rgba(46, 134, 171, 0.4)',
                 transition: 'all 0.3s ease'
               }}>
                 {uploading ? '⏳ Uploading...' : '📤 Upload from Computer'}
@@ -879,8 +1254,8 @@ const ContentEditor: React.FC = () => {
                 <button
                   onClick={handleAddMediaUrl}
                   style={{
-                    background: '#667eea',
-                    color: 'white',
+                    background: '#2E86AB',
+                    color: '#ffffff',
                     padding: '12px 24px',
                     borderRadius: '10px',
                     border: 'none',
@@ -897,36 +1272,118 @@ const ContentEditor: React.FC = () => {
 
             {formData.mediaUrls.length > 0 ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px' }}>
-                {formData.mediaUrls.map((url, index) => (
-                  <div key={index} style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden' }}>
-                    <img
-                      src={url}
-                      alt={`Media ${index + 1}`}
-                      style={{ width: '100%', height: '150px', objectFit: 'cover', display: 'block' }}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-size="14"%3EInvalid URL%3C/text%3E%3C/svg%3E';
-                      }}
-                    />
-                    <button
-                      onClick={() => handleRemoveMediaUrl(url)}
-                      style={{
-                        position: 'absolute',
-                        top: '8px',
-                        right: '8px',
-                        background: 'rgba(239, 68, 68, 0.9)',
-                        color: 'white',
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
+                {formData.mediaUrls.map((url, index) => {
+                  const isError = imageErrors.has(url);
+                  const isLoading = imageLoading.has(url);
+                  
+                  return (
+                    <div key={index} style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', border: '2px solid #e2e8f0', background: '#fff' }}>
+                      {isLoading && !isError && (
+                        <div style={{
+                          width: '100%',
+                          height: '150px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: '#f7fafc'
+                        }}>
+                          <div style={{ textAlign: 'center', color: '#718096' }}>
+                            <div style={{ fontSize: '20px', marginBottom: '4px' }}>⏳</div>
+                            <div style={{ fontSize: '11px' }}>Loading...</div>
+                          </div>
+                        </div>
+                      )}
+                      {isError ? (
+                        <div style={{
+                          width: '100%',
+                          height: '150px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: '#fee',
+                          color: '#c53030',
+                          padding: '10px'
+                        }}>
+                          <div style={{ fontSize: '24px', marginBottom: '4px' }}>❌</div>
+                          <div style={{ fontSize: '11px', fontWeight: '600', textAlign: 'center', marginBottom: '4px' }}>Image Failed to Load</div>
+                          <div style={{ fontSize: '9px', textAlign: 'center', wordBreak: 'break-all', color: '#9b2c2c' }}>
+                            {url.length > 40 ? `${url.substring(0, 40)}...` : url}
+                          </div>
+                          <div style={{ fontSize: '9px', color: '#9b2c2c', marginTop: '4px', textAlign: 'center' }}>
+                            Check URL or CORS settings
+                          </div>
+                        </div>
+                      ) : (
+                        <img
+                          src={url}
+                          alt={`Media ${index + 1}`}
+                          style={{ 
+                            width: '100%', 
+                            height: '150px', 
+                            objectFit: 'cover', 
+                            display: isLoading ? 'none' : 'block'
+                          }}
+                          onLoad={() => {
+                            setImageLoading(prev => {
+                              const newSet = new Set(prev);
+                              newSet.delete(url);
+                              return newSet;
+                            });
+                            setImageErrors(prev => {
+                              const newSet = new Set(prev);
+                              newSet.delete(url);
+                              return newSet;
+                            });
+                          }}
+                          onError={(e) => {
+                            setImageLoading(prev => {
+                              const newSet = new Set(prev);
+                              newSet.delete(url);
+                              return newSet;
+                            });
+                            setImageErrors(prev => new Set(prev).add(url));
+                          }}
+                          onLoadStart={() => {
+                            setImageLoading(prev => new Set(prev).add(url));
+                          }}
+                        />
+                      )}
+                      <button
+                        onClick={() => {
+                          handleRemoveMediaUrl(url);
+                          setImageErrors(prev => {
+                            const newSet = new Set(prev);
+                            newSet.delete(url);
+                            return newSet;
+                          });
+                          setImageLoading(prev => {
+                            const newSet = new Set(prev);
+                            newSet.delete(url);
+                            return newSet;
+                          });
+                        }}
+                        style={{
+                          position: 'absolute',
+                          top: '8px',
+                          right: '8px',
+                          background: 'rgba(239, 68, 68, 0.9)',
+                          color: 'white',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                          zIndex: 10
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div style={{
@@ -942,8 +1399,10 @@ const ContentEditor: React.FC = () => {
               </div>
             )}
           </div>
+          )}
 
           {/* Hashtags */}
+          {!contentLoading && (
           <div style={{
             background: 'white',
             borderRadius: '16px',
@@ -1002,8 +1461,8 @@ const ContentEditor: React.FC = () => {
                   <span
                     key={index}
                     style={{
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      color: 'white',
+                      background: 'linear-gradient(135deg, #A23B72 0%, #8A2F5F 100%)',
+                      color: '#ffffff',
                       padding: '8px 16px',
                       borderRadius: '20px',
                       fontSize: '14px',
@@ -1050,10 +1509,13 @@ const ContentEditor: React.FC = () => {
               </div>
             )}
           </div>
+          )}
         </div>
 
         {/* Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+          {!contentLoading && (
+          <>
           {/* Platform Selector */}
           <div style={{
             background: 'white',
@@ -1264,8 +1726,8 @@ const ContentEditor: React.FC = () => {
                 disabled={loading || !formData.clientId || formData.targetPlatforms.length === 0}
                 style={{
                   width: '100%',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  color: 'white',
+                  background: 'linear-gradient(135deg, #2E86AB 0%, #1a5f7a 100%)',
+                  color: '#ffffff',
                   padding: '14px',
                   borderRadius: '10px',
                   border: 'none',
@@ -1284,8 +1746,8 @@ const ContentEditor: React.FC = () => {
                 disabled={!formData.title || !formData.contentText}
                 style={{
                   width: '100%',
-                  background: '#3182ce',
-                  color: 'white',
+                  background: '#2E86AB',
+                  color: '#ffffff',
                   padding: '14px',
                   borderRadius: '10px',
                   border: 'none',
@@ -1312,7 +1774,6 @@ const ContentEditor: React.FC = () => {
                   </div>
                   <div style={{ fontSize: '15px', fontWeight: '600', color: '#2d3748' }}>
                     {contentStatus === 'draft' && '📝 Draft'}
-                    {contentStatus === 'pending_wtfu_approval' && '⏳ Pending WeTechForU Approval'}
                     {contentStatus === 'pending_client_approval' && '⏳ Pending Client Approval'}
                     {contentStatus === 'approved' && '✅ Approved'}
                     {contentStatus === 'posted' && '🚀 Posted'}
@@ -1321,15 +1782,244 @@ const ContentEditor: React.FC = () => {
                 </div>
               )}
 
+              {/* Approval Link (Super Admin only) */}
+              {isSuperAdmin && isEditMode && (contentStatus === 'draft' || contentStatus === 'pending_client_approval') && (
+                <div style={{
+                  background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                  border: '2px solid #0ea5e9',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  marginBottom: '10px',
+                  boxShadow: '0 4px 12px rgba(14, 165, 233, 0.15)'
+                }}>
+                  {/* Header with Secure Link Badge */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <div style={{ fontSize: '16px', fontWeight: '700', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      🔐 Secure Approval Link
+                      <span style={{
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        color: 'white',
+                        padding: '4px 10px',
+                        borderRadius: '12px',
+                        fontSize: '10px',
+                        fontWeight: '700',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        marginLeft: '8px'
+                      }}>
+                        NEW
+                      </span>
+                    </div>
+                  </div>
+
+                  {approvalLink ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {/* Link Input with Copy Button */}
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <input
+                          type="text"
+                          value={approvalLink}
+                          readOnly
+                          style={{
+                            flex: 1,
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            border: '2px solid #bae6fd',
+                            fontSize: '13px',
+                            background: 'white',
+                            color: '#1e293b',
+                            fontFamily: 'monospace'
+                          }}
+                          onClick={(e) => (e.target as HTMLInputElement).select()}
+                        />
+                        <button
+                          onClick={() => copyToClipboard(approvalLink)}
+                          style={{
+                            padding: '10px 18px',
+                            background: 'linear-gradient(135deg, #2E86AB 0%, #1a5f7a 100%)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            boxShadow: '0 2px 8px rgba(46, 134, 171, 0.3)'
+                          }}
+                        >
+                          📋 Copy Link
+                        </button>
+                      </div>
+
+                      {/* Email Button */}
+                      <button
+                        onClick={async () => {
+                          if (id) {
+                            const contentId = parseInt(id);
+                            if (!isNaN(contentId)) {
+                              const link = await generateApprovalLink(contentId, true);
+                              if (link) {
+                                alert('✅ Approval link sent via email to client!');
+                              } else {
+                                alert('❌ Failed to send approval email. Please try again.');
+                              }
+                            }
+                          }
+                        }}
+                        disabled={loading || !id}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px',
+                          background: 'linear-gradient(135deg, #F18F01 0%, #d97706 100%)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: loading || !id ? 'not-allowed' : 'pointer',
+                          opacity: loading || !id ? 0.5 : 1,
+                          boxShadow: '0 2px 8px rgba(241, 143, 1, 0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px'
+                        }}
+                      >
+                        📧 Email with Secure Link
+                      </button>
+
+                      {/* Security Features Info */}
+                      <div style={{
+                        background: 'white',
+                        borderRadius: '8px',
+                        padding: '14px',
+                        border: '1px solid #e0f2fe'
+                      }}>
+                        <div style={{ fontSize: '13px', fontWeight: '600', color: '#0369a1', marginBottom: '10px' }}>
+                          🔒 Security Features
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px', color: '#475569' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ color: '#10b981', fontSize: '14px' }}>✓</span>
+                            <span><strong>Token expires in 48 hours:</strong> {approvalTokenExpiresAt ? new Date(approvalTokenExpiresAt).toLocaleString('en-US', { 
+                              year: 'numeric', 
+                              month: 'short', 
+                              day: 'numeric', 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            }) : 'N/A'}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ color: '#10b981', fontSize: '14px' }}>✓</span>
+                            <span><strong>Token is single-use:</strong> Link becomes invalid after approval/rejection</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ color: '#10b981', fontSize: '14px' }}>✓</span>
+                            <span><strong>Public approval page (no login):</strong> Client can approve without account</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ color: '#10b981', fontSize: '14px' }}>✓</span>
+                            <span><strong>Full audit trail:</strong> All actions are logged with timestamps</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div style={{ fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>
+                        No approval link yet. Generate a secure link to share with client via email or copy manually.
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (id) {
+                            const contentId = parseInt(id);
+                            if (!isNaN(contentId)) {
+                              const link = await generateApprovalLink(contentId, true);
+                              if (link) {
+                                alert('✅ Approval link generated and email sent to client!');
+                              } else {
+                                alert('❌ Failed to generate approval link. Please try again.');
+                              }
+                            }
+                          }
+                        }}
+                        disabled={loading || !id}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px',
+                          background: 'linear-gradient(135deg, #F18F01 0%, #d97706 100%)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: loading || !id ? 'not-allowed' : 'pointer',
+                          opacity: loading || !id ? 0.5 : 1,
+                          boxShadow: '0 2px 8px rgba(241, 143, 1, 0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px'
+                        }}
+                      >
+                        🔗 Generate Secure Link & Send Email
+                      </button>
+                      
+                      {/* Security Features Preview (when no link) */}
+                      <div style={{
+                        background: 'white',
+                        borderRadius: '8px',
+                        padding: '14px',
+                        border: '1px solid #e0f2fe'
+                      }}>
+                        <div style={{ fontSize: '13px', fontWeight: '600', color: '#0369a1', marginBottom: '10px' }}>
+                          🔒 Security Features
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px', color: '#475569' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ color: '#10b981', fontSize: '14px' }}>✓</span>
+                            <span><strong>Token expires in 48 hours</strong></span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ color: '#10b981', fontSize: '14px' }}>✓</span>
+                            <span><strong>Token is single-use</strong></span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ color: '#10b981', fontSize: '14px' }}>✓</span>
+                            <span><strong>Public approval page (no login)</strong></span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ color: '#10b981', fontSize: '14px' }}>✓</span>
+                            <span><strong>Full audit trail</strong></span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Next Status Button (only in edit mode) */}
-              {isEditMode && canProgressStatus() && (
+              {/* Workflow: 
+                  - Super Admin creates → Client approves → Super Admin can post
+                  - Client creates → Client can post directly (no approval needed)
+              */}
+              {/* Show button if:
+                  - Admin user and content can progress status
+                  - OR Client user created the content and it's approved/draft
+                  - Hide if: Client user viewing content they didn't create
+              */}
+              {isEditMode && (
+                (canProgressStatus() && !(isClientUser && contentStatus === 'approved' && contentCreatedBy !== user?.id)) ||
+                (isClientUser && contentCreatedBy === user?.id && (contentStatus === 'approved' || contentStatus === 'draft'))
+              ) && (
                 <button
                   onClick={handleNextStatus}
                   disabled={loading}
                   style={{
                     width: '100%',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    color: 'white',
+                    background: 'linear-gradient(135deg, #A23B72 0%, #8A2F5F 100%)',
+                    color: '#ffffff',
                     padding: '16px',
                     borderRadius: '10px',
                     border: 'none',
@@ -1374,8 +2064,8 @@ const ContentEditor: React.FC = () => {
                   disabled={loading || !formData.clientId}
                   style={{
                     width: '100%',
-                    background: '#48bb78',
-                    color: 'white',
+                    background: '#F18F01',
+                    color: '#ffffff',
                     padding: '14px',
                     borderRadius: '10px',
                     border: 'none',
@@ -1407,6 +2097,8 @@ const ContentEditor: React.FC = () => {
               </button>
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
 
@@ -1508,22 +2200,88 @@ const ContentEditor: React.FC = () => {
                   gap: '15px',
                   marginBottom: '20px'
                 }}>
-                  {formData.mediaUrls.map((url, index) => (
-                    <img
-                      key={index}
-                      src={url}
-                      alt={`Media ${index + 1}`}
-                      style={{
-                        width: '100%',
-                        height: '250px',
-                        objectFit: 'cover',
-                        borderRadius: '10px'
-                      }}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23ddd" width="400" height="300"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle"%3EInvalid URL%3C/text%3E%3C/svg%3E';
-                      }}
-                    />
-                  ))}
+                  {formData.mediaUrls.map((url, index) => {
+                    const isError = imageErrors.has(url);
+                    const isLoading = imageLoading.has(url);
+                    
+                    return (
+                      <div key={index} style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', border: '2px solid #e2e8f0' }}>
+                        {isLoading && !isError && (
+                          <div style={{
+                            width: '100%',
+                            height: '250px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: '#f7fafc'
+                          }}>
+                            <div style={{ textAlign: 'center', color: '#718096' }}>
+                              <div style={{ fontSize: '32px', marginBottom: '8px' }}>⏳</div>
+                              <div style={{ fontSize: '14px' }}>Loading image...</div>
+                            </div>
+                          </div>
+                        )}
+                        {isError ? (
+                          <div style={{
+                            width: '100%',
+                            height: '250px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: '#fee',
+                            color: '#c53030',
+                            padding: '20px',
+                            borderRadius: '10px'
+                          }}>
+                            <div style={{ fontSize: '48px', marginBottom: '12px' }}>❌</div>
+                            <div style={{ fontSize: '16px', fontWeight: '600', textAlign: 'center', marginBottom: '8px' }}>Image Failed to Load</div>
+                            <div style={{ fontSize: '12px', textAlign: 'center', wordBreak: 'break-all', color: '#9b2c2c', marginBottom: '8px' }}>
+                              {url.length > 50 ? `${url.substring(0, 50)}...` : url}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#9b2c2c', textAlign: 'center' }}>
+                              Check URL validity or CORS settings
+                            </div>
+                          </div>
+                        ) : (
+                          <img
+                            src={url}
+                            alt={`Media ${index + 1}`}
+                            style={{
+                              width: '100%',
+                              height: '250px',
+                              objectFit: 'cover',
+                              borderRadius: '10px',
+                              display: isLoading ? 'none' : 'block'
+                            }}
+                            onLoad={() => {
+                              setImageLoading(prev => {
+                                const newSet = new Set(prev);
+                                newSet.delete(url);
+                                return newSet;
+                              });
+                              setImageErrors(prev => {
+                                const newSet = new Set(prev);
+                                newSet.delete(url);
+                                return newSet;
+                              });
+                            }}
+                            onError={() => {
+                              setImageLoading(prev => {
+                                const newSet = new Set(prev);
+                                newSet.delete(url);
+                                return newSet;
+                              });
+                              setImageErrors(prev => new Set(prev).add(url));
+                            }}
+                            onLoadStart={() => {
+                              setImageLoading(prev => new Set(prev).add(url));
+                            }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -1554,8 +2312,8 @@ const ContentEditor: React.FC = () => {
                     <span
                       key={index}
                       style={{
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        color: 'white',
+                        background: 'linear-gradient(135deg, #A23B72 0%, #8A2F5F 100%)',
+                        color: '#ffffff',
                         padding: '6px 12px',
                         borderRadius: '15px',
                         fontSize: '13px',

@@ -44,6 +44,12 @@ interface FacebookData {
   status: string;
 }
 
+interface FollowersCountData {
+  followers_count: number;
+  connected: boolean;
+  success: boolean;
+}
+
 interface FacebookPost {
   post_id: string;
   message: string;
@@ -76,6 +82,7 @@ const ClientDashboard: React.FC = () => {
   
   const [user, setUser] = useState<any>(null);
   const [clientData, setClientData] = useState<ClientData | null>(null);
+  const [followersCount, setFollowersCount] = useState<number | null>(null);
   const [leadStats, setLeadStats] = useState<LeadStats>({ total: 0, thisMonth: 0, thisWeek: 0 });
   const [seoData, setSeoData] = useState<SeoData>({ score: null, lastAudit: null });
   const [googleAnalyticsData, setGoogleAnalyticsData] = useState<GoogleAnalyticsData | null>(null);
@@ -87,15 +94,43 @@ const ClientDashboard: React.FC = () => {
   const [trafficSources, setTrafficSources] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [syncingFacebook, setSyncingFacebook] = useState<boolean>(false);
+  const [contentStats, setContentStats] = useState<{ total_count: number; pending_client_count: number; draft_count: number } | null>(null);
 
   useEffect(() => {
+    // Clear all state first when user changes
+    setClientData(null);
+    setLeadStats({ total: 0, thisMonth: 0, thisWeek: 0 });
+    setSeoData({ score: null, lastAudit: null });
+    setGoogleAnalyticsData(null);
+    setFacebookData(null);
+    setFollowersCount(null);
+    setFacebookPosts([]);
+    setReports([]);
+    setPageInsights([]);
+    setGeographicData([]);
+    setTrafficSources([]);
+    setContentStats(null);
+    
     fetchAllData();
-  }, []);
+  }, []); // Only fetch on initial mount
 
   const fetchAllData = async () => {
     try {
       setLoading(true);
       setError(null);
+      
+      // Clear state before fetching to ensure we don't show stale data
+      setClientData(null);
+      setLeadStats({ total: 0, thisMonth: 0, thisWeek: 0 });
+      setSeoData({ score: null, lastAudit: null });
+      setGoogleAnalyticsData(null);
+      setFacebookData(null);
+      setFacebookPosts([]);
+      setReports([]);
+      setPageInsights([]);
+      setGeographicData([]);
+      setTrafficSources([]);
       
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('🚀 Fetching Dashboard Data...');
@@ -103,6 +138,22 @@ const ClientDashboard: React.FC = () => {
       // Step 1: Get current user
       const userResponse = await api.get('/auth/me');
       const userData = userResponse.data;
+      
+      // CRITICAL: Only proceed if this is a new user or different client_id
+      // This prevents showing stale data when switching users
+      const previousClientId = user?.client_id;
+      const newClientId = userData.client_id;
+      
+      // If switching users/clients, clear everything first
+      if (previousClientId && previousClientId !== newClientId) {
+        console.log('🔄 User switched! Clearing old data...');
+        setClientData(null);
+        setFacebookData(null);
+        setFacebookPosts([]);
+        setGoogleAnalyticsData(null);
+        // Clear all other state
+      }
+      
       setUser(userData); // Store user in state
       console.log('✅ User:', userData.email, '| Client ID:', userData.client_id);
 
@@ -280,13 +331,28 @@ const ClientDashboard: React.FC = () => {
         }
       }
 
-      // Step 6: Get Facebook data
+      // Step 6: Get Facebook data (ALWAYS FROM DATABASE - NEVER FROM API DIRECTLY)
       try {
-        console.log('🔄 Fetching Facebook data for client:', userData.client_id);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('📊 FETCHING FACEBOOK DATA FROM DATABASE ONLY');
+        console.log('   Endpoint: GET /facebook/overview/' + userData.client_id);
+        console.log('   Source: Database (facebook_analytics, facebook_posts tables)');
+        console.log('   NOT from Facebook API directly');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        
         const fbResponse = await api.get(`/facebook/overview/${userData.client_id}`);
-        console.log('📦 RAW Facebook API Response:', fbResponse.data);
+        console.log('📦 RAW Response from Backend:', fbResponse.data);
+        console.log('   ✅ This data came from DATABASE, not Facebook API');
         
         if (fbResponse.data && fbResponse.data.data) {
+          // Verify data source
+          if (fbResponse.data.data.pageViews === 0 && 
+              fbResponse.data.data.followers === 0 && 
+              fbResponse.data.data.reach === 0) {
+            console.log('   ⚠️ WARNING: All values are ZERO - this means NO DATA in database!');
+            console.log('   💡 Click "Sync Facebook Data" to fetch from Facebook API and store in DB');
+          }
+          
           setFacebookData(fbResponse.data.data);
           console.log('✅ Facebook data loaded FROM DATABASE:', fbResponse.data.data);
           console.log('   📊 Metrics Summary:');
@@ -297,6 +363,19 @@ const ClientDashboard: React.FC = () => {
           console.log('   → Engagement:', fbResponse.data.data.engagement || 0);
           console.log('   → Connected:', fbResponse.data.data.connected);
           console.log('   → Status will show:', fbResponse.data.data.connected ? '✅ Connected' : '⚪ Not Connected');
+          
+          // Fetch followers count from direct endpoint (new API)
+          if (fbResponse.data.data.connected) {
+            try {
+              const followersCountRes = await api.get(`/facebook/followers-count/${userData.client_id}`);
+              if (followersCountRes.data?.success && followersCountRes.data?.followers_count !== undefined) {
+                setFollowersCount(followersCountRes.data.followers_count);
+                console.log('✅ Followers count loaded from direct endpoint:', followersCountRes.data.followers_count);
+              }
+            } catch (followersErr: any) {
+              console.log('⚠️ Could not fetch followers count:', followersErr.message);
+            }
+          }
           
           // Check if all values are zero
           const hasData = fbResponse.data.data.pageViews > 0 || 
@@ -311,17 +390,32 @@ const ClientDashboard: React.FC = () => {
             console.log('   Contact your administrator to sync Facebook data');
           }
           
-          // Step 6.5: Fetch Facebook Posts
-          console.log('📝 Fetching Facebook posts for client:', userData.client_id);
+          // Step 6.5: Fetch Facebook Posts (ALWAYS FROM DATABASE)
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.log('📝 FETCHING FACEBOOK POSTS FROM DATABASE ONLY');
+          console.log('   Endpoint: GET /facebook/posts/' + userData.client_id + '?limit=50');
+          console.log('   Source: Database (facebook_posts table)');
+          console.log('   NOT from Facebook API directly');
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          
           try {
             const postsResponse = await api.get(`/facebook/posts/${userData.client_id}?limit=50`);
             if (postsResponse.data && postsResponse.data.success) {
+              const postsCount = postsResponse.data.data?.length || 0;
               setFacebookPosts(postsResponse.data.data || []);
-              console.log('✅ Facebook posts loaded:', postsResponse.data.data?.length || 0, 'posts');
+              console.log('✅ Facebook posts loaded FROM DATABASE:', postsCount, 'posts');
+              
+              if (postsCount === 0) {
+                console.log('   ⚠️ WARNING: No posts in database!');
+                console.log('   💡 Click "Sync Facebook Data" to fetch from Facebook API and store in DB');
+              } else {
+                console.log('   ✅ Posts are stored in database and will persist across page refreshes');
+              }
             }
           } catch (postsErr: any) {
             console.error('❌ Facebook posts fetch error:', postsErr);
             setFacebookPosts([]);
+            console.log('   💡 Set to empty array - no posts will be displayed');
           }
         }
       } catch (err: any) {
@@ -340,6 +434,35 @@ const ClientDashboard: React.FC = () => {
         }
       } catch (err) {
         console.log('⚠️ Reports not available');
+      }
+
+      // Step 8: Get Content Statistics
+      try {
+        const contentStatsResponse = await api.get('/content/stats/overview');
+        console.log('📊 Content stats API response:', contentStatsResponse.data);
+        
+        if (contentStatsResponse.data && contentStatsResponse.data.stats) {
+          const stats = contentStatsResponse.data.stats;
+          const contentStatsData = {
+            total_count: parseInt(stats.total_count || 0, 10),
+            pending_client_count: parseInt(stats.pending_client_count || 0, 10),
+            draft_count: parseInt(stats.draft_count || 0, 10)
+          };
+          console.log('✅ Content stats parsed:', contentStatsData);
+          setContentStats(contentStatsData);
+        } else if (contentStatsResponse.data) {
+          // Fallback if response structure is different
+          const contentStatsData = {
+            total_count: parseInt(contentStatsResponse.data.total_count || 0, 10),
+            pending_client_count: parseInt(contentStatsResponse.data.pending_client_count || 0, 10),
+            draft_count: parseInt(contentStatsResponse.data.draft_count || 0, 10)
+          };
+          console.log('✅ Content stats loaded (fallback):', contentStatsData);
+          setContentStats(contentStatsData);
+        }
+      } catch (err: any) {
+        console.error('⚠️ Content stats error:', err);
+        console.log('⚠️ Content stats not available');
       }
 
       console.log('✅ Dashboard loaded successfully!');
@@ -866,17 +989,108 @@ const ClientDashboard: React.FC = () => {
                   Track your Facebook page performance and engagement metrics.
                 </p>
               </div>
-              {facebookData?.connected && (
-                <div style={{
-                  backgroundColor: 'rgba(255,255,255,0.2)',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '8px',
-                  fontSize: '0.9rem',
-                  fontWeight: '600'
-                }}>
-                  ✅ Connected
-                </div>
-              )}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.75rem' }}>
+                {facebookData?.connected && (
+                  <div style={{
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '8px',
+                    fontSize: '0.9rem',
+                    fontWeight: '600'
+                  }}>
+                    ✅ Connected
+                  </div>
+                )}
+                <button
+                  onClick={async () => {
+                    if (!user?.client_id) return;
+                    setSyncingFacebook(true);
+                    setError(null);
+                    try {
+                      // Trigger backend sync to fetch from Facebook API and store in DB
+                      await api.post(`/facebook/sync/${user.client_id}`);
+
+                      // After successful sync, reload overview and posts from DB
+                      const [fbOverviewRes, postsRes] = await Promise.all([
+                        api.get(`/facebook/overview/${user.client_id}`),
+                        api.get(`/facebook/posts/${user.client_id}?limit=50`)
+                      ]);
+
+                      if (fbOverviewRes.data?.data) {
+                        setFacebookData(fbOverviewRes.data.data);
+                      }
+                      if (postsRes.data?.success) {
+                        setFacebookPosts(postsRes.data.data || []);
+                      }
+                      
+                      // Refresh followers count after sync
+                      if (fbOverviewRes.data?.data?.connected) {
+                        try {
+                          const followersCountRes = await api.get(`/facebook/followers-count/${user.client_id}`);
+                          if (followersCountRes.data?.success && followersCountRes.data?.followers_count !== undefined) {
+                            setFollowersCount(followersCountRes.data.followers_count);
+                          }
+                        } catch (followersErr: any) {
+                          console.log('⚠️ Could not refresh followers count:', followersErr.message);
+                        }
+                      }
+                    } catch (syncErr: any) {
+                      console.error('❌ Facebook sync error:', syncErr);
+                      setError(syncErr?.response?.data?.error || 'Failed to sync Facebook data');
+                    } finally {
+                      setSyncingFacebook(false);
+                    }
+                  }}
+                  disabled={syncingFacebook || !facebookData?.connected}
+                  style={{
+                    padding: '0.6rem 1rem',
+                    backgroundColor: syncingFacebook ? 'rgba(255,255,255,0.35)' : '#ffffff',
+                    color: syncingFacebook ? '#2d4373' : '#2d4373',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: syncingFacebook ? 'not-allowed' : 'pointer',
+                    fontWeight: 700,
+                    width: '100%',
+                    minWidth: '180px'
+                  }}
+                >
+                  {syncingFacebook ? 'Syncing…' : 'Sync Facebook Data'}
+                </button>
+                <Link
+                  to="/app/content-library"
+                  style={{
+                    padding: '0.6rem 1rem',
+                    backgroundColor: '#ffffff',
+                    color: '#A23B72',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    width: '100%',
+                    minWidth: '180px',
+                    transition: 'all 0.3s ease',
+                    fontFamily: 'Inter, sans-serif',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#A23B72';
+                    e.currentTarget.style.color = '#ffffff';
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(162, 59, 114, 0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#ffffff';
+                    e.currentTarget.style.color = '#A23B72';
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                  }}
+                >
+                  <i className="fas fa-book"></i> Content Library
+                </Link>
+              </div>
             </div>
 
             {facebookData && facebookData.connected ? (
@@ -899,8 +1113,28 @@ const ClientDashboard: React.FC = () => {
                       Your Facebook page is connected, but data hasn't been synced yet. Please contact your administrator to sync your Facebook data.
                     </p>
                     <button
-                      onClick={() => {
-                        alert('📊 Sync Facebook Data\n\nTo sync your Facebook page data, please contact:\n\nEmail: info@wetechforu.com\n\nThey will sync your latest Facebook metrics including followers, reach, engagement, and post performance.');
+                      onClick={async () => {
+                        if (!user?.client_id) return;
+                        setSyncingFacebook(true);
+                        setError(null);
+                        try {
+                          await api.post(`/facebook/sync/${user.client_id}`);
+                          const [fbOverviewRes, postsRes] = await Promise.all([
+                            api.get(`/facebook/overview/${user.client_id}`),
+                            api.get(`/facebook/posts/${user.client_id}?limit=50`)
+                          ]);
+                          if (fbOverviewRes.data?.data) {
+                            setFacebookData(fbOverviewRes.data.data);
+                          }
+                          if (postsRes.data?.success) {
+                            setFacebookPosts(postsRes.data.data || []);
+                          }
+                        } catch (syncErr: any) {
+                          console.error('❌ Facebook sync error:', syncErr);
+                          setError(syncErr?.response?.data?.error || 'Failed to sync Facebook data');
+                        } finally {
+                          setSyncingFacebook(false);
+                        }
                       }}
                       style={{
                         padding: '0.75rem 2rem',
@@ -915,7 +1149,7 @@ const ClientDashboard: React.FC = () => {
                       }}
                     >
                       <i className="fas fa-sync-alt" style={{ marginRight: '0.5rem' }}></i>
-                      Request Data Sync
+                      {syncingFacebook ? 'Syncing…' : 'Sync Facebook Data'}
                     </button>
                   </div>
                 ) : null}
@@ -981,6 +1215,36 @@ const ClientDashboard: React.FC = () => {
                     <p style={{ margin: 0, fontSize: '0.8rem', color: '#28a745' }}>
                       <i className="fas fa-user-plus" style={{ marginRight: '0.25rem' }}></i>
                       Fans
+                    </p>
+                  </div>
+
+                  {/* Followers Count Card (Direct Endpoint) */}
+                  <div style={{
+                    backgroundColor: 'white',
+                    padding: '2rem',
+                    borderRadius: '12px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                    border: '2px solid #4267B2'
+                  }}>
+                    <div style={{ 
+                      width: '48px', 
+                      height: '48px', 
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #4267B2 0%, #5a9fd4 100%)',
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      marginBottom: '1rem'
+                    }}>
+                      <i className="fas fa-hashtag" style={{ color: 'white', fontSize: '1.3rem' }}></i>
+                    </div>
+                    <h3 style={{ margin: '0 0 0.5rem 0', color: '#666', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Followers Count</h3>
+                    <p style={{ margin: '0 0 0.5rem 0', fontSize: '2.5rem', fontWeight: '700', color: '#4267B2' }}>
+                      {followersCount !== null ? followersCount.toLocaleString() : (facebookData?.connected ? '...' : '0')}
+                    </p>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#4267B2' }}>
+                      <i className="fas fa-chart-line" style={{ marginRight: '0.25rem' }}></i>
+                      Direct API
                     </p>
                   </div>
 
@@ -2115,6 +2379,201 @@ const ClientDashboard: React.FC = () => {
                   Member since: {clientData?.created_at ? new Date(clientData.created_at).toLocaleDateString() : 'N/A'}
                 </div>
               </div>
+
+              {/* Google Analytics Card */}
+              <Link
+                to="/app/dashboard?tab=google-analytics"
+                style={{
+                  textDecoration: 'none',
+                  display: 'block'
+                }}
+              >
+                <div style={{
+                  backgroundColor: 'white',
+                  padding: '1.5rem',
+                  borderRadius: '12px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  border: '1px solid #e9ecef',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  height: '100%'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(46, 134, 171, 0.2)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+                }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
+                    <div style={{
+                      width: '48px', height: '48px', borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #F9AB00 0%, #E37400 100%)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '1rem'
+                    }}>
+                      <i className="fas fa-chart-line" style={{ color: 'white', fontSize: '1.5rem' }}></i>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{ margin: 0, fontSize: '0.9rem', color: '#666', fontWeight: '600' }}>Google Analytics</h3>
+                      <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: '700', color: '#2C5F77' }}>
+                        {googleAnalyticsData ? (
+                          <>
+                            {googleAnalyticsData.users.toLocaleString()} Users
+                          </>
+                        ) : (
+                          'Not Connected'
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  {googleAnalyticsData ? (
+                    <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem' }}>
+                      <div>
+                        <span style={{ color: '#666' }}>Sessions: </span>
+                        <strong style={{ color: '#2E86AB' }}>{googleAnalyticsData.sessions.toLocaleString()}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#666' }}>Page Views: </span>
+                        <strong style={{ color: '#F18F01' }}>{googleAnalyticsData.pageViews.toLocaleString()}</strong>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.85rem', color: '#999', fontStyle: 'italic' }}>
+                      Connect to view analytics
+                    </div>
+                  )}
+                </div>
+              </Link>
+
+              {/* Social Media (Facebook) Card */}
+              <Link
+                to="/app/dashboard?tab=social-media"
+                style={{
+                  textDecoration: 'none',
+                  display: 'block'
+                }}
+              >
+                <div style={{
+                  backgroundColor: 'white',
+                  padding: '1.5rem',
+                  borderRadius: '12px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  border: '1px solid #e9ecef',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  height: '100%'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(66, 103, 178, 0.2)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+                }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
+                    <div style={{
+                      width: '48px', height: '48px', borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #4267B2 0%, #2d4373 100%)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '1rem'
+                    }}>
+                      <i className="fab fa-facebook-f" style={{ color: 'white', fontSize: '1.5rem' }}></i>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{ margin: 0, fontSize: '0.9rem', color: '#666', fontWeight: '600' }}>Social Media</h3>
+                      <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: '700', color: '#2C5F77' }}>
+                        {facebookData?.connected ? (
+                          <>
+                            {facebookData.followers.toLocaleString()} Followers
+                          </>
+                        ) : (
+                          'Not Connected'
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  {facebookData?.connected ? (
+                    <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem' }}>
+                      <div>
+                        <span style={{ color: '#666' }}>Reach: </span>
+                        <strong style={{ color: '#4267B2' }}>{facebookData.reach.toLocaleString()}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#666' }}>Engagement: </span>
+                        <strong style={{ color: '#A23B72' }}>{facebookData.engagement.toLocaleString()}</strong>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.85rem', color: '#999', fontStyle: 'italic' }}>
+                      Connect Facebook to view metrics
+                    </div>
+                  )}
+                </div>
+              </Link>
+
+              {/* Content Created Card (shows pending approval count) */}
+              <Link
+                to="/app/content-library"
+                style={{
+                  textDecoration: 'none',
+                  display: 'block'
+                }}
+              >
+                <div style={{
+                  backgroundColor: 'white',
+                  padding: '1.5rem',
+                  borderRadius: '12px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  border: '1px solid #e9ecef',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  height: '100%'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(162, 59, 114, 0.2)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+                }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
+                    <div style={{
+                      width: '48px', height: '48px', borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #A23B72 0%, #7a2d56 100%)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '1rem'
+                    }}>
+                      <i className="fas fa-file-alt" style={{ color: 'white', fontSize: '1.5rem' }}></i>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{ margin: 0, fontSize: '0.9rem', color: '#666', fontWeight: '600' }}>Content Created</h3>
+                      <p style={{ margin: 0, fontSize: '2rem', fontWeight: '700', color: contentStats && contentStats.pending_client_count > 0 ? '#F18F01' : '#2C5F77' }}>
+                        {contentStats ? (contentStats.pending_client_count || 0).toLocaleString() : '0'}
+                      </p>
+                    </div>
+                  </div>
+                  {contentStats ? (
+                    <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem' }}>
+                      <div>
+                        <span style={{ color: '#666' }}>Total Posts: </span>
+                        <strong style={{ color: '#A23B72' }}>{contentStats.total_count.toLocaleString()}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#666' }}>Draft Posts: </span>
+                        <strong style={{ color: '#2E86AB' }}>{contentStats.draft_count.toLocaleString()}</strong>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.85rem', color: '#999', fontStyle: 'italic' }}>
+                      No content data available
+                    </div>
+                  )}
+                </div>
+              </Link>
             </div>
 
             {/* Welcome Message and Quick Actions */}
@@ -2151,6 +2610,27 @@ const ClientDashboard: React.FC = () => {
                   transition: 'background-color 0.3s ease'
                 }}>
                   <i className="fas fa-user-circle"></i> Edit Profile
+                </Link>
+                <Link to="/app/content-library" style={{
+                  padding: '0.75rem 1.5rem',
+                  backgroundColor: '#A23B72',
+                  color: 'white',
+                  textDecoration: 'none',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  transition: 'background-color 0.3s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#8A2F5F';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#A23B72';
+                }}
+                >
+                  <i className="fas fa-book"></i> Content Library
                 </Link>
               </div>
             </div>
