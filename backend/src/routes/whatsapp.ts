@@ -479,11 +479,17 @@ router.post('/webhook', async (req: Request, res: Response) => {
       );
     }
 
-    res.sendStatus(200);
+    // ✅ Return empty response to prevent "OK" auto-replies from Twilio
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Length', '0');
+    res.status(200).end();
 
   } catch (error) {
     console.error('Error processing WhatsApp webhook:', error);
-    res.sendStatus(500);
+    // Still return 200 to prevent Twilio from retrying
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Length', '0');
+    res.status(200).end();
   }
 });
 
@@ -530,11 +536,17 @@ router.post('/status-callback', async (req: Request, res: Response) => {
       );
     }
 
-    res.sendStatus(200);
+    // ✅ Return empty response to prevent "OK" auto-replies from Twilio
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Length', '0');
+    res.status(200).end();
 
   } catch (error) {
     console.error('WhatsApp status callback error:', error);
-    res.sendStatus(500);
+    // Still return 200 to prevent Twilio from retrying
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Length', '0');
+    res.status(200).end();
   }
 });
 
