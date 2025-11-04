@@ -124,10 +124,32 @@
         const hasClosedBot = sessionStorage.getItem(`wetechforu_closed_${this.config.widgetKey}`);
         
         if (!hasClosedBot) {
-          console.log('🤖 Auto-popup enabled - showing bot');
+          console.log('🤖 Auto-popup enabled - showing bot in', this.config.autoPopupDelay, 'ms');
           setTimeout(() => {
+            console.log('🔔 Auto-popup timeout fired - calling openChat()');
             this.openChat();
-          }, this.config.autoPopupDelay);
+            
+            // ✅ Double-check visibility after a short delay
+            setTimeout(() => {
+              const chatWindow = document.getElementById('wetechforu-chat-window');
+              if (chatWindow) {
+                const rect = chatWindow.getBoundingClientRect();
+                const isVisible = getComputedStyle(chatWindow).display !== 'none' && 
+                                 getComputedStyle(chatWindow).visibility !== 'hidden' &&
+                                 rect.width > 0 && rect.height > 0;
+                
+                if (!isVisible) {
+                  console.warn('⚠️ Widget not visible after auto-popup - forcing visibility');
+                  chatWindow.style.setProperty('display', 'flex', 'important');
+                  chatWindow.style.setProperty('visibility', 'visible', 'important');
+                  chatWindow.style.setProperty('opacity', '1', 'important');
+                  chatWindow.style.setProperty('z-index', '999998', 'important');
+                } else {
+                  console.log('✅ Widget is visible after auto-popup');
+                }
+              }
+            }, 200);
+          }, this.config.autoPopupDelay || 1000);
         } else {
           console.log('🚫 Bot was closed in this session - not auto-popping');
         }
@@ -795,13 +817,26 @@
         const newButton = chatButton.cloneNode(true);
         chatButton.parentNode.replaceChild(newButton, chatButton);
         
-        // ✅ Add click listener with explicit handling
-        newButton.addEventListener('click', (e) => {
+        // ✅ Add click listener with explicit handling - Multiple event types for reliability
+        const handleClick = (e) => {
           e.preventDefault();
           e.stopPropagation();
-          console.log('🖱️ Chat button clicked');
-          this.toggleChat();
-        });
+          e.stopImmediatePropagation();
+          console.log('🖱️ Chat button clicked - opening chat');
+          
+          // ✅ Force open chat (don't toggle if already open)
+          if (!this.state.isOpen) {
+            this.openChat();
+          } else {
+            console.log('ℹ️ Chat already open');
+          }
+        };
+        
+        newButton.addEventListener('click', handleClick, true); // Use capture phase
+        newButton.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }, true);
         
         console.log('✅ Chat button event listener attached');
       } else {
@@ -1936,12 +1971,26 @@
         return;
       }
       
-      // ✅ Ensure chat window is visible and properly positioned
-      chatWindow.style.display = 'flex';
-      chatWindow.style.visibility = 'visible';
-      chatWindow.style.opacity = '1';
-      chatWindow.style.zIndex = '999998';
-      chatWindow.style.pointerEvents = 'auto';
+      console.log('🔍 Opening chat - current state:', {
+        display: chatWindow.style.display,
+        visibility: chatWindow.style.visibility,
+        opacity: chatWindow.style.opacity,
+        zIndex: chatWindow.style.zIndex,
+        isOpen: this.state.isOpen
+      });
+      
+      // ✅ Ensure chat window is visible and properly positioned - Force all styles
+      chatWindow.style.setProperty('display', 'flex', 'important');
+      chatWindow.style.setProperty('visibility', 'visible', 'important');
+      chatWindow.style.setProperty('opacity', '1', 'important');
+      chatWindow.style.setProperty('z-index', '999998', 'important');
+      chatWindow.style.setProperty('pointer-events', 'auto', 'important');
+      chatWindow.style.setProperty('position', 'absolute', 'important');
+      
+      // ✅ Remove any inline styles that might hide it
+      chatWindow.style.removeProperty('transform');
+      chatWindow.style.removeProperty('clip');
+      chatWindow.style.removeProperty('clip-path');
       
       if (badge) {
         badge.style.display = 'none';
@@ -1962,9 +2011,31 @@
       // ✅ Ensure widget is within viewport after loading position
       setTimeout(() => {
         this.ensureWidgetInViewport(chatWindow);
-        // ✅ Force visibility after viewport adjustment
-        chatWindow.style.display = 'flex';
-        chatWindow.style.visibility = 'visible';
+        // ✅ Force visibility after viewport adjustment - Multiple attempts
+        chatWindow.style.setProperty('display', 'flex', 'important');
+        chatWindow.style.setProperty('visibility', 'visible', 'important');
+        chatWindow.style.setProperty('opacity', '1', 'important');
+        chatWindow.style.setProperty('z-index', '999998', 'important');
+        
+        // ✅ Verify it's actually visible
+        const rect = chatWindow.getBoundingClientRect();
+        const isVisible = rect.width > 0 && rect.height > 0 && 
+                         rect.top >= 0 && rect.left >= 0 && 
+                         rect.bottom <= window.innerHeight && 
+                         rect.right <= window.innerWidth;
+        
+        console.log('✅ Chat opened - widget visibility check:', {
+          isVisible,
+          rect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left },
+          computedDisplay: getComputedStyle(chatWindow).display,
+          computedVisibility: getComputedStyle(chatWindow).visibility,
+          computedOpacity: getComputedStyle(chatWindow).opacity,
+          computedZIndex: getComputedStyle(chatWindow).zIndex
+        });
+        
+        if (!isVisible) {
+          console.warn('⚠️ Widget may not be fully visible - check positioning');
+        }
       }, 100);
       
       console.log('✅ Chat opened - widget should be visible');
