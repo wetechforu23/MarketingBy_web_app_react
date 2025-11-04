@@ -63,7 +63,7 @@
       agentTookOver: false, // ✅ NEW: Track if agent took over conversation
       conversationEnded: false, // ✅ Track if conversation has ended
       popupWindow: null, // ✅ Track popup window for maximize feature
-      popupCheckInterval: null // ✅ Check if popup is closed
+      popupCheckInterval: null, // ✅ Check if popup is closed
       unsuccessfulAttempts: 0, // Track failed knowledge base matches
       compatibility: {
         supported: true,
