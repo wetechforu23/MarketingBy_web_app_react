@@ -290,7 +290,7 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
           ">1</div>
 
-            <!-- Chat Window -->
+          <!-- Chat Window -->
           <div id="wetechforu-chat-window" style="
             position: absolute;
             ${this.config.position.includes('right') ? 'right: 0;' : 'left: 0;'}
@@ -1010,12 +1010,38 @@
         
         this.state.popupWindow = popup;
         
-        // ✅ Generate popup HTML with full chat widget
+        // ✅ Generate popup HTML with full chat widget (pass conversation ID)
         const popupHTML = this.generatePopupHTML(conversationId, visitorSessionId);
         
         popup.document.open();
         popup.document.write(popupHTML);
         popup.document.close();
+        
+        // ✅ Show notification in main widget that chat moved to popup (Industry Standard)
+        if (this.state.isOpen) {
+          const messagesContainer = document.getElementById('wetechforu-messages');
+          if (messagesContainer) {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+              background: #fff3cd;
+              border: 1px solid #ffc107;
+              border-radius: 8px;
+              padding: 12px 16px;
+              margin-bottom: 16px;
+              color: #856404;
+              font-size: 13px;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            `;
+            notification.innerHTML = `
+              <span>⚠️</span>
+              <span>You're now chatting in a separate window. Close that window to continue here.</span>
+            `;
+            messagesContainer.appendChild(notification);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          }
+        }
         
         // ✅ Update button state
         if (expandBtn) {
@@ -1023,7 +1049,7 @@
           expandBtn.title = 'Close Popup';
         }
         
-        // ✅ Monitor popup window - when closed, restore button
+        // ✅ Monitor popup window - when closed, restore button and show message
         this.state.popupCheckInterval = setInterval(() => {
           if (this.state.popupWindow && this.state.popupWindow.closed) {
             this.state.popupWindow = null;
@@ -1033,6 +1059,33 @@
               expandBtn.textContent = '⛶';
               expandBtn.title = 'Maximize';
             }
+            
+            // ✅ Show message that popup closed and chat is back here
+            if (this.state.isOpen) {
+              const messagesContainer = document.getElementById('wetechforu-messages');
+              if (messagesContainer) {
+                const notification = document.createElement('div');
+                notification.style.cssText = `
+                  background: #d1ecf1;
+                  border: 1px solid #bee5eb;
+                  border-radius: 8px;
+                  padding: 12px 16px;
+                  margin-bottom: 16px;
+                  color: #0c5460;
+                  font-size: 13px;
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                `;
+                notification.innerHTML = `
+                  <span>✅</span>
+                  <span>Chat window closed. You can continue chatting here.</span>
+                `;
+                messagesContainer.appendChild(notification);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+              }
+            }
+            
             console.log('✅ Popup closed - widget restored to normal state');
           }
         }, 500);
@@ -1112,8 +1165,16 @@
       }
     },
     
-    // ✅ Generate popup HTML with full chat widget (Industry Standard)
+    // ✅ Generate popup HTML with full chat widget (Industry Standard) - Fixed conversation transfer
     generatePopupHTML(conversationId, visitorSessionId) {
+      // ✅ Get all messages from main widget to transfer
+      const allMessages = this.state.messages || [];
+      const messagesJSON = JSON.stringify(allMessages.map(msg => ({
+        message_type: msg.type || 'user',
+        message_text: msg.text || msg.message || '',
+        created_at: msg.timestamp || new Date().toISOString()
+      })));
+      
       return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1279,27 +1340,71 @@
   </div>
   
   <script>
-    // ✅ Initialize popup chat
+    // ✅ Initialize popup chat - FIXED: Transfer conversation and messages
     const widgetKey = '${this.config.widgetKey}';
     const backendUrl = '${this.config.backendUrl}';
     const conversationId = ${conversationId || 'null'};
     const visitorSessionId = '${visitorSessionId}';
+    const transferredMessages = ${messagesJSON || '[]'};
     
     let messages = [];
     let currentConversationId = conversationId;
     
-    // ✅ Load existing messages
+    // ✅ Load existing messages - FIXED: Use transferred messages first, then load from API
     async function loadMessages() {
-      if (!currentConversationId) return;
-      try {
-        const response = await fetch(\`\${backendUrl}/api/chat-widget/public/widget/\${widgetKey}/conversations/\${currentConversationId}/messages\`);
-        if (response.ok) {
-          const data = await response.json();
-          messages = Array.isArray(data) ? data : (data.messages || []);
-          renderMessages();
+      // ✅ First, use transferred messages from main widget
+      if (transferredMessages && transferredMessages.length > 0) {
+        messages = transferredMessages;
+        renderMessages();
+        console.log('✅ Loaded', messages.length, 'messages from main widget');
+        
+        // ✅ Show notification that conversation was transferred
+        const container = document.getElementById('chat-messages');
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+          background: #d1ecf1;
+          border: 1px solid #bee5eb;
+          border-radius: 8px;
+          padding: 12px 16px;
+          margin-bottom: 16px;
+          color: #0c5460;
+          font-size: 13px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        `;
+        notification.innerHTML = `
+          <span>✅</span>
+          <span>Conversation transferred from main window. You can continue chatting here.</span>
+        `;
+        container.appendChild(notification);
+        container.scrollTop = container.scrollHeight;
+      }
+      
+      // ✅ Then, load from API to get any new messages
+      if (currentConversationId) {
+        try {
+          const response = await fetch(\`\${backendUrl}/api/chat-widget/public/widget/\${widgetKey}/conversations/\${currentConversationId}/messages\`);
+          if (response.ok) {
+            const data = await response.json();
+            const apiMessages = Array.isArray(data) ? data : (data.messages || []);
+            
+            // ✅ Merge API messages (avoid duplicates)
+            const existingIds = new Set(messages.map(m => m.id || m.message_text));
+            apiMessages.forEach(msg => {
+              const msgId = msg.id || msg.message_text;
+              if (!existingIds.has(msgId)) {
+                messages.push(msg);
+                existingIds.add(msgId);
+              }
+            });
+            
+            renderMessages();
+            console.log('✅ Loaded', apiMessages.length, 'additional messages from API');
+          }
+        } catch (error) {
+          console.error('Failed to load messages from API:', error);
         }
-      } catch (error) {
-        console.error('Failed to load messages:', error);
       }
     }
     
@@ -1315,35 +1420,51 @@
       container.scrollTop = container.scrollHeight;
     }
     
-    // ✅ Send message
+    // ✅ Send message - FIXED: Properly handle bot responses (KB, AI, etc.)
     async function sendMessage() {
       const input = document.getElementById('chat-input');
       const message = input.value.trim();
       if (!message) return;
       
       // Add user message to UI
-      messages.push({ message_type: 'user', message_text: message });
+      messages.push({ message_type: 'user', message_text: message, id: 'user_' + Date.now() });
       renderMessages();
       input.value = '';
       
+      // Disable input while processing
+      input.disabled = true;
+      const sendBtn = document.getElementById('chat-send');
+      sendBtn.disabled = true;
+      
+      // Show typing indicator
+      showTypingIndicator();
+      
       // Ensure conversation exists
       if (!currentConversationId) {
-        const response = await fetch(\`\${backendUrl}/api/chat-widget/public/widget/\${widgetKey}/conversation\`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            session_id: 'popup_' + Date.now(),
-            page_url: window.location.href,
-            visitor_session_id: visitorSessionId
-          })
-        });
-        if (response.ok) {
-          const data = await response.json();
-          currentConversationId = data.conversation_id;
+        try {
+          const response = await fetch(\`\${backendUrl}/api/chat-widget/public/widget/\${widgetKey}/conversation\`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              session_id: 'popup_' + Date.now(),
+              page_url: window.location.href,
+              visitor_session_id: visitorSessionId
+            })
+          });
+          if (response.ok) {
+            const data = await response.json();
+            currentConversationId = data.conversation_id;
+          }
+        } catch (error) {
+          console.error('Failed to create conversation:', error);
+          hideTypingIndicator();
+          input.disabled = false;
+          sendBtn.disabled = false;
+          return;
         }
       }
       
-      // Send to backend
+      // Send to backend - FIXED: Use same endpoint as main widget
       try {
         const response = await fetch(\`\${backendUrl}/api/chat-widget/public/widget/\${widgetKey}/message\`, {
           method: 'POST',
@@ -1356,14 +1477,122 @@
         
         if (response.ok) {
           const data = await response.json();
+          
+          // ✅ Handle bot response (from KB, AI, etc.)
           if (data.response) {
-            messages.push({ message_type: 'bot', message_text: data.response });
+            hideTypingIndicator();
+            messages.push({ 
+              message_type: 'bot', 
+              message_text: data.response,
+              id: 'bot_' + Date.now()
+            });
+            renderMessages();
+          } else if (data.message) {
+            hideTypingIndicator();
+            messages.push({ 
+              message_type: 'bot', 
+              message_text: data.message,
+              id: 'bot_' + Date.now()
+            });
             renderMessages();
           }
+          
+          // ✅ Handle agent handoff
+          if (data.agent_handoff) {
+            hideTypingIndicator();
+            messages.push({ 
+              message_type: 'bot', 
+              message_text: '👨‍💼 Your message has been sent to our team. An agent will respond shortly...',
+              id: 'bot_handoff_' + Date.now()
+            });
+            renderMessages();
+            // Start polling for agent messages
+            startPollingForAgentMessages();
+          }
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          hideTypingIndicator();
+          messages.push({ 
+            message_type: 'bot', 
+            message_text: 'Sorry, I encountered an error. Please try again.',
+            id: 'bot_error_' + Date.now()
+          });
+          renderMessages();
         }
       } catch (error) {
         console.error('Failed to send message:', error);
+        hideTypingIndicator();
+        messages.push({ 
+          message_type: 'bot', 
+          message_text: 'Sorry, I encountered an error. Please try again.',
+          id: 'bot_error_' + Date.now()
+        });
+        renderMessages();
+      } finally {
+        input.disabled = false;
+        sendBtn.disabled = false;
+        input.focus();
       }
+    }
+    
+    // ✅ Typing indicator
+    function showTypingIndicator() {
+      const container = document.getElementById('chat-messages');
+      const typing = document.createElement('div');
+      typing.id = 'typing-indicator';
+      typing.className = 'message bot';
+      typing.innerHTML = '<div class="message-bubble">Typing...</div>';
+      container.appendChild(typing);
+      container.scrollTop = container.scrollHeight;
+    }
+    
+    function hideTypingIndicator() {
+      const typing = document.getElementById('typing-indicator');
+      if (typing) typing.remove();
+    }
+    
+    // ✅ Poll for agent messages (if handoff active)
+    let pollingInterval = null;
+    function startPollingForAgentMessages() {
+      if (pollingInterval) return;
+      
+      pollingInterval = setInterval(async () => {
+        if (!currentConversationId) {
+          clearInterval(pollingInterval);
+          pollingInterval = null;
+          return;
+        }
+        
+        try {
+          const response = await fetch(\`\${backendUrl}/api/chat-widget/public/widget/\${widgetKey}/conversations/\${currentConversationId}/messages\`);
+          if (response.ok) {
+            const data = await response.json();
+            const allMessages = Array.isArray(data) ? data : (data.messages || []);
+            const humanMessages = allMessages.filter(m => m.message_type === 'human');
+            
+            // Check for new human messages
+            const existingIds = new Set(messages.map(m => m.id || m.message_text));
+            humanMessages.forEach(msg => {
+              const msgId = msg.id || msg.message_text;
+              if (!existingIds.has(msgId)) {
+                messages.push({ 
+                  message_type: 'bot', 
+                  message_text: msg.message_text,
+                  agent_name: msg.agent_name,
+                  id: msgId
+                });
+                existingIds.add(msgId);
+              }
+            });
+            
+            if (humanMessages.length > 0) {
+              renderMessages();
+            }
+          }
+        } catch (error) {
+          console.error('Failed to poll for messages:', error);
+        }
+      }, 3000);
     }
     
     // ✅ Event listeners
@@ -1458,18 +1687,18 @@
           // Use existing handle - only show cursor on handle itself
           handle.style.pointerEvents = 'auto';
           handle.style.cursor = 'nwse-resize';
-          handle.addEventListener('mousedown', (e) => {
+      handle.addEventListener('mousedown', (e) => {
             e.stopPropagation();
-            isResizing = true;
+        isResizing = true;
             resizeEdge = 'corner';
-            startX = e.clientX;
-            startY = e.clientY;
-            startWidth = element.offsetWidth;
-            startHeight = element.offsetHeight;
+        startX = e.clientX;
+        startY = e.clientY;
+        startWidth = element.offsetWidth;
+        startHeight = element.offsetHeight;
             startLeft = element.offsetLeft;
             startTop = element.offsetTop;
-            e.preventDefault();
-          });
+        e.preventDefault();
+      });
         } else {
           const edgeHandle = document.createElement('div');
           edgeHandle.className = `wetechforu-resize-${edge}`;
@@ -1512,8 +1741,8 @@
         if (resizeEdge === 'corner') {
           const newWidth = Math.max(300, Math.min(window.innerWidth - 40, startWidth + deltaX));
           const newHeight = Math.max(400, Math.min(window.innerHeight - 100, startHeight + deltaY));
-          element.style.width = newWidth + 'px';
-          element.style.height = newHeight + 'px';
+        element.style.width = newWidth + 'px';
+        element.style.height = newHeight + 'px';
           // ✅ Save position during resize
           this.saveWidgetPosition(element);
         } else if (resizeEdge === 'right') {
@@ -1549,7 +1778,7 @@
       
       const handleMouseUp = () => {
         if (isResizing) {
-          isResizing = false;
+        isResizing = false;
           resizeEdge = null;
           // ✅ Final save after resize
           this.saveWidgetPosition(element);
@@ -1661,7 +1890,7 @@
                   console.log('✅ Conversation restored with messages');
                   
                   // Mark welcome as shown since we're showing "Welcome back!"
-                  sessionStorage.setItem(`wetechforu_welcome_shown_${this.config.widgetKey}`, 'true');
+        sessionStorage.setItem(`wetechforu_welcome_shown_${this.config.widgetKey}`, 'true');
                   
                   // Check if intro was completed
                   if (statusData.intro_completed) {
@@ -1717,7 +1946,7 @@
       
       // 📨 Start polling for agent messages (only if agent handoff is active)
       if (this.state.agentTookOver) {
-        this.startPollingForAgentMessages();
+      this.startPollingForAgentMessages();
       }
       
       // ✅ Resume polling when chat is reopened (if agent handoff was active)
@@ -1729,7 +1958,7 @@
       }
     },
 
-    // Close chat with confirmation and email summary option
+    // Close chat with combined confirmation and email (Industry Standard)
     async closeChat() {
       // Check if there's an active conversation
       const conversationId = this.state.conversationId;
@@ -1739,17 +1968,15 @@
         return;
       }
 
-      // Show confirmation dialog
-      const shouldClose = await this.showCloseConfirmation();
-      if (!shouldClose) {
+      // ✅ Combined: Show confirmation dialog with email option (Industry Standard)
+      const closeResult = await this.showCloseConfirmationWithEmail();
+      if (!closeResult.close) {
         return; // User cancelled
       }
 
-      // Check if user wants email summary
-      const wantsEmail = await this.askForEmailSummary();
-      let emailToSend = null;
+      let emailToSend = closeResult.email || null;
 
-      if (wantsEmail) {
+      if (closeResult.sendEmail && !emailToSend) {
         // Get email from form data or ask
         const formEmail = this.state.introFlow?.answers?.email || 
                          this.state.introFlow?.answers?.email_address ||
@@ -1787,7 +2014,7 @@
         await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/end`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ send_email: wantsEmail, email: emailToSend })
+          body: JSON.stringify({ send_email: closeResult.sendEmail, email: emailToSend })
         });
       } catch (error) {
         console.error('Failed to end conversation:', error);
@@ -1798,15 +2025,21 @@
     },
 
     // Show close confirmation dialog - ✅ FIX: Small popup inside chat widget instead of full-screen
-    showCloseConfirmation() {
+    // ✅ Combined close confirmation with email option (Industry Standard)
+    showCloseConfirmationWithEmail() {
       return new Promise((resolve) => {
         const chatWindow = document.getElementById('wetechforu-chat-window');
         const messagesContainer = document.getElementById('wetechforu-messages');
         
         if (!chatWindow || !messagesContainer) {
-          resolve(false);
+          resolve({ close: false, sendEmail: false, email: null });
           return;
         }
+
+        // ✅ Get existing email from form/intro flow
+        const existingEmail = this.state.introFlow?.answers?.email || 
+                             this.state.introFlow?.answers?.email_address ||
+                             this.state.contactInfo?.email;
 
         // Create overlay inside chat window
         const overlay = document.createElement('div');
@@ -1825,13 +2058,13 @@
           border-radius: 16px;
         `;
 
-        // Create small popup inside chat window
+        // ✅ Create combined popup with close confirmation + email option (Industry Standard)
         const popup = document.createElement('div');
         popup.style.cssText = `
           background: white;
           border-radius: 12px;
           padding: 20px;
-          max-width: 280px;
+          max-width: 320px;
           width: 90%;
           box-shadow: 0 4px 20px rgba(0,0,0,0.3);
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -1843,6 +2076,22 @@
           <p style="color: #666; font-size: 13px; line-height: 1.5; margin-bottom: 16px;">
             You will <strong>lose all chat history</strong> in this window.
           </p>
+          <div style="margin-bottom: 16px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: #333;">
+              <input type="checkbox" id="send-email-checkbox" style="width: 16px; height: 16px; cursor: pointer;" ${existingEmail ? 'checked' : ''} />
+              <span>📧 Send conversation summary via email</span>
+            </label>
+          </div>
+          <div id="email-input-container" style="display: ${existingEmail ? 'none' : 'block'}; margin-bottom: 16px;">
+            <input type="email" id="email-input" placeholder="Enter your email..." value="${existingEmail || ''}" style="
+              width: 100%;
+              padding: 8px 12px;
+              border: 2px solid #e0e0e0;
+              border-radius: 6px;
+              font-size: 13px;
+              outline: none;
+            " />
+          </div>
           <div style="display: flex; gap: 8px; justify-content: flex-end;">
             <button id="close-cancel" style="
               padding: 8px 16px;
@@ -1881,21 +2130,150 @@
           }
         };
 
+        // ✅ Toggle email input visibility
+        const emailCheckbox = popup.querySelector('#send-email-checkbox');
+        const emailInputContainer = popup.querySelector('#email-input-container');
+        const emailInput = popup.querySelector('#email-input');
+        
+        emailCheckbox.addEventListener('change', () => {
+          emailInputContainer.style.display = emailCheckbox.checked ? 'block' : 'none';
+          if (!emailCheckbox.checked) {
+            emailInput.value = '';
+          }
+        });
+
         popup.querySelector('#close-cancel').addEventListener('click', () => {
           cleanup();
-          resolve(false);
+          resolve({ close: false, sendEmail: false, email: null });
         });
 
         popup.querySelector('#close-confirm').addEventListener('click', () => {
+          const sendEmail = emailCheckbox.checked;
+          const email = sendEmail ? (emailInput.value.trim() || existingEmail || null) : null;
+          
+          // ✅ Validate email if checkbox is checked
+          if (sendEmail && !email) {
+            emailInput.style.borderColor = '#dc3545';
+            emailInput.focus();
+            return;
+          }
+          
           cleanup();
-          resolve(true);
+          resolve({ close: true, sendEmail, email });
         });
 
         // Close on overlay click (outside popup)
         overlay.addEventListener('click', (e) => {
           if (e.target === overlay) {
             cleanup();
-            resolve(false);
+            resolve({ close: false, sendEmail: false, email: null });
+          }
+        });
+      });
+    },
+    
+    // ✅ Ask for email (if not provided in combined dialog)
+    askForEmail() {
+      return new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0,0,0,0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        `;
+
+        modal.innerHTML = `
+          <div style="
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+          ">
+            <h3 style="margin-top: 0; color: #333; font-size: 18px; margin-bottom: 12px;">📧 Enter Your Email</h3>
+            <p style="color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+              Please enter your email address to receive the conversation summary:
+            </p>
+            <input type="email" id="email-modal-input" placeholder="your@email.com" style="
+              width: 100%;
+              padding: 12px;
+              border: 2px solid #e0e0e0;
+              border-radius: 6px;
+              font-size: 14px;
+              margin-bottom: 20px;
+              outline: none;
+            " />
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+              <button id="email-skip" style="
+                padding: 10px 20px;
+                border: 2px solid #e0e0e0;
+                border-radius: 6px;
+                background: white;
+                color: #333;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+              ">Skip</button>
+              <button id="email-send" style="
+                padding: 10px 20px;
+                border: none;
+                border-radius: 6px;
+                background: #2E86AB;
+                color: white;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+              ">Send</button>
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(modal);
+        const emailInput = modal.querySelector('#email-modal-input');
+        emailInput.focus();
+
+        const cleanup = () => {
+          if (modal.parentNode) {
+            modal.parentNode.removeChild(modal);
+          }
+        };
+
+        modal.querySelector('#email-skip').addEventListener('click', () => {
+          cleanup();
+          resolve(null);
+        });
+
+        modal.querySelector('#email-send').addEventListener('click', () => {
+          const email = emailInput.value.trim();
+          if (email && email.includes('@')) {
+            cleanup();
+            resolve(email);
+          } else {
+            emailInput.style.borderColor = '#dc3545';
+            emailInput.focus();
+          }
+        });
+
+        emailInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            modal.querySelector('#email-send').click();
+          }
+        });
+
+        // Close on overlay click
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            cleanup();
+            resolve(null);
           }
         });
       });
@@ -2155,16 +2533,16 @@
           const enabledQuestions = config.intro_questions.filter(q => q !== null && typeof q === 'object');
           
           if (enabledQuestions.length > 0) {
-            this.state.introFlow.enabled = true;
+          this.state.introFlow.enabled = true;
             this.state.introFlow.questions = enabledQuestions; // ✅ Only use widget config questions
-            this.state.introFlow.isActive = true;
+          this.state.introFlow.isActive = true;
 
             // ✅ Use database welcome_message instead of hardcoded messages
             const welcomeMsg = config.welcome_message || this.config.welcomeMessage || `👋 Welcome! I'm ${this.config.botName}.`;
             
-            setTimeout(() => {
+          setTimeout(() => {
               this.addBotMessage(welcomeMsg);
-            }, 500);
+          }, 500);
 
             // ✅ Check if form data already exists in database (from conversation or visitor_session_id)
             const conversationId = await this.ensureConversation();
@@ -2183,7 +2561,7 @@
                     console.log('✅ Form data already exists - skipping form');
                     
                     // Show summary of existing data
-                    setTimeout(() => {
+          setTimeout(() => {
                       this.showFormSummary(statusData.intro_data);
                       // Show ready message since form is already complete
                       setTimeout(() => {
@@ -2207,7 +2585,7 @@
               this.state.introFlow.isActive = true;
               console.log('✅ Waiting for user\'s first message before showing form');
             }
-          } else {
+        } else {
             // No questions configured - use default intro
             console.log('⚠️ Intro flow enabled but no questions configured - using default intro');
             this.startDefaultIntroFlow();
@@ -2573,7 +2951,7 @@
 
       // Show completion message and ready to help
       setTimeout(() => {
-        this.addBotMessage("✅ Thank you! I have all the information I need.");
+      this.addBotMessage("✅ Thank you! I have all the information I need.");
         // Don't show "How can I help" - let user ask naturally after form
       }, 500);
       
@@ -2619,7 +2997,7 @@
       }
 
       // ✅ Form completed - user can now ask questions naturally (no prompt needed)
-      this.state.awaitingUserQuestion = true;
+        this.state.awaitingUserQuestion = true;
     },
     
     // 🚨 Show emergency disclaimer (HIPAA compliance for healthcare)
@@ -2839,11 +3217,11 @@
       if (this.state.contactInfo && this.state.contactInfo.name && (this.state.contactInfo.email || this.state.contactInfo.phone)) {
         console.log('✅ Contact info already exists, skipping questions:', this.state.contactInfo);
         this.addBotMessage("⏳ Processing your request...");
-        setTimeout(() => {
-          this.submitToLiveAgent();
-        }, 500);
-        return;
-      }
+          setTimeout(() => {
+            this.submitToLiveAgent();
+          }, 500);
+          return;
+        }
       
       // ✅ SECOND: Check if we have contact info from intro flow
       if (this.state.introFlow && this.state.introFlow.isComplete && this.state.introFlow.answers) {
@@ -2875,10 +3253,10 @@
           
           // Skip asking questions - go directly to submit
           this.addBotMessage("⏳ Processing your request...");
-          setTimeout(() => {
-            this.submitToLiveAgent();
-          }, 500);
-          return;
+        setTimeout(() => {
+          this.submitToLiveAgent();
+        }, 500);
+        return;
         }
       }
       
@@ -3135,16 +3513,16 @@
           this.state.pendingFormQuestions = null;
         }, 300);
         // Don't process this message as a regular chat message - wait for form completion
-        return;
-      }
-      
+          return;
+        }
+
       // ✅ SECOND: Check if intro form is displayed and not completed
       if (this.state.introFlow.enabled && !this.state.introFlow.isComplete) {
         const formExists = document.getElementById('wetechforu-intro-form') !== null;
         if (formExists) {
           this.addBotMessage("Please complete the information form above first. 😊");
           return;
-        } else {
+      } else {
           // Form doesn't exist but intro is enabled and not complete - this shouldn't happen
           // But if it does, mark as complete and allow messages (fallback)
           console.log('⚠️ Form not found but intro enabled - marking as complete and allowing messages');
@@ -3730,7 +4108,7 @@
           const messages = data.messages || [];
           
           console.log(`📨 Found ${messages.length} messages to restore`);
-          
+            
           if (messages.length > 0) {
             // Clear existing messages ONLY if we have messages to restore
             const messagesDiv = document.getElementById('wetechforu-messages');
@@ -3738,13 +4116,13 @@
               // Check if there are existing messages in the UI
               const existingMessages = messagesDiv.querySelectorAll('.wetechforu-message, #wetechforu-intro-form');
               if (existingMessages.length > 0) {
-                messagesDiv.innerHTML = '';
+              messagesDiv.innerHTML = '';
                 console.log('🧹 Cleared existing UI messages before restoring');
-              }
-              
-              // Add system message about restored conversation
-              this.addBotMessage('👋 Welcome back! Here\'s your previous conversation:');
-              
+            }
+            
+            // Add system message about restored conversation
+            this.addBotMessage('👋 Welcome back! Here\'s your previous conversation:');
+            
               // Display all previous messages with date separators
               let lastDate = null;
               const messagesDiv = document.getElementById('wetechforu-messages');
@@ -3779,20 +4157,20 @@
                   lastDate = msgDateStr;
                 }
                 
-                if (msg.message_type === 'user') {
-                  this.addUserMessage(msg.message_text, false); // Don't send to backend
-                } else if (msg.message_type === 'bot') {
-                  this.addBotMessage(msg.message_text);
-                } else if (msg.message_type === 'human' && msg.agent_name) {
-                  this.addBotMessage(msg.message_text, true, msg.agent_name); // Show as agent
-                } else if (msg.message_type === 'system') {
-                  this.addBotMessage(`ℹ️ ${msg.message_text}`);
-                }
-              });
-              
+              if (msg.message_type === 'user') {
+                this.addUserMessage(msg.message_text, false); // Don't send to backend
+              } else if (msg.message_type === 'bot') {
+                this.addBotMessage(msg.message_text);
+              } else if (msg.message_type === 'human' && msg.agent_name) {
+                this.addBotMessage(msg.message_text, true, msg.agent_name); // Show as agent
+              } else if (msg.message_type === 'system') {
+                this.addBotMessage(`ℹ️ ${msg.message_text}`);
+              }
+            });
+            
               // Add continuation message
-              this.addBotMessage('How else can I help you today?');
-              
+            this.addBotMessage('How else can I help you today?');
+            
               // Scroll to bottom after loading messages (newest at bottom)
               setTimeout(() => {
                 if (messagesDiv) {
@@ -3801,8 +4179,8 @@
               }, 100);
               
               console.log(`✅ Successfully restored ${messages.length} messages`);
-              return true;
-            }
+            return true;
+          }
           } else {
             console.log('ℹ️ No previous messages found for this conversation');
           }
@@ -3964,7 +4342,7 @@
           this.state.introFlow.isComplete = true;
           // Continue to process message (don't return)
         }
-      }
+        }
         
         if (data.response) {
           this.addBotMessage(data.response);
@@ -4330,11 +4708,11 @@
               this.state.consecutiveEmptyPolls = 0;
               this.state.pollingIntervalMs = 3000; // Reset to fast polling
               console.log(`📨 Found ${newMessages.length} new agent message(s)`);
-              
-              newMessages.forEach(msg => {
-                this.addBotMessage(msg.message_text, true, msg.agent_name || 'Agent');
-                this.state.displayedMessageIds.push(msg.id);
-              });
+            
+            newMessages.forEach(msg => {
+              this.addBotMessage(msg.message_text, true, msg.agent_name || 'Agent');
+              this.state.displayedMessageIds.push(msg.id);
+            });
               
               // ✅ Restart polling with faster interval when messages found
               this.restartPollingWithInterval(3000);
@@ -4801,15 +5179,15 @@
         
         // Use sendBeacon for reliable delivery on page unload
         if (navigator.sendBeacon) {
-          navigator.sendBeacon(
-            `${this.config.backendUrl}/api/visitor-tracking/public/widget/${this.config.widgetKey}/track-pageview`,
-            JSON.stringify({
-              session_id: this.state.tracking.sessionId,
-              page_url: this.state.tracking.lastPageUrl,
-              page_title: document.title,
-              time_on_page: timeOnPage
-            })
-          );
+        navigator.sendBeacon(
+          `${this.config.backendUrl}/api/visitor-tracking/public/widget/${this.config.widgetKey}/track-pageview`,
+          JSON.stringify({
+            session_id: this.state.tracking.sessionId,
+            page_url: this.state.tracking.lastPageUrl,
+            page_title: document.title,
+            time_on_page: timeOnPage
+          })
+        );
         }
       }
       
