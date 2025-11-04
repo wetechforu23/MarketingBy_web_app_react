@@ -738,21 +738,33 @@ router.post('/incoming', async (req: Request, res: Response) => {
           
           let conversationsList = activeConversations.rows.map((conv: any, idx: number) => {
             const visitorName = conv.visitor_name || `Visitor ${conv.id}`;
-            const sessionDisplay = conv.visitor_session_id ? conv.visitor_session_id.substring(0, 15) + '...' : 'N/A';
-            return `${idx + 1}. *#${conv.id}* - ${visitorName} (Session: ${sessionDisplay})`;
-          }).join('\n');
+            const sessionDisplay = conv.visitor_session_id ? conv.visitor_session_id.substring(0, 25) : 'N/A';
+            return `${idx + 1}. *${visitorName}*\n   ID: #${conv.id} | Session: \`${sessionDisplay}\``;
+          }).join('\n\n');
+          
+          const firstConv = activeConversations.rows[0];
+          const firstName = firstConv.visitor_name || `Visitor ${firstConv.id}`;
+          const firstSession = firstConv.visitor_session_id ? firstConv.visitor_session_id.substring(0, 25) : 'N/A';
           
           const warningMessage = `⚠️ *Multiple Active Conversations*\n\n` +
-            `You have ${activeConversations.rows.length} active WhatsApp conversations. Please specify which conversation you're replying to:\n\n` +
+            `You have ${activeConversations.rows.length} active WhatsApp conversations:\n\n` +
             `${conversationsList}\n\n` +
-            `*To reply, start your message with:*\n` +
-            `\`#CONVERSATION_ID: your message\`\n\n` +
-            `Example: \`#${activeConversations.rows[0].id}: Hello, how can I help?\`\n\n` +
-            `Your message "${messageBody}" was not delivered. Please resend with the conversation ID prefix.`;
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `*TO REPLY, use ONE of these formats:*\n\n` +
+            `1️⃣ By Conversation ID:\n` +
+            `\`#${firstConv.id}: your message\`\n\n` +
+            `2️⃣ By User Name:\n` +
+            `\`@${firstName}: your message\`\n\n` +
+            `3️⃣ By Session ID:\n` +
+            `\`@${firstSession}: your message\`\n\n` +
+            `❌ Your message "${messageBody}" was NOT delivered.\n` +
+            `✅ Please resend using one of the formats above.`;
           
           try {
+            // Get client_id and widget_id from the first active conversation
             const clientIdResult = await pool.query(`
-              SELECT client_id FROM widget_configs wc
+              SELECT DISTINCT wc.client_id, wc.id as widget_id
+              FROM widget_configs wc
               WHERE (
                 REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
                 OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
@@ -761,10 +773,13 @@ router.post('/incoming', async (req: Request, res: Response) => {
             `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
             
             if (clientIdResult.rows.length > 0) {
+              const clientId = clientIdResult.rows[0].client_id;
+              const widgetId = clientIdResult.rows[0].widget_id;
+              
               await whatsappService.sendMessage({
-                clientId: clientIdResult.rows[0].client_id,
-                widgetId: 0, // Not specific to a widget
-                conversationId: 0, // System message
+                clientId: clientId,
+                widgetId: widgetId, // Use actual widget ID, not 0
+                conversationId: activeConversations.rows[0]?.id || null, // Use first conversation ID
                 toNumber: `whatsapp:${fromNumber}`,
                 message: warningMessage,
                 sentByAgentName: 'System',
