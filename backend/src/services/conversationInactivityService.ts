@@ -39,7 +39,7 @@ export class ConversationInactivityService {
         SELECT 
           wc.id as conversation_id,
           wc.widget_id,
-          wc.client_id,
+          w.client_id,
           wc.last_activity_at,
           wc.last_agent_activity_at,
           wc.last_visitor_activity_at,

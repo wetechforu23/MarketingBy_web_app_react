@@ -1956,8 +1956,9 @@
       
       console.log('✅ Chat opened - widget should be visible');
       
-      // ✅ Load existing messages when chat opens
-      this.loadMessages();
+      // ✅ Load existing messages when chat opens (if conversation exists)
+      // Note: loadPreviousMessages is called later in the conversation restore logic
+      // No need to call it here - it will be called automatically when conversation is found
       
       // 📊 Track chat opened event
       this.trackEvent('chat_opened', {
