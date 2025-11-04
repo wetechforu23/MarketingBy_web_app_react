@@ -45,6 +45,8 @@ import VisitorMonitoring from "../pages/VisitorMonitoring";
 import BlogManagement from "../pages/BlogManagement";
 import BlogApproval from "../pages/BlogApproval";
 import BlogAnalytics from "../pages/BlogAnalytics";
+// Content Approval (Public)
+import ContentApproval from "../pages/ContentApproval";
 // Email Preferences & Unsubscribe
 import Unsubscribe from "../pages/Unsubscribe";
 
@@ -55,6 +57,7 @@ export const router = createBrowserRouter([
   { path: "/privacy-policy", element: <PrivacyPolicy /> }, // Privacy Policy
   { path: "/unsubscribe", element: <Unsubscribe /> }, // Email unsubscribe (public)
   { path: "/blog/approve/:token", element: <BlogApproval /> }, // Blog approval (public)
+  { path: "/content/approve/:token", element: <ContentApproval /> }, // Content approval (public)
   {
     path: "/app",
     element: <AppLayout />,

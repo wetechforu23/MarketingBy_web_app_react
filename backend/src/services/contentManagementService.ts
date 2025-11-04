@@ -12,6 +12,8 @@ export interface ContentData {
   title: string;
   contentType: 'text' | 'image' | 'video' | 'carousel' | 'story';
   contentText?: string;
+  destinationUrl?: string;
+  utmTrackedUrl?: string;
   mediaUrls?: string[];
   hashtags?: string[];
   mentions?: string[];
@@ -44,6 +46,8 @@ export async function createContent(data: ContentData) {
       title,
       content_type,
       content_text,
+      destination_url,
+      utm_tracked_url,
       media_urls,
       hashtags,
       mentions,
@@ -53,13 +57,15 @@ export async function createContent(data: ContentData) {
       template_id,
       generation_prompt,
       status
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'draft')
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'draft')
     RETURNING 
       id,
       client_id,
       title,
       content_type,
       content_text,
+      destination_url,
+      utm_tracked_url,
       media_urls,
       hashtags,
       mentions,
@@ -77,6 +83,8 @@ export async function createContent(data: ContentData) {
     data.title,
     data.contentType,
     data.contentText || null,
+    data.destinationUrl || null,
+    data.utmTrackedUrl || null,
     data.mediaUrls || [],
     data.hashtags || [],
     data.mentions || [],
@@ -111,11 +119,23 @@ export async function createContent(data: ContentData) {
 export async function getContentById(contentId: number, req: Request) {
   const clientFilter = getClientFilter(req, 'c');
   
-  // Build WHERE clause properly
-  const whereConditions = ['c.id = $1'];
-  if (clientFilter.whereClause && clientFilter.whereClause.trim()) {
-    whereConditions.push(clientFilter.whereClause);
+  // Build WHERE clause properly - adjust parameter indices for clientFilter
+  const whereConditions: string[] = [];
+  const params: any[] = [];
+  
+  // Always add contentId as first parameter
+  whereConditions.push('c.id = $1');
+  params.push(contentId);
+  
+  // Add client filter if needed (with adjusted parameter index)
+  if (clientFilter.whereClause && clientFilter.whereClause.trim() && clientFilter.whereClause !== '1=1' && clientFilter.whereClause !== '1=0') {
+    // Adjust parameter index: clientFilter uses $1, but we already used $1 for contentId
+    // So we need to change $1 in clientFilter to $2
+    let adjustedClause = clientFilter.whereClause.replace(/\$1\b/g, `$${params.length + 1}`);
+    whereConditions.push(adjustedClause);
+    params.push(...clientFilter.params);
   }
+  
   const whereClause = whereConditions.join(' AND ');
   
   const query = `
@@ -123,15 +143,17 @@ export async function getContentById(contentId: number, req: Request) {
       c.*,
       COALESCE(u.username, u.email) as created_by_name,
       u.email as created_by_email,
+      COALESCE(u_approved.username, u_approved.email) as approved_by_name,
       cl.client_name as client_name
     FROM social_media_content c
     LEFT JOIN users u ON c.created_by = u.id
+    LEFT JOIN users u_approved ON c.approved_by = u_approved.id
     LEFT JOIN clients cl ON c.client_id = cl.id
     WHERE ${whereClause}
   `;
 
   try {
-    const result = await pool.query(query, [contentId, ...clientFilter.params]);
+    const result = await pool.query(query, params);
     
     if (result.rows.length === 0) {
       return { success: false, error: 'Content not found or access denied' };
@@ -151,18 +173,24 @@ export async function listContent(req: Request, filters: ContentFilters = {}) {
   const clientFilter = getClientFilter(req, 'c');
   
   let whereConditions = [];
-  if (clientFilter.whereClause && clientFilter.whereClause.trim()) {
-    whereConditions.push(clientFilter.whereClause);
-  }
-  let params: any[] = [...clientFilter.params];
-  let paramIndex = params.length + 1;
+  let params: any[] = [];
+  let paramIndex = 1;
 
-  // Add explicit client filter (if provided, overrides clientFilter)
+  // If explicit clientId is provided, use it (overrides clientFilter)
+  // Otherwise, use clientFilter
   if (filters.clientId) {
+    // Explicit client filter takes precedence
     whereConditions.push(`c.client_id = $${paramIndex}`);
     params.push(filters.clientId);
     paramIndex++;
+  } else if (clientFilter.whereClause && clientFilter.whereClause.trim() && clientFilter.whereClause !== '1=1') {
+    // Only use clientFilter if it's not '1=1' (which means see all)
+    // If it's '1=1', we don't add it to avoid redundant condition
+    whereConditions.push(clientFilter.whereClause);
+    params.push(...clientFilter.params);
+    paramIndex += clientFilter.params.length;
   }
+  // If clientFilter is '1=1' and no explicit clientId, we don't add any client filter (see all)
 
   // Add status filter
   if (filters.status) {
@@ -219,12 +247,16 @@ export async function listContent(req: Request, filters: ContentFilters = {}) {
     WHERE ${whereClause}
   `;
 
-  // Get content list
+  // Get content list - LIMIT and OFFSET use the next parameter indices
+  const limitParamIndex = paramIndex;
+  const offsetParamIndex = paramIndex + 1;
+  
   const listQuery = `
     SELECT 
       c.*,
       COALESCE(u.username, u.email) as created_by_name,
       u.email as created_by_email,
+      COALESCE(u_approved.username, u_approved.email) as approved_by_name,
       cl.client_name as client_name,
       (
         SELECT COUNT(*) 
@@ -238,17 +270,35 @@ export async function listContent(req: Request, filters: ContentFilters = {}) {
       ) as posted_count
     FROM social_media_content c
     LEFT JOIN users u ON c.created_by = u.id
+    LEFT JOIN users u_approved ON c.approved_by = u_approved.id
     LEFT JOIN clients cl ON c.client_id = cl.id
     WHERE ${whereClause}
     ORDER BY c.created_at DESC
-    LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}
   `;
 
   try {
+    console.log('📋 Content Query Debug:', {
+      whereClause,
+      params: params.length,
+      paramIndex,
+      limitParamIndex,
+      offsetParamIndex,
+      limit,
+      offset,
+      filters,
+      allParams: [...params, limit, offset]
+    });
+    
     const [countResult, listResult] = await Promise.all([
       pool.query(countQuery, params),
       pool.query(listQuery, [...params, limit, offset])
     ]);
+
+    console.log('✅ Content Query Results:', {
+      total: countResult.rows[0]?.total,
+      contentCount: listResult.rows.length
+    });
 
     return {
       success: true,
@@ -259,8 +309,26 @@ export async function listContent(req: Request, filters: ContentFilters = {}) {
       hasMore: (offset + limit) < parseInt(countResult.rows[0].total)
     };
   } catch (error: any) {
-    console.error('Error listing content:', error);
-    return { success: false, error: error.message };
+    console.error('❌ Error listing content:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      hint: error.hint,
+      position: error.position
+    });
+    console.error('❌ Count Query:', countQuery);
+    console.error('❌ List Query:', listQuery);
+    console.error('❌ WHERE clause:', whereClause);
+    console.error('❌ Params for count:', params);
+    console.error('❌ Params for list:', [...params, limit, offset]);
+    console.error('❌ Param indices:', {
+      paramIndex,
+      limitParamIndex,
+      offsetParamIndex,
+      paramsLength: params.length
+    });
+    return { success: false, error: error.message || 'Database error occurred' };
   }
 }
 
@@ -285,10 +353,22 @@ export async function updateContent(contentId: number, data: Partial<ContentData
   }
 
   // Don't allow updates if in approval process (unless rejecting)
-  if (['pending_wtfu_approval', 'pending_client_approval'].includes(content.status)) {
+  // BUT allow destination_url and utm_tracked_url updates even when pending (they're just tracking metadata)
+  const allowedPendingFields = ['destinationUrl', 'utmTrackedUrl'];
+  
+  // Filter out undefined/null values to get only fields being updated
+  const fieldsBeingUpdated = Object.keys(data).filter(key => 
+    data[key as keyof typeof data] !== undefined && data[key as keyof typeof data] !== null
+  );
+  
+  // Check if only allowed fields are being updated (or if no fields are being updated)
+  const hasOnlyAllowedFields = fieldsBeingUpdated.length === 0 || 
+    fieldsBeingUpdated.every(key => allowedPendingFields.includes(key));
+  
+  if (['pending_client_approval'].includes(content.status) && !hasOnlyAllowedFields) {
     return {
       success: false,
-      error: 'Cannot update content that is pending approval. Please reject it first.'
+      error: 'Cannot update content that is pending approval. Please reject it first. (Note: Destination URL can be updated even when pending)'
     };
   }
 
@@ -311,6 +391,18 @@ export async function updateContent(contentId: number, data: Partial<ContentData
   if (data.contentText !== undefined) {
     updateFields.push(`content_text = $${paramIndex}`);
     values.push(data.contentText);
+    paramIndex++;
+  }
+
+  if (data.destinationUrl !== undefined) {
+    updateFields.push(`destination_url = $${paramIndex}`);
+    values.push(data.destinationUrl);
+    paramIndex++;
+  }
+
+  if (data.utmTrackedUrl !== undefined) {
+    updateFields.push(`utm_tracked_url = $${paramIndex}`);
+    values.push(data.utmTrackedUrl);
     paramIndex++;
   }
 
@@ -481,24 +573,67 @@ export async function getContentStats(req: Request) {
     ? `WHERE ${clientFilter.whereClause}` 
     : '';
 
-  const query = `
+  // Get stats with approver info using the approved_by column (simpler approach)
+  const statsQuery = `
     SELECT 
-      COUNT(*) FILTER (WHERE status = 'draft') as draft_count,
-      COUNT(*) FILTER (WHERE status = 'pending_wtfu_approval') as pending_wtfu_count,
-      COUNT(*) FILTER (WHERE status = 'pending_client_approval') as pending_client_count,
-      COUNT(*) FILTER (WHERE status = 'approved') as approved_count,
-      COUNT(*) FILTER (WHERE status = 'scheduled') as scheduled_count,
-      COUNT(*) FILTER (WHERE status = 'posted') as posted_count,
-      COUNT(*) FILTER (WHERE status = 'failed') as failed_count,
-      COUNT(*) FILTER (WHERE status = 'rejected') as rejected_count,
+      COUNT(*) FILTER (WHERE c.status = 'draft') as draft_count,
+      COUNT(*) FILTER (WHERE c.status = 'pending_client_approval' OR c.status = 'pending_wtfu_approval') as pending_client_count,
+      COUNT(*) FILTER (WHERE c.status = 'approved') as approved_count,
+      COUNT(*) FILTER (WHERE c.status = 'scheduled') as scheduled_count,
+      COUNT(*) FILTER (WHERE c.status = 'posted') as posted_count,
+      COUNT(*) FILTER (WHERE c.status = 'failed') as failed_count,
+      COUNT(*) FILTER (WHERE c.status = 'rejected') as rejected_count,
       COUNT(*) as total_count
     FROM social_media_content c
     ${whereClause}
   `;
 
   try {
-    const result = await pool.query(query, clientFilter.params);
-    return { success: true, stats: result.rows[0] };
+    const result = await pool.query(statsQuery, clientFilter.params);
+    const stats = result.rows[0];
+    
+    // Get latest approver name for approved content (using approved_by column)
+    let latestApprover: string | null = null;
+    const approvedCount = parseInt(stats.approved_count || 0);
+    
+    if (approvedCount > 0) {
+      // Use the same client filter parameters
+      // Build approver query with same WHERE conditions
+      let approverWhereClause = "c.status = 'approved'";
+      
+      if (clientFilter.whereClause) {
+        // Append client filter conditions
+        approverWhereClause += ` AND ${clientFilter.whereClause}`;
+      }
+      
+      const approverQuery = `
+        SELECT COALESCE(u.username, u.name, u.email, 'Unknown') as approved_by_name
+        FROM social_media_content c
+        LEFT JOIN users u ON c.approved_by = u.id
+        WHERE ${approverWhereClause}
+        ORDER BY c.updated_at DESC
+        LIMIT 1
+      `;
+      
+      try {
+        // Use the same params from clientFilter
+        const approverResult = await pool.query(approverQuery, clientFilter.params);
+        if (approverResult.rows.length > 0) {
+          latestApprover = approverResult.rows[0].approved_by_name;
+        }
+      } catch (approverError) {
+        console.error('Error fetching latest approver:', approverError);
+        // Continue without approver info
+      }
+    }
+    
+    return { 
+      success: true, 
+      stats: {
+        ...stats,
+        latest_approved_by: latestApprover
+      }
+    };
   } catch (error: any) {
     console.error('Error fetching content stats:', error);
     return { success: false, error: error.message };

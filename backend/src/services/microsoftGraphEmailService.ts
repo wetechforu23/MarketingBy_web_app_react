@@ -1,5 +1,7 @@
 import { Client } from '@microsoft/microsoft-graph-client';
 import { ClientSecretCredential } from '@azure/identity';
+import pool from '../config/database';
+import crypto from 'crypto';
 
 export interface MicrosoftGraphEmailOptions {
   to: string | string[];
@@ -10,38 +12,114 @@ export interface MicrosoftGraphEmailOptions {
 }
 
 export class MicrosoftGraphEmailService {
-  private graphClient: Client;
-  private credential: ClientSecretCredential;
+  private graphClient: Client | null = null;
+  private credential: ClientSecretCredential | null = null;
   private fromEmail: string;
+  private initialized: boolean = false;
 
   constructor() {
-    // Check if required environment variables are present
-    if (!process.env.AZURE_TENANT_ID || !process.env.AZURE_CLIENT_ID || !process.env.AZURE_CLIENT_SECRET) {
-      throw new Error('Azure credentials not found. Required: AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET');
+    this.fromEmail = process.env.SMTP_SENDER_EMAIL || 'info@wetechforu.com';
+    // Initialize asynchronously - credentials will be loaded when needed
+  }
+
+  private decrypt(encryptedValue: string): string {
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key!!';
+    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+    
+    try {
+      const parts = encryptedValue.split(':');
+      const iv = Buffer.from(parts[0], 'hex');
+      const encrypted = parts[1];
+      const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+      let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return decrypted;
+    } catch (error) {
+      console.error('Decryption error:', error);
+      throw new Error('Failed to decrypt Azure credentials');
+    }
+  }
+
+  private async initializeCredentials(): Promise<void> {
+    if (this.initialized && this.credential) {
+      return; // Already initialized
     }
 
-    // Initialize Azure credentials
-    this.credential = new ClientSecretCredential(
-      process.env.AZURE_TENANT_ID,
-      process.env.AZURE_CLIENT_ID,
-      process.env.AZURE_CLIENT_SECRET
-    );
+    try {
+      // Try to get credentials from database first
+      const result = await pool.query(`
+        SELECT key_name, encrypted_value
+        FROM encrypted_credentials
+        WHERE service = 'azure'
+        AND key_name IN ('client_id', 'tenant_id', 'client_secret')
+      `);
 
-    // Create Graph client with custom authentication provider
-    this.graphClient = Client.initWithMiddleware({
-      authProvider: {
-        getAccessToken: async () => {
-          const tokenResponse = await this.credential.getToken('https://graph.microsoft.com/.default');
-          return tokenResponse?.token || '';
+      let tenantId: string | undefined;
+      let clientId: string | undefined;
+      let clientSecret: string | undefined;
+
+      if (result.rows.length > 0) {
+        const creds: any = {};
+        result.rows.forEach((row: any) => {
+          creds[row.key_name] = this.decrypt(row.encrypted_value);
+        });
+
+        tenantId = creds.tenant_id;
+        clientId = creds.client_id;
+        clientSecret = creds.client_secret;
+
+        console.log('✅ Azure credentials loaded from database');
+      }
+
+      // Fallback to environment variables if not found in database
+      if (!tenantId || !clientId || !clientSecret) {
+        tenantId = process.env.AZURE_TENANT_ID;
+        clientId = process.env.AZURE_CLIENT_ID;
+        clientSecret = process.env.AZURE_CLIENT_SECRET;
+
+        if (tenantId && clientId && clientSecret) {
+          console.log('✅ Azure credentials loaded from environment variables');
         }
       }
-    });
 
-    this.fromEmail = process.env.SMTP_SENDER_EMAIL || 'info@wetechforu.com';
+      if (!tenantId || !clientId || !clientSecret) {
+        throw new Error('Azure credentials not found in database or environment variables');
+      }
+
+      // Initialize Azure credentials
+      this.credential = new ClientSecretCredential(
+        tenantId,
+        clientId,
+        clientSecret
+      );
+
+      // Create Graph client with custom authentication provider
+      this.graphClient = Client.initWithMiddleware({
+        authProvider: {
+          getAccessToken: async () => {
+            const tokenResponse = await this.credential!.getToken('https://graph.microsoft.com/.default');
+            return tokenResponse?.token || '';
+          }
+        }
+      });
+
+      this.initialized = true;
+      console.log('✅ Microsoft Graph Email Service initialized successfully');
+    } catch (error: any) {
+      console.error('❌ Failed to initialize Microsoft Graph Email Service:', error.message);
+      throw error;
+    }
   }
 
   async sendEmail(options: MicrosoftGraphEmailOptions): Promise<boolean> {
     try {
+      // Initialize credentials if not already done
+      await this.initializeCredentials();
+
+      if (!this.graphClient || !this.credential) {
+        throw new Error('Microsoft Graph client not initialized');
+      }
+
       const recipients = Array.isArray(options.to) ? options.to : [options.to];
       
       const message = {
@@ -75,10 +153,11 @@ export class MicrosoftGraphEmailService {
         .api(`/users/${senderEmail}/sendMail`)
         .post(sendMailRequest);
 
-      console.log('Email sent successfully via Microsoft Graph API');
+      console.log('✅ Email sent successfully via Microsoft Graph API');
       return true;
-    } catch (error) {
-      console.error('Microsoft Graph email sending failed:', error);
+    } catch (error: any) {
+      console.error('❌ Microsoft Graph email sending failed:', error.message);
+      console.error('❌ Error details:', error);
       return false;
     }
   }

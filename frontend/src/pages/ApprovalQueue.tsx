@@ -82,22 +82,13 @@ const ApprovalQueue: React.FC = () => {
     setProcessing(true);
 
     try {
-      const isWTFUApproval = selectedContent.status === 'pending_wtfu_approval';
       const isClientApproval = selectedContent.status === 'pending_client_approval';
 
       if (actionType === 'approve') {
-        const endpoint = isWTFUApproval 
-          ? `/api/content/${selectedContent.id}/approve-wtfu`
-          : `/api/content/${selectedContent.id}/approve-client`;
-        
-        await http.post(endpoint, { notes });
+        await http.post(`/api/content/${selectedContent.id}/approve-client`, { notes });
         alert('Content approved successfully!');
       } else if (actionType === 'reject') {
-        const endpoint = isWTFUApproval
-          ? `/api/content/${selectedContent.id}/reject-wtfu`
-          : `/api/content/${selectedContent.id}/reject-client`;
-        
-        await http.post(endpoint, { notes });
+        await http.post(`/api/content/${selectedContent.id}/reject-client`, { notes });
         alert('Content rejected');
       } else if (actionType === 'changes') {
         await http.post(`/api/content/${selectedContent.id}/request-changes`, { notes });
@@ -128,7 +119,6 @@ const ApprovalQueue: React.FC = () => {
   };
 
   const getStatusLabel = (status: string) => {
-    if (status === 'pending_wtfu_approval') return 'Pending WeTechForU Approval';
     if (status === 'pending_client_approval') return 'Pending Client Approval';
     return status;
   };
@@ -143,11 +133,7 @@ const ApprovalQueue: React.FC = () => {
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-yellow-50 p-4 rounded-lg shadow">
-            <p className="text-yellow-700 text-sm">Pending WeTechForU</p>
-            <p className="text-2xl font-bold text-yellow-800">{stats.pending_wtfu}</p>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-blue-50 p-4 rounded-lg shadow">
             <p className="text-blue-700 text-sm">Pending Client</p>
             <p className="text-2xl font-bold text-blue-800">{stats.pending_client}</p>

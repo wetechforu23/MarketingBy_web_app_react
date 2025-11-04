@@ -13,16 +13,28 @@ const emailService = new EmailService();
 // CORS Middleware for ALL chat widget routes
 // ==========================================
 router.use((req, res, next) => {
-  // Allow ALL origins for public widget routes (customer websites embed the widget)
+  // Check both the full path (from Express) and the router-relative path
+  const fullPath = req.originalUrl || req.url;
+  const routerPath = req.path;
+  const isAdminRoute = fullPath.includes('/admin/') || routerPath.includes('/admin/');
+
+  if (isAdminRoute) {
+    // Admin routes need credentials, so let the main server CORS middleware handle it
+    // (which supports withCredentials and specific origin)
+    // DO NOT set any CORS headers here - let the main server handle it
+    return next();
+  }
+
+  // Public widget routes use wildcard CORS (no credentials)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
-  
+
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
-  
+
   next();
 });
 
@@ -125,7 +137,19 @@ async function findSimilarQuestions(
 // CORS MIDDLEWARE FOR ALL WIDGET ROUTES
 // ==========================================
 // Allow ALL origins for widget embedding (these are public APIs)
+// BUT: Admin routes need specific origin CORS with credentials (handled by main server CORS)
 router.use((req, res, next) => {
+  // Admin routes should use server-level CORS (with credentials), not wildcard
+  // Admin routes include: /admin/* paths
+  const isAdminRoute = req.path.includes('/admin/');
+  
+  if (isAdminRoute) {
+    // Let the main server CORS middleware handle admin routes (with credentials)
+    // Don't set CORS headers here - let server.ts handle it
+    return next();
+  }
+  
+  // Public widget routes use wildcard CORS (no credentials)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');

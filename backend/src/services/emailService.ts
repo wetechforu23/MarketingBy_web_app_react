@@ -22,13 +22,10 @@ export class EmailService {
 
   constructor() {
     // Try to initialize Microsoft Graph email service first
+    // Note: Credentials will be loaded from database or environment variables when needed
     try {
-      if (process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET && process.env.AZURE_TENANT_ID) {
-        this.microsoftGraphEmailService = new MicrosoftGraphEmailService();
-        console.log('Microsoft Graph Email Service initialized successfully');
-      } else {
-        console.warn('Microsoft Graph Email Service not available: Missing Azure credentials');
-      }
+      this.microsoftGraphEmailService = new MicrosoftGraphEmailService();
+      console.log('Microsoft Graph Email Service instance created (credentials will load from database)');
     } catch (error) {
       console.warn('Microsoft Graph Email Service not available:', error);
     }
