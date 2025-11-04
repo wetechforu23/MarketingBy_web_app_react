@@ -2313,10 +2313,9 @@
         }
       }
 
-      // Show completion message and ready to help
+      // Show completion message - inform user that agent will connect
       setTimeout(() => {
-      this.addBotMessage("✅ Thank you! I have all the information I need.");
-        // Don't show "How can I help" - let user ask naturally after form
+        this.addBotMessage("✅ We have received your response. We will connect you with the next available agent.");
       }, 500);
       
       // ✅ FIX: Ensure conversation exists before saving intro data

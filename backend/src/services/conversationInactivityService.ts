@@ -66,7 +66,7 @@ export class ConversationInactivityService {
           wc.last_activity_at,
           ${activitySelect}
           ${extensionSelect}
-          wc.handover_whatsapp_number,
+          w.handover_whatsapp_number,
           wc.visitor_email,
           wc.visitor_name,
           w.widget_name,
