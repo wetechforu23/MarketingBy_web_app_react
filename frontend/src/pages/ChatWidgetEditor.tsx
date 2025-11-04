@@ -608,13 +608,22 @@ export default function ChatWidgetEditor() {
       const config = response.data
       
       setEnableHandoverChoice(config.enable_handover_choice ?? true)
-      setHandoverOptions(config.handover_options || {
+      const loadedOptions = config.handover_options || {
         portal: true,
         whatsapp: false,
         email: true,
         phone: false,
         webhook: false
-      })
+      }
+      setHandoverOptions(loadedOptions)
+      
+      // ✅ SYNC: If WhatsApp is enabled in widget_configs, ensure it's also enabled in handover_options
+      // Note: whatsappEnabled state is set earlier in fetchWidget, so we check it here
+      if (whatsappEnabled && !loadedOptions.whatsapp) {
+        console.log('🔄 Syncing handover_options.whatsapp to match enable_whatsapp')
+        setHandoverOptions({ ...loadedOptions, whatsapp: true })
+      }
+      
       setDefaultHandoverMethod(config.default_handover_method || 'portal')
       setWebhookUrl(config.webhook_url || '')
       // Load handover WhatsApp number if available
@@ -739,7 +748,11 @@ export default function ChatWidgetEditor() {
         enable_multiple_whatsapp_chats: enableMultipleWhatsAppChats,
         // Handover Options
         enable_handover_choice: false, // Visitors don't choose - system uses configured default
-        handover_options: JSON.stringify(handoverOptions),
+        // ✅ SYNC: Ensure handover_options.whatsapp matches enable_whatsapp
+        handover_options: JSON.stringify({
+          ...handoverOptions,
+          whatsapp: whatsappEnabled
+        }),
         default_handover_method: defaultHandoverMethod,
         webhook_url: webhookUrl,
         webhook_secret: webhookSecret,
