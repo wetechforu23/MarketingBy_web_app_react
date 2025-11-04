@@ -410,8 +410,8 @@
               justify-content: center;
             "></div>
             
-            <!-- Resize Handle - ✅ Improved UI with visible icon -->
-            <div class="wetechforu-resize-handle" id="wetechforu-resize-handle" title="Drag to resize or expand">
+            <!-- Resize Handle - ✅ Top-left corner (Industry Standard) -->
+            <div class="wetechforu-resize-handle" id="wetechforu-resize-handle" title="Drag to resize">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M8 8 L16 16 M16 8 L8 16" stroke-linecap="round"/>
               </svg>
@@ -687,16 +687,16 @@
             user-select: none;
           }
           
-          /* Resize handle */
+          /* Resize handle - ✅ Top-left corner (Industry Standard) */
           .wetechforu-resize-handle {
             position: absolute;
-            bottom: 0;
-            right: 0;
+            top: 0;
+            left: 0;
             width: 32px;
             height: 32px;
             cursor: nwse-resize !important;
             background: rgba(0,0,0,0.05);
-            border-top-left-radius: 8px;
+            border-bottom-right-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1676,7 +1676,7 @@
       const edges = {
         right: { width: '8px', height: '100%', top: 0, left: 'auto', right: 0, bottom: 'auto', cursor: 'ew-resize' },
         bottom: { width: '100%', height: '8px', top: 'auto', left: 0, right: 'auto', bottom: 0, cursor: 'ns-resize' },
-        corner: { width: '32px', height: '32px', top: 'auto', left: 'auto', right: 0, bottom: 0, cursor: 'nwse-resize' },
+        corner: { width: '32px', height: '32px', top: 0, left: 0, right: 'auto', bottom: 'auto', cursor: 'nwse-resize' },
         left: { width: '8px', height: '100%', top: 0, left: 0, right: 'auto', bottom: 'auto', cursor: 'ew-resize' },
         top: { width: '100%', height: '8px', top: 0, left: 0, right: 'auto', bottom: 'auto', cursor: 'ns-resize' }
       };
