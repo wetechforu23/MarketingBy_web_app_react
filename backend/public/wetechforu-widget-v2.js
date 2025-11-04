@@ -313,15 +313,15 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
           ">1</div>
 
-          <!-- Chat Window -->
+            <!-- Chat Window -->
           <div id="wetechforu-chat-window" style="
-            position: absolute;
-            ${this.config.position.includes('right') ? 'right: 0;' : 'left: 0;'}
-            bottom: 80px;
-            width: 380px;
-            max-width: calc(100vw - 20px);
+            position: fixed;
+            ${this.config.position.includes('right') ? 'right: 20px;' : 'left: 20px;'}
+            bottom: 20px;
+            width: 100%;
+            max-width: 380px;
             height: 600px;
-            max-height: calc(100vh - 100px);
+            max-height: calc(100vh - 40px);
             background: white;
             border-radius: 16px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.12);
@@ -330,6 +330,7 @@
             overflow: hidden;
             animation: slideUp 0.3s ease-out;
             cursor: default;
+            z-index: 999998;
           ">
             <!-- Header -->
             <div style="
@@ -433,12 +434,7 @@
               justify-content: center;
             "></div>
             
-            <!-- Resize Handle - ✅ Top-left corner (Industry Standard) - More visible -->
-            <div class="wetechforu-resize-handle" id="wetechforu-resize-handle" title="Drag to resize">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M8 8 L16 16 M16 8 L8 16" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </div>
+            <!-- ✅ REMOVED: Resize handle - Widget is fixed size (Industry Standard) -->
 
             <!-- Input Area -->
             <div style="
@@ -872,14 +868,10 @@
         if (e.key === 'Enter') this.sendMessage();
       });
       
-      // ✅ Make widget draggable from anywhere (not just header)
-      this.makeDraggable(chatWindow);
+      // ✅ REMOVED: Drag and resize functionality (Industry Standard - Fixed Position)
+      // Widget stays in fixed position, responsive sizing only
       
-      // ✅ Make widget resizable from all edges (not just bottom-right corner)
-      this.makeResizable(chatWindow, resizeHandle);
-      
-      // ✅ Click outside to minimize (not close)
-      this.setupClickOutsideToMinimize(chatWindow);
+      // ✅ REMOVED: Click outside to minimize (causes issues - Industry Standard doesn't minimize on click inside)
       
       // ✅ Load saved position and size
       this.loadWidgetPosition(chatWindow);
@@ -1964,50 +1956,8 @@
       document.addEventListener('mouseup', handleMouseUp);
     },
     
-    // ✅ Setup click outside to minimize (not close - so widget can be reopened)
-    setupClickOutsideToMinimize(chatWindow) {
-      // Use a single event listener to prevent duplicates
-      if (this.state.clickOutsideListener) {
-        document.removeEventListener('click', this.state.clickOutsideListener);
-      }
-      
-      this.state.clickOutsideListener = (e) => {
-        // Only minimize if chat is open and click is outside
-        if (!this.state.isOpen) return;
-        
-        // ✅ Don't minimize on long-press, drag, or scroll events
-        if (e.type === 'mousedown' || e.type === 'mousemove' || e.type === 'scroll' || e.type === 'touchstart' || e.type === 'touchmove') {
-          return;
-        }
-        
-        // ✅ Don't minimize if user is interacting with the widget (clicking, typing, etc.)
-        const chatButton = document.getElementById('wetechforu-chat-button');
-        const clickedInside = chatWindow.contains(e.target) || 
-                             (chatButton && chatButton.contains(e.target)) ||
-                             e.target.closest('.wetechforu-resize-handle') ||
-                             e.target.closest('.wetechforu-resize-right') ||
-                             e.target.closest('.wetechforu-resize-bottom') ||
-                             e.target.closest('.wetechforu-resize-left') ||
-                             e.target.closest('.wetechforu-resize-top') ||
-                             e.target.closest('input') ||
-                             e.target.closest('textarea') ||
-                             e.target.closest('button') ||
-                             e.target.closest('a');
-        
-        // ✅ Only minimize on actual click events, not on drag or scroll
-        if (e.type === 'click' && !clickedInside) {
-          // ✅ Small delay to prevent accidental minimizes during interactions
-          setTimeout(() => {
-            if (this.state.isOpen && !chatWindow.contains(document.activeElement)) {
-              this.minimizeChat(); // Minimize (preserves state), not close
-            }
-          }, 100);
-        }
-      };
-      
-      // ✅ Only listen to click events, not mousedown/mousemove/scroll
-      document.addEventListener('click', this.state.clickOutsideListener);
-    },
+    // ✅ REMOVED: Click outside to minimize (causes issues - Industry Standard doesn't minimize on click inside)
+    // Widget stays open until explicitly closed by user
     
     // ✅ Minimize chat (preserve conversation state - can be reopened)
     minimizeChat() {
@@ -2093,79 +2043,62 @@
       
       this.state.isOpen = true;
       
-      // ✅ Set default size if no saved position (bigger default - Industry Standard)
-      if (!localStorage.getItem(`wetechforu_widget_position_${this.config.widgetKey}`)) {
-        chatWindow.style.width = '380px';
-        chatWindow.style.height = '600px';
-      }
-      
-      // ✅ Restore saved position and size
-      this.loadWidgetPosition(chatWindow);
-      
-      // ✅ Ensure widget is within viewport after loading position - Multiple attempts
-      const ensureVisibility = () => {
-        this.ensureWidgetInViewport(chatWindow);
+      // ✅ Set responsive size based on device (Industry Standard)
+      const setResponsiveSize = () => {
+        const isMobile = window.innerWidth <= 768;
+        const isTablet = window.innerWidth > 768 && window.innerWidth <= 1024;
         
-        // ✅ Force visibility with !important
-        chatWindow.style.setProperty('display', 'flex', 'important');
-        chatWindow.style.setProperty('visibility', 'visible', 'important');
-        chatWindow.style.setProperty('opacity', '1', 'important');
-        chatWindow.style.setProperty('z-index', '999998', 'important');
-        chatWindow.style.setProperty('pointer-events', 'auto', 'important');
-        
-        // ✅ Verify it's actually visible
-        const rect = chatWindow.getBoundingClientRect();
-        const isVisible = rect.width > 0 && rect.height > 0 && 
-                         rect.top > -200 && rect.left > -200 && // More lenient bounds
-                         rect.bottom < window.innerHeight + 200 &&
-                         rect.right < window.innerWidth + 200;
-        
-        console.log('✅ Chat opened - widget visibility check:', {
-          isVisible,
-          rect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right },
-          viewport: { width: window.innerWidth, height: window.innerHeight },
-          computedDisplay: getComputedStyle(chatWindow).display,
-          computedVisibility: getComputedStyle(chatWindow).visibility,
-          computedOpacity: getComputedStyle(chatWindow).opacity,
-          computedZIndex: getComputedStyle(chatWindow).zIndex
-        });
-        
-        if (!isVisible) {
-          console.warn('⚠️ Widget may not be fully visible - resetting position');
-          
-          // ✅ Always reset if not visible (more aggressive recovery)
-          const isRight = this.config.position.includes('right');
+        if (isMobile) {
+          // Mobile: Full width minus padding, max height
+          chatWindow.style.width = 'calc(100vw - 40px)';
+          chatWindow.style.height = 'calc(100vh - 40px)';
+          chatWindow.style.maxHeight = 'calc(100vh - 40px)';
+          chatWindow.style.bottom = '20px';
+          chatWindow.style.left = '20px';
+          chatWindow.style.right = '20px';
+        } else if (isTablet) {
+          // Tablet: Medium size
+          chatWindow.style.width = '400px';
+          chatWindow.style.height = '650px';
+          chatWindow.style.maxHeight = 'calc(100vh - 40px)';
+        } else {
+          // Desktop: Standard size
           chatWindow.style.width = '380px';
           chatWindow.style.height = '600px';
-          chatWindow.style.bottom = '80px';
-          chatWindow.style.top = 'auto';
-          
-          if (isRight) {
-            chatWindow.style.right = '20px';
-            chatWindow.style.left = 'auto';
-          } else {
-            chatWindow.style.left = '20px';
-            chatWindow.style.right = 'auto';
-          }
-          
-          // ✅ Clear saved position
-          localStorage.removeItem(`wetechforu_widget_position_${this.config.widgetKey}`);
-          localStorage.removeItem(`wetechforu_widget_size_${this.config.widgetKey}`);
-          
-          // ✅ Force visibility again after reset
-          chatWindow.style.setProperty('display', 'flex', 'important');
-          chatWindow.style.setProperty('visibility', 'visible', 'important');
-          chatWindow.style.setProperty('opacity', '1', 'important');
-          chatWindow.style.setProperty('z-index', '999998', 'important');
-          
-          console.log('✅ Widget position reset to safe default');
+          chatWindow.style.maxHeight = 'calc(100vh - 40px)';
         }
+        
+        // ✅ Fixed position (no dragging)
+        const isRight = this.config.position.includes('right');
+        chatWindow.style.position = 'fixed';
+        if (isRight) {
+          chatWindow.style.right = '20px';
+          chatWindow.style.left = 'auto';
+        } else {
+          chatWindow.style.left = '20px';
+          chatWindow.style.right = 'auto';
+        }
+        chatWindow.style.bottom = '20px';
+        chatWindow.style.top = 'auto';
       };
       
-      // ✅ Try immediately and after delays
-      ensureVisibility();
-      setTimeout(ensureVisibility, 100);
-      setTimeout(ensureVisibility, 300);
+      setResponsiveSize();
+      
+      // ✅ Update size on window resize
+      window.addEventListener('resize', () => {
+        if (this.state.isOpen) {
+          setResponsiveSize();
+        }
+      });
+      
+      // ✅ Force visibility with !important
+      chatWindow.style.setProperty('display', 'flex', 'important');
+      chatWindow.style.setProperty('visibility', 'visible', 'important');
+      chatWindow.style.setProperty('opacity', '1', 'important');
+      chatWindow.style.setProperty('z-index', '999998', 'important');
+      chatWindow.style.setProperty('pointer-events', 'auto', 'important');
+      
+      console.log('✅ Chat opened - widget should be visible');
       
       console.log('✅ Chat opened - widget should be visible');
 

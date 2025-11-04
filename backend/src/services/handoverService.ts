@@ -456,14 +456,25 @@ export class HandoverService {
       let assignedNumber = null;
       let useMultipleNumbers = false;
       
-      // Check if widget has a number pool configured
-      const widgetDetails = await client.query(`
-        SELECT whatsapp_number_pool, handover_whatsapp_number
-        FROM widget_configs
-        WHERE id = $1
-      `, [handoverRequest.widget_id]);
-      
-      const numberPool = widgetDetails.rows[0]?.whatsapp_number_pool || null;
+      // Check if widget has a number pool configured (handle missing column gracefully)
+      let numberPool = null;
+      try {
+        const widgetDetails = await client.query(`
+          SELECT whatsapp_number_pool, handover_whatsapp_number
+          FROM widget_configs
+          WHERE id = $1
+        `, [handoverRequest.widget_id]);
+        
+        numberPool = widgetDetails.rows[0]?.whatsapp_number_pool || null;
+      } catch (poolError: any) {
+        // ✅ Handle missing column gracefully (column may not exist in older schemas)
+        if (poolError.code === '42703' && poolError.message?.includes('whatsapp_number_pool')) {
+          console.log('⚠️ whatsapp_number_pool column not found - using single number mode');
+          numberPool = null; // Fall back to single number mode
+        } else {
+          throw poolError; // Re-throw other errors
+        }
+      }
       
       // ✅ ONLY use multiple numbers if pool exists AND has active numbers
       // This ensures single-number setups automatically use the prefix system
