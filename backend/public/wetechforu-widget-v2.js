@@ -1769,8 +1769,8 @@
       }
     },
     
-    // Make widget resizable from all edges and corners
-    makeResizable(element, handle) {
+    // ✅ REMOVED: makeResizable() - Widget is fixed size with responsive breakpoints (Industry Standard)
+    // UNUSED_FUNCTION_MAKE_RESIZABLE_PLACEHOLDER(element, handle) {
       let isResizing = false;
       let startX, startY, startWidth, startHeight, startLeft, startTop;
       let resizeEdge = null; // 'right', 'bottom', 'corner', 'left', 'top'
@@ -2097,8 +2097,6 @@
       chatWindow.style.setProperty('opacity', '1', 'important');
       chatWindow.style.setProperty('z-index', '999998', 'important');
       chatWindow.style.setProperty('pointer-events', 'auto', 'important');
-      
-      console.log('✅ Chat opened - widget should be visible');
       
       console.log('✅ Chat opened - widget should be visible');
 
