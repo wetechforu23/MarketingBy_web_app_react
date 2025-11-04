@@ -1703,6 +1703,7 @@ router.post('/public/widget/:widgetKey/conversations/:conversationId/end', async
       `UPDATE widget_conversations SET
         status = 'ended',
         agent_handoff = false,
+        ended_at = COALESCE(ended_at, NOW()),
         updated_at = NOW()
       WHERE id = $1`,
       [conversationId]
