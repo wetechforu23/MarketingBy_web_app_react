@@ -295,14 +295,16 @@ async function sendVisitorEngagementEmail(
 // CORS Middleware for ALL visitor tracking routes
 // ==========================================
 router.use((req, res, next) => {
-  // Allow ALL origins for public visitor tracking (customer websites embed the widget)
+  // ✅ FIX: Allow ALL origins for public visitor tracking (customer websites embed the widget)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'false');
   res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
   
+  // ✅ FIX: Handle preflight OPTIONS requests properly
   if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
+    return res.status(200).end();
   }
   
   next();

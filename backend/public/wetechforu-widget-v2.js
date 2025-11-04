@@ -58,6 +58,8 @@
       lastMessageTime: null,
       displayedMessageIds: [], // Track displayed agent messages
       pollingInterval: null, // Polling timer
+      pollingIntervalMs: 3000, // ✅ Current polling interval (starts at 3s, increases with backoff)
+      consecutiveEmptyPolls: 0, // ✅ Track consecutive polls with no messages (for exponential backoff)
       agentTookOver: false, // ✅ NEW: Track if agent took over conversation
       conversationEnded: false, // ✅ Track if conversation has ended
       unsuccessfulAttempts: 0, // Track failed knowledge base matches
@@ -896,7 +898,7 @@
       // ✅ DO NOT mark as closed - allow reopening
       console.log('📦 Chat minimized - conversation state preserved');
       
-      // Stop polling temporarily (will resume on reopen)
+      // ✅ Stop polling when minimized (will resume on reopen with faster interval)
       this.stopPollingForAgentMessages();
     },
 
@@ -1010,8 +1012,18 @@
         document.getElementById('wetechforu-input').focus();
       }, 300);
       
-      // 📨 Start polling for agent messages
-      this.startPollingForAgentMessages();
+      // 📨 Start polling for agent messages (only if agent handoff is active)
+      if (this.state.agentTookOver) {
+        this.startPollingForAgentMessages();
+      }
+      
+      // ✅ Resume polling when chat is reopened (if agent handoff was active)
+      // Reset backoff to fast polling when user returns
+      if (this.state.agentTookOver && !this.state.pollingInterval) {
+        this.state.pollingIntervalMs = 3000;
+        this.state.consecutiveEmptyPolls = 0;
+        this.startPollingForAgentMessages();
+      }
     },
 
     // Close chat with confirmation and email summary option
@@ -3567,18 +3579,26 @@
       }
     },
     
-    // 📨 Poll for new agent messages
+    // 📨 Poll for new agent messages - ✅ OPTIMIZED: Exponential backoff, page visibility, smart polling
     startPollingForAgentMessages() {
       if (this.state.pollingInterval) {
-        console.log('⚠️ Already polling for agent messages');
         return; // Already polling
       }
       
-      console.log('🔄 Starting polling for agent messages...');
+      // Reset polling state
+      this.state.pollingIntervalMs = 3000; // Start at 3 seconds
+      this.state.consecutiveEmptyPolls = 0;
       
-      this.state.pollingInterval = setInterval(async () => {
+      // ✅ Only log once on start (not every poll)
+      console.log('🔄 Starting smart polling for agent messages (with exponential backoff)');
+      
+      const poll = async () => {
+        // ✅ Stop polling if chat is closed/minimized or tab is hidden
+        if (!this.state.isOpen || document.hidden) {
+          return; // Skip this poll, but keep interval running
+        }
+        
         if (!this.state.conversationId) {
-          console.log('⚠️ No conversation ID, stopping polling');
           this.stopPollingForAgentMessages();
           return;
         }
@@ -3591,59 +3611,127 @@
           
           if (response.ok) {
             const data = await response.json();
-            // Handle both array format and { messages: [...] } format
             const messages = Array.isArray(data) ? data : (data.messages || []);
-            
-            console.log(`📊 Polling: Found ${messages.length} total messages, checking for new ones...`);
-            
-            // Debug: Log all message types found
-            const messageTypes = {};
-            messages.forEach(msg => {
-              const type = msg.message_type || 'unknown';
-              messageTypes[type] = (messageTypes[type] || 0) + 1;
-            });
-            console.log(`📊 Message types breakdown:`, messageTypes);
-            console.log(`📊 All messages:`, messages.map(m => ({
-              id: m.id,
-              type: m.message_type,
-              text: m.message_text?.substring(0, 30),
-              agent: m.agent_name
-            })));
             
             const newMessages = messages.filter(msg => 
               msg.message_type === 'human' && 
-              msg.id && // Ensure message has an ID
+              msg.id && 
               !this.state.displayedMessageIds.includes(msg.id)
             );
             
             if (newMessages.length > 0) {
-              console.log(`📨 Found ${newMessages.length} new agent message(s):`, newMessages.map(m => ({ id: m.id, text: m.message_text?.substring(0, 30) })));
+              // ✅ Found new messages - reset backoff and log only once
+              this.state.consecutiveEmptyPolls = 0;
+              this.state.pollingIntervalMs = 3000; // Reset to fast polling
+              console.log(`📨 Found ${newMessages.length} new agent message(s)`);
+              
+              newMessages.forEach(msg => {
+                this.addBotMessage(msg.message_text, true, msg.agent_name || 'Agent');
+                this.state.displayedMessageIds.push(msg.id);
+              });
+              
+              // ✅ Restart polling with faster interval when messages found
+              this.restartPollingWithInterval(3000);
             } else {
-              const humanMessages = messages.filter(m => m.message_type === 'human');
-              console.log(`📊 No new agent messages (found ${humanMessages.length} human messages total, ${this.state.displayedMessageIds.length} already displayed)`);
-              if (humanMessages.length > 0) {
-                console.log(`⚠️ Human messages exist but already displayed:`, humanMessages.map(m => ({ id: m.id, text: m.message_text?.substring(0, 30) })));
+              // ✅ No new messages - implement exponential backoff
+              this.state.consecutiveEmptyPolls++;
+              
+              // Exponential backoff: 3s → 5s → 10s → 30s → 60s (max)
+              const intervals = [3000, 5000, 10000, 30000, 60000];
+              const backoffIndex = Math.min(this.state.consecutiveEmptyPolls - 1, intervals.length - 1);
+              const newInterval = intervals[backoffIndex];
+              
+              if (newInterval !== this.state.pollingIntervalMs) {
+                this.state.pollingIntervalMs = newInterval;
+                console.log(`⏱️ No messages found, slowing polling to ${newInterval / 1000}s`);
+                this.restartPollingWithInterval(newInterval);
+              }
+              
+              // ✅ Stop polling after 5 minutes of no messages (idle)
+              if (this.state.consecutiveEmptyPolls >= 10 && this.state.pollingIntervalMs >= 30000) {
+                console.log('⏸️ No messages for 5+ minutes - pausing polling (will resume on user activity)');
+                this.stopPollingForAgentMessages();
               }
             }
-            
-            newMessages.forEach(msg => {
-              console.log('📨 Displaying agent message:', {
-                id: msg.id,
-                text: msg.message_text?.substring(0, 50),
-                agent: msg.agent_name,
-                type: msg.message_type
-              });
-              this.addBotMessage(msg.message_text, true, msg.agent_name || 'Agent');
-              this.state.displayedMessageIds.push(msg.id);
-            });
           } else {
-            const errorText = await response.text();
-            console.error('❌ Failed to fetch messages:', response.status, response.statusText, errorText);
+            // Only log errors, not every failed request
+            if (response.status !== 404) {
+              console.error('❌ Failed to fetch messages:', response.status);
+            }
           }
         } catch (error) {
-          console.error('Failed to poll for messages:', error);
+          // Only log actual errors
+          if (error.name !== 'TypeError') {
+            console.error('❌ Polling error:', error);
+          }
         }
-      }, 3000); // Poll every 3 seconds (faster for WhatsApp)
+      };
+      
+      // Start polling with initial interval
+      poll(); // Immediate first poll
+      this.state.pollingInterval = setInterval(poll, this.state.pollingIntervalMs);
+    },
+    
+    // ✅ Restart polling with new interval (for exponential backoff)
+    restartPollingWithInterval(newInterval) {
+      if (this.state.pollingInterval) {
+        clearInterval(this.state.pollingInterval);
+      }
+      this.state.pollingIntervalMs = newInterval;
+      this.state.pollingInterval = setInterval(async () => {
+        // Same poll logic as above
+        if (!this.state.isOpen || document.hidden) return;
+        if (!this.state.conversationId) {
+          this.stopPollingForAgentMessages();
+          return;
+        }
+        
+        try {
+          const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${this.state.conversationId}/messages`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            const messages = Array.isArray(data) ? data : (data.messages || []);
+            const newMessages = messages.filter(msg => 
+              msg.message_type === 'human' && 
+              msg.id && 
+              !this.state.displayedMessageIds.includes(msg.id)
+            );
+            
+            if (newMessages.length > 0) {
+              this.state.consecutiveEmptyPolls = 0;
+              this.state.pollingIntervalMs = 3000;
+              console.log(`📨 Found ${newMessages.length} new agent message(s)`);
+              newMessages.forEach(msg => {
+                this.addBotMessage(msg.message_text, true, msg.agent_name || 'Agent');
+                this.state.displayedMessageIds.push(msg.id);
+              });
+              this.restartPollingWithInterval(3000);
+            } else {
+              this.state.consecutiveEmptyPolls++;
+              const intervals = [3000, 5000, 10000, 30000, 60000];
+              const backoffIndex = Math.min(this.state.consecutiveEmptyPolls - 1, intervals.length - 1);
+              const newInterval = intervals[backoffIndex];
+              if (newInterval !== this.state.pollingIntervalMs) {
+                this.state.pollingIntervalMs = newInterval;
+                console.log(`⏱️ No messages, slowing to ${newInterval / 1000}s`);
+                this.restartPollingWithInterval(newInterval);
+              }
+              if (this.state.consecutiveEmptyPolls >= 10 && this.state.pollingIntervalMs >= 30000) {
+                console.log('⏸️ Pausing polling after 5+ minutes idle');
+                this.stopPollingForAgentMessages();
+              }
+            }
+          }
+        } catch (error) {
+          if (error.name !== 'TypeError') {
+            console.error('❌ Polling error:', error);
+          }
+        }
+      }, newInterval);
     },
     
     // Stop polling
