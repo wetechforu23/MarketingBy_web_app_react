@@ -3454,6 +3454,20 @@
             
             console.log(`📊 Polling: Found ${messages.length} total messages, checking for new ones...`);
             
+            // Debug: Log all message types found
+            const messageTypes = {};
+            messages.forEach(msg => {
+              const type = msg.message_type || 'unknown';
+              messageTypes[type] = (messageTypes[type] || 0) + 1;
+            });
+            console.log(`📊 Message types breakdown:`, messageTypes);
+            console.log(`📊 All messages:`, messages.map(m => ({
+              id: m.id,
+              type: m.message_type,
+              text: m.message_text?.substring(0, 30),
+              agent: m.agent_name
+            })));
+            
             const newMessages = messages.filter(msg => 
               msg.message_type === 'human' && 
               msg.id && // Ensure message has an ID
@@ -3463,7 +3477,11 @@
             if (newMessages.length > 0) {
               console.log(`📨 Found ${newMessages.length} new agent message(s):`, newMessages.map(m => ({ id: m.id, text: m.message_text?.substring(0, 30) })));
             } else {
-              console.log(`📊 No new agent messages (checked ${messages.filter(m => m.message_type === 'human').length} human messages, ${this.state.displayedMessageIds.length} already displayed)`);
+              const humanMessages = messages.filter(m => m.message_type === 'human');
+              console.log(`📊 No new agent messages (found ${humanMessages.length} human messages total, ${this.state.displayedMessageIds.length} already displayed)`);
+              if (humanMessages.length > 0) {
+                console.log(`⚠️ Human messages exist but already displayed:`, humanMessages.map(m => ({ id: m.id, text: m.message_text?.substring(0, 30) })));
+              }
             }
             
             newMessages.forEach(msg => {
