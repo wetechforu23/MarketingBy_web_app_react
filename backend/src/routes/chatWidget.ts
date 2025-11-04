@@ -846,6 +846,11 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       return res.status(400).json({ error: 'Message text is required' });
     }
 
+    if (!conversation_id) {
+      console.error('❌ Missing conversation_id in request');
+      return res.status(400).json({ error: 'Conversation ID is required' });
+    }
+
     const startTime = Date.now();
 
     // Get widget and conversation info WITH LLM config
