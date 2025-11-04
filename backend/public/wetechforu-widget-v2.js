@@ -873,6 +873,9 @@
         element.style.bottom = finalBottom + 'px';
         element.style.right = 'auto'; // Override right positioning
         
+        // ✅ Ensure widget stays within viewport while dragging
+        this.ensureWidgetInViewport(element);
+        
         // ✅ Save position to localStorage
         this.saveWidgetPosition(element);
       });
@@ -913,15 +916,45 @@
         const saved = localStorage.getItem(`wetechforu_widget_position_${this.config.widgetKey}`);
         if (saved) {
           const position = JSON.parse(saved);
-          if (position.left) element.style.left = position.left;
-          if (position.bottom) element.style.bottom = position.bottom;
-          if (position.right) element.style.right = position.right;
+          
+          // ✅ Restore size first
           if (position.width) element.style.width = position.width;
           if (position.height) element.style.height = position.height;
-          if (position.isMaximized) {
-            element.classList.add('maximized');
-            this.maximizeWidget(element);
+          
+          // ✅ Restore position (prioritize left/bottom, then right)
+          if (position.left) {
+            element.style.left = position.left;
+            element.style.right = 'auto';
+          } else if (position.right) {
+            element.style.right = position.right;
+            element.style.left = 'auto';
           }
+          
+          if (position.bottom) {
+            element.style.bottom = position.bottom;
+            element.style.top = 'auto';
+          } else if (position.top) {
+            element.style.top = position.top;
+            element.style.bottom = 'auto';
+          }
+          
+          // ✅ Handle maximize state
+          if (position.isMaximized && !element.classList.contains('maximized')) {
+            element.classList.add('maximized');
+            // Don't call maximizeWidget here as it will toggle - just set the styles
+            element.style.width = 'calc(100vw - 40px)';
+            element.style.height = 'calc(100vh - 100px)';
+            element.style.left = '20px';
+            element.style.right = 'auto';
+            element.style.bottom = '80px';
+            element.style.top = '20px';
+            const expandBtn = document.getElementById('wetechforu-expand-button');
+            if (expandBtn) {
+              expandBtn.textContent = '⛶';
+              expandBtn.title = 'Restore';
+            }
+          }
+          
           console.log('✅ Restored widget position and size');
         }
       } catch (e) {
@@ -934,37 +967,18 @@
       const isMaximized = element.classList.contains('maximized');
       const expandBtn = document.getElementById('wetechforu-expand-button');
       
-      if (isMaximized) {
-        // Restore previous size
-        element.classList.remove('maximized');
-        const savedSize = localStorage.getItem(`wetechforu_widget_size_before_maximize_${this.config.widgetKey}`);
-        if (savedSize) {
-          try {
-            const size = JSON.parse(savedSize);
-            if (size.width) element.style.width = size.width;
-            if (size.height) element.style.height = size.height;
-          } catch (e) {
-            element.style.width = '360px';
-            element.style.height = '500px';
-          }
-        } else {
-          element.style.width = '360px';
-          element.style.height = '500px';
-        }
-        element.style.left = '';
-        element.style.right = '';
-        element.style.bottom = '80px';
-        element.style.top = '';
-        
-        if (expandBtn) expandBtn.textContent = '⛶'; // Maximize icon
-        if (expandBtn) expandBtn.title = 'Maximize';
-      } else {
+      if (!isMaximized) {
+        // ✅ FIX: Maximize (when NOT maximized, click to maximize)
         // Save current size before maximizing
         const currentWidth = element.style.width || element.offsetWidth + 'px';
         const currentHeight = element.style.height || element.offsetHeight + 'px';
+        const currentLeft = element.style.left || '';
+        const currentBottom = element.style.bottom || '';
         localStorage.setItem(`wetechforu_widget_size_before_maximize_${this.config.widgetKey}`, JSON.stringify({ 
           width: currentWidth, 
-          height: currentHeight 
+          height: currentHeight,
+          left: currentLeft,
+          bottom: currentBottom
         }));
         
         // Maximize to full screen (with padding)
@@ -972,13 +986,93 @@
         element.style.width = 'calc(100vw - 40px)';
         element.style.height = 'calc(100vh - 100px)';
         element.style.left = '20px';
-        element.style.right = '20px';
+        element.style.right = 'auto';
         element.style.bottom = '80px';
         element.style.top = '20px';
         
-        if (expandBtn) expandBtn.textContent = '⛶'; // Restore icon (same icon for both)
+        if (expandBtn) expandBtn.textContent = '⛶'; // Restore icon
         if (expandBtn) expandBtn.title = 'Restore';
         
+        this.saveWidgetPosition(element);
+      } else {
+        // ✅ FIX: Restore (when maximized, click to restore)
+        element.classList.remove('maximized');
+        const savedSize = localStorage.getItem(`wetechforu_widget_size_before_maximize_${this.config.widgetKey}`);
+        if (savedSize) {
+          try {
+            const size = JSON.parse(savedSize);
+            if (size.width) element.style.width = size.width;
+            if (size.height) element.style.height = size.height;
+            if (size.left) element.style.left = size.left;
+            if (size.bottom) element.style.bottom = size.bottom;
+          } catch (e) {
+            element.style.width = '360px';
+            element.style.height = '500px';
+            element.style.left = '';
+            element.style.bottom = '80px';
+          }
+        } else {
+          element.style.width = '360px';
+          element.style.height = '500px';
+          element.style.left = '';
+          element.style.bottom = '80px';
+        }
+        element.style.right = 'auto';
+        element.style.top = '';
+        
+        if (expandBtn) expandBtn.textContent = '⛶'; // Maximize icon
+        if (expandBtn) expandBtn.title = 'Maximize';
+        
+        // ✅ Ensure widget is within viewport after restore
+        this.ensureWidgetInViewport(element);
+        this.saveWidgetPosition(element);
+      }
+    },
+    
+    // ✅ Ensure widget is within viewport bounds
+    ensureWidgetInViewport(element) {
+      const rect = element.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      
+      let needsAdjustment = false;
+      let newLeft = element.style.left ? parseFloat(element.style.left) : null;
+      let newBottom = element.style.bottom ? parseFloat(element.style.bottom) : null;
+      
+      // Check if widget goes off right edge
+      if (rect.right > viewportWidth) {
+        newLeft = viewportWidth - rect.width - 20; // 20px padding
+        needsAdjustment = true;
+      }
+      
+      // Check if widget goes off left edge
+      if (rect.left < 0) {
+        newLeft = 20; // 20px padding
+        needsAdjustment = true;
+      }
+      
+      // Check if widget goes off top edge
+      if (rect.top < 0) {
+        newBottom = viewportHeight - rect.height - 20; // 20px padding
+        needsAdjustment = true;
+      }
+      
+      // Check if widget goes off bottom edge
+      if (rect.bottom > viewportHeight) {
+        newBottom = 80; // Keep above badge
+        needsAdjustment = true;
+      }
+      
+      if (needsAdjustment) {
+        if (newLeft !== null) {
+          element.style.left = newLeft + 'px';
+          element.style.right = 'auto';
+        }
+        if (newBottom !== null) {
+          element.style.bottom = newBottom + 'px';
+          element.style.top = 'auto';
+        }
+        console.log('✅ Adjusted widget position to stay within viewport');
         this.saveWidgetPosition(element);
       }
     },
@@ -1165,6 +1259,11 @@
       
       // ✅ Restore saved position and size
       this.loadWidgetPosition(chatWindow);
+      
+      // ✅ Ensure widget is within viewport after loading position
+      setTimeout(() => {
+        this.ensureWidgetInViewport(chatWindow);
+      }, 100);
 
       // 📊 Track chat opened event
       this.trackEvent('chat_opened', {
