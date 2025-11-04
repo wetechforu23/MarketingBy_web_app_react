@@ -1022,22 +1022,22 @@
           const messagesContainer = document.getElementById('wetechforu-messages');
           if (messagesContainer) {
             const notification = document.createElement('div');
-            notification.style.cssText = `
-              background: #fff3cd;
-              border: 1px solid #ffc107;
+            notification.style.cssText = \`
+              background: rgb(255, 243, 205);
+              border: 1px solid rgb(255, 193, 7);
               border-radius: 8px;
               padding: 12px 16px;
               margin-bottom: 16px;
-              color: #856404;
+              color: rgb(133, 100, 4);
               font-size: 13px;
               display: flex;
               align-items: center;
               gap: 8px;
-            `;
-            notification.innerHTML = `
+            \`;
+            notification.innerHTML = \`
               <span>⚠️</span>
               <span>You're now chatting in a separate window. Close that window to continue here.</span>
-            `;
+            \`;
             messagesContainer.appendChild(notification);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
           }
@@ -1065,22 +1065,22 @@
               const messagesContainer = document.getElementById('wetechforu-messages');
               if (messagesContainer) {
                 const notification = document.createElement('div');
-                notification.style.cssText = `
-                  background: #d1ecf1;
-                  border: 1px solid #bee5eb;
+                notification.style.cssText = \`
+                  background: rgb(209, 236, 241);
+                  border: 1px solid rgb(190, 229, 235);
                   border-radius: 8px;
                   padding: 12px 16px;
                   margin-bottom: 16px;
-                  color: #0c5460;
+                  color: rgb(12, 84, 96);
                   font-size: 13px;
                   display: flex;
                   align-items: center;
                   gap: 8px;
-                `;
-                notification.innerHTML = `
+                \`;
+                notification.innerHTML = \`
                   <span>✅</span>
                   <span>Chat window closed. You can continue chatting here.</span>
-                `;
+                \`;
                 messagesContainer.appendChild(notification);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
               }
@@ -1361,22 +1361,22 @@
         // ✅ Show notification that conversation was transferred
         const container = document.getElementById('chat-messages');
         const notification = document.createElement('div');
-        notification.style.cssText = `
-          background: #d1ecf1;
-          border: 1px solid #bee5eb;
+        notification.style.cssText = \`
+          background: rgb(209, 236, 241);
+          border: 1px solid rgb(190, 229, 235);
           border-radius: 8px;
           padding: 12px 16px;
           margin-bottom: 16px;
-          color: #0c5460;
+          color: rgb(12, 84, 96);
           font-size: 13px;
           display: flex;
           align-items: center;
           gap: 8px;
-        `;
-        notification.innerHTML = `
+        \`;
+        notification.innerHTML = \`
           <span>✅</span>
           <span>Conversation transferred from main window. You can continue chatting here.</span>
-        `;
+        \`;
         container.appendChild(notification);
         container.scrollTop = container.scrollHeight;
       }
@@ -2085,13 +2085,13 @@
           animation: slideUp 0.2s ease-out;
         `;
 
-        popup.innerHTML = `
-          <h3 style="margin-top: 0; color: #333; font-size: 16px; margin-bottom: 12px;">⚠️ Close Chat?</h3>
-          <p style="color: #666; font-size: 13px; line-height: 1.5; margin-bottom: 16px;">
+        popup.innerHTML = \`
+          <h3 style="margin-top: 0; color: rgb(51, 51, 51); font-size: 16px; margin-bottom: 12px;">⚠️ Close Chat?</h3>
+          <p style="color: rgb(102, 102, 102); font-size: 13px; line-height: 1.5; margin-bottom: 16px;">
             You will <strong>lose all chat history</strong> in this window.
           </p>
           <div style="margin-bottom: 16px;">
-            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: #333;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgb(51, 51, 51);">
               <input type="checkbox" id="send-email-checkbox" style="width: 16px; height: 16px; cursor: pointer;" ${existingEmail ? 'checked' : ''} />
               <span>📧 Send conversation summary via email</span>
             </label>
@@ -2100,7 +2100,7 @@
             <input type="email" id="email-input" placeholder="Enter your email..." value="${existingEmail || ''}" style="
               width: 100%;
               padding: 8px 12px;
-              border: 2px solid #e0e0e0;
+              border: 2px solid rgb(224, 224, 224);
               border-radius: 6px;
               font-size: 13px;
               outline: none;
@@ -2109,10 +2109,10 @@
           <div style="display: flex; gap: 8px; justify-content: flex-end;">
             <button id="close-cancel" style="
               padding: 8px 16px;
-              border: 2px solid #e0e0e0;
+              border: 2px solid rgb(224, 224, 224);
               border-radius: 6px;
               background: white;
-              color: #333;
+              color: rgb(51, 51, 51);
               cursor: pointer;
               font-size: 13px;
               font-weight: 600;
@@ -2121,14 +2121,14 @@
               padding: 8px 16px;
               border: none;
               border-radius: 6px;
-              background: #dc3545;
+              background: rgb(220, 53, 69);
               color: white;
               cursor: pointer;
               font-size: 13px;
               font-weight: 600;
             ">Close</button>
           </div>
-        `;
+        \`;
 
         overlay.appendChild(popup);
         chatWindow.appendChild(overlay);
@@ -2167,7 +2167,7 @@
           
           // ✅ Validate email if checkbox is checked
           if (sendEmail && !email) {
-            emailInput.style.borderColor = '#dc3545';
+            emailInput.style.borderColor = 'rgb(220, 53, 69)';
             emailInput.focus();
             return;
           }
@@ -2204,7 +2204,7 @@
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         `;
 
-        modal.innerHTML = `
+        modal.innerHTML = \`
           <div style="
             background: white;
             border-radius: 12px;
@@ -2213,14 +2213,14 @@
             width: 90%;
             box-shadow: 0 4px 20px rgba(0,0,0,0.2);
           ">
-            <h3 style="margin-top: 0; color: #333; font-size: 18px; margin-bottom: 12px;">📧 Enter Your Email</h3>
-            <p style="color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+            <h3 style="margin-top: 0; color: rgb(51, 51, 51); font-size: 18px; margin-bottom: 12px;">📧 Enter Your Email</h3>
+            <p style="color: rgb(102, 102, 102); font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
               Please enter your email address to receive the conversation summary:
             </p>
             <input type="email" id="email-modal-input" placeholder="your@email.com" style="
               width: 100%;
               padding: 12px;
-              border: 2px solid #e0e0e0;
+              border: 2px solid rgb(224, 224, 224);
               border-radius: 6px;
               font-size: 14px;
               margin-bottom: 20px;
@@ -2229,10 +2229,10 @@
             <div style="display: flex; gap: 12px; justify-content: flex-end;">
               <button id="email-skip" style="
                 padding: 10px 20px;
-                border: 2px solid #e0e0e0;
+                border: 2px solid rgb(224, 224, 224);
                 border-radius: 6px;
                 background: white;
-                color: #333;
+                color: rgb(51, 51, 51);
                 cursor: pointer;
                 font-size: 14px;
                 font-weight: 600;
@@ -2241,7 +2241,7 @@
                 padding: 10px 20px;
                 border: none;
                 border-radius: 6px;
-                background: #2E86AB;
+                background: rgb(46, 134, 171);
                 color: white;
                 cursor: pointer;
                 font-size: 14px;
@@ -2249,7 +2249,7 @@
               ">Send</button>
             </div>
           </div>
-        `;
+        \`;
 
         document.body.appendChild(modal);
         const emailInput = modal.querySelector('#email-modal-input');
@@ -2272,7 +2272,7 @@
             cleanup();
             resolve(email);
           } else {
-            emailInput.style.borderColor = '#dc3545';
+            emailInput.style.borderColor = 'rgb(220, 53, 69)';
             emailInput.focus();
           }
         });
