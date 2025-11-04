@@ -519,7 +519,17 @@ export class HandoverService {
         return finalNumber;
       };
 
-      // 7) Send WhatsApp notification to CLIENT (not visitor)
+      // 7) Get visitor_session_id from conversation for identification
+      const conversationInfo = await client.query(`
+        SELECT visitor_session_id
+        FROM widget_conversations
+        WHERE id = $1
+      `, [handoverRequest.conversation_id]);
+      
+      const visitorSessionId = conversationInfo.rows[0]?.visitor_session_id || null;
+      const sessionIdDisplay = visitorSessionId ? visitorSessionId.substring(0, 20) + '...' : 'N/A';
+
+      // 8) Send WhatsApp notification to CLIENT (not visitor)
       const { WhatsAppService } = await import('./whatsappService');
       const whatsappService = WhatsAppService.getInstance();
       const clientWhatsAppNumber = normalizeWhatsAppNumber(clientHandoverNumber);
@@ -542,10 +552,11 @@ export class HandoverService {
         ? `[#${handoverRequest.conversation_id}] ${visitorName}`
         : visitorName;
       
-      // Improved notification format - make conversation ID more prominent
+      // Improved notification format - make conversation ID and session ID prominent
       const notificationMessage = enableMultipleChats
         ? `🔔 *Agent Handover Request*\n\n` +
           `*Conversation: #${handoverRequest.conversation_id}*\n` +
+          `*Session ID:* \`${sessionIdDisplay}\`\n` +
           `*Visitor:* ${visitorName}\n\n` +
           (visitorInfo.length > 0 ? `*Contact Info:*\n${visitorInfo.map(v => `• ${v}`).join('\n')}\n\n` : '') +
           `*Message:*\n${handoverRequest.visitor_message || 'Visitor requested agent support'}\n\n` +
@@ -557,10 +568,11 @@ export class HandoverService {
           `⚠️ *IMPORTANT:* Without the #${handoverRequest.conversation_id} prefix, your message will go to the wrong conversation!\n\n` +
           `Please respond as soon as possible.`
         : `🔔 *Agent Handover Request*\n\n` +
+          `*Conversation ID:* #${handoverRequest.conversation_id}\n` +
+          `*Session ID:* \`${sessionIdDisplay}\`\n` +
           `*Visitor:* ${visitorName}\n` +
           (visitorInfo.length > 0 ? `*Contact Info:*\n${visitorInfo.map(v => `• ${v}`).join('\n')}\n\n` : '') +
           `*Message:*\n${handoverRequest.visitor_message || 'Visitor requested agent support'}\n\n` +
-          `*Conversation ID:* #${handoverRequest.conversation_id}\n` +
           `*Widget:* ${widgetConfig.rows[0].widget_name || 'N/A'}\n\n` +
           `Please respond to the visitor at your earliest convenience.`;
 
