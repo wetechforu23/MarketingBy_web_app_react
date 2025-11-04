@@ -722,8 +722,24 @@ export class HandoverService {
           messageSid: result.messageSid,
           status: result.status,
           to: cleanNumber,
-          clientId: handoverRequest.client_id
+          clientId: handoverRequest.client_id,
+          widgetId: handoverRequest.widget_id,
+          conversationId: handoverRequest.conversation_id
         });
+        
+        // ✅ Log detailed error if template fails
+        if (!result.success) {
+          console.error(`❌ WhatsApp template send failed:`, {
+            errorCode: result.errorCode,
+            errorMessage: result.errorMessage,
+            error: result.error,
+            to: cleanNumber,
+            clientId: handoverRequest.client_id,
+            widgetId: handoverRequest.widget_id,
+            conversationId: handoverRequest.conversation_id,
+            twilioResponse: result.twilioResponse
+          });
+        }
 
         // If template fails (invalid variables, template not configured, etc.), fallback to freeform
         // Error 21656 = Invalid Content Variables, 21608 = Template not approved, etc.
@@ -741,8 +757,28 @@ export class HandoverService {
           console.log(`📱 Freeform message result:`, {
             success: result.success,
             error: result.error,
-            messageSid: result.messageSid
+            errorCode: result.errorCode,
+            errorMessage: result.errorMessage,
+            messageSid: result.messageSid,
+            status: result.status,
+            to: clientWhatsAppNumber,
+            clientId: handoverRequest.client_id,
+            widgetId: handoverRequest.widget_id,
+            conversationId: handoverRequest.conversation_id
           });
+          
+          // ✅ Log detailed error if freeform also fails
+          if (!result.success) {
+            console.error(`❌ WhatsApp freeform send also failed:`, {
+              errorCode: result.errorCode,
+              errorMessage: result.errorMessage,
+              error: result.error,
+              to: clientWhatsAppNumber,
+              clientId: handoverRequest.client_id,
+              widgetId: handoverRequest.widget_id,
+              conversationId: handoverRequest.conversation_id
+            });
+          }
         }
 
         if (!result.success) {

@@ -2088,25 +2088,28 @@
       // ✅ Restore saved position and size
       this.loadWidgetPosition(chatWindow);
       
-      // ✅ Ensure widget is within viewport after loading position
-      setTimeout(() => {
+      // ✅ Ensure widget is within viewport after loading position - Multiple attempts
+      const ensureVisibility = () => {
         this.ensureWidgetInViewport(chatWindow);
-        // ✅ Force visibility after viewport adjustment - Multiple attempts
+        
+        // ✅ Force visibility with !important
         chatWindow.style.setProperty('display', 'flex', 'important');
         chatWindow.style.setProperty('visibility', 'visible', 'important');
         chatWindow.style.setProperty('opacity', '1', 'important');
         chatWindow.style.setProperty('z-index', '999998', 'important');
+        chatWindow.style.setProperty('pointer-events', 'auto', 'important');
         
         // ✅ Verify it's actually visible
         const rect = chatWindow.getBoundingClientRect();
         const isVisible = rect.width > 0 && rect.height > 0 && 
-                         rect.top >= 0 && rect.left >= 0 && 
-                         rect.bottom <= window.innerHeight && 
-                         rect.right <= window.innerWidth;
+                         rect.top > -200 && rect.left > -200 && // More lenient bounds
+                         rect.bottom < window.innerHeight + 200 &&
+                         rect.right < window.innerWidth + 200;
         
         console.log('✅ Chat opened - widget visibility check:', {
           isVisible,
-          rect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left },
+          rect: { width: rect.width, height: rect.height, top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right },
+          viewport: { width: window.innerWidth, height: window.innerHeight },
           computedDisplay: getComputedStyle(chatWindow).display,
           computedVisibility: getComputedStyle(chatWindow).visibility,
           computedOpacity: getComputedStyle(chatWindow).opacity,
@@ -2114,46 +2117,41 @@
         });
         
         if (!isVisible) {
-          console.warn('⚠️ Widget may not be fully visible - check positioning');
+          console.warn('⚠️ Widget may not be fully visible - resetting position');
           
-          // ✅ If widget is off-screen or invalid, reset to safe position
-          if (rect.width === 0 || rect.height === 0 || 
-              rect.left < -100 || rect.top < -100 ||
-              rect.right > window.innerWidth + 100 ||
-              rect.bottom > window.innerHeight + 100) {
-            console.warn('⚠️ Widget is significantly off-screen - resetting position');
-            
-            // ✅ Use direct reset logic instead of calling method (scope issue fix)
-            const isRight = this.config.position.includes('right');
-            chatWindow.style.width = '380px';
-            chatWindow.style.height = '600px';
-            chatWindow.style.bottom = '80px';
-            chatWindow.style.top = 'auto';
-            
-            if (isRight) {
-              chatWindow.style.right = '20px';
-              chatWindow.style.left = 'auto';
-            } else {
-              chatWindow.style.left = '20px';
-              chatWindow.style.right = 'auto';
-            }
-            
-            // ✅ Clear saved position
-            localStorage.removeItem(`wetechforu_widget_position_${this.config.widgetKey}`);
-            localStorage.removeItem(`wetechforu_widget_size_${this.config.widgetKey}`);
-            
-            // ✅ Force visibility again after reset
-            setTimeout(() => {
-              chatWindow.style.setProperty('display', 'flex', 'important');
-              chatWindow.style.setProperty('visibility', 'visible', 'important');
-              chatWindow.style.setProperty('opacity', '1', 'important');
-              chatWindow.style.setProperty('z-index', '999998', 'important');
-            }, 50);
-            
-            console.log('✅ Widget position reset to safe default');
+          // ✅ Always reset if not visible (more aggressive recovery)
+          const isRight = this.config.position.includes('right');
+          chatWindow.style.width = '380px';
+          chatWindow.style.height = '600px';
+          chatWindow.style.bottom = '80px';
+          chatWindow.style.top = 'auto';
+          
+          if (isRight) {
+            chatWindow.style.right = '20px';
+            chatWindow.style.left = 'auto';
+          } else {
+            chatWindow.style.left = '20px';
+            chatWindow.style.right = 'auto';
           }
+          
+          // ✅ Clear saved position
+          localStorage.removeItem(`wetechforu_widget_position_${this.config.widgetKey}`);
+          localStorage.removeItem(`wetechforu_widget_size_${this.config.widgetKey}`);
+          
+          // ✅ Force visibility again after reset
+          chatWindow.style.setProperty('display', 'flex', 'important');
+          chatWindow.style.setProperty('visibility', 'visible', 'important');
+          chatWindow.style.setProperty('opacity', '1', 'important');
+          chatWindow.style.setProperty('z-index', '999998', 'important');
+          
+          console.log('✅ Widget position reset to safe default');
         }
-      }, 100);
+      };
+      
+      // ✅ Try immediately and after delays
+      ensureVisibility();
+      setTimeout(ensureVisibility, 100);
+      setTimeout(ensureVisibility, 300);
       
       console.log('✅ Chat opened - widget should be visible');
 
