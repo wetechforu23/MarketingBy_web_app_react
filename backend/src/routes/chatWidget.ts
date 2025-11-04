@@ -1779,7 +1779,7 @@ router.post('/public/widget/:widgetKey/conversations/:conversationId/end', async
           await whatsappService.sendMessage({
             clientId: widgetConfig.rows[0].client_id,
             widgetId: conversation.widget_id,
-            conversationId: conversationId,
+            conversationId: parseInt(conversationId.toString(), 10),
             toNumber: `whatsapp:${widgetConfig.rows[0].handover_whatsapp_number.replace(/^whatsapp:/, '')}`,
             message: endMessage,
             sentByAgentName: 'System',
