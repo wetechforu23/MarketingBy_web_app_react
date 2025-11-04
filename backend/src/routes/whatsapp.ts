@@ -567,7 +567,8 @@ router.post('/incoming', async (req: Request, res: Response) => {
       From, // Agent's WhatsApp number (client's handover number)
       To, // Our Twilio WhatsApp number
       Body, // Message text
-      NumMedia
+      NumMedia,
+      InReplyTo // ✅ NEW: MessageSid of the message being replied to (when agent uses WhatsApp reply feature)
     } = req.body;
 
     console.log('📱 Incoming WhatsApp Message:', {
@@ -575,7 +576,8 @@ router.post('/incoming', async (req: Request, res: Response) => {
       From,
       To,
       Body: Body?.substring(0, 100),
-      NumMedia
+      NumMedia,
+      InReplyTo // Log if this is a reply
     });
 
     // Normalize phone number (remove whatsapp: prefix if present)
@@ -588,22 +590,56 @@ router.post('/incoming', async (req: Request, res: Response) => {
 
     let messageBody = (Body || '').trim();
 
-    // ✅ FIRST: Try to parse conversation ID, user name, or session ID from message
+    // ✅ PRIORITY 1: Check if agent is REPLYING to a specific message (WhatsApp reply feature)
+    // This is the BEST way - agent long-presses message and replies
+    let conversationId: number | null = null;
+    let matchedBy: string = 'none';
+    
+    if (InReplyTo) {
+      console.log(`📎 Agent replied to message: ${InReplyTo}`);
+      
+      // Look up which conversation this message belongs to
+      const replyToResult = await pool.query(`
+        SELECT conversation_id, widget_id, client_id, message_body
+        FROM whatsapp_messages
+        WHERE twilio_message_sid = $1
+        ORDER BY sent_at DESC
+        LIMIT 1
+      `, [InReplyTo]);
+      
+      if (replyToResult.rows.length > 0) {
+        conversationId = replyToResult.rows[0].conversation_id;
+        matchedBy = 'whatsapp_reply';
+        
+        console.log(`✅ Matched via WhatsApp reply: Conversation ${conversationId}, original message: "${replyToResult.rows[0].message_body?.substring(0, 50)}"`);
+        
+        // Remove reply context from message body if present (WhatsApp sometimes includes it)
+        // WhatsApp replies may include: "> Original message\nYour reply"
+        if (messageBody.includes('>')) {
+          const lines = messageBody.split('\n');
+          messageBody = lines.filter(line => !line.trim().startsWith('>')).join('\n').trim();
+        }
+      } else {
+        console.log(`⚠️ Could not find conversation for replied message ${InReplyTo} - will try other methods`);
+      }
+    }
+
+    // ✅ PRIORITY 2: Try to parse conversation ID, user name, or session ID from message (if not matched via reply)
     // Support multiple formats:
     // - Conversation ID: "#123: message", "#123 message", "#123message", "#123"
     // - User name: "@John Doe: message", "@John: message"
     // - Session ID: "@visitor_abc123: message", "@visitor_abc123def456: message"
-    let conversationId: number | null = null;
-    let matchedBy: string = 'none';
     
-    // Try conversation ID first (#123)
-    const conversationIdMatch = messageBody.match(/^#(\d+)(?:\s*[:]\s*|\s+)?/);
-    if (conversationIdMatch) {
-      conversationId = parseInt(conversationIdMatch[1]);
-      messageBody = messageBody.replace(/^#\d+[\s:]*/, '').trim();
-      matchedBy = 'conversation_id';
-      console.log(`📌 Agent specified conversation ID: ${conversationId}, remaining message: "${messageBody}"`);
-    } else {
+    // Only try these if we didn't match via WhatsApp reply
+    if (!conversationId) {
+      // Try conversation ID first (#123)
+      const conversationIdMatch = messageBody.match(/^#(\d+)(?:\s*[:]\s*|\s+)?/);
+      if (conversationIdMatch) {
+        conversationId = parseInt(conversationIdMatch[1]);
+        messageBody = messageBody.replace(/^#\d+[\s:]*/, '').trim();
+        matchedBy = 'conversation_id';
+        console.log(`📌 Agent specified conversation ID: ${conversationId}, remaining message: "${messageBody}"`);
+      } else {
       // Try user name (@John Doe or @John)
       const userNameMatch = messageBody.match(/^@([^:]+?):\s*(.+)$/);
       if (userNameMatch) {

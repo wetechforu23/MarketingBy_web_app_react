@@ -1035,9 +1035,12 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
             : visitorName;
           
           // Send visitor message to agent's WhatsApp
-          const whatsappMessage = `💬 *New message from ${conversationIdentifier}:*\n\n${message_text}`;
+          // ✅ Format message to encourage WhatsApp reply feature (long-press to reply)
+          const whatsappMessage = enableMultipleChats
+            ? `💬 *New message from ${conversationIdentifier}:*\n\n${message_text}\n\n💡 *Tip: Long-press this message to reply directly*`
+            : `💬 *New message from ${visitorName}:*\n\n${message_text}`;
           
-          await whatsappService.sendMessage({
+          const sendResult = await whatsappService.sendMessage({
             clientId: convInfo.rows[0].client_id,
             widgetId: widget_id,
             conversationId: conversation_id,
@@ -1046,6 +1049,11 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
             sentByAgentName: visitorName,
             visitorName: visitorName
           });
+          
+          // ✅ Store MessageSid so we can match replies later
+          if (sendResult.messageSid) {
+            console.log(`✅ Stored MessageSid ${sendResult.messageSid} for conversation ${conversation_id} - agent can now reply via WhatsApp`);
+          }
 
           console.log(`📱 Forwarded visitor message to WhatsApp: ${cleanNumber}`);
         }
