@@ -2254,13 +2254,28 @@
         return;
       }
       
-      // ✅ Check if intro form is displayed and not completed
+      // ✅ FIRST: Check if we're waiting for first input - show form after first message
+      if (this.state.waitingForFirstInput && this.state.pendingFormQuestions) {
+        console.log('✅ User sent first message - showing intro form now');
+        // Show form after user's first message
+        this.addBotMessage("Thank you for reaching out! 😊 Before I assist you better, please fill in the information below:");
+        setTimeout(() => {
+          this.showIntroForm(this.state.pendingFormQuestions);
+          this.state.waitingForFirstInput = false;
+          this.state.pendingFormQuestions = null;
+        }, 300);
+        // Don't process this message as a regular chat message - wait for form completion
+        return;
+      }
+      
+      // ✅ SECOND: Check if intro form is displayed and not completed
       if (this.state.introFlow.enabled && !this.state.introFlow.isComplete) {
         const formExists = document.getElementById('wetechforu-intro-form') !== null;
         if (formExists) {
           this.addBotMessage("Please complete the information form above first. 😊");
         } else {
-          // Form should exist but doesn't - try to show it
+          // Form doesn't exist but intro is enabled - show form now
+          console.log('⚠️ Form not found but intro enabled - showing form');
           if (this.config.introQuestions && this.config.introQuestions.length > 0) {
             const enabledQuestions = this.config.introQuestions.filter(q => q.enabled !== false);
             this.addBotMessage("Thank you for reaching out! 😊 Before I assist you better, please fill in the information below:");
@@ -3058,20 +3073,6 @@
           return;
         }
         
-      // ✅ Check if we're waiting for first input - show form after first message
-      if (this.state.waitingForFirstInput && this.state.pendingFormQuestions) {
-        console.log('✅ User sent first message - showing intro form now');
-        // Show form after user's first message
-        this.addBotMessage("Thank you for reaching out! 😊 Before I assist you better, please fill in the information below:");
-        setTimeout(() => {
-          this.showIntroForm(this.state.pendingFormQuestions);
-          this.state.waitingForFirstInput = false;
-          this.state.pendingFormQuestions = null;
-        }, 300);
-        // Don't process this message as a regular chat message - wait for form completion
-        return;
-      }
-      
       // ✅ If intro form is not completed, check if form exists and block messages
       if (!this.state.introFlow.isComplete && this.state.introFlow.enabled) {
         // Check if form is actually displayed on the page
