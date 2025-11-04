@@ -1751,8 +1751,47 @@ router.post('/public/widget/:widgetKey/conversations/:conversationId/end', async
     await pool.query(
       `INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
        VALUES ($1, $2, $3, NOW())`,
-      [conversationId, 'system', 'Conversation ended by visitor']
+      [conversationId, 'system', '📞 Conversation ended by visitor. A summary will be sent to you (if email provided) and to our agent.']
     );
+
+    // ✅ Send WhatsApp message to agent (if WhatsApp handoff was used)
+    if (conversation.agent_handoff) {
+      try {
+        // Get handover WhatsApp number from widget config
+        const widgetConfig = await pool.query(`
+          SELECT handover_whatsapp_number, client_id
+          FROM widget_configs
+          WHERE id = $1
+        `, [conversation.widget_id]);
+        
+        if (widgetConfig.rows.length > 0 && widgetConfig.rows[0].handover_whatsapp_number) {
+          const { WhatsAppService } = await import('../services/whatsappService');
+          const whatsappService = WhatsAppService.getInstance();
+          
+          const endMessage = `📞 *Conversation Ended*\n\n` +
+            `*Conversation ID:* #${conversationId}\n` +
+            `*Widget:* ${conversation.widget_name || 'Chat Widget'}\n` +
+            `*Visitor:* ${conversation.visitor_name || 'Anonymous'}\n` +
+            `*Reason:* Ended by visitor\n\n` +
+            `A summary will be sent to the visitor (if email provided).\n` +
+            `You will receive a detailed summary via email.`;
+          
+          await whatsappService.sendMessage({
+            clientId: widgetConfig.rows[0].client_id,
+            widgetId: conversation.widget_id,
+            conversationId: conversationId,
+            toNumber: `whatsapp:${widgetConfig.rows[0].handover_whatsapp_number.replace(/^whatsapp:/, '')}`,
+            message: endMessage,
+            sentByAgentName: 'System',
+            visitorName: conversation.visitor_name || 'Visitor'
+          });
+          
+          console.log(`✅ Sent WhatsApp end notification to agent for conversation ${conversationId}`);
+        }
+      } catch (whatsappError) {
+        console.error('❌ Error sending WhatsApp end notification:', whatsappError);
+      }
+    }
 
     // Send email summary if requested
     if (send_email && email) {

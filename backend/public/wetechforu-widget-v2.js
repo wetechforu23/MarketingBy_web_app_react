@@ -969,78 +969,104 @@
       this.performClose();
     },
 
-    // Show close confirmation dialog
+    // Show close confirmation dialog - ✅ FIX: Small popup inside chat widget instead of full-screen
     showCloseConfirmation() {
       return new Promise((resolve) => {
-        const modal = document.createElement('div');
-        modal.style.cssText = `
-          position: fixed;
+        const chatWindow = document.getElementById('wetechforu-chat-window');
+        const messagesContainer = document.getElementById('wetechforu-messages');
+        
+        if (!chatWindow || !messagesContainer) {
+          resolve(false);
+          return;
+        }
+
+        // Create overlay inside chat window
+        const overlay = document.createElement('div');
+        overlay.id = 'wetechforu-close-overlay';
+        overlay.style.cssText = `
+          position: absolute;
           top: 0;
           left: 0;
-          width: 100%;
-          height: 100%;
-          background: rgba(0,0,0,0.5);
+          right: 0;
+          bottom: 0;
+          background: rgba(0,0,0,0.3);
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 10000;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          z-index: 1000;
+          border-radius: 16px;
         `;
 
-        modal.innerHTML = `
-          <div style="
-            background: white;
-            border-radius: 12px;
-            padding: 24px;
-            max-width: 400px;
-            width: 90%;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-          ">
-            <h3 style="margin-top: 0; color: #333; font-size: 18px;">⚠️ Close Chat?</h3>
-            <p style="color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
-              After closing this conversation, you will <strong>lose all chat history</strong> in this window.
-            </p>
-            <div style="display: flex; gap: 12px; justify-content: flex-end;">
-              <button id="close-cancel" style="
-                padding: 10px 20px;
-                border: 2px solid #e0e0e0;
-                border-radius: 6px;
-                background: white;
-                color: #333;
-                cursor: pointer;
-                font-size: 14px;
-                font-weight: 600;
-              ">Cancel</button>
-              <button id="close-confirm" style="
-                padding: 10px 20px;
-                border: none;
-                border-radius: 6px;
-                background: #dc3545;
-                color: white;
-                cursor: pointer;
-                font-size: 14px;
-                font-weight: 600;
-              ">Close Chat</button>
-            </div>
+        // Create small popup inside chat window
+        const popup = document.createElement('div');
+        popup.style.cssText = `
+          background: white;
+          border-radius: 12px;
+          padding: 20px;
+          max-width: 280px;
+          width: 90%;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          animation: slideUp 0.2s ease-out;
+        `;
+
+        popup.innerHTML = `
+          <h3 style="margin-top: 0; color: #333; font-size: 16px; margin-bottom: 12px;">⚠️ Close Chat?</h3>
+          <p style="color: #666; font-size: 13px; line-height: 1.5; margin-bottom: 16px;">
+            You will <strong>lose all chat history</strong> in this window.
+          </p>
+          <div style="display: flex; gap: 8px; justify-content: flex-end;">
+            <button id="close-cancel" style="
+              padding: 8px 16px;
+              border: 2px solid #e0e0e0;
+              border-radius: 6px;
+              background: white;
+              color: #333;
+              cursor: pointer;
+              font-size: 13px;
+              font-weight: 600;
+            ">Cancel</button>
+            <button id="close-confirm" style="
+              padding: 8px 16px;
+              border: none;
+              border-radius: 6px;
+              background: #dc3545;
+              color: white;
+              cursor: pointer;
+              font-size: 13px;
+              font-weight: 600;
+            ">Close</button>
           </div>
         `;
 
-        document.body.appendChild(modal);
+        overlay.appendChild(popup);
+        chatWindow.appendChild(overlay);
 
-        modal.querySelector('#close-cancel').addEventListener('click', () => {
-          document.body.removeChild(modal);
+        // Make chat window position relative if not already
+        if (getComputedStyle(chatWindow).position === 'static') {
+          chatWindow.style.position = 'relative';
+        }
+
+        const cleanup = () => {
+          if (overlay.parentNode) {
+            overlay.parentNode.removeChild(overlay);
+          }
+        };
+
+        popup.querySelector('#close-cancel').addEventListener('click', () => {
+          cleanup();
           resolve(false);
         });
 
-        modal.querySelector('#close-confirm').addEventListener('click', () => {
-          document.body.removeChild(modal);
+        popup.querySelector('#close-confirm').addEventListener('click', () => {
+          cleanup();
           resolve(true);
         });
 
-        // Close on background click
-        modal.addEventListener('click', (e) => {
-          if (e.target === modal) {
-            document.body.removeChild(modal);
+        // Close on overlay click (outside popup)
+        overlay.addEventListener('click', (e) => {
+          if (e.target === overlay) {
+            cleanup();
             resolve(false);
           }
         });

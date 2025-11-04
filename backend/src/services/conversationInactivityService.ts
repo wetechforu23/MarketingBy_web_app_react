@@ -294,11 +294,53 @@ export class ConversationInactivityService {
       WHERE id = $2
     `, [`Auto-ended due to ${reason}`, conv.conversation_id]);
 
-    // Add system message (ephemeral - will be purged after email is sent)
+    // ✅ Add system message to chat widget (visible to user)
     await pool.query(`
       INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
       VALUES ($1, 'system', $2, NOW())
-    `, [conv.conversation_id, '📞 This conversation has been automatically ended due to inactivity. We will send a summary to you (if email available) and to our agent. Conversation history will now be removed for your privacy.']);
+    `, [conv.conversation_id, '📞 This conversation has been automatically ended due to inactivity. A summary will be sent to you (if email available) and to our agent.']);
+
+    // ✅ Send WhatsApp message to agent
+    if (conv.handover_whatsapp_number) {
+      try {
+        const { WhatsAppService } = await import('./whatsappService');
+        const whatsappService = WhatsAppService.getInstance();
+        
+        // Get widget config to find client_id
+        const widgetConfig = await pool.query(`
+          SELECT client_id, widget_name
+          FROM widget_configs
+          WHERE id = $1
+        `, [conv.widget_id]);
+        
+        if (widgetConfig.rows.length > 0) {
+          const clientId = widgetConfig.rows[0].client_id;
+          const widgetName = widgetConfig.rows[0].widget_name || 'Chat Widget';
+          
+          const endMessage = `📞 *Conversation Ended*\n\n` +
+            `*Conversation ID:* #${conv.conversation_id}\n` +
+            `*Widget:* ${widgetName}\n` +
+            `*Visitor:* ${conv.visitor_name || 'Anonymous'}\n` +
+            `*Reason:* Automatically ended due to ${reason}\n\n` +
+            `A summary has been sent to the visitor (if email provided).\n` +
+            `You will receive a detailed summary via email.`;
+          
+          await whatsappService.sendMessage({
+            clientId: clientId,
+            widgetId: conv.widget_id,
+            conversationId: conv.conversation_id,
+            toNumber: `whatsapp:${conv.handover_whatsapp_number.replace(/^whatsapp:/, '')}`,
+            message: endMessage,
+            sentByAgentName: 'System',
+            visitorName: conv.visitor_name || 'Visitor'
+          });
+          
+          console.log(`✅ Sent WhatsApp end notification to agent for conversation ${conv.conversation_id}`);
+        }
+      } catch (whatsappError) {
+        console.error('❌ Error sending WhatsApp end notification:', whatsappError);
+      }
+    }
 
     // Send summary email if visitor email exists
     if (conv.visitor_email) {

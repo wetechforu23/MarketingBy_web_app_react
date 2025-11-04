@@ -1068,6 +1068,36 @@ router.post('/incoming', async (req: Request, res: Response) => {
         }
       }
       
+      // ✅ Send WhatsApp message to agent (if WhatsApp handoff was used)
+      if (match.handover_whatsapp_number) {
+        try {
+          const { WhatsAppService } = await import('../services/whatsappService');
+          const whatsappService = WhatsAppService.getInstance();
+          
+          const endMessage = `📞 *Conversation Ended*\n\n` +
+            `*Conversation ID:* #${conversationId}\n` +
+            `*Widget:* ${match.widget_name || 'Chat Widget'}\n` +
+            `*Visitor:* ${visitorName}\n` +
+            `*Reason:* Ended by agent\n\n` +
+            `A summary has been sent to the visitor (if email provided).\n` +
+            `You will receive a detailed summary via email.`;
+          
+          await whatsappService.sendMessage({
+            clientId: clientId,
+            widgetId: widgetId,
+            conversationId: conversationId,
+            toNumber: `whatsapp:${match.handover_whatsapp_number.replace(/^whatsapp:/, '')}`,
+            message: endMessage,
+            sentByAgentName: 'System',
+            visitorName: visitorName
+          });
+          
+          console.log(`✅ Sent WhatsApp end notification to agent for conversation ${conversationId}`);
+        } catch (whatsappError) {
+          console.error('❌ Error sending WhatsApp end notification:', whatsappError);
+        }
+      }
+      
       res.setHeader('Content-Type', 'text/plain');
       res.setHeader('Content-Length', '0');
       return res.status(200).end(); // Empty response prevents "OK" auto-replies
