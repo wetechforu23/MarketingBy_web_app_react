@@ -1857,10 +1857,29 @@
       
       const handleMouseUp = () => {
         if (isResizing) {
-        isResizing = false;
+          isResizing = false;
           resizeEdge = null;
-          // ✅ Final save after resize
-          this.saveWidgetPosition(element);
+          
+          // ✅ Validate position before saving - ensure widget is visible and within bounds
+          const rect = element.getBoundingClientRect();
+          const isVisible = rect.width > 0 && rect.height > 0 && 
+                           rect.left >= -50 && rect.top >= -50 && // Allow slight off-screen for dragging
+                           rect.right <= window.innerWidth + 50 &&
+                           rect.bottom <= window.innerHeight + 50;
+          
+          if (isVisible) {
+            // ✅ Final save after resize - only if position is valid
+            this.saveWidgetPosition(element);
+            console.log('✅ Widget position saved after resize');
+          } else {
+            // ✅ If position is invalid, reset to safe position
+            console.warn('⚠️ Invalid widget position after resize - resetting to safe position');
+            this.resetWidgetPosition(element);
+          }
+          
+          // ✅ Ensure widget is within viewport after resize
+          this.ensureWidgetInViewport(element);
+          
           // ✅ Remove event listeners to prevent freezing
           document.removeEventListener('mousemove', handleMouseMove);
           document.removeEventListener('mouseup', handleMouseUp);
@@ -2035,6 +2054,22 @@
         
         if (!isVisible) {
           console.warn('⚠️ Widget may not be fully visible - check positioning');
+          
+          // ✅ If widget is off-screen or invalid, reset to safe position
+          if (rect.width === 0 || rect.height === 0 || 
+              rect.left < -100 || rect.top < -100 ||
+              rect.right > window.innerWidth + 100 ||
+              rect.bottom > window.innerHeight + 100) {
+            console.warn('⚠️ Widget is significantly off-screen - resetting position');
+            this.resetWidgetPosition(chatWindow);
+            
+            // ✅ Force visibility again after reset
+            setTimeout(() => {
+              chatWindow.style.setProperty('display', 'flex', 'important');
+              chatWindow.style.setProperty('visibility', 'visible', 'important');
+              chatWindow.style.setProperty('opacity', '1', 'important');
+            }, 50);
+          }
         }
       }, 100);
       
