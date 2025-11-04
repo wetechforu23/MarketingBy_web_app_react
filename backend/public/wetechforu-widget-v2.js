@@ -1094,15 +1094,10 @@
         popup.document.close();
         
         // ✅ Show notification in main widget that chat moved to popup (Industry Standard)
+        // REMOVED: Notification was confusing users - just silently minimize main widget
         if (this.state.isOpen) {
-          const messagesContainer = document.getElementById('wetechforu-messages');
-          if (messagesContainer) {
-            const notification = document.createElement('div');
-            notification.style.cssText = 'background: rgb(255, 243, 205); border: 1px solid rgb(255, 193, 7); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; color: rgb(133, 100, 4); font-size: 13px; display: flex; align-items: center; gap: 8px;';
-            notification.innerHTML = '<span>⚠️</span><span>You\'re now chatting in a separate window. Close that window to continue here.</span>';
-            messagesContainer.appendChild(notification);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-          }
+          // Minimize main widget when popup opens
+          this.minimizeChat();
         }
         
         // ✅ Update button state
@@ -1122,16 +1117,9 @@
               expandBtn.title = 'Maximize';
             }
             
-            // ✅ Show message that popup closed and chat is back here
-            if (this.state.isOpen) {
-              const messagesContainer = document.getElementById('wetechforu-messages');
-              if (messagesContainer) {
-                const notification = document.createElement('div');
-                notification.style.cssText = 'background: rgb(209, 236, 241); border: 1px solid rgb(190, 229, 235); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; color: rgb(12, 84, 96); font-size: 13px; display: flex; align-items: center; gap: 8px;';
-                notification.innerHTML = '<span>✅</span><span>Chat window closed. You can continue chatting here.</span>';
-                messagesContainer.appendChild(notification);
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-              }
+            // ✅ Popup closed - restore main widget (no notification needed)
+            if (!this.state.isOpen) {
+              this.openChat();
             }
             
             console.log('✅ Popup closed - widget restored to normal state');
@@ -1914,8 +1902,24 @@
       chatWindow.style.setProperty('z-index', '999998', 'important');
       chatWindow.style.setProperty('pointer-events', 'auto', 'important');
       
+      // ✅ Ensure input field is enabled and focusable
+      const input = document.getElementById('wetechforu-input');
+      if (input) {
+        input.disabled = false;
+        input.readOnly = false;
+        input.style.pointerEvents = 'auto';
+        input.style.opacity = '1';
+        // Focus input after a short delay to ensure widget is fully rendered
+        setTimeout(() => {
+          input.focus();
+        }, 100);
+      }
+      
       console.log('✅ Chat opened - widget should be visible');
-
+      
+      // ✅ Load existing messages when chat opens
+      this.loadMessages();
+      
       // 📊 Track chat opened event
       this.trackEvent('chat_opened', {
         page_url: window.location.href,
