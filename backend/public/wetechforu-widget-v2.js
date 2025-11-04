@@ -2616,17 +2616,8 @@
         if (data.success) {
           // Show generic confirmation only (no method details in chat)
           setTimeout(() => {
-            // Show method-specific confirmation message
-            let confirmationMessage = '';
-            if (method === 'whatsapp') {
-              confirmationMessage = "✅ Your request has been submitted! We'll connect you with the next available agent via WhatsApp and get back to you shortly. Please keep WhatsApp open for our response.";
-            } else if (method === 'email') {
-              confirmationMessage = "✅ Your request has been submitted! We'll connect you with the next available agent and get back to you via email shortly.";
-            } else if (method === 'phone') {
-              confirmationMessage = "✅ Your request has been submitted! We'll connect you with the next available agent and get back to you via phone call or SMS shortly.";
-            } else {
-              confirmationMessage = "✅ Your request has been submitted! We'll connect you with the next available agent and get back to you shortly.";
-            }
+            // Show generic confirmation message (no method details)
+            const confirmationMessage = "✅ Your request has been submitted! We'll connect you with the next available agent.";
             this.addBotMessage(confirmationMessage);
             
             // Start polling for agent messages if WhatsApp or portal
