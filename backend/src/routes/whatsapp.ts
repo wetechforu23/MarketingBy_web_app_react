@@ -537,14 +537,17 @@ router.post('/status-callback', async (req: Request, res: Response) => {
     }
 
     // ✅ Return empty response to prevent "OK" auto-replies from Twilio
-    res.setHeader('Content-Type', 'text/plain');
+    // ✅ CRITICAL: Return completely empty response (no text, no JSON, no whitespace)
+    // Twilio sends "OK" auto-replies if the webhook response contains ANY text or whitespace
+    // Empty response = no auto-reply
+    res.removeHeader('Content-Type'); // Remove default Content-Type
     res.setHeader('Content-Length', '0');
-    res.status(200).end();
+    res.status(200).end(); // End with no body
 
   } catch (error) {
     console.error('WhatsApp status callback error:', error);
-    // Still return 200 to prevent Twilio from retrying
-    res.setHeader('Content-Type', 'text/plain');
+    // Still return 200 to prevent Twilio from retrying - MUST be empty
+    res.removeHeader('Content-Type');
     res.setHeader('Content-Length', '0');
     res.status(200).end();
   }
@@ -917,13 +920,15 @@ router.post('/incoming', async (req: Request, res: Response) => {
     // ✅ CRITICAL: Return completely empty response (no text, no JSON, no whitespace)
     // Twilio sends "OK" auto-replies if the webhook response contains ANY text or whitespace
     // Empty response = no auto-reply
+    res.removeHeader('Content-Type'); // Remove default Content-Type that might add charset
+    res.setHeader('Content-Length', '0');
+    res.status(200).end(); // End with no body at all
+  } catch (error) {
+    console.error('❌ Error processing incoming WhatsApp message:', error);
+    // Still send 200 to prevent Twilio from retrying - MUST be empty response
     res.setHeader('Content-Type', 'text/plain');
     res.setHeader('Content-Length', '0');
     res.status(200).end();
-  } catch (error) {
-    console.error('❌ Error processing incoming WhatsApp message:', error);
-    // Still send 200 to prevent Twilio from retrying
-    res.sendStatus(200);
   }
 });
 
