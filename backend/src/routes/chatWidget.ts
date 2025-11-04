@@ -2675,24 +2675,8 @@ router.get('/public/widget/:widgetKey/conversations/:conversationId/status', asy
 /**
  * Get all messages for a conversation (for widget to restore conversation)
  */
-router.get('/public/widget/:widgetKey/conversations/:conversationId/messages', async (req, res) => {
-  try {
-    const { conversationId } = req.params;
-    
-    const result = await pool.query(
-      `SELECT id, message_type, message_text, sender_name, agent_name, created_at
-       FROM widget_messages
-       WHERE conversation_id = $1
-       ORDER BY created_at ASC`,
-      [conversationId]
-    );
-    
-    res.json({ messages: result.rows });
-  } catch (error) {
-    console.error('Error fetching messages:', error);
-    res.status(500).json({ error: 'Failed to fetch messages' });
-  }
-});
+// REMOVED: Duplicate endpoint - using the one at line 1217 instead
+// This endpoint was returning wrong format { messages: [...] } instead of [...]
 
 /**
  * Send conversation summary email when conversation expires

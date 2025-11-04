@@ -3448,23 +3448,37 @@
           });
           
           if (response.ok) {
-            const messages = await response.json();
+            const data = await response.json();
+            // Handle both array format and { messages: [...] } format
+            const messages = Array.isArray(data) ? data : (data.messages || []);
+            
+            console.log(`📊 Polling: Found ${messages.length} total messages, checking for new ones...`);
+            
             const newMessages = messages.filter(msg => 
               msg.message_type === 'human' && 
+              msg.id && // Ensure message has an ID
               !this.state.displayedMessageIds.includes(msg.id)
             );
             
             if (newMessages.length > 0) {
-              console.log(`📨 Found ${newMessages.length} new agent message(s)`);
+              console.log(`📨 Found ${newMessages.length} new agent message(s):`, newMessages.map(m => ({ id: m.id, text: m.message_text?.substring(0, 30) })));
+            } else {
+              console.log(`📊 No new agent messages (checked ${messages.filter(m => m.message_type === 'human').length} human messages, ${this.state.displayedMessageIds.length} already displayed)`);
             }
             
             newMessages.forEach(msg => {
-              console.log('📨 Displaying agent message:', msg.message_text.substring(0, 50));
+              console.log('📨 Displaying agent message:', {
+                id: msg.id,
+                text: msg.message_text?.substring(0, 50),
+                agent: msg.agent_name,
+                type: msg.message_type
+              });
               this.addBotMessage(msg.message_text, true, msg.agent_name || 'Agent');
               this.state.displayedMessageIds.push(msg.id);
             });
           } else {
-            console.error('Failed to fetch messages:', response.status, response.statusText);
+            const errorText = await response.text();
+            console.error('❌ Failed to fetch messages:', response.status, response.statusText, errorText);
           }
         } catch (error) {
           console.error('Failed to poll for messages:', error);
