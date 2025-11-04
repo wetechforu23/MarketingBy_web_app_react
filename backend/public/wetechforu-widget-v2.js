@@ -896,15 +896,21 @@
     // ✅ Maximize/Expand widget
     maximizeWidget(element) {
       const isMaximized = element.classList.contains('maximized');
+      const expandBtn = document.getElementById('wetechforu-expand-button');
       
       if (isMaximized) {
         // Restore previous size
         element.classList.remove('maximized');
-        const saved = localStorage.getItem(`wetechforu_widget_position_${this.config.widgetKey}`);
-        if (saved) {
-          const position = JSON.parse(saved);
-          if (position.width) element.style.width = position.width;
-          if (position.height) element.style.height = position.height;
+        const savedSize = localStorage.getItem(`wetechforu_widget_size_before_maximize_${this.config.widgetKey}`);
+        if (savedSize) {
+          try {
+            const size = JSON.parse(savedSize);
+            if (size.width) element.style.width = size.width;
+            if (size.height) element.style.height = size.height;
+          } catch (e) {
+            element.style.width = '360px';
+            element.style.height = '500px';
+          }
         } else {
           element.style.width = '360px';
           element.style.height = '500px';
@@ -914,14 +920,18 @@
         element.style.bottom = '80px';
         element.style.top = '';
         
-        const expandBtn = document.getElementById('wetechforu-expand-button');
-        if (expandBtn) expandBtn.textContent = '⛶';
+        if (expandBtn) expandBtn.textContent = '⛶'; // Maximize icon
+        if (expandBtn) expandBtn.title = 'Maximize';
       } else {
-        // Maximize to full screen (with padding)
-        const savedWidth = element.style.width || '360px';
-        const savedHeight = element.style.height || '500px';
-        localStorage.setItem(`wetechforu_widget_size_before_maximize_${this.config.widgetKey}`, JSON.stringify({ width: savedWidth, height: savedHeight }));
+        // Save current size before maximizing
+        const currentWidth = element.style.width || element.offsetWidth + 'px';
+        const currentHeight = element.style.height || element.offsetHeight + 'px';
+        localStorage.setItem(`wetechforu_widget_size_before_maximize_${this.config.widgetKey}`, JSON.stringify({ 
+          width: currentWidth, 
+          height: currentHeight 
+        }));
         
+        // Maximize to full screen (with padding)
         element.classList.add('maximized');
         element.style.width = 'calc(100vw - 40px)';
         element.style.height = 'calc(100vh - 100px)';
@@ -930,8 +940,8 @@
         element.style.bottom = '80px';
         element.style.top = '20px';
         
-        const expandBtn = document.getElementById('wetechforu-expand-button');
-        if (expandBtn) expandBtn.textContent = '⛶'; // Restore icon
+        if (expandBtn) expandBtn.textContent = '⛶'; // Restore icon (both are same, but can be changed)
+        if (expandBtn) expandBtn.title = 'Restore';
         
         this.saveWidgetPosition(element);
       }
