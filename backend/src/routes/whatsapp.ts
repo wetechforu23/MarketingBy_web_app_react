@@ -660,7 +660,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
             REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
             OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
           )
-        ORDER BY wconv.last_agent_activity_at DESC NULLS LAST, hr.created_at DESC
+        ORDER BY wconv.last_activity_at DESC NULLS LAST, hr.created_at DESC
         LIMIT 1
       `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
     }
