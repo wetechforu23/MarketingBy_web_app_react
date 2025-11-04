@@ -1740,9 +1740,18 @@
         if (response.ok) {
           const data = await response.json();
           console.log('✅ Intro data saved successfully');
+          // Double-check that intro is marked as complete
+          this.state.introFlow.isComplete = true;
+          console.log('✅ Intro flow completion confirmed - messages should now work');
+        } else {
+          console.error('Failed to save intro data:', response.status, response.statusText);
+          // Still mark as complete locally so user can continue
+          this.state.introFlow.isComplete = true;
         }
       } catch (error) {
         console.error('Failed to save intro data:', error);
+        // Mark as complete locally even if save fails, so user can continue
+        this.state.introFlow.isComplete = true;
       }
 
       // 🏥 Show HIPAA/Emergency Disclaimer for Healthcare Clients
