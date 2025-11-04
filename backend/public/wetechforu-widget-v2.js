@@ -1739,10 +1739,24 @@
         e.preventDefault();
         
         if (resizeEdge === 'corner') {
+          // ✅ Top-left corner resize: dragging down/right increases size, dragging up/left decreases
           const newWidth = Math.max(300, Math.min(window.innerWidth - 40, startWidth + deltaX));
           const newHeight = Math.max(400, Math.min(window.innerHeight - 100, startHeight + deltaY));
-        element.style.width = newWidth + 'px';
-        element.style.height = newHeight + 'px';
+          
+          // ✅ Adjust position when resizing from top-left
+          const newLeft = startLeft + (startWidth - newWidth);
+          const newTop = startTop + (startHeight - newHeight);
+          
+          // Keep within viewport
+          const finalLeft = Math.max(0, newLeft);
+          const finalTop = Math.max(0, newTop);
+          
+          element.style.width = newWidth + 'px';
+          element.style.height = newHeight + 'px';
+          element.style.left = finalLeft + 'px';
+          element.style.top = finalTop + 'px';
+          element.style.bottom = 'auto';
+          
           // ✅ Save position during resize
           this.saveWidgetPosition(element);
         } else if (resizeEdge === 'right') {
