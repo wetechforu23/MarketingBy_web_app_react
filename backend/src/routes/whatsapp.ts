@@ -648,7 +648,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
           
           // Find conversation by user name
           const nameMatchResult = await pool.query(`
-            SELECT DISTINCT wconv.id as conversation_id
+            SELECT DISTINCT wconv.id as conversation_id, wconv.last_activity_at
             FROM widget_configs wc
             JOIN handover_requests hr ON hr.widget_id = wc.id
             JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
@@ -663,7 +663,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
                 LOWER(wconv.visitor_name) LIKE LOWER($2 || '%')
                 OR LOWER(wconv.visitor_name) LIKE LOWER('%' || $2 || '%')
               )
-            ORDER BY wconv.last_activity_at DESC NULLS LAST
+            ORDER BY wconv.last_activity_at DESC NULLS LAST, wconv.id DESC
             LIMIT 1
           `, [fromNumber.replace(/[\s\-\(\)]/g, ''), userName]);
           
@@ -681,7 +681,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
             
             // Find conversation by session ID prefix
             const sessionMatchResult = await pool.query(`
-              SELECT DISTINCT wconv.id as conversation_id
+              SELECT DISTINCT wconv.id as conversation_id, wconv.last_activity_at
               FROM widget_configs wc
               JOIN handover_requests hr ON hr.widget_id = wc.id
               JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
@@ -693,7 +693,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
                   OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
                 )
                 AND wconv.visitor_session_id LIKE $2 || '%'
-              ORDER BY wconv.last_activity_at DESC NULLS LAST
+              ORDER BY wconv.last_activity_at DESC NULLS LAST, wconv.id DESC
               LIMIT 1
             `, [fromNumber.replace(/[\s\-\(\)]/g, ''), sessionIdPrefix]);
             
@@ -751,7 +751,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
         console.log(`⚠️ Multiple chats enabled but agent didn't specify conversation ID - sending active conversations list`);
         
         // Get all active WhatsApp conversations for this number
-        const activeConversations = await pool.query(`
+          const activeConversations = await pool.query(`
           SELECT DISTINCT wconv.id, wconv.visitor_name, wconv.visitor_session_id, 
                  wconv.last_activity_at, hr.created_at as handover_requested_at
           FROM widget_configs wc
@@ -764,7 +764,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
               REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
               OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
             )
-          ORDER BY wconv.last_activity_at DESC NULLS LAST, hr.created_at DESC
+          ORDER BY wconv.last_activity_at DESC NULLS LAST, wconv.id DESC
           LIMIT 10
         `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
         
@@ -844,7 +844,8 @@ router.post('/incoming', async (req: Request, res: Response) => {
       clientResult = await pool.query(`
         SELECT DISTINCT wc.id as widget_id, wc.client_id, wc.handover_whatsapp_number,
                hr.conversation_id, hr.id as handover_request_id, hr.created_at,
-               wc.enable_multiple_whatsapp_chats, wconv.visitor_name, wconv.visitor_session_id
+               wc.enable_multiple_whatsapp_chats, wconv.visitor_name, wconv.visitor_session_id,
+               wconv.last_activity_at
         FROM widget_configs wc
         JOIN handover_requests hr ON hr.widget_id = wc.id
         JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
@@ -855,7 +856,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
             REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
             OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
           )
-        ORDER BY wconv.last_activity_at DESC NULLS LAST, hr.created_at DESC
+        ORDER BY wconv.last_activity_at DESC NULLS LAST, wconv.id DESC
         LIMIT 1
       `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
     }

@@ -704,15 +704,15 @@ export class WhatsAppService {
           actual_cost_today,
           actual_cost_this_month,
           total_actual_cost
-        ) VALUES ($1, $2, 1, 1, 1, $3, $3, $3, $4, $4, $4, CURRENT_DATE, date_trunc('month', CURRENT_DATE), COALESCE($5, 0), COALESCE($5, 0), COALESCE($5, 0))
+        ) VALUES ($1, $2, 1, 1, 1, $3::integer, $3::integer, $3::integer, $4, $4, $4, CURRENT_DATE, date_trunc('month', CURRENT_DATE), COALESCE($5, 0), COALESCE($5, 0), COALESCE($5, 0))
         ON CONFLICT (client_id, widget_id)
         DO UPDATE SET
           messages_sent_today = whatsapp_usage.messages_sent_today + 1,
           messages_sent_this_month = whatsapp_usage.messages_sent_this_month + 1,
           total_messages_sent = whatsapp_usage.total_messages_sent + 1,
-          conversations_today = whatsapp_usage.conversations_today + $3,
-          conversations_this_month = whatsapp_usage.conversations_this_month + $3,
-          total_conversations = whatsapp_usage.total_conversations + $3,
+          conversations_today = whatsapp_usage.conversations_today + $3::integer,
+          conversations_this_month = whatsapp_usage.conversations_this_month + $3::integer,
+          total_conversations = whatsapp_usage.total_conversations + $3::integer,
           estimated_cost_today = whatsapp_usage.estimated_cost_today + $4,
           estimated_cost_this_month = whatsapp_usage.estimated_cost_this_month + $4,
           total_estimated_cost = whatsapp_usage.total_estimated_cost + $4,

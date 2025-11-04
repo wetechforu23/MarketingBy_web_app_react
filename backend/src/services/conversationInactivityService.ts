@@ -39,16 +39,23 @@ export class ConversationInactivityService {
         SELECT column_name 
         FROM information_schema.columns 
         WHERE table_name = 'widget_conversations' 
-          AND column_name IN ('last_agent_activity_at', 'last_visitor_activity_at')
+          AND column_name IN ('last_agent_activity_at', 'last_visitor_activity_at', 'extension_reminders_count', 'visitor_extension_reminders_count', 'extension_granted_until')
       `);
       
       const hasAgentActivityColumn = columnCheck.rows.some(r => r.column_name === 'last_agent_activity_at');
       const hasVisitorActivityColumn = columnCheck.rows.some(r => r.column_name === 'last_visitor_activity_at');
+      const hasExtensionRemindersCount = columnCheck.rows.some(r => r.column_name === 'extension_reminders_count');
+      const hasVisitorExtensionRemindersCount = columnCheck.rows.some(r => r.column_name === 'visitor_extension_reminders_count');
+      const hasExtensionGrantedUntil = columnCheck.rows.some(r => r.column_name === 'extension_granted_until');
       
       // Build SELECT clause based on available columns
       const activitySelect = hasAgentActivityColumn && hasVisitorActivityColumn
         ? `wc.last_agent_activity_at, wc.last_visitor_activity_at,`
         : `wc.last_activity_at as last_agent_activity_at, wc.last_activity_at as last_visitor_activity_at,`;
+      
+      const extensionSelect = hasExtensionRemindersCount && hasVisitorExtensionRemindersCount && hasExtensionGrantedUntil
+        ? `wc.extension_reminders_count, wc.visitor_extension_reminders_count, wc.extension_granted_until,`
+        : `0 as extension_reminders_count, 0 as visitor_extension_reminders_count, NULL::timestamp as extension_granted_until,`;
       
       // Get active conversations with agent handoff
       const conversations = await pool.query(`
@@ -58,9 +65,7 @@ export class ConversationInactivityService {
           w.client_id,
           wc.last_activity_at,
           ${activitySelect}
-          COALESCE(wc.extension_reminders_count, 0) as extension_reminders_count,
-          COALESCE(wc.visitor_extension_reminders_count, 0) as visitor_extension_reminders_count,
-          wc.extension_granted_until,
+          ${extensionSelect}
           wc.handover_whatsapp_number,
           wc.visitor_email,
           wc.visitor_name,
