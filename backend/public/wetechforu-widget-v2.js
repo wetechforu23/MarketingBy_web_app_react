@@ -1840,12 +1840,25 @@
     async openChat() {
       const chatWindow = document.getElementById('wetechforu-chat-window');
       const badge = document.getElementById('wetechforu-badge');
+      const chatButton = document.getElementById('wetechforu-chat-button');
       
-      if (!chatWindow) return;
+      if (!chatWindow) {
+        console.error('❌ Chat window not found');
+        return;
+      }
       
+      // ✅ Ensure chat window is visible and properly positioned
       chatWindow.style.display = 'flex';
-      badge.style.display = 'none';
-      badge.textContent = '1'; // Reset badge
+      chatWindow.style.visibility = 'visible';
+      chatWindow.style.opacity = '1';
+      chatWindow.style.zIndex = '999998';
+      chatWindow.style.pointerEvents = 'auto';
+      
+      if (badge) {
+        badge.style.display = 'none';
+        badge.textContent = '1'; // Reset badge
+      }
+      
       this.state.isOpen = true;
       
       // ✅ Set default size if no saved position (bigger default - Industry Standard)
@@ -1860,7 +1873,12 @@
       // ✅ Ensure widget is within viewport after loading position
       setTimeout(() => {
         this.ensureWidgetInViewport(chatWindow);
+        // ✅ Force visibility after viewport adjustment
+        chatWindow.style.display = 'flex';
+        chatWindow.style.visibility = 'visible';
       }, 100);
+      
+      console.log('✅ Chat opened - widget should be visible');
 
       // 📊 Track chat opened event
       this.trackEvent('chat_opened', {
