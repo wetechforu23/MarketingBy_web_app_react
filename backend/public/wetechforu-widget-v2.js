@@ -288,7 +288,7 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
           ">1</div>
 
-          <!-- Chat Window -->
+            <!-- Chat Window -->
           <div id="wetechforu-chat-window" style="
             position: absolute;
             ${this.config.position.includes('right') ? 'right: 0;' : 'left: 0;'}
@@ -304,6 +304,7 @@
             flex-direction: column;
             overflow: hidden;
             animation: slideUp 0.3s ease-out;
+            cursor: default;
           ">
             <!-- Header -->
             <div style="
@@ -390,6 +391,7 @@
               overflow-y: auto;
               padding: 20px;
               background: #f8f9fa;
+              cursor: default;
             ">
               <!-- Messages will be inserted here -->
             </div>
@@ -690,7 +692,7 @@
             right: 0;
             width: 32px;
             height: 32px;
-            cursor: nwse-resize;
+            cursor: nwse-resize !important;
             background: rgba(0,0,0,0.05);
             border-top-left-radius: 8px;
             display: flex;
@@ -699,11 +701,47 @@
             transition: all 0.2s;
             z-index: 1000;
             color: ${this.config.primaryColor};
+            pointer-events: auto;
           }
           
           .wetechforu-resize-handle:hover {
             background: rgba(0,0,0,0.1);
             transform: scale(1.1);
+          }
+          
+          /* ✅ Resize handles - only show cursor on edges */
+          .wetechforu-resize-right,
+          .wetechforu-resize-left {
+            cursor: ew-resize !important;
+            pointer-events: auto;
+          }
+          
+          .wetechforu-resize-top,
+          .wetechforu-resize-bottom {
+            cursor: ns-resize !important;
+            pointer-events: auto;
+          }
+          
+          /* ✅ Ensure main widget doesn't change cursor */
+          #wetechforu-chat-window {
+            cursor: default !important;
+          }
+          
+          #wetechforu-chat-window * {
+            cursor: inherit;
+          }
+          
+          /* ✅ Restore normal cursors for interactive elements */
+          #wetechforu-input,
+          #wetechforu-send-button,
+          button,
+          a {
+            cursor: pointer !important;
+          }
+          
+          input[type="text"],
+          textarea {
+            cursor: text !important;
           }
           
           #wetechforu-expand-button:hover {
@@ -951,19 +989,20 @@
       let startX, startY, startWidth, startHeight, startLeft, startTop;
       let resizeEdge = null; // 'right', 'bottom', 'corner', 'left', 'top'
       
-      // ✅ Enable resize from all edges
+      // ✅ Enable resize from all edges - BUT make them very narrow so cursor only changes on border
       const edges = {
-        right: { width: '100%', height: '100%', top: 0, left: 'auto', right: 0, bottom: 'auto', cursor: 'ew-resize' },
-        bottom: { width: '100%', height: '100%', top: 'auto', left: 0, right: 'auto', bottom: 0, cursor: 'ns-resize' },
-        corner: { width: '20px', height: '20px', top: 'auto', left: 'auto', right: 0, bottom: 0, cursor: 'nwse-resize' },
-        left: { width: '4px', height: '100%', top: 0, left: 0, right: 'auto', bottom: 'auto', cursor: 'ew-resize' },
-        top: { width: '100%', height: '4px', top: 0, left: 0, right: 'auto', bottom: 'auto', cursor: 'ns-resize' }
+        right: { width: '8px', height: '100%', top: 0, left: 'auto', right: 0, bottom: 'auto', cursor: 'ew-resize' },
+        bottom: { width: '100%', height: '8px', top: 'auto', left: 0, right: 'auto', bottom: 0, cursor: 'ns-resize' },
+        corner: { width: '32px', height: '32px', top: 'auto', left: 'auto', right: 0, bottom: 0, cursor: 'nwse-resize' },
+        left: { width: '8px', height: '100%', top: 0, left: 0, right: 'auto', bottom: 'auto', cursor: 'ew-resize' },
+        top: { width: '100%', height: '8px', top: 0, left: 0, right: 'auto', bottom: 'auto', cursor: 'ns-resize' }
       };
       
-      // Create resize handles for all edges
+      // ✅ Create resize handles for all edges - narrow handles that don't interfere with content
       Object.keys(edges).forEach(edge => {
         if (edge === 'corner') {
-          // Use existing handle
+          // Use existing handle - only show cursor on handle itself
+          handle.style.pointerEvents = 'auto';
           handle.style.cursor = 'nwse-resize';
           handle.addEventListener('mousedown', (e) => {
             e.stopPropagation();
@@ -985,6 +1024,7 @@
             ${Object.entries(edges[edge]).map(([k, v]) => `${k}: ${v};`).join(' ')}
             z-index: 1000;
             background: transparent;
+            pointer-events: auto;
           `;
           element.appendChild(edgeHandle);
           
@@ -1002,6 +1042,9 @@
           });
         }
       });
+      
+      // ✅ Ensure main widget element doesn't change cursor except on borders
+      element.style.cursor = 'default';
       
       const handleMouseMove = (e) => {
         if (!isResizing) return;
