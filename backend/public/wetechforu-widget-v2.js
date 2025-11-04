@@ -64,6 +64,7 @@
       conversationEnded: false, // ✅ Track if conversation has ended
       popupWindow: null, // ✅ Track popup window for maximize feature
       popupCheckInterval: null, // ✅ Check if popup is closed
+      clickOutsideListener: null, // ✅ Track click outside listener for cleanup
       unsuccessfulAttempts: 0, // Track failed knowledge base matches
       compatibility: {
         supported: true,
@@ -295,9 +296,9 @@
             position: absolute;
             ${this.config.position.includes('right') ? 'right: 0;' : 'left: 0;'}
             bottom: 80px;
-            width: 360px;
+            width: 380px;
             max-width: calc(100vw - 20px);
-            height: 500px;
+            height: 600px;
             max-height: calc(100vh - 100px);
             background: white;
             border-radius: 16px;
@@ -410,10 +411,10 @@
               justify-content: center;
             "></div>
             
-            <!-- Resize Handle - ✅ Top-left corner (Industry Standard) -->
+            <!-- Resize Handle - ✅ Top-left corner (Industry Standard) - More visible -->
             <div class="wetechforu-resize-handle" id="wetechforu-resize-handle" title="Drag to resize">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M8 8 L16 16 M16 8 L8 16" stroke-linecap="round"/>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M8 8 L16 16 M16 8 L8 16" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </div>
 
@@ -687,28 +688,40 @@
             user-select: none;
           }
           
-          /* Resize handle - ✅ Top-left corner (Industry Standard) */
+          /* Resize handle - ✅ Top-left corner (Industry Standard) - More visible */
           .wetechforu-resize-handle {
             position: absolute;
             top: 0;
             left: 0;
-            width: 32px;
-            height: 32px;
+            width: 40px;
+            height: 40px;
             cursor: nwse-resize !important;
-            background: rgba(0,0,0,0.05);
-            border-bottom-right-radius: 8px;
+            background: rgba(0,0,0,0.08);
+            border-bottom-right-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.2s;
-            z-index: 1000;
-            color: ${this.config.primaryColor};
+            z-index: 1001;
+            color: ${this.config.primaryColor || '#4682B4'};
             pointer-events: auto;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           }
           
           .wetechforu-resize-handle:hover {
-            background: rgba(0,0,0,0.1);
-            transform: scale(1.1);
+            background: rgba(0,0,0,0.15);
+            transform: scale(1.15);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+          }
+          
+          .wetechforu-resize-handle svg {
+            width: 18px;
+            height: 18px;
+            opacity: 0.7;
+          }
+          
+          .wetechforu-resize-handle:hover svg {
+            opacity: 1;
           }
           
           /* ✅ Resize handles - only show cursor on edges */
@@ -1708,9 +1721,9 @@
           // Keep within viewport
           const finalLeft = Math.max(0, newLeft);
           const finalTop = Math.max(0, newTop);
-          
-          element.style.width = newWidth + 'px';
-          element.style.height = newHeight + 'px';
+        
+        element.style.width = newWidth + 'px';
+        element.style.height = newHeight + 'px';
           element.style.left = finalLeft + 'px';
           element.style.top = finalTop + 'px';
           element.style.bottom = 'auto';
@@ -1763,23 +1776,36 @@
       document.addEventListener('mouseup', handleMouseUp);
     },
     
-    // ✅ Setup click outside to minimize
+    // ✅ Setup click outside to minimize (not close - so widget can be reopened)
     setupClickOutsideToMinimize(chatWindow) {
-      document.addEventListener('click', (e) => {
+      // Use a single event listener to prevent duplicates
+      if (this.state.clickOutsideListener) {
+        document.removeEventListener('click', this.state.clickOutsideListener);
+      }
+      
+      this.state.clickOutsideListener = (e) => {
         // Only minimize if chat is open and click is outside
         if (!this.state.isOpen) return;
         
+        // Don't minimize if clicking on resize handles or within widget
         const chatButton = document.getElementById('wetechforu-chat-button');
         const clickedInside = chatWindow.contains(e.target) || 
-                             (chatButton && chatButton.contains(e.target));
+                             (chatButton && chatButton.contains(e.target)) ||
+                             e.target.closest('.wetechforu-resize-handle') ||
+                             e.target.closest('.wetechforu-resize-right') ||
+                             e.target.closest('.wetechforu-resize-bottom') ||
+                             e.target.closest('.wetechforu-resize-left') ||
+                             e.target.closest('.wetechforu-resize-top');
         
         if (!clickedInside) {
-          this.minimizeChat();
+          this.minimizeChat(); // Minimize (preserves state), not close
         }
-      });
+      };
+      
+      document.addEventListener('click', this.state.clickOutsideListener);
     },
     
-    // ✅ Minimize chat (preserve conversation state)
+    // ✅ Minimize chat (preserve conversation state - can be reopened)
     minimizeChat() {
       const chatWindow = document.getElementById('wetechforu-chat-window');
       const badge = document.getElementById('wetechforu-badge');
@@ -1791,8 +1817,9 @@
       this.state.isOpen = false;
       
       // ✅ DO NOT clear conversation or localStorage - preserve state
-      // ✅ DO NOT mark as closed - allow reopening
-      console.log('📦 Chat minimized - conversation state preserved');
+      // ✅ DO NOT mark as closed - allow reopening by clicking badge
+      // ✅ DO NOT set sessionStorage closed flag - so it can reopen
+      console.log('📦 Chat minimized - conversation state preserved, can reopen by clicking badge');
       
       // ✅ Stop polling when minimized (will resume on reopen with faster interval)
       this.stopPollingForAgentMessages();
@@ -1813,10 +1840,19 @@
     async openChat() {
       const chatWindow = document.getElementById('wetechforu-chat-window');
       const badge = document.getElementById('wetechforu-badge');
+      
+      if (!chatWindow) return;
+      
       chatWindow.style.display = 'flex';
       badge.style.display = 'none';
       badge.textContent = '1'; // Reset badge
       this.state.isOpen = true;
+      
+      // ✅ Set default size if no saved position (bigger default - Industry Standard)
+      if (!localStorage.getItem(`wetechforu_widget_position_${this.config.widgetKey}`)) {
+        chatWindow.style.width = '380px';
+        chatWindow.style.height = '600px';
+      }
       
       // ✅ Restore saved position and size
       this.loadWidgetPosition(chatWindow);
@@ -2000,7 +2036,7 @@
     // ✅ Combined close confirmation with email option (Industry Standard)
     showCloseConfirmationWithEmail() {
       return new Promise((resolve) => {
-        const chatWindow = document.getElementById('wetechforu-chat-window');
+      const chatWindow = document.getElementById('wetechforu-chat-window');
         const messagesContainer = document.getElementById('wetechforu-messages');
         
         if (!chatWindow || !messagesContainer) {
