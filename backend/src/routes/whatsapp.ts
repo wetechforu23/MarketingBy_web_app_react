@@ -614,9 +614,8 @@ router.post('/incoming', async (req: Request, res: Response) => {
         JOIN handover_requests hr ON hr.widget_id = wc.id
         JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
         WHERE hr.requested_method = 'whatsapp'
-          AND hr.status IN ('notified', 'completed')
+          AND hr.status IN ('pending', 'notified', 'completed')
           AND wconv.status = 'active'
-          AND wconv.agent_handoff = true
           AND wconv.id = $1
           AND (
             REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $2
@@ -655,9 +654,8 @@ router.post('/incoming', async (req: Request, res: Response) => {
         JOIN handover_requests hr ON hr.widget_id = wc.id
         JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
         WHERE hr.requested_method = 'whatsapp'
-          AND hr.status IN ('notified', 'completed')
+          AND hr.status IN ('pending', 'notified', 'completed')
           AND wconv.status = 'active'
-          AND wconv.agent_handoff = true
           AND (
             REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
             OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
@@ -880,6 +878,16 @@ router.post('/incoming', async (req: Request, res: Response) => {
       return res.status(200).end(); // Empty response prevents "OK" auto-replies
     }
 
+    // ✅ IMPORTANT: Set agent_handoff = true when first message is received
+    // This ensures the conversation is marked as taken over by agent
+    await pool.query(`
+      UPDATE widget_conversations
+      SET agent_handoff = true,
+          handoff_requested = false,
+          updated_at = NOW()
+      WHERE id = $1 AND agent_handoff = false
+    `, [conversationId]);
+    
     // Store agent's WhatsApp message in widget_messages (normal message, not stop command)
     await pool.query(`
       INSERT INTO widget_messages (
