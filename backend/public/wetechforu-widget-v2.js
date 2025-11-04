@@ -2122,14 +2122,35 @@
               rect.right > window.innerWidth + 100 ||
               rect.bottom > window.innerHeight + 100) {
             console.warn('⚠️ Widget is significantly off-screen - resetting position');
-            this.resetWidgetPosition(chatWindow);
+            
+            // ✅ Use direct reset logic instead of calling method (scope issue fix)
+            const isRight = this.config.position.includes('right');
+            chatWindow.style.width = '380px';
+            chatWindow.style.height = '600px';
+            chatWindow.style.bottom = '80px';
+            chatWindow.style.top = 'auto';
+            
+            if (isRight) {
+              chatWindow.style.right = '20px';
+              chatWindow.style.left = 'auto';
+            } else {
+              chatWindow.style.left = '20px';
+              chatWindow.style.right = 'auto';
+            }
+            
+            // ✅ Clear saved position
+            localStorage.removeItem(`wetechforu_widget_position_${this.config.widgetKey}`);
+            localStorage.removeItem(`wetechforu_widget_size_${this.config.widgetKey}`);
             
             // ✅ Force visibility again after reset
             setTimeout(() => {
               chatWindow.style.setProperty('display', 'flex', 'important');
               chatWindow.style.setProperty('visibility', 'visible', 'important');
               chatWindow.style.setProperty('opacity', '1', 'important');
+              chatWindow.style.setProperty('z-index', '999998', 'important');
             }, 50);
+            
+            console.log('✅ Widget position reset to safe default');
           }
         }
       }, 100);
