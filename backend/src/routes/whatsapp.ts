@@ -1038,6 +1038,16 @@ router.post('/incoming', async (req: Request, res: Response) => {
 
     // ✅ IMPORTANT: Set agent_handoff = true when first message is received
     // This ensures the conversation is marked as taken over by agent
+    // Also check if this conversation has an assigned WhatsApp number (for separate threading)
+    const convResult = await pool.query(`
+      SELECT assigned_whatsapp_number, widget_id
+      FROM widget_conversations
+      WHERE id = $1
+    `, [conversationId]);
+    
+    const assignedNumber = convResult.rows[0]?.assigned_whatsapp_number;
+    const widgetId = convResult.rows[0]?.widget_id;
+    
     await pool.query(`
       UPDATE widget_conversations
       SET agent_handoff = true,
@@ -1045,6 +1055,11 @@ router.post('/incoming', async (req: Request, res: Response) => {
           updated_at = NOW()
       WHERE id = $1 AND agent_handoff = false
     `, [conversationId]);
+    
+    // Log if using separate number for this conversation
+    if (assignedNumber && assignedNumber !== fromNumber.replace(/[\s\-\(\)]/g, '')) {
+      console.log(`📱 Conversation ${conversationId} using separate WhatsApp number: ${assignedNumber} (incoming from: ${fromNumber})`);
+    }
     
     // Store agent's WhatsApp message in widget_messages (normal message, not stop command)
     await pool.query(`

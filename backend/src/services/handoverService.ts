@@ -441,9 +441,65 @@ export class HandoverService {
       const clientName = clientInfo.rows.length > 0 ? clientInfo.rows[0].client_name : 'Client';
 
       // 3) Determine client's WhatsApp number for handover
+      // ✅ NEW: Support multiple WhatsApp numbers - assign one per conversation
       let clientHandoverNumber = widgetConfig.rows[0].handover_whatsapp_number;
+      let assignedNumber = null;
       
-      // If handover_whatsapp_number is not set, try to get it from WhatsApp credentials
+      // Check if widget has a number pool configured
+      const widgetDetails = await client.query(`
+        SELECT whatsapp_number_pool, handover_whatsapp_number
+        FROM widget_configs
+        WHERE id = $1
+      `, [handoverRequest.widget_id]);
+      
+      const numberPool = widgetDetails.rows[0]?.whatsapp_number_pool || null;
+      
+      // If number pool exists and has active numbers, assign one to this conversation
+      if (numberPool && Array.isArray(numberPool) && numberPool.length > 0) {
+        // Filter to active numbers only
+        const activeNumbers = numberPool.filter((num: any) => num.is_active !== false);
+        
+        if (activeNumbers.length > 0) {
+          // Find least-used active number (load balancing)
+          const usageCounts = await Promise.all(
+            activeNumbers.map(async (num: any) => {
+              const countResult = await client.query(`
+                SELECT COUNT(*) as count
+                FROM widget_conversations
+                WHERE widget_id = $1
+                  AND assigned_whatsapp_number = $2
+                  AND status = 'active'
+              `, [handoverRequest.widget_id, num.number]);
+              return {
+                number: num.number,
+                displayName: num.display_name || num.number,
+                usage: parseInt(countResult.rows[0]?.count || '0')
+              };
+            })
+          );
+          
+          // Sort by usage (least used first) and assign
+          usageCounts.sort((a, b) => a.usage - b.usage);
+          assignedNumber = usageCounts[0].number;
+          
+          // Update conversation with assigned number
+          await client.query(`
+            UPDATE widget_conversations
+            SET assigned_whatsapp_number = $1
+            WHERE id = $2
+          `, [assignedNumber, handoverRequest.conversation_id]);
+          
+          console.log(`✅ Assigned WhatsApp number ${assignedNumber} (${usageCounts[0].displayName}) to conversation ${handoverRequest.conversation_id}`);
+          clientHandoverNumber = assignedNumber;
+        }
+      }
+      
+      // If no number assigned from pool, use default
+      if (!clientHandoverNumber) {
+        clientHandoverNumber = widgetConfig.rows[0].handover_whatsapp_number;
+      }
+      
+      // If handover_whatsapp_number is still not set, try to get it from WhatsApp credentials
       if (!clientHandoverNumber) {
         const { WhatsAppService } = await import('./whatsappService');
         const whatsappService = WhatsAppService.getInstance();

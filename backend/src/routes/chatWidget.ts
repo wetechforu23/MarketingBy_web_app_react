@@ -996,7 +996,15 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
           const { WhatsAppService } = await import('../services/whatsappService');
           const whatsappService = WhatsAppService.getInstance();
           
-          const handoverNumber = convInfo.rows[0].handover_whatsapp_number;
+          // ✅ Check if conversation has an assigned WhatsApp number (separate threading)
+          const convDetails = await pool.query(`
+            SELECT assigned_whatsapp_number
+            FROM widget_conversations
+            WHERE id = $1
+          `, [conversation_id]);
+          
+          // Use assigned number if available, otherwise use default
+          let handoverNumber = convDetails.rows[0]?.assigned_whatsapp_number || convInfo.rows[0].handover_whatsapp_number;
           const visitorName = convInfo.rows[0].visitor_name || 'Visitor';
           
           // Normalize phone number for WhatsApp
@@ -1005,6 +1013,11 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
             cleanNumber = '+' + cleanNumber.replace(/\D/g, '');
           } else {
             cleanNumber = '+' + cleanNumber.replace(/[^\d]/g, '');
+          }
+          
+          // Log if using separate number
+          if (convDetails.rows[0]?.assigned_whatsapp_number) {
+            console.log(`📱 Using assigned WhatsApp number ${cleanNumber} for conversation ${conversation_id} (separate thread)`);
           }
 
           // Check if multiple chats are enabled
