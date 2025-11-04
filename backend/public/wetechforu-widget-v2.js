@@ -277,6 +277,9 @@
         ">
           <!-- Chat Button -->
           <button id="wetechforu-chat-button" style="
+            position: fixed !important;
+            ${this.config.position.includes('right') ? 'right: 20px;' : 'left: 20px;'}
+            ${this.config.position.includes('top') ? 'top: 20px;' : 'bottom: 20px;'}
             width: 60px;
             height: 60px;
             border-radius: 50%;
@@ -284,11 +287,18 @@
             border: none;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             cursor: pointer;
-            display: flex;
+            display: flex !important;
             align-items: center;
             justify-content: center;
             transition: transform 0.2s, box-shadow 0.2s;
             animation: pulse 2s infinite;
+            z-index: 999999 !important;
+            overflow: visible !important;
+            clip: auto !important;
+            clip-path: none !important;
+            transform: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
           ">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
               <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
@@ -530,9 +540,38 @@
             }
           }
 
+          #wetechforu-chat-button {
+            overflow: visible !important;
+            clip: auto !important;
+            clip-path: none !important;
+            max-width: none !important;
+            max-height: none !important;
+            min-width: 60px !important;
+            min-height: 60px !important;
+          }
+          
           #wetechforu-chat-button:hover {
             transform: scale(1.1);
             box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+          }
+          
+          /* ✅ Ensure button is always fully visible - prevent clipping */
+          body, html {
+            overflow-x: visible !important;
+          }
+          
+          /* ✅ Prevent parent containers from clipping the button */
+          * {
+            overflow-x: visible !important;
+          }
+          
+          @media (max-width: 768px) {
+            #wetechforu-chat-button {
+              right: 15px !important;
+              bottom: 15px !important;
+              width: 56px !important;
+              height: 56px !important;
+            }
           }
 
           #wetechforu-input:focus {
