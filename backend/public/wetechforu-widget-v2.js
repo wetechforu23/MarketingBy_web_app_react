@@ -806,12 +806,16 @@
       const chatWindow = document.getElementById('wetechforu-chat-window');
       const resizeHandle = document.getElementById('wetechforu-resize-handle');
 
-      // ✅ Ensure chat button is visible and clickable
+      // ✅ Ensure chat button is visible and clickable - Industry Standard Approach
       if (chatButton) {
-        chatButton.style.display = 'flex';
-        chatButton.style.zIndex = '999999';
-        chatButton.style.pointerEvents = 'auto';
-        chatButton.style.cursor = 'pointer';
+        // ✅ Force button visibility and clickability
+        chatButton.style.setProperty('display', 'flex', 'important');
+        chatButton.style.setProperty('z-index', '999999', 'important');
+        chatButton.style.setProperty('pointer-events', 'auto', 'important');
+        chatButton.style.setProperty('cursor', 'pointer', 'important');
+        chatButton.style.setProperty('position', 'fixed', 'important');
+        chatButton.style.setProperty('visibility', 'visible', 'important');
+        chatButton.style.setProperty('opacity', '1', 'important');
         
         // ✅ Remove any existing listeners to prevent duplicates
         const newButton = chatButton.cloneNode(true);
@@ -826,21 +830,31 @@
           
           // ✅ Force open chat (don't toggle if already open)
           if (!this.state.isOpen) {
+            console.log('🔓 Chat is closed - opening now');
             this.openChat();
           } else {
             console.log('ℹ️ Chat already open');
           }
         };
         
-        newButton.addEventListener('click', handleClick, true); // Use capture phase
+        // ✅ Use both capture and bubble phases for maximum reliability
+        newButton.addEventListener('click', handleClick, true); // Capture phase
+        newButton.addEventListener('click', handleClick, false); // Bubble phase
         newButton.addEventListener('mousedown', (e) => {
           e.preventDefault();
           e.stopPropagation();
         }, true);
         
-        console.log('✅ Chat button event listener attached');
+        // ✅ Also handle touch events for mobile
+        newButton.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleClick(e);
+        }, true);
+        
+        console.log('✅ Chat button event listener attached (multiple phases for reliability)');
       } else {
-        console.error('❌ Chat button not found');
+        console.error('❌ Chat button not found - widget may not work');
       }
       closeButton.addEventListener('click', () => this.closeChat());
       minimizeButton.addEventListener('click', (e) => {

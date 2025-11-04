@@ -349,6 +349,18 @@ export class WhatsAppService {
       const costToTrack = actualPrice || 0.009;
       await this.trackUsage(clientId, widgetId, true, costToTrack); // true = track as conversation
       
+      console.log(`✅ WhatsApp template message sent successfully:`, {
+        messageSid: twilioData.sid,
+        status: twilioData.status,
+        cost: actualPrice,
+        to: formattedTo,
+        from: formattedFrom,
+        contentSid: effectiveContentSid,
+        clientId: clientId,
+        widgetId: widgetId,
+        conversationId: conversationId
+      });
+      
       return { 
         success: true, 
         messageSid: twilioData.sid, 
@@ -536,7 +548,16 @@ export class WhatsAppService {
       const costToTrack = actualPrice || 0.005;
       await this.trackUsage(clientId, widgetId, false, costToTrack);
 
-      console.log(`✅ WhatsApp message sent: ${twilioData.sid}${actualPrice ? ` (Cost: $${actualPrice})` : ''}`);
+      console.log(`✅ WhatsApp message sent successfully:`, {
+        messageSid: twilioData.sid,
+        status: twilioData.status,
+        cost: actualPrice,
+        to: formattedTo,
+        from: formattedFrom,
+        clientId: clientId,
+        widgetId: widgetId,
+        conversationId: conversationId
+      });
 
       return {
         success: true,
