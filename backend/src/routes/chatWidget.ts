@@ -2706,9 +2706,16 @@ router.post('/conversations/:conversationId/send-expiry-email', async (req, res)
     
     const conv = convResult.rows[0];
     
-    if (!conv.visitor_email) {
-      return res.status(400).json({ error: 'No email address provided' });
+    // Get email from request body or conversation
+    const emailToSend = req.body.email || conv.visitor_email;
+    
+    if (!emailToSend) {
+      return res.status(400).json({ error: 'No email address provided. Please provide email in request body or ensure visitor_email is set in conversation.' });
     }
+    
+    // Import email service
+    const { EmailService } = await import('../services/emailService');
+    const emailService = new EmailService();
     
     // Get all messages
     const messagesResult = await pool.query(
@@ -2794,13 +2801,9 @@ router.post('/conversations/:conversationId/send-expiry-email', async (req, res)
       </div>
     `;
     
-    // Send email
-    const { EmailService } = await import('../services/emailService');
-    const emailService = new EmailService();
-    
     // Send email to visitor
     await emailService.sendEmail({
-      to: conv.visitor_email,
+      to: emailToSend,
       subject: `Conversation Summary - ${conv.widget_name || 'Chat'}`,
       html: emailHtml,
       from: `"${conv.client_name || 'WeTechForU'}" <info@wetechforu.com>`
