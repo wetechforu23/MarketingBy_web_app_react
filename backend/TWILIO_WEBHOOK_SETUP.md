@@ -55,20 +55,49 @@ https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com/api/whatsapp/status-ca
 
 ### Step 3: Disable Auto-Reply
 
-To prevent "OK" messages:
+To prevent "OK" messages, you need to disable Twilio's default auto-reply handling:
 
-1. In the WhatsApp number settings, look for:
-   - **"Auto-reply"** settings → **DISABLE**
-   - **"Status callback"** → Ensure it's set to your webhook URL (not auto-reply)
-   - **"Fallback URL"** → Leave empty or set to your webhook
+#### Method 1: Disable via Messaging Service (Recommended)
 
-2. Check **Messaging** → **Settings** → **WhatsApp Sandbox**:
-   - Look for any auto-reply features
-   - Disable them
+1. Go to [Twilio Console](https://console.twilio.com/)
+2. Navigate to **Messaging** → **Services**
+3. Click on your **Messaging Service** (or create one if you don't have one)
+4. Go to **Opt-Out Management** section
+5. Enable **"Advanced Opt-Out"** feature
+6. With Advanced Opt-Out enabled, you can:
+   - Customize opt-out responses
+   - Leave response fields **BLANK** to disable auto-replies entirely
+   - This prevents Twilio from sending automatic "OK" or confirmation messages
 
-3. If using Twilio Studio:
-   - Check for any flows that send "OK" messages
-   - Disable or remove them
+#### Method 2: Disable SMS Stop Filtering
+
+1. Go to **Messaging** → **Services** → Your Messaging Service
+2. Find **"Opt-Out Management"** or **"Compliance"** settings
+3. Disable **"Default SMS Stop Filtering"**
+4. This gives you full control - your webhook will handle all messages
+5. **Important**: Your application must handle opt-out keywords (STOP, UNSUBSCRIBE, etc.) to maintain compliance
+
+#### Method 3: WhatsApp Sandbox Settings
+
+If using WhatsApp Sandbox:
+1. Go to **Messaging** → **Try it out** → **Send a WhatsApp message**
+2. Or **Messaging** → **Settings** → **WhatsApp Sandbox**
+3. Look for **"Auto-reply"** or **"Default responses"** settings
+4. Disable or leave blank
+
+#### Method 4: Check Twilio Studio Flows
+
+If you have Twilio Studio flows:
+1. Go to **Studio** → **Flows**
+2. Check each flow for **"Send Message"** widgets
+3. Look for any that send "OK" or auto-replies
+4. Remove or disable them
+
+#### Method 5: Account-Level Settings
+
+1. Go to **Account** → **Settings** → **General**
+2. Look for any account-wide auto-reply settings
+3. Contact Twilio Support if you can't find them - they can check account-level configurations
 
 ---
 
