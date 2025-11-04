@@ -66,6 +66,8 @@ export default function ChatWidgetEditor() {
   const [whatsappEnabled, setWhatsappEnabledState] = useState(false)
   const setWhatsappEnabled = (value: boolean) => {
     setWhatsappEnabledState(value)
+    // ✅ SYNC: When WhatsApp handoff is enabled/disabled, also update handover_options.whatsapp
+    setHandoverOptions({ ...handoverOptions, whatsapp: value })
     if (!isInitialLoad) {
       trackChange(`WhatsApp Agent Handoff ${value ? 'Enabled' : 'Disabled'}`)
     }
@@ -347,6 +349,21 @@ export default function ChatWidgetEditor() {
             setHandoverOptions(options)
           } catch (e) {
             console.error('Failed to parse handover_options:', e)
+          }
+        }
+        
+        // ✅ SYNC: If enable_whatsapp is true, ensure handover_options.whatsapp is also true
+        if (widget.enable_whatsapp && widget.handover_options) {
+          try {
+            const options = typeof widget.handover_options === 'string'
+              ? JSON.parse(widget.handover_options)
+              : widget.handover_options
+            if (!options.whatsapp) {
+              console.log('🔄 Syncing: enable_whatsapp is true, but handover_options.whatsapp is false - updating to true')
+              setHandoverOptions({ ...options, whatsapp: true })
+            }
+          } catch (e) {
+            console.error('Failed to sync WhatsApp handover options:', e)
           }
         }
         if (widget.default_handover_method) {
