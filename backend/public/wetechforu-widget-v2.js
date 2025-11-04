@@ -992,7 +992,6 @@
           right: element.style.right || null,
           width: element.style.width || null,
           height: element.style.height || null,
-          isMaximized: element.classList.contains('maximized') || false
         };
         localStorage.setItem(`wetechforu_widget_position_${this.config.widgetKey}`, JSON.stringify(position));
       } catch (e) {
@@ -1028,22 +1027,6 @@
             element.style.bottom = 'auto';
           }
           
-          // ✅ Handle maximize state
-          if (position.isMaximized && !element.classList.contains('maximized')) {
-            element.classList.add('maximized');
-            // Don't call maximizeWidget here as it will toggle - just set the styles
-            element.style.width = 'calc(100vw - 40px)';
-            element.style.height = 'calc(100vh - 100px)';
-            element.style.left = '20px';
-            element.style.right = 'auto';
-            element.style.bottom = '80px';
-            element.style.top = '20px';
-            const expandBtn = document.getElementById('wetechforu-expand-button');
-            if (expandBtn) {
-              expandBtn.textContent = '⛶';
-              expandBtn.title = 'Restore';
-            }
-          }
           
           console.log('✅ Restored widget position and size');
         }
