@@ -392,8 +392,32 @@
               justify-content: center;
             "></div>
             
-            <!-- Resize Handle -->
-            <div class="wetechforu-resize-handle" id="wetechforu-resize-handle" title="Drag to resize"></div>
+            <!-- Resize Handle - ✅ Improved UI with visible icon -->
+            <div class="wetechforu-resize-handle" id="wetechforu-resize-handle" title="Drag to resize or expand">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M8 8 L16 16 M16 8 L8 16" stroke-linecap="round"/>
+              </svg>
+            </div>
+            
+            <!-- Maximize/Expand Button -->
+            <button id="wetechforu-expand-button" style="
+              position: absolute;
+              bottom: 8px;
+              right: 40px;
+              width: 32px;
+              height: 32px;
+              border-radius: 6px;
+              background: rgba(0,0,0,0.1);
+              border: none;
+              color: ${this.config.primaryColor};
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              transition: all 0.2s;
+              z-index: 1001;
+              font-size: 16px;
+            " title="Maximize/Expand">⛶</button>
 
             <!-- Input Area -->
             <div style="
@@ -670,17 +694,27 @@
             position: absolute;
             bottom: 0;
             right: 0;
-            width: 20px;
-            height: 20px;
+            width: 32px;
+            height: 32px;
             cursor: nwse-resize;
-            background: linear-gradient(135deg, transparent 50%, ${this.config.primaryColor} 50%);
-            border-bottom-right-radius: 16px;
-            opacity: 0.5;
-            transition: opacity 0.2s;
+            background: rgba(0,0,0,0.05);
+            border-top-left-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            z-index: 1000;
+            color: ${this.config.primaryColor};
           }
           
           .wetechforu-resize-handle:hover {
-            opacity: 1;
+            background: rgba(0,0,0,0.1);
+            transform: scale(1.1);
+          }
+          
+          #wetechforu-expand-button:hover {
+            background: rgba(0,0,0,0.15);
+            transform: scale(1.1);
           }
         </style>
       `;
@@ -693,6 +727,7 @@
       const chatButton = document.getElementById('wetechforu-chat-button');
       const closeButton = document.getElementById('wetechforu-close-button');
       const minimizeButton = document.getElementById('wetechforu-minimize-button');
+      const expandButton = document.getElementById('wetechforu-expand-button');
       const sendButton = document.getElementById('wetechforu-send-button');
       const input = document.getElementById('wetechforu-input');
       const chatWindow = document.getElementById('wetechforu-chat-window');
@@ -704,12 +739,18 @@
         e.stopPropagation(); // Prevent header drag
         this.minimizeChat();
       });
+      if (expandButton) {
+        expandButton.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.maximizeWidget(chatWindow);
+        });
+      }
       sendButton.addEventListener('click', () => this.sendMessage());
       input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') this.sendMessage();
       });
       
-      // ✅ Make widget draggable by entire header (not just specific area)
+      // ✅ Make widget draggable from anywhere (not just header)
       this.makeDraggable(chatWindow);
       
       // ✅ Make widget resizable from all edges (not just bottom-right corner)
@@ -717,19 +758,33 @@
       
       // ✅ Click outside to minimize (not close)
       this.setupClickOutsideToMinimize(chatWindow);
+      
+      // ✅ Load saved position and size
+      this.loadWidgetPosition(chatWindow);
     },
     
-    // Make widget draggable
+    // Make widget draggable from anywhere (not just header)
     makeDraggable(element) {
       const header = element.querySelector('div'); // First div is header
       let isDragging = false;
       let startX, startY, startLeft, startBottom;
+      let dragStartElement = null; // Track where drag started
       
-      header.addEventListener('mousedown', (e) => {
-        // Don't drag if clicking on buttons
-        if (e.target.id.includes('button')) return;
+      // ✅ Make entire widget draggable (not just header)
+      const startDrag = (e) => {
+        // Don't drag if clicking on buttons, inputs, or resize handles
+        if (e.target.id.includes('button') || 
+            e.target.id === 'wetechforu-input' ||
+            e.target.closest('.wetechforu-resize-handle') ||
+            e.target.closest('.wetechforu-resize-right') ||
+            e.target.closest('.wetechforu-resize-bottom') ||
+            e.target.closest('.wetechforu-resize-left') ||
+            e.target.closest('.wetechforu-resize-top')) {
+          return;
+        }
         
         isDragging = true;
+        dragStartElement = e.target;
         element.classList.add('dragging');
         
         startX = e.clientX;
@@ -739,7 +794,27 @@
         startLeft = rect.left;
         startBottom = window.innerHeight - rect.bottom;
         
-        header.style.cursor = 'move';
+        element.style.cursor = 'move';
+        e.preventDefault();
+      };
+      
+      // Allow dragging from header (most common)
+      header.addEventListener('mousedown', startDrag);
+      
+      // ✅ Also allow dragging from anywhere in the widget (but not from interactive elements)
+      element.addEventListener('mousedown', (e) => {
+        // Only allow dragging from non-interactive areas
+        const interactiveElements = ['input', 'button', 'a', 'textarea', 'select'];
+        if (interactiveElements.includes(e.target.tagName.toLowerCase())) {
+          return;
+        }
+        // Allow dragging from message area, header, etc.
+        if (e.target.id === 'wetechforu-messages' || 
+            e.target.closest('#wetechforu-messages') ||
+            e.target === header ||
+            e.target.closest('div') === header) {
+          startDrag(e);
+        }
       });
       
       document.addEventListener('mousemove', (e) => {
@@ -755,18 +830,111 @@
         const maxLeft = window.innerWidth - element.offsetWidth;
         const maxBottom = window.innerHeight - element.offsetHeight;
         
-        element.style.left = Math.max(0, Math.min(newLeft, maxLeft)) + 'px';
-        element.style.bottom = Math.max(0, Math.min(newBottom, maxBottom)) + 'px';
+        const finalLeft = Math.max(0, Math.min(newLeft, maxLeft));
+        const finalBottom = Math.max(0, Math.min(newBottom, maxBottom));
+        
+        element.style.left = finalLeft + 'px';
+        element.style.bottom = finalBottom + 'px';
         element.style.right = 'auto'; // Override right positioning
+        
+        // ✅ Save position to localStorage
+        this.saveWidgetPosition(element);
       });
       
       document.addEventListener('mouseup', () => {
         if (isDragging) {
           isDragging = false;
           element.classList.remove('dragging');
-          header.style.cursor = '';
+          element.style.cursor = '';
+          dragStartElement = null;
+          
+          // ✅ Save position after drag ends
+          this.saveWidgetPosition(element);
         }
       });
+    },
+    
+    // ✅ Save widget position and size to localStorage
+    saveWidgetPosition(element) {
+      try {
+        const position = {
+          left: element.style.left || null,
+          bottom: element.style.bottom || null,
+          right: element.style.right || null,
+          width: element.style.width || null,
+          height: element.style.height || null,
+          isMaximized: element.classList.contains('maximized') || false
+        };
+        localStorage.setItem(`wetechforu_widget_position_${this.config.widgetKey}`, JSON.stringify(position));
+      } catch (e) {
+        console.warn('Could not save widget position:', e);
+      }
+    },
+    
+    // ✅ Load widget position from localStorage
+    loadWidgetPosition(element) {
+      try {
+        const saved = localStorage.getItem(`wetechforu_widget_position_${this.config.widgetKey}`);
+        if (saved) {
+          const position = JSON.parse(saved);
+          if (position.left) element.style.left = position.left;
+          if (position.bottom) element.style.bottom = position.bottom;
+          if (position.right) element.style.right = position.right;
+          if (position.width) element.style.width = position.width;
+          if (position.height) element.style.height = position.height;
+          if (position.isMaximized) {
+            element.classList.add('maximized');
+            this.maximizeWidget(element);
+          }
+          console.log('✅ Restored widget position and size');
+        }
+      } catch (e) {
+        console.warn('Could not load widget position:', e);
+      }
+    },
+    
+    // ✅ Maximize/Expand widget
+    maximizeWidget(element) {
+      const isMaximized = element.classList.contains('maximized');
+      
+      if (isMaximized) {
+        // Restore previous size
+        element.classList.remove('maximized');
+        const saved = localStorage.getItem(`wetechforu_widget_position_${this.config.widgetKey}`);
+        if (saved) {
+          const position = JSON.parse(saved);
+          if (position.width) element.style.width = position.width;
+          if (position.height) element.style.height = position.height;
+        } else {
+          element.style.width = '360px';
+          element.style.height = '500px';
+        }
+        element.style.left = '';
+        element.style.right = '';
+        element.style.bottom = '80px';
+        element.style.top = '';
+        
+        const expandBtn = document.getElementById('wetechforu-expand-button');
+        if (expandBtn) expandBtn.textContent = '⛶';
+      } else {
+        // Maximize to full screen (with padding)
+        const savedWidth = element.style.width || '360px';
+        const savedHeight = element.style.height || '500px';
+        localStorage.setItem(`wetechforu_widget_size_before_maximize_${this.config.widgetKey}`, JSON.stringify({ width: savedWidth, height: savedHeight }));
+        
+        element.classList.add('maximized');
+        element.style.width = 'calc(100vw - 40px)';
+        element.style.height = 'calc(100vh - 100px)';
+        element.style.left = '20px';
+        element.style.right = '20px';
+        element.style.bottom = '80px';
+        element.style.top = '20px';
+        
+        const expandBtn = document.getElementById('wetechforu-expand-button');
+        if (expandBtn) expandBtn.textContent = '⛶'; // Restore icon
+        
+        this.saveWidgetPosition(element);
+      }
     },
     
     // Make widget resizable from all edges and corners
@@ -827,44 +995,66 @@
         }
       });
       
-      document.addEventListener('mousemove', (e) => {
+      const handleMouseMove = (e) => {
         if (!isResizing) return;
         
         const deltaX = e.clientX - startX;
         const deltaY = e.clientY - startY;
         
+        // ✅ Prevent default to avoid freezing
+        e.preventDefault();
+        
         if (resizeEdge === 'corner') {
-          const newWidth = Math.max(300, Math.min(800, startWidth + deltaX));
-          const newHeight = Math.max(400, Math.min(900, startHeight + deltaY));
+          const newWidth = Math.max(300, Math.min(window.innerWidth - 40, startWidth + deltaX));
+          const newHeight = Math.max(400, Math.min(window.innerHeight - 100, startHeight + deltaY));
           element.style.width = newWidth + 'px';
           element.style.height = newHeight + 'px';
+          // ✅ Save position during resize
+          this.saveWidgetPosition(element);
         } else if (resizeEdge === 'right') {
-          const newWidth = Math.max(300, Math.min(800, startWidth + deltaX));
+          const newWidth = Math.max(300, Math.min(window.innerWidth - 40, startWidth + deltaX));
           element.style.width = newWidth + 'px';
+          this.saveWidgetPosition(element);
         } else if (resizeEdge === 'bottom') {
-          const newHeight = Math.max(400, Math.min(900, startHeight + deltaY));
+          const newHeight = Math.max(400, Math.min(window.innerHeight - 100, startHeight + deltaY));
           element.style.height = newHeight + 'px';
+          this.saveWidgetPosition(element);
         } else if (resizeEdge === 'left') {
-          const newWidth = Math.max(300, Math.min(800, startWidth - deltaX));
+          const newWidth = Math.max(300, Math.min(window.innerWidth - 40, startWidth - deltaX));
           const newLeft = startLeft + deltaX;
           if (newWidth >= 300 && newLeft >= 0) {
             element.style.width = newWidth + 'px';
             element.style.left = newLeft + 'px';
+            element.style.right = 'auto';
+            this.saveWidgetPosition(element);
           }
         } else if (resizeEdge === 'top') {
-          const newHeight = Math.max(400, Math.min(900, startHeight - deltaY));
+          const newHeight = Math.max(400, Math.min(window.innerHeight - 100, startHeight - deltaY));
           const newTop = startTop + deltaY;
           if (newHeight >= 400 && newTop >= 0) {
             element.style.height = newHeight + 'px';
             element.style.top = newTop + 'px';
+            element.style.bottom = 'auto';
+            this.saveWidgetPosition(element);
           }
         }
-      });
+      };
       
-      document.addEventListener('mouseup', () => {
-        isResizing = false;
-        resizeEdge = null;
-      });
+      document.addEventListener('mousemove', handleMouseMove);
+      
+      const handleMouseUp = () => {
+        if (isResizing) {
+          isResizing = false;
+          resizeEdge = null;
+          // ✅ Final save after resize
+          this.saveWidgetPosition(element);
+          // ✅ Remove event listeners to prevent freezing
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+        }
+      };
+      
+      document.addEventListener('mouseup', handleMouseUp);
     },
     
     // ✅ Setup click outside to minimize
@@ -921,6 +1111,9 @@
       badge.style.display = 'none';
       badge.textContent = '1'; // Reset badge
       this.state.isOpen = true;
+      
+      // ✅ Restore saved position and size
+      this.loadWidgetPosition(chatWindow);
 
       // 📊 Track chat opened event
       this.trackEvent('chat_opened', {
