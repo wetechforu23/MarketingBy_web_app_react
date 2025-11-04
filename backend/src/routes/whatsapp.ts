@@ -574,14 +574,15 @@ router.post('/incoming', async (req: Request, res: Response) => {
     let messageBody = (Body || '').trim();
 
     // ✅ FIRST: Try to parse conversation ID from message (format: #123: message or #123 message)
-    const conversationIdMatch = messageBody.match(/^#(\d+)[\s:]/);
+    // Support multiple formats: "#123: message", "#123 message", "#123message", "#123"
+    const conversationIdMatch = messageBody.match(/^#(\d+)(?:\s*[:]\s*|\s+)?/);
     let conversationId: number | null = null;
     
     if (conversationIdMatch) {
       conversationId = parseInt(conversationIdMatch[1]);
-      // Remove conversation ID prefix from message
-      messageBody = messageBody.replace(/^#\d+[\s:]+/, '').trim();
-      console.log(`📌 Agent specified conversation ID: ${conversationId}`);
+      // Remove conversation ID prefix from message (handle various formats)
+      messageBody = messageBody.replace(/^#\d+[\s:]*/, '').trim();
+      console.log(`📌 Agent specified conversation ID: ${conversationId}, remaining message: "${messageBody}"`);
     }
 
     // Find the client and active conversation(s) by matching the From number
@@ -609,6 +610,27 @@ router.post('/incoming', async (req: Request, res: Response) => {
         LIMIT 1
       `, [conversationId, fromNumber.replace(/[\s\-\(\)]/g, '')]);
     } else {
+      // No conversation ID specified - check if multiple chats are enabled
+      // If enabled, we need to warn the agent or use the most recent active conversation
+      // First, check widget config to see if multiple chats are enabled
+      const widgetCheck = await pool.query(`
+        SELECT enable_multiple_whatsapp_chats
+        FROM widget_configs wc
+        WHERE (
+          REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+          OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+        )
+        LIMIT 1
+      `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+      
+      const enableMultipleChats = widgetCheck.rows[0]?.enable_multiple_whatsapp_chats || false;
+      
+      if (enableMultipleChats) {
+        // Multiple chats enabled but no conversation ID - use most recent active conversation
+        // But log a warning that agent should use conversation ID
+        console.log(`⚠️ Multiple chats enabled but agent didn't specify conversation ID - using most recent active conversation`);
+      }
+      
       // No conversation ID specified - use most recent (backward compatibility)
       clientResult = await pool.query(`
         SELECT DISTINCT wc.id as widget_id, wc.client_id, wc.handover_whatsapp_number,
@@ -625,7 +647,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
             REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
             OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
           )
-        ORDER BY hr.created_at DESC
+        ORDER BY wconv.last_agent_activity_at DESC NULLS LAST, hr.created_at DESC
         LIMIT 1
       `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
     }
@@ -633,7 +655,9 @@ router.post('/incoming', async (req: Request, res: Response) => {
     if (clientResult.rows.length === 0) {
       console.log(`⚠️ No active WhatsApp handover found for number: ${fromNumber}${conversationId ? ` and conversation ID: ${conversationId}` : ''}`);
       // Still send 200 to Twilio to acknowledge receipt (empty response prevents "OK" auto-replies)
-      return res.status(200).send('');
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Length', '0');
+      return res.status(200).end();
     }
 
     const match = clientResult.rows[0];
@@ -657,7 +681,9 @@ router.post('/incoming', async (req: Request, res: Response) => {
     if (extensionResult.extended) {
       // Extension granted, update activity and return
       await inactivityService.updateActivityTimestamp(conversationId, true);
-      return res.status(200).send(''); // Empty response prevents "OK" auto-replies
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Length', '0');
+      return res.status(200).end(); // Empty response prevents "OK" auto-replies
     }
     
     // ✅ CHECK FOR "STOP CONVERSATION" COMMAND
@@ -812,7 +838,9 @@ router.post('/incoming', async (req: Request, res: Response) => {
         }
       }
       
-      return res.status(200).send(''); // Empty response prevents "OK" auto-replies
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Length', '0');
+      return res.status(200).end(); // Empty response prevents "OK" auto-replies
     }
 
     // Store agent's WhatsApp message in widget_messages (normal message, not stop command)
@@ -874,9 +902,12 @@ router.post('/incoming', async (req: Request, res: Response) => {
 
     console.log(`✅ Agent WhatsApp message synced to conversation ${conversationId}`);
 
-    // ✅ Return empty 200 response to Twilio (no text body - prevents "OK" auto-replies)
-    // Twilio may send "OK" auto-replies if the webhook response contains any text
-    res.status(200).send('');
+    // ✅ CRITICAL: Return completely empty response (no text, no JSON, no whitespace)
+    // Twilio sends "OK" auto-replies if the webhook response contains ANY text or whitespace
+    // Empty response = no auto-reply
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Length', '0');
+    res.status(200).end();
   } catch (error) {
     console.error('❌ Error processing incoming WhatsApp message:', error);
     // Still send 200 to prevent Twilio from retrying

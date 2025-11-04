@@ -542,16 +542,27 @@ export class HandoverService {
         ? `[#${handoverRequest.conversation_id}] ${visitorName}`
         : visitorName;
       
-      const notificationMessage = `🔔 *New Agent Handover Request*\n\n` +
-        `A visitor has requested to speak with an agent.\n\n` +
-        (visitorInfo.length > 0 ? `*Visitor Details:*\n${visitorInfo.join('\n')}\n\n` : '') +
-        `*Message:*\n${handoverRequest.visitor_message || 'Visitor requested agent support'}\n\n` +
-        `*Conversation ID:* ${handoverRequest.conversation_id}\n` +
-        `*Widget:* ${widgetConfig.rows[0].widget_name || 'N/A'}\n\n` +
-        (enableMultipleChats 
-          ? `💬 *Reply Format:* Start your message with #${handoverRequest.conversation_id} to reply to this conversation.\n\n`
-          : '') +
-        `Please respond to the visitor at your earliest convenience.`;
+      // Improved notification format - make conversation ID more prominent
+      const notificationMessage = enableMultipleChats
+        ? `🔔 *Agent Handover Request*\n\n` +
+          `*Conversation: #${handoverRequest.conversation_id}*\n` +
+          `*Visitor:* ${visitorName}\n\n` +
+          (visitorInfo.length > 0 ? `*Contact Info:*\n${visitorInfo.map(v => `• ${v}`).join('\n')}\n\n` : '') +
+          `*Message:*\n${handoverRequest.visitor_message || 'Visitor requested agent support'}\n\n` +
+          `*Widget:* ${widgetConfig.rows[0].widget_name || 'N/A'}\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `💬 *TO REPLY:* Start your message with:\n` +
+          `\`#${handoverRequest.conversation_id}: your message\`\n\n` +
+          `Example: \`#${handoverRequest.conversation_id}: Hello, how can I help?\`\n\n` +
+          `⚠️ *IMPORTANT:* Without the #${handoverRequest.conversation_id} prefix, your message will go to the wrong conversation!\n\n` +
+          `Please respond as soon as possible.`
+        : `🔔 *Agent Handover Request*\n\n` +
+          `*Visitor:* ${visitorName}\n` +
+          (visitorInfo.length > 0 ? `*Contact Info:*\n${visitorInfo.map(v => `• ${v}`).join('\n')}\n\n` : '') +
+          `*Message:*\n${handoverRequest.visitor_message || 'Visitor requested agent support'}\n\n` +
+          `*Conversation ID:* #${handoverRequest.conversation_id}\n` +
+          `*Widget:* ${widgetConfig.rows[0].widget_name || 'N/A'}\n\n` +
+          `Please respond to the visitor at your earliest convenience.`;
 
       try {
         console.log(`📱 Sending WhatsApp handover notification to client:`, {
