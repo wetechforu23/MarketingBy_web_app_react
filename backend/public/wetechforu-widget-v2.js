@@ -351,6 +351,20 @@
                   font-size: 18px;
                   font-weight: bold;
                 " title="Minimize">−</button>
+                <button id="wetechforu-expand-button" style="
+                  background: rgba(255,255,255,0.2);
+                  border: none;
+                  color: white;
+                  width: 32px;
+                  height: 32px;
+                  border-radius: 50%;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  transition: background 0.2s;
+                  font-size: 16px;
+                " title="Maximize">⛶</button>
                 <button id="wetechforu-close-button" style="
                   background: rgba(255,255,255,0.2);
                   border: none;
@@ -398,26 +412,6 @@
                 <path d="M8 8 L16 16 M16 8 L8 16" stroke-linecap="round"/>
               </svg>
             </div>
-            
-            <!-- Maximize/Expand Button -->
-            <button id="wetechforu-expand-button" style="
-              position: absolute;
-              bottom: 8px;
-              right: 40px;
-              width: 32px;
-              height: 32px;
-              border-radius: 6px;
-              background: rgba(0,0,0,0.1);
-              border: none;
-              color: ${this.config.primaryColor};
-              cursor: pointer;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              transition: all 0.2s;
-              z-index: 1001;
-              font-size: 16px;
-            " title="Maximize/Expand">⛶</button>
 
             <!-- Input Area -->
             <div style="
@@ -713,8 +707,12 @@
           }
           
           #wetechforu-expand-button:hover {
-            background: rgba(0,0,0,0.15);
-            transform: scale(1.1);
+            background: rgba(255,255,255,0.3);
+          }
+          
+          #wetechforu-minimize-button:hover,
+          #wetechforu-close-button:hover {
+            background: rgba(255,255,255,0.3);
           }
         </style>
       `;
@@ -940,7 +938,7 @@
         element.style.bottom = '80px';
         element.style.top = '20px';
         
-        if (expandBtn) expandBtn.textContent = '⛶'; // Restore icon (both are same, but can be changed)
+        if (expandBtn) expandBtn.textContent = '⛶'; // Restore icon (same icon for both)
         if (expandBtn) expandBtn.title = 'Restore';
         
         this.saveWidgetPosition(element);
