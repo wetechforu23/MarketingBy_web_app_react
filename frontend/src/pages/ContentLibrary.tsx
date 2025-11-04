@@ -15,6 +15,7 @@ interface Content {
   status: string;
   created_by: number;
   created_by_name: string;
+  approved_by_name?: string;
   client_name: string;
   created_at: string;
   updated_at: string;
@@ -25,24 +26,69 @@ interface Content {
 const ContentLibrary: React.FC = () => {
   const navigate = useNavigate();
   const [contents, setContents] = useState<Content[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedClient, setSelectedClient] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false); // Start with false to prevent black screen
+  // For admin users, null means "All Clients", undefined means "not initialized yet"
+  const [selectedClient, setSelectedClient] = useState<number | null | undefined>(undefined);
   const [clients, setClients] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [platformFilter, setPlatformFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [stats, setStats] = useState<any>(null);
+  const [user, setUser] = useState<any>(null);
+  const [isClientUser, setIsClientUser] = useState<boolean>(false);
 
+  // Fetch current user to determine role
   useEffect(() => {
-    fetchClients();
-    fetchContents();
-    fetchStats();
+    const fetchUser = async () => {
+      try {
+        const response = await http.get('/auth/me');
+        const userData = response.data;
+        setUser(userData);
+        
+        // Check if user is client_admin or client_user
+        const isClient = userData.role === 'client_admin' || userData.role === 'client_user';
+        setIsClientUser(isClient);
+        
+        // If client user, automatically set their client_id
+        if (isClient && userData.client_id) {
+          console.log('👤 Client user detected, auto-setting client_id:', userData.client_id);
+          setSelectedClient(userData.client_id);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching user:', error);
+      }
+    };
+    
+    fetchUser();
   }, []);
 
   useEffect(() => {
-    fetchContents();
-    fetchStats();
-  }, [selectedClient, statusFilter, platformFilter, searchQuery]);
+    // Only fetch clients if user is NOT a client user (admins need to select clients)
+    if (!isClientUser) {
+      fetchClients();
+    }
+  }, [isClientUser]);
+
+  useEffect(() => {
+    // Fetch contents and stats when filters change
+    // For client users: always fetch (they can only see their own content)
+    // For admin users: fetch if client is selected OR if "All Clients" is selected (selectedClient is null)
+    // Don't fetch if selectedClient is still undefined (initial state)
+    if (isClientUser) {
+      // Client users: always fetch
+      fetchContents();
+      fetchStats();
+    } else if (selectedClient !== undefined) {
+      // Admin users: fetch if selectedClient is set (null = All Clients, number = specific client)
+      fetchContents();
+      fetchStats();
+    } else {
+      // Admin user but not initialized yet - show empty state
+      setContents([]);
+      setStats(null);
+      setLoading(false);
+    }
+  }, [selectedClient, statusFilter, platformFilter, searchQuery, isClientUser]);
 
   const fetchClients = async () => {
     try {
@@ -54,6 +100,11 @@ const ContentLibrary: React.FC = () => {
         console.log('👤 First client:', response.data.clients[0]);
       }
       setClients(response.data.clients || []);
+      
+      // Initialize selectedClient to null (All Clients) for admin users after clients are loaded
+      if (!isClientUser && selectedClient === undefined) {
+        setSelectedClient(null);
+      }
     } catch (error) {
       console.error('❌ Error fetching clients:', error);
       setClients([]);
@@ -78,7 +129,17 @@ const ContentLibrary: React.FC = () => {
       console.log('🔍 Fetch params:', params);
       const response = await http.get('/content', { params });
       console.log('✅ Contents fetched:', response.data);
-      setContents(response.data.content || []);
+      console.log('📊 Response structure:', {
+        hasContent: !!response.data.content,
+        contentLength: response.data.content?.length || 0,
+        total: response.data.total,
+        success: response.data.success
+      });
+      
+      // Handle both response formats: { content: [...] } or { content: { content: [...] } }
+      const contentList = response.data.content || response.data || [];
+      console.log('📦 Final content list:', contentList.length, 'items');
+      setContents(Array.isArray(contentList) ? contentList : []);
     } catch (error) {
       console.error('❌ Error fetching contents:', error);
       setContents([]);
@@ -90,7 +151,14 @@ const ContentLibrary: React.FC = () => {
   const fetchStats = async () => {
     try {
       console.log('📈 Fetching stats...');
-      const response = await http.get('/content/stats/overview');
+      const params: any = {};
+      
+      // For client users, always filter by their client_id
+      if (selectedClient) {
+        params.client_id = selectedClient;
+      }
+      
+      const response = await http.get('/content/stats/overview', { params });
       console.log('✅ Stats fetched:', response.data);
       setStats(response.data.stats);
     } catch (error) {
@@ -124,7 +192,6 @@ const ContentLibrary: React.FC = () => {
   const getStatusColor = (status: string) => {
     const colors: any = {
       draft: 'bg-gray-100 text-gray-800',
-      pending_wtfu_approval: 'bg-yellow-100 text-yellow-800',
       pending_client_approval: 'bg-blue-100 text-blue-800',
       approved: 'bg-green-100 text-green-800',
       rejected: 'bg-red-100 text-red-800',
@@ -138,7 +205,6 @@ const ContentLibrary: React.FC = () => {
   const getStatusLabel = (status: string) => {
     const labels: any = {
       draft: 'Draft',
-      pending_wtfu_approval: 'Pending WeTechForU',
       pending_client_approval: 'Pending Client',
       approved: 'Approved',
       rejected: 'Rejected',
@@ -152,7 +218,6 @@ const ContentLibrary: React.FC = () => {
   const getStatusStyle = (status: string) => {
     const styles: any = {
       draft: { background: '#e2e8f0', color: '#2d3748' },
-      pending_wtfu_approval: { background: '#fef3c7', color: '#92400e' },
       pending_client_approval: { background: '#dbeafe', color: '#1e40af' },
       approved: { background: '#d1fae5', color: '#065f46' },
       rejected: { background: '#fee2e2', color: '#991b1b' },
@@ -237,8 +302,8 @@ const ContentLibrary: React.FC = () => {
           </button>
         </div>
 
-        {/* Client Selector */}
-        {clients.length > 0 && (
+        {/* Client Selector - Only show for admins, not for client users */}
+        {!isClientUser && clients.length > 0 && (
           <div style={{ marginBottom: '20px' }}>
             <label style={{ 
               display: 'block', 
@@ -250,7 +315,7 @@ const ContentLibrary: React.FC = () => {
               Select Client
             </label>
             <select
-              value={selectedClient || 'all'}
+              value={selectedClient === undefined ? 'all' : (selectedClient || 'all')}
               onChange={(e) => {
                 const value = e.target.value;
                 setSelectedClient(value === 'all' ? null : Number(value));
@@ -314,7 +379,14 @@ const ContentLibrary: React.FC = () => {
             boxShadow: '0 4px 15px rgba(79, 172, 254, 0.2)',
             color: 'white'
           }}>
-            <p style={{ fontSize: '13px', opacity: 0.9, marginBottom: '8px' }}>✅ Approved</p>
+            <p style={{ fontSize: '13px', opacity: 0.9, marginBottom: '8px' }}>
+              ✅ Approved
+              {stats.latest_approved_by && (
+                <span style={{ fontSize: '11px', display: 'block', marginTop: '4px', opacity: 0.85 }}>
+                  by {stats.latest_approved_by}
+                </span>
+              )}
+            </p>
             <p style={{ fontSize: '32px', fontWeight: 'bold' }}>{stats.approved_count || 0}</p>
           </div>
           <div style={{
@@ -416,7 +488,6 @@ const ContentLibrary: React.FC = () => {
             >
               <option value="all">All Status</option>
               <option value="draft">📝 Draft</option>
-              <option value="pending_wtfu_approval">⏳ Pending WeTechForU</option>
               <option value="pending_client_approval">⏳ Pending Client</option>
               <option value="approved">✅ Approved</option>
               <option value="posted">🚀 Posted</option>
@@ -530,6 +601,7 @@ const ContentLibrary: React.FC = () => {
                   <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', fontSize: '14px' }}>Platforms</th>
                   <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', fontSize: '14px' }}>Client</th>
                   <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', fontSize: '14px' }}>Created By</th>
+                  <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', fontSize: '14px' }}>Approved By</th>
                   <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', fontSize: '14px' }}>Created Date</th>
                   <th style={{ padding: '16px', textAlign: 'center', fontWeight: '600', fontSize: '14px' }}>Actions</th>
                 </tr>
@@ -590,6 +662,9 @@ const ContentLibrary: React.FC = () => {
                     </td>
                     <td style={{ padding: '16px', fontSize: '14px', color: '#4a5568' }}>
                       {content.created_by_name || '-'}
+                    </td>
+                    <td style={{ padding: '16px', fontSize: '14px', color: '#4a5568' }}>
+                      {content.approved_by_name || '-'}
                     </td>
                     <td style={{ padding: '16px', fontSize: '14px', color: '#4a5568', whiteSpace: 'nowrap' }}>
                       {new Date(content.created_at).toLocaleDateString()}
