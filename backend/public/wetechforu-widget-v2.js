@@ -1625,10 +1625,11 @@
       // Store answers
       this.state.introFlow.answers = answers;
       
-      // Hide form
+      // Remove form from DOM completely (not just hide)
       const formDiv = document.getElementById('wetechforu-intro-form');
       if (formDiv) {
-        formDiv.style.display = 'none';
+        formDiv.remove(); // Remove completely from DOM, not just hide
+        console.log('✅ Form removed from DOM after submission');
       }
       
       // Show summary
@@ -1636,6 +1637,9 @@
       
       // Complete intro flow
       await this.completeIntroFlow();
+      
+      // Ensure intro is marked as complete
+      console.log('✅ Intro flow marked as complete:', this.state.introFlow.isComplete);
     },
     
     // ✅ Show form summary
@@ -2273,19 +2277,14 @@
         const formExists = document.getElementById('wetechforu-intro-form') !== null;
         if (formExists) {
           this.addBotMessage("Please complete the information form above first. 😊");
+          return;
         } else {
-          // Form doesn't exist but intro is enabled - show form now
-          console.log('⚠️ Form not found but intro enabled - showing form');
-          if (this.config.introQuestions && this.config.introQuestions.length > 0) {
-            const enabledQuestions = this.config.introQuestions.filter(q => q.enabled !== false);
-            this.addBotMessage("Thank you for reaching out! 😊 Before I assist you better, please fill in the information below:");
-            setTimeout(() => {
-              this.showIntroForm(enabledQuestions);
-            }, 300);
-          }
-          this.addBotMessage("Please complete the information form above first. 😊");
+          // Form doesn't exist but intro is enabled and not complete - this shouldn't happen
+          // But if it does, mark as complete and allow messages (fallback)
+          console.log('⚠️ Form not found but intro enabled - marking as complete and allowing messages');
+          this.state.introFlow.isComplete = true;
+          // Continue to send message (don't return)
         }
-        return;
       }
 
       // Normal chat mode (intro completed or not enabled)
@@ -3100,16 +3099,10 @@
           this.addBotMessage("Please complete the information form above first before sending a message. 😊");
           return; // Don't process the message
         } else {
-          // Form doesn't exist but intro is enabled - show form now
-          console.log('⚠️ Form not found but intro enabled - showing form');
-          if (this.config.introQuestions && this.config.introQuestions.length > 0) {
-            this.addBotMessage("Thank you for reaching out! 😊 Before I assist you better, please fill in the information below:");
-            setTimeout(() => {
-              this.showIntroForm(this.config.introQuestions.filter(q => q.enabled !== false));
-            }, 300);
-          }
-          this.addBotMessage("Please complete the information form above first before sending a message. 😊");
-          return;
+          // Form doesn't exist but intro is enabled and not complete - mark as complete (fallback)
+          console.log('⚠️ Form not found but intro enabled - marking as complete and allowing messages');
+          this.state.introFlow.isComplete = true;
+          // Continue to process message (don't return)
         }
       }
         
