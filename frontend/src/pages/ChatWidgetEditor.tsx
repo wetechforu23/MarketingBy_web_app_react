@@ -804,7 +804,11 @@ export default function ChatWidgetEditor() {
         try {
           await api.put(`/handover/config/${savedWidgetId}`, {
             enable_handover_choice: false,
-            handover_options: handoverOptions,
+            // ✅ SYNC: Ensure handover_options.whatsapp matches enable_whatsapp
+            handover_options: {
+              ...handoverOptions,
+              whatsapp: whatsappEnabled
+            },
             default_handover_method: defaultHandoverMethod,
             webhook_url: webhookUrl || null,
             webhook_secret: webhookSecret || null,
