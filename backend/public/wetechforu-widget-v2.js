@@ -3243,6 +3243,9 @@
           return;
         }
         
+        // ✅ Resume polling if it was paused (user sent message = activity)
+        this.resumePollingOnActivity();
+        
       // ✅ If intro form is not completed, check if form exists and block messages
       if (!this.state.introFlow.isComplete && this.state.introFlow.enabled) {
         // Check if form is actually displayed on the page
@@ -3676,10 +3679,11 @@
     restartPollingWithInterval(newInterval) {
       if (this.state.pollingInterval) {
         clearInterval(this.state.pollingInterval);
+        this.state.pollingInterval = null;
       }
       this.state.pollingIntervalMs = newInterval;
-      this.state.pollingInterval = setInterval(async () => {
-        // Same poll logic as above
+      
+      const poll = async () => {
         if (!this.state.isOpen || document.hidden) return;
         if (!this.state.conversationId) {
           this.stopPollingForAgentMessages();
@@ -3714,11 +3718,11 @@
               this.state.consecutiveEmptyPolls++;
               const intervals = [3000, 5000, 10000, 30000, 60000];
               const backoffIndex = Math.min(this.state.consecutiveEmptyPolls - 1, intervals.length - 1);
-              const newInterval = intervals[backoffIndex];
-              if (newInterval !== this.state.pollingIntervalMs) {
-                this.state.pollingIntervalMs = newInterval;
-                console.log(`⏱️ No messages, slowing to ${newInterval / 1000}s`);
-                this.restartPollingWithInterval(newInterval);
+              const nextInterval = intervals[backoffIndex];
+              if (nextInterval !== this.state.pollingIntervalMs) {
+                this.state.pollingIntervalMs = nextInterval;
+                console.log(`⏱️ No messages, slowing to ${nextInterval / 1000}s`);
+                this.restartPollingWithInterval(nextInterval);
               }
               if (this.state.consecutiveEmptyPolls >= 10 && this.state.pollingIntervalMs >= 30000) {
                 console.log('⏸️ Pausing polling after 5+ minutes idle');
@@ -3731,7 +3735,9 @@
             console.error('❌ Polling error:', error);
           }
         }
-      }, newInterval);
+      };
+      
+      this.state.pollingInterval = setInterval(poll, newInterval);
     },
     
     // Stop polling
@@ -3739,6 +3745,19 @@
       if (this.state.pollingInterval) {
         clearInterval(this.state.pollingInterval);
         this.state.pollingInterval = null;
+      }
+      // ✅ Reset polling state when stopped (but keep consecutiveEmptyPolls for resume logic)
+      this.state.pollingIntervalMs = 3000;
+    },
+    
+    // ✅ Resume polling on user activity (industry standard - when user sends message)
+    resumePollingOnActivity() {
+      if (this.state.agentTookOver && !this.state.pollingInterval && this.state.isOpen) {
+        // Reset backoff when user is active
+        this.state.pollingIntervalMs = 3000;
+        this.state.consecutiveEmptyPolls = 0;
+        this.startPollingForAgentMessages();
+        console.log('🔄 Resumed polling due to user activity');
       }
     },
 
