@@ -24,11 +24,13 @@ https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com/api/whatsapp/incoming
 https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com/api/whatsapp/status-callback
 ```
 
-**Purpose:** Receives delivery status updates (sent, delivered, failed, etc.) and pricing information
+**Purpose:** Receives delivery status updates (sent, delivered, failed, etc.) and pricing information for **OUTBOUND messages** you send
 
 **HTTP Method:** `POST`
 
 **Status:** ✅ Configured and working
+
+**Important:** According to [Twilio's documentation](https://www.twilio.com/docs/messaging/guides/track-outbound-message-status), status callback handlers should return `200 OK` with **no response content** (empty body). This is exactly what we've implemented to prevent "OK" auto-replies.
 
 ---
 
