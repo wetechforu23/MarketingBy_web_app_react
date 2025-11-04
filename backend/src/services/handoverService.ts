@@ -441,9 +441,20 @@ export class HandoverService {
       const clientName = clientInfo.rows.length > 0 ? clientInfo.rows[0].client_name : 'Client';
 
       // 3) Determine client's WhatsApp number for handover
-      // ✅ NEW: Support multiple WhatsApp numbers - assign one per conversation
+      // ✅ SMART HANDLING: Support both single number (prefix system) and multiple numbers (separate threads)
+      // 
+      // COST-EFFECTIVE APPROACH:
+      // - Single number (default): Uses conversation ID prefixes (#282: message) - NO EXTRA COST
+      // - Multiple numbers: Only if you have multiple approved numbers - EXTRA COST PER NUMBER
+      //
+      // The system automatically:
+      // 1. Checks if widget has whatsapp_number_pool configured with active numbers
+      // 2. If YES: Assigns separate number to each conversation (creates separate WhatsApp threads)
+      // 3. If NO: Uses single number with prefix system (current behavior - COST-EFFECTIVE)
+      
       let clientHandoverNumber = widgetConfig.rows[0].handover_whatsapp_number;
       let assignedNumber = null;
+      let useMultipleNumbers = false;
       
       // Check if widget has a number pool configured
       const widgetDetails = await client.query(`
@@ -454,12 +465,15 @@ export class HandoverService {
       
       const numberPool = widgetDetails.rows[0]?.whatsapp_number_pool || null;
       
-      // If number pool exists and has active numbers, assign one to this conversation
+      // ✅ ONLY use multiple numbers if pool exists AND has active numbers
+      // This ensures single-number setups automatically use the prefix system
       if (numberPool && Array.isArray(numberPool) && numberPool.length > 0) {
         // Filter to active numbers only
         const activeNumbers = numberPool.filter((num: any) => num.is_active !== false);
         
         if (activeNumbers.length > 0) {
+          useMultipleNumbers = true;
+          
           // Find least-used active number (load balancing)
           const usageCounts = await Promise.all(
             activeNumbers.map(async (num: any) => {
@@ -489,12 +503,16 @@ export class HandoverService {
             WHERE id = $2
           `, [assignedNumber, handoverRequest.conversation_id]);
           
-          console.log(`✅ Assigned WhatsApp number ${assignedNumber} (${usageCounts[0].displayName}) to conversation ${handoverRequest.conversation_id}`);
+          console.log(`✅ Multiple numbers mode: Assigned WhatsApp number ${assignedNumber} (${usageCounts[0].displayName}) to conversation ${handoverRequest.conversation_id}`);
           clientHandoverNumber = assignedNumber;
+        } else {
+          console.log(`⚠️ Number pool exists but no active numbers - falling back to single number with prefix system`);
         }
+      } else {
+        console.log(`📱 Single number mode: Using default number with prefix system (cost-effective)`);
       }
       
-      // If no number assigned from pool, use default
+      // If no number assigned from pool, use default (single number mode)
       if (!clientHandoverNumber) {
         clientHandoverNumber = widgetConfig.rows[0].handover_whatsapp_number;
       }
