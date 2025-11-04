@@ -1243,12 +1243,26 @@
     // ✅ Generate popup HTML with full chat widget (Industry Standard) - Fixed conversation transfer
     generatePopupHTML(conversationId, visitorSessionId) {
       // ✅ Get all messages from main widget to transfer
-      const allMessages = this.state.messages || [];
-      const messagesJSON = JSON.stringify(allMessages.map(msg => ({
-        message_type: msg.type || 'user',
-        message_text: msg.text || msg.message || '',
-        created_at: msg.timestamp || new Date().toISOString()
-      })));
+      const messagesContainer = document.getElementById('wetechforu-messages');
+      const allMessages = [];
+      
+      if (messagesContainer) {
+        // Extract messages from the DOM
+        const messageElements = messagesContainer.querySelectorAll('.wetechforu-message');
+        messageElements.forEach((el, index) => {
+          const isUser = el.classList.contains('wetechforu-message-user');
+          const contentEl = el.querySelector('.wetechforu-message-content');
+          if (contentEl) {
+            allMessages.push({
+              message_type: isUser ? 'user' : 'bot',
+              message_text: contentEl.textContent || contentEl.innerText || '',
+              created_at: new Date(Date.now() - (messageElements.length - index) * 1000).toISOString()
+            });
+          }
+        });
+      }
+      
+      const messagesJSON = JSON.stringify(allMessages);
       
       return `<!DOCTYPE html>
 <html lang="en">
@@ -1500,38 +1514,52 @@
                  // Show typing indicator
                  showTypingIndicator();
                  
-                 // ✅ Ensure conversation exists - Use proper visitor session ID
+                 // ✅ FIXED: Use transferred conversation ID, only create new if absolutely necessary
                  if (!currentConversationId) {
+                   console.warn('⚠️ No conversation ID in popup - attempting to find or create one');
                    try {
-                     const response = await fetch(\`\${backendUrl}/api/chat-widget/public/widget/\${widgetKey}/conversation\`, {
-                       method: 'POST',
-                       headers: { 'Content-Type': 'application/json' },
-                       body: JSON.stringify({
-                         session_id: 'popup_' + Date.now(),
-                         page_url: window.location.href,
-                         visitor_session_id: visitorSessionId
-                       })
-                     });
-                     if (response.ok) {
-                       const data = await response.json();
-                       currentConversationId = data.conversation_id;
-                       console.log('✅ Popup conversation created:', currentConversationId);
-                     } else {
-                       const errorData = await response.json().catch(() => ({}));
-                       console.error('❌ Failed to create conversation:', errorData);
-                       hideTypingIndicator();
-                       input.disabled = false;
-                       sendBtn.disabled = false;
-                       messages.push({ 
-                         message_type: 'bot', 
-                         message_text: 'Sorry, I encountered an error creating the conversation. Please try again.',
-                         id: 'bot_error_' + Date.now()
+                     // First, try to find existing conversation by visitor session
+                     const findResponse = await fetch(\`\${backendUrl}/api/chat-widget/public/widget/\${widgetKey}/conversation/by-visitor/\${visitorSessionId}\`);
+                     if (findResponse.ok) {
+                       const findData = await findResponse.json();
+                       if (findData.conversation_id) {
+                         currentConversationId = findData.conversation_id;
+                         console.log('✅ Found existing conversation in popup:', currentConversationId);
+                       }
+                     }
+                     
+                     // If still no conversation ID, create new one
+                     if (!currentConversationId) {
+                       const response = await fetch(\`\${backendUrl}/api/chat-widget/public/widget/\${widgetKey}/conversation\`, {
+                         method: 'POST',
+                         headers: { 'Content-Type': 'application/json' },
+                         body: JSON.stringify({
+                           session_id: 'popup_' + Date.now(),
+                           page_url: window.location.href,
+                           visitor_session_id: visitorSessionId
+                         })
                        });
-                       renderMessages();
-                       return;
+                       if (response.ok) {
+                         const data = await response.json();
+                         currentConversationId = data.conversation_id;
+                         console.log('✅ Popup conversation created:', currentConversationId);
+                       } else {
+                         const errorData = await response.json().catch(() => ({}));
+                         console.error('❌ Failed to create conversation:', errorData);
+                         hideTypingIndicator();
+                         input.disabled = false;
+                         sendBtn.disabled = false;
+                         messages.push({ 
+                           message_type: 'bot', 
+                           message_text: 'Sorry, I encountered an error creating the conversation. Please try again.',
+                           id: 'bot_error_' + Date.now()
+                         });
+                         renderMessages();
+                         return;
+                       }
                      }
                    } catch (error) {
-                     console.error('❌ Failed to create conversation:', error);
+                     console.error('❌ Failed to get/create conversation:', error);
                      hideTypingIndicator();
                      input.disabled = false;
                      sendBtn.disabled = false;
@@ -4362,23 +4390,6 @@
         
         // ✅ Resume polling if it was paused (user sent message = activity)
         this.resumePollingOnActivity();
-        
-      // ✅ If intro form is not completed, check if form exists and block messages
-      if (!this.state.introFlow.isComplete && this.state.introFlow.enabled) {
-        // Check if form is actually displayed on the page
-        const formExists = document.getElementById('wetechforu-intro-form') !== null;
-        
-        if (formExists) {
-          // Form exists - remind user to complete it
-          this.addBotMessage("Please complete the information form above first before sending a message. 😊");
-          return; // Don't process the message
-        } else {
-          // Form doesn't exist but intro is enabled and not complete - mark as complete (fallback)
-          console.log('⚠️ Form not found but intro enabled - marking as complete and allowing messages');
-          this.state.introFlow.isComplete = true;
-          // Continue to process message (don't return)
-        }
-        }
         
         if (data.response) {
           this.addBotMessage(data.response);
