@@ -1035,8 +1035,6 @@
       }
     },
     
-    // Toggle chat window
-    
     // ✅ Reset widget to safe position if it's in an invalid state
     resetWidgetPosition(element) {
       if (!element) return;
