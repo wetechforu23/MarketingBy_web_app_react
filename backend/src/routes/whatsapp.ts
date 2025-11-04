@@ -669,6 +669,28 @@ router.post('/incoming', async (req: Request, res: Response) => {
 
     if (clientResult.rows.length === 0) {
       console.log(`⚠️ No active WhatsApp handover found for number: ${fromNumber}${conversationId ? ` and conversation ID: ${conversationId}` : ''}`);
+      
+      // Debug: Check what conversations exist for this number
+      const debugQuery = await pool.query(`
+        SELECT wc.id as widget_id, wc.handover_whatsapp_number,
+               hr.conversation_id, hr.status as handover_status, hr.requested_method,
+               wconv.status as conv_status, wconv.agent_handoff, wconv.id as conv_id
+        FROM widget_configs wc
+        LEFT JOIN handover_requests hr ON hr.widget_id = wc.id
+        LEFT JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
+        WHERE (
+          REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+          OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+        )
+        ORDER BY hr.created_at DESC
+        LIMIT 5
+      `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+      
+      console.log(`🔍 Debug: Found ${debugQuery.rows.length} widget(s) with this number:`);
+      debugQuery.rows.forEach((row: any, idx: number) => {
+        console.log(`  ${idx + 1}. Widget ${row.widget_id}, Conv ${row.conv_id}, Handover: ${row.handover_status}, Method: ${row.requested_method}, Agent Handoff: ${row.agent_handoff}, Status: ${row.conv_status}`);
+      });
+      
       // Still send 200 to Twilio to acknowledge receipt (empty response prevents "OK" auto-replies)
       res.setHeader('Content-Type', 'text/plain');
       res.setHeader('Content-Length', '0');
@@ -916,6 +938,27 @@ router.post('/incoming', async (req: Request, res: Response) => {
     ]);
 
     console.log(`✅ Agent WhatsApp message synced to conversation ${conversationId}`);
+    console.log(`📊 Message details: ID=${MessageSid}, Text="${messageBody.substring(0, 50)}", Type=human, Agent=WhatsApp Agent`);
+    
+    // Verify message was saved
+    const verifyMsg = await pool.query(`
+      SELECT id, message_type, message_text, agent_name, created_at
+      FROM widget_messages
+      WHERE conversation_id = $1
+      ORDER BY created_at DESC
+      LIMIT 1
+    `, [conversationId]);
+    
+    if (verifyMsg.rows.length > 0) {
+      console.log(`✅ Verified: Last message in conversation ${conversationId}:`, {
+        id: verifyMsg.rows[0].id,
+        type: verifyMsg.rows[0].message_type,
+        text: verifyMsg.rows[0].message_text?.substring(0, 30),
+        agent: verifyMsg.rows[0].agent_name
+      });
+    } else {
+      console.error(`❌ ERROR: Message was NOT saved to conversation ${conversationId}!`);
+    }
 
     // ✅ CRITICAL: Return completely empty response (no text, no JSON, no whitespace)
     // Twilio sends "OK" auto-replies if the webhook response contains ANY text or whitespace
