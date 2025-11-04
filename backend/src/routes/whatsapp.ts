@@ -640,47 +640,14 @@ router.post('/incoming', async (req: Request, res: Response) => {
         matchedBy = 'conversation_id';
         console.log(`📌 Agent specified conversation ID: ${conversationId}, remaining message: "${messageBody}"`);
       } else {
-      // Try user name (@John Doe or @John)
-      const userNameMatch = messageBody.match(/^@([^:]+?):\s*(.+)$/);
-      if (userNameMatch) {
-        const userName = userNameMatch[1].trim();
-        messageBody = userNameMatch[2].trim();
-        
-        // Find conversation by user name
-        const nameMatchResult = await pool.query(`
-          SELECT DISTINCT wconv.id as conversation_id
-          FROM widget_configs wc
-          JOIN handover_requests hr ON hr.widget_id = wc.id
-          JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
-          WHERE hr.requested_method = 'whatsapp'
-            AND hr.status IN ('pending', 'notified', 'completed')
-            AND wconv.status = 'active'
-            AND (
-              REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
-              OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
-            )
-            AND (
-              LOWER(wconv.visitor_name) LIKE LOWER($2 || '%')
-              OR LOWER(wconv.visitor_name) LIKE LOWER('%' || $2 || '%')
-            )
-          ORDER BY wconv.last_activity_at DESC NULLS LAST
-          LIMIT 1
-        `, [fromNumber.replace(/[\s\-\(\)]/g, ''), userName]);
-        
-        if (nameMatchResult.rows.length > 0) {
-          conversationId = nameMatchResult.rows[0].conversation_id;
-          matchedBy = 'user_name';
-          console.log(`📌 Agent specified user name: "${userName}", matched to conversation ${conversationId}, remaining message: "${messageBody}"`);
-        }
-      } else {
-        // Try session ID (@visitor_abc123)
-        const sessionIdMatch = messageBody.match(/^@(visitor_[a-z0-9]+):\s*(.+)$/i);
-        if (sessionIdMatch) {
-          const sessionIdPrefix = sessionIdMatch[1].trim();
-          messageBody = sessionIdMatch[2].trim();
+        // Try user name (@John Doe or @John)
+        const userNameMatch = messageBody.match(/^@([^:]+?):\s*(.+)$/);
+        if (userNameMatch) {
+          const userName = userNameMatch[1].trim();
+          messageBody = userNameMatch[2].trim();
           
-          // Find conversation by session ID prefix
-          const sessionMatchResult = await pool.query(`
+          // Find conversation by user name
+          const nameMatchResult = await pool.query(`
             SELECT DISTINCT wconv.id as conversation_id
             FROM widget_configs wc
             JOIN handover_requests hr ON hr.widget_id = wc.id
@@ -692,15 +659,49 @@ router.post('/incoming', async (req: Request, res: Response) => {
                 REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
                 OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
               )
-              AND wconv.visitor_session_id LIKE $2 || '%'
+              AND (
+                LOWER(wconv.visitor_name) LIKE LOWER($2 || '%')
+                OR LOWER(wconv.visitor_name) LIKE LOWER('%' || $2 || '%')
+              )
             ORDER BY wconv.last_activity_at DESC NULLS LAST
             LIMIT 1
-          `, [fromNumber.replace(/[\s\-\(\)]/g, ''), sessionIdPrefix]);
+          `, [fromNumber.replace(/[\s\-\(\)]/g, ''), userName]);
           
-          if (sessionMatchResult.rows.length > 0) {
-            conversationId = sessionMatchResult.rows[0].conversation_id;
-            matchedBy = 'session_id';
-            console.log(`📌 Agent specified session ID: "${sessionIdPrefix}", matched to conversation ${conversationId}, remaining message: "${messageBody}"`);
+          if (nameMatchResult.rows.length > 0) {
+            conversationId = nameMatchResult.rows[0].conversation_id;
+            matchedBy = 'user_name';
+            console.log(`📌 Agent specified user name: "${userName}", matched to conversation ${conversationId}, remaining message: "${messageBody}"`);
+          }
+        } else {
+          // Try session ID (@visitor_abc123)
+          const sessionIdMatch = messageBody.match(/^@(visitor_[a-z0-9]+):\s*(.+)$/i);
+          if (sessionIdMatch) {
+            const sessionIdPrefix = sessionIdMatch[1].trim();
+            messageBody = sessionIdMatch[2].trim();
+            
+            // Find conversation by session ID prefix
+            const sessionMatchResult = await pool.query(`
+              SELECT DISTINCT wconv.id as conversation_id
+              FROM widget_configs wc
+              JOIN handover_requests hr ON hr.widget_id = wc.id
+              JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
+              WHERE hr.requested_method = 'whatsapp'
+                AND hr.status IN ('pending', 'notified', 'completed')
+                AND wconv.status = 'active'
+                AND (
+                  REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+                  OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+                )
+                AND wconv.visitor_session_id LIKE $2 || '%'
+              ORDER BY wconv.last_activity_at DESC NULLS LAST
+              LIMIT 1
+            `, [fromNumber.replace(/[\s\-\(\)]/g, ''), sessionIdPrefix]);
+            
+            if (sessionMatchResult.rows.length > 0) {
+              conversationId = sessionMatchResult.rows[0].conversation_id;
+              matchedBy = 'session_id';
+              console.log(`📌 Agent specified session ID: "${sessionIdPrefix}", matched to conversation ${conversationId}, remaining message: "${messageBody}"`);
+            }
           }
         }
       }
@@ -1082,7 +1083,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
     `, [conversationId]);
     
     const assignedNumber = convResult.rows[0]?.assigned_whatsapp_number;
-    const widgetId = convResult.rows[0]?.widget_id;
+    // widgetId already declared above - reuse it
     
     await pool.query(`
       UPDATE widget_conversations
@@ -1161,11 +1162,12 @@ router.post('/incoming', async (req: Request, res: Response) => {
       WHERE id = $1
     `, [conversationId]);
     
-    const visitorName = visitorInfo.rows[0]?.visitor_name || `Visitor ${conversationId}`;
+    // visitorName already declared above - reuse it, but update if needed
+    const currentVisitorName = visitorInfo.rows[0]?.visitor_name || visitorName;
     const sessionId = visitorInfo.rows[0]?.visitor_session_id || 'N/A';
     
     console.log(`✅ Agent WhatsApp message synced to conversation ${conversationId}`);
-    console.log(`👤 User: ${visitorName} | Session: ${sessionId.substring(0, 20)}...`);
+    console.log(`👤 User: ${currentVisitorName} | Session: ${sessionId.substring(0, 20)}...`);
     console.log(`📊 Message details: ID=${MessageSid}, Text="${messageBody.substring(0, 50)}", Matched by: ${matchedBy}, Type=human, Agent=WhatsApp Agent`);
     
     // Verify message was saved
@@ -1178,14 +1180,14 @@ router.post('/incoming', async (req: Request, res: Response) => {
     `, [conversationId]);
     
     if (verifyMsg.rows.length > 0) {
-      console.log(`✅ Verified: Last message in conversation ${conversationId} (${visitorName}):`, {
+      console.log(`✅ Verified: Last message in conversation ${conversationId} (${currentVisitorName}):`, {
         id: verifyMsg.rows[0].id,
         type: verifyMsg.rows[0].message_type,
         text: verifyMsg.rows[0].message_text?.substring(0, 30),
         agent: verifyMsg.rows[0].agent_name
       });
     } else {
-      console.error(`❌ ERROR: Message was NOT saved to conversation ${conversationId} (${visitorName})!`);
+      console.error(`❌ ERROR: Message was NOT saved to conversation ${conversationId} (${currentVisitorName})!`);
     }
 
     // ✅ CRITICAL: Return completely empty response (no text, no JSON, no whitespace)
