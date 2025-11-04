@@ -698,17 +698,23 @@
 
       chatButton.addEventListener('click', () => this.toggleChat());
       closeButton.addEventListener('click', () => this.closeChat());
-      minimizeButton.addEventListener('click', () => this.closeChat()); // Minimize = same as close
+      minimizeButton.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent header drag
+        this.minimizeChat();
+      });
       sendButton.addEventListener('click', () => this.sendMessage());
       input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') this.sendMessage();
       });
       
-      // ✅ Make widget draggable by header
+      // ✅ Make widget draggable by entire header (not just specific area)
       this.makeDraggable(chatWindow);
       
-      // ✅ Make widget resizable
+      // ✅ Make widget resizable from all edges (not just bottom-right corner)
       this.makeResizable(chatWindow, resizeHandle);
+      
+      // ✅ Click outside to minimize (not close)
+      this.setupClickOutsideToMinimize(chatWindow);
     },
     
     // Make widget draggable
@@ -761,18 +767,62 @@
       });
     },
     
-    // Make widget resizable
+    // Make widget resizable from all edges and corners
     makeResizable(element, handle) {
       let isResizing = false;
-      let startX, startY, startWidth, startHeight;
+      let startX, startY, startWidth, startHeight, startLeft, startTop;
+      let resizeEdge = null; // 'right', 'bottom', 'corner', 'left', 'top'
       
-      handle.addEventListener('mousedown', (e) => {
-        isResizing = true;
-        startX = e.clientX;
-        startY = e.clientY;
-        startWidth = element.offsetWidth;
-        startHeight = element.offsetHeight;
-        e.preventDefault();
+      // ✅ Enable resize from all edges
+      const edges = {
+        right: { width: '100%', height: '100%', top: 0, left: 'auto', right: 0, bottom: 'auto', cursor: 'ew-resize' },
+        bottom: { width: '100%', height: '100%', top: 'auto', left: 0, right: 'auto', bottom: 0, cursor: 'ns-resize' },
+        corner: { width: '20px', height: '20px', top: 'auto', left: 'auto', right: 0, bottom: 0, cursor: 'nwse-resize' },
+        left: { width: '4px', height: '100%', top: 0, left: 0, right: 'auto', bottom: 'auto', cursor: 'ew-resize' },
+        top: { width: '100%', height: '4px', top: 0, left: 0, right: 'auto', bottom: 'auto', cursor: 'ns-resize' }
+      };
+      
+      // Create resize handles for all edges
+      Object.keys(edges).forEach(edge => {
+        if (edge === 'corner') {
+          // Use existing handle
+          handle.style.cursor = 'nwse-resize';
+          handle.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            isResizing = true;
+            resizeEdge = 'corner';
+            startX = e.clientX;
+            startY = e.clientY;
+            startWidth = element.offsetWidth;
+            startHeight = element.offsetHeight;
+            startLeft = element.offsetLeft;
+            startTop = element.offsetTop;
+            e.preventDefault();
+          });
+        } else {
+          const edgeHandle = document.createElement('div');
+          edgeHandle.className = `wetechforu-resize-${edge}`;
+          edgeHandle.style.cssText = `
+            position: absolute;
+            ${Object.entries(edges[edge]).map(([k, v]) => `${k}: ${v};`).join(' ')}
+            z-index: 1000;
+            background: transparent;
+          `;
+          element.appendChild(edgeHandle);
+          
+          edgeHandle.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            isResizing = true;
+            resizeEdge = edge;
+            startX = e.clientX;
+            startY = e.clientY;
+            startWidth = element.offsetWidth;
+            startHeight = element.offsetHeight;
+            startLeft = element.offsetLeft;
+            startTop = element.offsetTop;
+            e.preventDefault();
+          });
+        }
       });
       
       document.addEventListener('mousemove', (e) => {
@@ -781,21 +831,84 @@
         const deltaX = e.clientX - startX;
         const deltaY = e.clientY - startY;
         
-        const newWidth = Math.max(300, Math.min(600, startWidth + deltaX));
-        const newHeight = Math.max(400, Math.min(800, startHeight + deltaY));
-        
-        element.style.width = newWidth + 'px';
-        element.style.height = newHeight + 'px';
+        if (resizeEdge === 'corner') {
+          const newWidth = Math.max(300, Math.min(800, startWidth + deltaX));
+          const newHeight = Math.max(400, Math.min(900, startHeight + deltaY));
+          element.style.width = newWidth + 'px';
+          element.style.height = newHeight + 'px';
+        } else if (resizeEdge === 'right') {
+          const newWidth = Math.max(300, Math.min(800, startWidth + deltaX));
+          element.style.width = newWidth + 'px';
+        } else if (resizeEdge === 'bottom') {
+          const newHeight = Math.max(400, Math.min(900, startHeight + deltaY));
+          element.style.height = newHeight + 'px';
+        } else if (resizeEdge === 'left') {
+          const newWidth = Math.max(300, Math.min(800, startWidth - deltaX));
+          const newLeft = startLeft + deltaX;
+          if (newWidth >= 300 && newLeft >= 0) {
+            element.style.width = newWidth + 'px';
+            element.style.left = newLeft + 'px';
+          }
+        } else if (resizeEdge === 'top') {
+          const newHeight = Math.max(400, Math.min(900, startHeight - deltaY));
+          const newTop = startTop + deltaY;
+          if (newHeight >= 400 && newTop >= 0) {
+            element.style.height = newHeight + 'px';
+            element.style.top = newTop + 'px';
+          }
+        }
       });
       
       document.addEventListener('mouseup', () => {
         isResizing = false;
+        resizeEdge = null;
       });
+    },
+    
+    // ✅ Setup click outside to minimize
+    setupClickOutsideToMinimize(chatWindow) {
+      document.addEventListener('click', (e) => {
+        // Only minimize if chat is open and click is outside
+        if (!this.state.isOpen) return;
+        
+        const chatButton = document.getElementById('wetechforu-chat-button');
+        const clickedInside = chatWindow.contains(e.target) || 
+                             (chatButton && chatButton.contains(e.target));
+        
+        if (!clickedInside) {
+          this.minimizeChat();
+        }
+      });
+    },
+    
+    // ✅ Minimize chat (preserve conversation state)
+    minimizeChat() {
+      const chatWindow = document.getElementById('wetechforu-chat-window');
+      const badge = document.getElementById('wetechforu-badge');
+      
+      if (!chatWindow) return;
+      
+      chatWindow.style.display = 'none';
+      badge.style.display = 'flex';
+      this.state.isOpen = false;
+      
+      // ✅ DO NOT clear conversation or localStorage - preserve state
+      // ✅ DO NOT mark as closed - allow reopening
+      console.log('📦 Chat minimized - conversation state preserved');
+      
+      // Stop polling temporarily (will resume on reopen)
+      this.stopPollingForAgentMessages();
     },
 
     // Toggle chat window
     toggleChat() {
-      this.state.isOpen ? this.closeChat() : this.openChat();
+      if (this.state.isOpen) {
+        // If open, minimize (don't close with confirmation)
+        this.minimizeChat();
+      } else {
+        // If closed/minimized, open and restore conversation
+        this.openChat();
+      }
     },
 
     // Open chat
@@ -1258,10 +1371,13 @@
     // Perform the actual close (after confirmation)
     performClose() {
       const chatWindow = document.getElementById('wetechforu-chat-window');
+      const badge = document.getElementById('wetechforu-badge');
+      
       chatWindow.style.display = 'none';
+      badge.style.display = 'flex';
       this.state.isOpen = false;
       
-      // ✅ Clear conversation from localStorage
+      // ✅ Clear conversation from localStorage (only on explicit close, not minimize)
       const conversationId = this.state.conversationId;
       if (conversationId) {
         localStorage.removeItem(`wetechforu_conversation_${this.config.widgetKey}`);
