@@ -555,17 +555,23 @@ export class HandoverService {
       // Improved notification format - make conversation ID and session ID prominent
       const notificationMessage = enableMultipleChats
         ? `🔔 *Agent Handover Request*\n\n` +
-          `*Conversation: #${handoverRequest.conversation_id}*\n` +
-          `*Session ID:* \`${sessionIdDisplay}\`\n` +
-          `*Visitor:* ${visitorName}\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `*CONVERSATION ID: #${handoverRequest.conversation_id}*\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `*Visitor:* ${visitorName}\n` +
+          `*Session ID:* \`${sessionIdDisplay}\`\n\n` +
           (visitorInfo.length > 0 ? `*Contact Info:*\n${visitorInfo.map(v => `• ${v}`).join('\n')}\n\n` : '') +
           `*Message:*\n${handoverRequest.visitor_message || 'Visitor requested agent support'}\n\n` +
           `*Widget:* ${widgetConfig.rows[0].widget_name || 'N/A'}\n\n` +
           `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-          `💬 *TO REPLY:* Start your message with:\n` +
+          `💬 *HOW TO REPLY (REQUIRED):*\n` +
+          `Start your message with:\n` +
           `\`#${handoverRequest.conversation_id}: your message\`\n\n` +
-          `Example: \`#${handoverRequest.conversation_id}: Hello, how can I help?\`\n\n` +
-          `⚠️ *IMPORTANT:* Without the #${handoverRequest.conversation_id} prefix, your message will go to the wrong conversation!\n\n` +
+          `✅ *Example:*\n` +
+          `\`#${handoverRequest.conversation_id}: Hello ${visitorName}, how can I help?\`\n\n` +
+          `❌ *WRONG (will go to wrong conversation):*\n` +
+          `\`Hello, how can I help?\`\n\n` +
+          `⚠️ *CRITICAL:* You may have multiple active conversations. Always include #${handoverRequest.conversation_id} prefix!\n\n` +
           `Please respond as soon as possible.`
         : `🔔 *Agent Handover Request*\n\n` +
           `*Conversation ID:* #${handoverRequest.conversation_id}\n` +

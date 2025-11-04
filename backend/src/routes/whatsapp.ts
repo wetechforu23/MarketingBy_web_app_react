@@ -640,8 +640,81 @@ router.post('/incoming', async (req: Request, res: Response) => {
       const enableMultipleChats = widgetCheck.rows[0]?.enable_multiple_whatsapp_chats || false;
       
       if (enableMultipleChats) {
-        // Multiple chats enabled but no conversation ID - use most recent active conversation
-        // But log a warning that agent should use conversation ID
+        // Multiple chats enabled but no conversation ID - send warning with list of active conversations
+        console.log(`⚠️ Multiple chats enabled but agent didn't specify conversation ID - sending active conversations list`);
+        
+        // Get all active WhatsApp conversations for this number
+        const activeConversations = await pool.query(`
+          SELECT DISTINCT wconv.id, wconv.visitor_name, wconv.visitor_session_id, 
+                 wconv.last_activity_at, hr.created_at as handover_requested_at
+          FROM widget_configs wc
+          JOIN handover_requests hr ON hr.widget_id = wc.id
+          JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
+          WHERE hr.requested_method = 'whatsapp'
+            AND hr.status IN ('pending', 'notified', 'completed')
+            AND wconv.status = 'active'
+            AND (
+              REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+              OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+            )
+          ORDER BY wconv.last_activity_at DESC NULLS LAST, hr.created_at DESC
+          LIMIT 10
+        `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+        
+        if (activeConversations.rows.length > 1) {
+          // Multiple active conversations - send list to agent
+          const { WhatsAppService } = await import('../services/whatsappService');
+          const whatsappService = WhatsAppService.getInstance();
+          
+          let conversationsList = activeConversations.rows.map((conv: any, idx: number) => {
+            const visitorName = conv.visitor_name || `Visitor ${conv.id}`;
+            const sessionDisplay = conv.visitor_session_id ? conv.visitor_session_id.substring(0, 15) + '...' : 'N/A';
+            return `${idx + 1}. *#${conv.id}* - ${visitorName} (Session: ${sessionDisplay})`;
+          }).join('\n');
+          
+          const warningMessage = `⚠️ *Multiple Active Conversations*\n\n` +
+            `You have ${activeConversations.rows.length} active WhatsApp conversations. Please specify which conversation you're replying to:\n\n` +
+            `${conversationsList}\n\n` +
+            `*To reply, start your message with:*\n` +
+            `\`#CONVERSATION_ID: your message\`\n\n` +
+            `Example: \`#${activeConversations.rows[0].id}: Hello, how can I help?\`\n\n` +
+            `Your message "${messageBody}" was not delivered. Please resend with the conversation ID prefix.`;
+          
+          try {
+            const clientIdResult = await pool.query(`
+              SELECT client_id FROM widget_configs wc
+              WHERE (
+                REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+                OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+              )
+              LIMIT 1
+            `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+            
+            if (clientIdResult.rows.length > 0) {
+              await whatsappService.sendMessage({
+                clientId: clientIdResult.rows[0].client_id,
+                widgetId: 0, // Not specific to a widget
+                conversationId: 0, // System message
+                toNumber: `whatsapp:${fromNumber}`,
+                message: warningMessage,
+                sentByAgentName: 'System',
+                visitorName: 'Agent'
+              });
+              
+              console.log(`📱 Sent active conversations list to agent (${activeConversations.rows.length} conversations)`);
+              
+              // Return empty response - message was sent but not processed
+              res.removeHeader('Content-Type');
+              res.setHeader('Content-Length', '0');
+              return res.status(200).end();
+            }
+          } catch (warningError) {
+            console.error('Error sending conversations list warning:', warningError);
+            // Continue to process as single conversation
+          }
+        }
+        
+        // If only one conversation or warning failed, use most recent
         console.log(`⚠️ Multiple chats enabled but agent didn't specify conversation ID - using most recent active conversation`);
       }
       
