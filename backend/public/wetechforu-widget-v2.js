@@ -62,6 +62,8 @@
       consecutiveEmptyPolls: 0, // ✅ Track consecutive polls with no messages (for exponential backoff)
       agentTookOver: false, // ✅ NEW: Track if agent took over conversation
       conversationEnded: false, // ✅ Track if conversation has ended
+      popupWindow: null, // ✅ Track popup window for maximize feature
+      popupCheckInterval: null // ✅ Check if popup is closed
       unsuccessfulAttempts: 0, // Track failed knowledge base matches
       compatibility: {
         supported: true,
@@ -962,13 +964,95 @@
       }
     },
     
-    // ✅ Maximize/Expand widget
+    // ✅ Maximize/Expand widget - Opens in new popup window (Industry Standard)
     maximizeWidget(element) {
+      const expandBtn = document.getElementById('wetechforu-expand-button');
+      
+      // ✅ If popup already open, close it
+      if (this.state.popupWindow && !this.state.popupWindow.closed) {
+        this.state.popupWindow.close();
+        this.state.popupWindow = null;
+        if (this.state.popupCheckInterval) {
+          clearInterval(this.state.popupCheckInterval);
+          this.state.popupCheckInterval = null;
+        }
+        if (expandBtn) {
+          expandBtn.textContent = '⛶';
+          expandBtn.title = 'Maximize';
+        }
+        return;
+      }
+      
+      // ✅ Calculate optimal popup size (industry standard: 800x600 or 90% of screen)
+      const screenWidth = window.screen.width || 1200;
+      const screenHeight = window.screen.height || 800;
+      const popupWidth = Math.min(800, Math.floor(screenWidth * 0.9));
+      const popupHeight = Math.min(700, Math.floor(screenHeight * 0.85));
+      const left = Math.floor((screenWidth - popupWidth) / 2);
+      const top = Math.floor((screenHeight - popupHeight) / 2);
+      
+      // ✅ Get conversation data to pass to popup
+      const conversationId = this.state.conversationId;
+      const visitorSessionId = this.getVisitorSessionId();
+      
+      // ✅ Create popup window (industry standard approach)
+      const popupFeatures = `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no`;
+      
+      try {
+        const popup = window.open('', 'wetechforu_chat_popup', popupFeatures);
+        
+        if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+          // ✅ Popup blocked - fallback to in-page maximize
+          console.warn('⚠️ Popup blocked, using in-page maximize');
+          this.maximizeInPage(element);
+          return;
+        }
+        
+        this.state.popupWindow = popup;
+        
+        // ✅ Generate popup HTML with full chat widget
+        const popupHTML = this.generatePopupHTML(conversationId, visitorSessionId);
+        
+        popup.document.open();
+        popup.document.write(popupHTML);
+        popup.document.close();
+        
+        // ✅ Update button state
+        if (expandBtn) {
+          expandBtn.textContent = '⛶'; // Close icon
+          expandBtn.title = 'Close Popup';
+        }
+        
+        // ✅ Monitor popup window - when closed, restore button
+        this.state.popupCheckInterval = setInterval(() => {
+          if (this.state.popupWindow && this.state.popupWindow.closed) {
+            this.state.popupWindow = null;
+            clearInterval(this.state.popupCheckInterval);
+            this.state.popupCheckInterval = null;
+            if (expandBtn) {
+              expandBtn.textContent = '⛶';
+              expandBtn.title = 'Maximize';
+            }
+            console.log('✅ Popup closed - widget restored to normal state');
+          }
+        }, 500);
+        
+        // ✅ Focus popup window
+        popup.focus();
+        
+      } catch (error) {
+        console.error('❌ Failed to open popup:', error);
+        // Fallback to in-page maximize
+        this.maximizeInPage(element);
+      }
+    },
+    
+    // ✅ Fallback: Maximize in-page (if popup blocked)
+    maximizeInPage(element) {
       const isMaximized = element.classList.contains('maximized');
       const expandBtn = document.getElementById('wetechforu-expand-button');
       
       if (!isMaximized) {
-        // ✅ FIX: Maximize (when NOT maximized, click to maximize)
         // Save current size before maximizing
         const currentWidth = element.style.width || element.offsetWidth + 'px';
         const currentHeight = element.style.height || element.offsetHeight + 'px';
@@ -981,7 +1065,6 @@
           bottom: currentBottom
         }));
         
-        // Maximize to full screen (with padding)
         element.classList.add('maximized');
         element.style.width = 'calc(100vw - 40px)';
         element.style.height = 'calc(100vh - 100px)';
@@ -990,12 +1073,12 @@
         element.style.bottom = '80px';
         element.style.top = '20px';
         
-        if (expandBtn) expandBtn.textContent = '⛶'; // Restore icon
-        if (expandBtn) expandBtn.title = 'Restore';
-        
+        if (expandBtn) {
+          expandBtn.textContent = '⛶';
+          expandBtn.title = 'Restore';
+        }
         this.saveWidgetPosition(element);
       } else {
-        // ✅ FIX: Restore (when maximized, click to restore)
         element.classList.remove('maximized');
         const savedSize = localStorage.getItem(`wetechforu_widget_size_before_maximize_${this.config.widgetKey}`);
         if (savedSize) {
@@ -1020,13 +1103,290 @@
         element.style.right = 'auto';
         element.style.top = '';
         
-        if (expandBtn) expandBtn.textContent = '⛶'; // Maximize icon
-        if (expandBtn) expandBtn.title = 'Maximize';
-        
-        // ✅ Ensure widget is within viewport after restore
+        if (expandBtn) {
+          expandBtn.textContent = '⛶';
+          expandBtn.title = 'Maximize';
+        }
         this.ensureWidgetInViewport(element);
         this.saveWidgetPosition(element);
       }
+    },
+    
+    // ✅ Generate popup HTML with full chat widget (Industry Standard)
+    generatePopupHTML(conversationId, visitorSessionId) {
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${this.config.botName || 'Chat'} - WeTechForU</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      background: #f5f5f5;
+    }
+    #chat-container {
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: white;
+    }
+    #chat-header {
+      background: linear-gradient(135deg, ${this.config.primaryColor || '#4682B4'}, ${this.config.secondaryColor || '#2E86AB'});
+      color: white;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    #chat-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    #chat-header-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+    #chat-header-title {
+      font-weight: 600;
+      font-size: 16px;
+    }
+    #chat-header-subtitle {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+    #chat-close-popup {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+      font-size: 18px;
+    }
+    #chat-close-popup:hover {
+      background: rgba(255,255,255,0.3);
+    }
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      background: #f8f9fa;
+    }
+    #chat-input-container {
+      padding: 16px 20px;
+      background: white;
+      border-top: 1px solid #e0e0e0;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    #chat-input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 24px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    #chat-input:focus {
+      border-color: ${this.config.primaryColor || '#4682B4'};
+    }
+    #chat-send {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: ${this.config.primaryColor || '#4682B4'};
+      border: none;
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: transform 0.2s;
+    }
+    #chat-send:hover {
+      transform: scale(1.05);
+    }
+    .message {
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+    .message.user {
+      align-items: flex-end;
+    }
+    .message.bot {
+      align-items: flex-start;
+    }
+    .message-bubble {
+      max-width: 70%;
+      padding: 12px 16px;
+      border-radius: 18px;
+      word-wrap: break-word;
+    }
+    .message.user .message-bubble {
+      background: ${this.config.primaryColor || '#4682B4'};
+      color: white;
+    }
+    .message.bot .message-bubble {
+      background: white;
+      color: #333;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+  <div id="chat-container">
+    <div id="chat-header">
+      <div id="chat-header-left">
+        <div id="chat-header-avatar">${this.config.botAvatarUrl ? `<img src="${this.config.botAvatarUrl}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" onerror="this.parentElement.innerHTML='🤖'">` : '🤖'}</div>
+        <div>
+          <div id="chat-header-title">${this.config.botName || 'Assistant'}</div>
+          <div id="chat-header-subtitle">Online</div>
+        </div>
+      </div>
+      <button id="chat-close-popup" title="Close">✕</button>
+    </div>
+    <div id="chat-messages"></div>
+    <div id="chat-input-container">
+      <input type="text" id="chat-input" placeholder="Type your message..." />
+      <button id="chat-send">➤</button>
+    </div>
+  </div>
+  
+  <script>
+    // ✅ Initialize popup chat
+    const widgetKey = '${this.config.widgetKey}';
+    const backendUrl = '${this.config.backendUrl}';
+    const conversationId = ${conversationId || 'null'};
+    const visitorSessionId = '${visitorSessionId}';
+    
+    let messages = [];
+    let currentConversationId = conversationId;
+    
+    // ✅ Load existing messages
+    async function loadMessages() {
+      if (!currentConversationId) return;
+      try {
+        const response = await fetch(\`\${backendUrl}/api/chat-widget/public/widget/\${widgetKey}/conversations/\${currentConversationId}/messages\`);
+        if (response.ok) {
+          const data = await response.json();
+          messages = Array.isArray(data) ? data : (data.messages || []);
+          renderMessages();
+        }
+      } catch (error) {
+        console.error('Failed to load messages:', error);
+      }
+    }
+    
+    // ✅ Render messages
+    function renderMessages() {
+      const container = document.getElementById('chat-messages');
+      container.innerHTML = messages.map(msg => {
+        const isUser = msg.message_type === 'user';
+        return \`<div class="message \${isUser ? 'user' : 'bot'}">
+          <div class="message-bubble">\${escapeHTML(msg.message_text || '')}</div>
+        </div>\`;
+      }).join('');
+      container.scrollTop = container.scrollHeight;
+    }
+    
+    // ✅ Send message
+    async function sendMessage() {
+      const input = document.getElementById('chat-input');
+      const message = input.value.trim();
+      if (!message) return;
+      
+      // Add user message to UI
+      messages.push({ message_type: 'user', message_text: message });
+      renderMessages();
+      input.value = '';
+      
+      // Ensure conversation exists
+      if (!currentConversationId) {
+        const response = await fetch(\`\${backendUrl}/api/chat-widget/public/widget/\${widgetKey}/conversation\`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: 'popup_' + Date.now(),
+            page_url: window.location.href,
+            visitor_session_id: visitorSessionId
+          })
+        });
+        if (response.ok) {
+          const data = await response.json();
+          currentConversationId = data.conversation_id;
+        }
+      }
+      
+      // Send to backend
+      try {
+        const response = await fetch(\`\${backendUrl}/api/chat-widget/public/widget/\${widgetKey}/message\`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conversation_id: currentConversationId,
+            message_text: message
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.response) {
+            messages.push({ message_type: 'bot', message_text: data.response });
+            renderMessages();
+          }
+        }
+      } catch (error) {
+        console.error('Failed to send message:', error);
+      }
+    }
+    
+    // ✅ Event listeners
+    document.getElementById('chat-send').addEventListener('click', sendMessage);
+    document.getElementById('chat-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+    document.getElementById('chat-close-popup').addEventListener('click', () => {
+      window.close();
+    });
+    
+    // ✅ Helper
+    function escapeHTML(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    // ✅ Load messages on startup
+    loadMessages();
+  </script>
+</body>
+</html>`;
     },
     
     // ✅ Ensure widget is within viewport bounds
