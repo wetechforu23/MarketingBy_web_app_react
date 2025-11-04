@@ -1074,9 +1074,15 @@ router.post('/incoming', async (req: Request, res: Response) => {
           const { WhatsAppService } = await import('../services/whatsappService');
           const whatsappService = WhatsAppService.getInstance();
           
+          // Get widget name
+          const widgetNameResult = await pool.query(`
+            SELECT widget_name FROM widget_configs WHERE id = $1
+          `, [widgetId]);
+          const widgetName = widgetNameResult.rows[0]?.widget_name || 'Chat Widget';
+          
           const endMessage = `📞 *Conversation Ended*\n\n` +
             `*Conversation ID:* #${conversationId}\n` +
-            `*Widget:* ${match.widget_name || 'Chat Widget'}\n` +
+            `*Widget:* ${widgetName}\n` +
             `*Visitor:* ${visitorName}\n` +
             `*Reason:* Ended by agent\n\n` +
             `A summary has been sent to the visitor (if email provided).\n` +
