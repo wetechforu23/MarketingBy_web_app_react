@@ -1413,120 +1413,157 @@
       container.scrollTop = container.scrollHeight;
     }
     
-    // ✅ Send message - FIXED: Properly handle bot responses (KB, AI, etc.)
-    async function sendMessage() {
-      const input = document.getElementById('chat-input');
-      const message = input.value.trim();
-      if (!message) return;
-      
-      // Add user message to UI
-      messages.push({ message_type: 'user', message_text: message, id: 'user_' + Date.now() });
-      renderMessages();
-      input.value = '';
-      
-      // Disable input while processing
-      input.disabled = true;
-      const sendBtn = document.getElementById('chat-send');
-      sendBtn.disabled = true;
-      
-      // Show typing indicator
-      showTypingIndicator();
-      
-      // Ensure conversation exists
-      if (!currentConversationId) {
-        try {
-          const response = await fetch(\`\${backendUrl}/api/chat-widget/public/widget/\${widgetKey}/conversation\`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              session_id: 'popup_' + Date.now(),
-              page_url: window.location.href,
-              visitor_session_id: visitorSessionId
-            })
-          });
-          if (response.ok) {
-            const data = await response.json();
-            currentConversationId = data.conversation_id;
-          }
-        } catch (error) {
-          console.error('Failed to create conversation:', error);
-          hideTypingIndicator();
-          input.disabled = false;
-          sendBtn.disabled = false;
-          return;
-        }
-      }
-      
-      // Send to backend - FIXED: Use same endpoint as main widget
-      try {
-        const response = await fetch(\`\${backendUrl}/api/chat-widget/public/widget/\${widgetKey}/message\`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            conversation_id: currentConversationId,
-            message_text: message
-          })
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          
-          // ✅ Handle bot response (from KB, AI, etc.)
-          if (data.response) {
-            hideTypingIndicator();
-            messages.push({ 
-              message_type: 'bot', 
-              message_text: data.response,
-              id: 'bot_' + Date.now()
-            });
-            renderMessages();
-          } else if (data.message) {
-            hideTypingIndicator();
-            messages.push({ 
-              message_type: 'bot', 
-              message_text: data.message,
-              id: 'bot_' + Date.now()
-            });
-            renderMessages();
-          }
-          
-          // ✅ Handle agent handoff
-          if (data.agent_handoff) {
-            hideTypingIndicator();
-            messages.push({ 
-              message_type: 'bot', 
-              message_text: '👨‍💼 Your message has been sent to our team. An agent will respond shortly...',
-              id: 'bot_handoff_' + Date.now()
-            });
-            renderMessages();
-            // Start polling for agent messages
-            startPollingForAgentMessages();
-          }
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          hideTypingIndicator();
-          messages.push({ 
-            message_type: 'bot', 
-            message_text: 'Sorry, I encountered an error. Please try again.',
-            id: 'bot_error_' + Date.now()
-          });
-          renderMessages();
-        }
-      } catch (error) {
-        console.error('Failed to send message:', error);
-        hideTypingIndicator();
-        messages.push({ 
-          message_type: 'bot', 
-          message_text: 'Sorry, I encountered an error. Please try again.',
-          id: 'bot_error_' + Date.now()
-        });
-        renderMessages();
-      } finally {
-        input.disabled = false;
-        sendBtn.disabled = false;
-        input.focus();
-      }
-    }
+               // ✅ Send message - FIXED: Properly handle bot responses (KB, AI, etc.)
+               async function sendMessage() {
+                 const input = document.getElementById('chat-input');
+                 const message = input.value.trim();
+                 if (!message) return;
+                 
+                 // Add user message to UI
+                 messages.push({ message_type: 'user', message_text: message, id: 'user_' + Date.now() });
+                 renderMessages();
+                 input.value = '';
+                 
+                 // Disable input while processing
+                 input.disabled = true;
+                 const sendBtn = document.getElementById('chat-send');
+                 sendBtn.disabled = true;
+                 
+                 // Show typing indicator
+                 showTypingIndicator();
+                 
+                 // ✅ Ensure conversation exists - Use proper visitor session ID
+                 if (!currentConversationId) {
+                   try {
+                     const response = await fetch(\`\${backendUrl}/api/chat-widget/public/widget/\${widgetKey}/conversation\`, {
+                       method: 'POST',
+                       headers: { 'Content-Type': 'application/json' },
+                       body: JSON.stringify({
+                         session_id: 'popup_' + Date.now(),
+                         page_url: window.location.href,
+                         visitor_session_id: visitorSessionId
+                       })
+                     });
+                     if (response.ok) {
+                       const data = await response.json();
+                       currentConversationId = data.conversation_id;
+                       console.log('✅ Popup conversation created:', currentConversationId);
+                     } else {
+                       const errorData = await response.json().catch(() => ({}));
+                       console.error('❌ Failed to create conversation:', errorData);
+                       hideTypingIndicator();
+                       input.disabled = false;
+                       sendBtn.disabled = false;
+                       messages.push({ 
+                         message_type: 'bot', 
+                         message_text: 'Sorry, I encountered an error creating the conversation. Please try again.',
+                         id: 'bot_error_' + Date.now()
+                       });
+                       renderMessages();
+                       return;
+                     }
+                   } catch (error) {
+                     console.error('❌ Failed to create conversation:', error);
+                     hideTypingIndicator();
+                     input.disabled = false;
+                     sendBtn.disabled = false;
+                     messages.push({ 
+                       message_type: 'bot', 
+                       message_text: 'Sorry, I encountered an error. Please check your connection and try again.',
+                       id: 'bot_error_' + Date.now()
+                     });
+                     renderMessages();
+                     return;
+                   }
+                 }
+                 
+                 // ✅ Send to backend - FIXED: Use same endpoint as main widget with proper error handling
+                 try {
+                   console.log('📤 Sending message to backend:', { conversation_id: currentConversationId, message_text: message });
+                   const response = await fetch(\`\${backendUrl}/api/chat-widget/public/widget/\${widgetKey}/message\`, {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({
+                       conversation_id: currentConversationId,
+                       message_text: message,
+                       visitor_session_id: visitorSessionId
+                     })
+                   });
+                   
+                   if (!response.ok) {
+                     const errorData = await response.json().catch(() => ({ error: 'Unknown error', status: response.status }));
+                     console.error('❌ Backend error:', errorData);
+                     hideTypingIndicator();
+                     messages.push({ 
+                       message_type: 'bot', 
+                       message_text: errorData.message || errorData.error || \`Sorry, I encountered an error (Status: \${response.status}). Please try again.\`,
+                       id: 'bot_error_' + Date.now()
+                     });
+                     renderMessages();
+                     input.disabled = false;
+                     sendBtn.disabled = false;
+                     input.focus();
+                     return;
+                   }
+                   
+                   const data = await response.json();
+                   console.log('✅ Backend response:', data);
+                   
+                   // ✅ Handle bot response (from KB, AI, etc.)
+                   if (data.response) {
+                     hideTypingIndicator();
+                     messages.push({ 
+                       message_type: 'bot', 
+                       message_text: data.response,
+                       id: 'bot_' + Date.now()
+                     });
+                     renderMessages();
+                   } else if (data.message) {
+                     hideTypingIndicator();
+                     messages.push({ 
+                       message_type: 'bot', 
+                       message_text: data.message,
+                       id: 'bot_' + Date.now()
+                     });
+                     renderMessages();
+                   } else {
+                     // ✅ If no response, show helpful message
+                     hideTypingIndicator();
+                     messages.push({ 
+                       message_type: 'bot', 
+                       message_text: 'I received your message but didn\'t get a response. Please try again or contact support.',
+                       id: 'bot_no_response_' + Date.now()
+                     });
+                     renderMessages();
+                   }
+                   
+                   // ✅ Handle agent handoff
+                   if (data.agent_handoff) {
+                     hideTypingIndicator();
+                     messages.push({ 
+                       message_type: 'bot', 
+                       message_text: '👨‍💼 Your message has been sent to our team. An agent will respond shortly...',
+                       id: 'bot_handoff_' + Date.now()
+                     });
+                     renderMessages();
+                     // Start polling for agent messages
+                     startPollingForAgentMessages();
+                   }
+                 } catch (error) {
+                   console.error('❌ Failed to send message:', error);
+                   hideTypingIndicator();
+                   messages.push({ 
+                     message_type: 'bot', 
+                     message_text: \`Sorry, I encountered a network error: \${error.message}. Please check your connection and try again.\`,
+                     id: 'bot_error_' + Date.now()
+                   });
+                   renderMessages();
+                 } finally {
+                   input.disabled = false;
+                   sendBtn.disabled = false;
+                   input.focus();
+                 }
+               }
     
     // ✅ Typing indicator
     function showTypingIndicator() {
@@ -1809,7 +1846,12 @@
         // Only minimize if chat is open and click is outside
         if (!this.state.isOpen) return;
         
-        // Don't minimize if clicking on resize handles or within widget
+        // ✅ Don't minimize on long-press, drag, or scroll events
+        if (e.type === 'mousedown' || e.type === 'mousemove' || e.type === 'scroll' || e.type === 'touchstart' || e.type === 'touchmove') {
+          return;
+        }
+        
+        // ✅ Don't minimize if user is interacting with the widget (clicking, typing, etc.)
         const chatButton = document.getElementById('wetechforu-chat-button');
         const clickedInside = chatWindow.contains(e.target) || 
                              (chatButton && chatButton.contains(e.target)) ||
@@ -1817,13 +1859,24 @@
                              e.target.closest('.wetechforu-resize-right') ||
                              e.target.closest('.wetechforu-resize-bottom') ||
                              e.target.closest('.wetechforu-resize-left') ||
-                             e.target.closest('.wetechforu-resize-top');
+                             e.target.closest('.wetechforu-resize-top') ||
+                             e.target.closest('input') ||
+                             e.target.closest('textarea') ||
+                             e.target.closest('button') ||
+                             e.target.closest('a');
         
-        if (!clickedInside) {
-          this.minimizeChat(); // Minimize (preserves state), not close
+        // ✅ Only minimize on actual click events, not on drag or scroll
+        if (e.type === 'click' && !clickedInside) {
+          // ✅ Small delay to prevent accidental minimizes during interactions
+          setTimeout(() => {
+            if (this.state.isOpen && !chatWindow.contains(document.activeElement)) {
+              this.minimizeChat(); // Minimize (preserves state), not close
+            }
+          }, 100);
         }
       };
       
+      // ✅ Only listen to click events, not mousedown/mousemove/scroll
       document.addEventListener('click', this.state.clickOutsideListener);
     },
     
