@@ -784,7 +784,29 @@
       const chatWindow = document.getElementById('wetechforu-chat-window');
       const resizeHandle = document.getElementById('wetechforu-resize-handle');
 
-      chatButton.addEventListener('click', () => this.toggleChat());
+      // ✅ Ensure chat button is visible and clickable
+      if (chatButton) {
+        chatButton.style.display = 'flex';
+        chatButton.style.zIndex = '999999';
+        chatButton.style.pointerEvents = 'auto';
+        chatButton.style.cursor = 'pointer';
+        
+        // ✅ Remove any existing listeners to prevent duplicates
+        const newButton = chatButton.cloneNode(true);
+        chatButton.parentNode.replaceChild(newButton, chatButton);
+        
+        // ✅ Add click listener with explicit handling
+        newButton.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('🖱️ Chat button clicked');
+          this.toggleChat();
+        });
+        
+        console.log('✅ Chat button event listener attached');
+      } else {
+        console.error('❌ Chat button not found');
+      }
       closeButton.addEventListener('click', () => this.closeChat());
       minimizeButton.addEventListener('click', (e) => {
         e.stopPropagation(); // Prevent header drag
