@@ -1430,10 +1430,10 @@
   
   <script>
     // ✅ Initialize popup chat - FIXED: Transfer conversation and messages
-    const widgetKey = '${this.config.widgetKey}';
-    const backendUrl = '${this.config.backendUrl}';
-    const conversationId = ${conversationId || 'null'};
-    const visitorSessionId = '${visitorSessionId}';
+    const widgetKey = ${JSON.stringify(this.config.widgetKey || '')};
+    const backendUrl = ${JSON.stringify(this.config.backendUrl || '')};
+    const conversationId = ${conversationId ? parseInt(conversationId) : null};
+    const visitorSessionId = ${JSON.stringify(visitorSessionId || '')};
     const transferredMessages = ${messagesJSON || '[]'};
     
     let messages = [];
@@ -3919,12 +3919,12 @@
             const confirmationMessage = "✅ Your request has been submitted! We'll connect you with the next available agent.";
             this.addBotMessage(confirmationMessage);
             
-            // Start polling for agent messages if WhatsApp or portal
+            // Mark as agent handoff and start polling for agent messages if WhatsApp or portal
+            this.state.agentTookOver = true;
             if (method === 'whatsapp' || method === 'portal') {
-              this.state.agentTookOver = true;
+              console.log('🔄 Starting polling for agent messages after handover request');
               this.startPollingForAgentMessages();
             }
-            this.state.agentTookOver = true;
           }, 800);
         } else {
           throw new Error(data.error || 'Request failed');
