@@ -1683,6 +1683,38 @@
 </html>`;
     },
     
+    // ✅ Reset widget to safe position if it's in an invalid state
+    resetWidgetPosition(element) {
+      if (!element) return;
+      
+      // ✅ Reset to default safe position (bottom-right or bottom-left)
+      const isRight = this.config.position.includes('right');
+      element.style.width = '380px';
+      element.style.height = '600px';
+      element.style.bottom = '80px';
+      element.style.top = 'auto';
+      
+      if (isRight) {
+        element.style.right = '20px';
+        element.style.left = 'auto';
+      } else {
+        element.style.left = '20px';
+        element.style.right = 'auto';
+      }
+      
+      // ✅ Clear saved position to force reset
+      localStorage.removeItem(`wetechforu_widget_position_${this.config.widgetKey}`);
+      localStorage.removeItem(`wetechforu_widget_size_${this.config.widgetKey}`);
+      
+      // ✅ Force visibility
+      element.style.setProperty('display', 'flex', 'important');
+      element.style.setProperty('visibility', 'visible', 'important');
+      element.style.setProperty('opacity', '1', 'important');
+      element.style.setProperty('z-index', '999998', 'important');
+      
+      console.log('✅ Widget position reset to safe default');
+    },
+    
     // ✅ Ensure widget is within viewport bounds
     ensureWidgetInViewport(element) {
       const rect = element.getBoundingClientRect();
@@ -1805,25 +1837,54 @@
         
         if (resizeEdge === 'corner') {
           // ✅ Top-left corner resize: dragging down/right increases size, dragging up/left decreases
-          const newWidth = Math.max(300, Math.min(window.innerWidth - 40, startWidth + deltaX));
-          const newHeight = Math.max(400, Math.min(window.innerHeight - 100, startHeight + deltaY));
+          const minWidth = 300;
+          const minHeight = 400;
+          const maxWidth = window.innerWidth - 20;
+          const maxHeight = window.innerHeight - 100;
           
-          // ✅ Adjust position when resizing from top-left
-          const newLeft = startLeft + (startWidth - newWidth);
-          const newTop = startTop + (startHeight - newHeight);
+          // ✅ Calculate new dimensions
+          let newWidth = startWidth + deltaX;
+          let newHeight = startHeight + deltaY;
           
-          // Keep within viewport
-          const finalLeft = Math.max(0, newLeft);
-          const finalTop = Math.max(0, newTop);
-        
-        element.style.width = newWidth + 'px';
-        element.style.height = newHeight + 'px';
-          element.style.left = finalLeft + 'px';
-          element.style.top = finalTop + 'px';
-          element.style.bottom = 'auto';
+          // ✅ Clamp dimensions to valid range
+          newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+          newHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
           
-          // ✅ Save position during resize
-          this.saveWidgetPosition(element);
+          // ✅ Calculate new position (adjust based on actual size change)
+          const widthChange = newWidth - startWidth;
+          const heightChange = newHeight - startHeight;
+          
+          let newLeft = startLeft - widthChange; // Move left when width increases
+          let newTop = startTop - heightChange; // Move up when height increases
+          
+          // ✅ Ensure widget stays within viewport bounds
+          newLeft = Math.max(0, Math.min(window.innerWidth - newWidth, newLeft));
+          newTop = Math.max(0, Math.min(window.innerHeight - newHeight, newTop));
+          
+          // ✅ Only apply if valid
+          if (newWidth >= minWidth && newHeight >= minHeight && 
+              newLeft >= 0 && newTop >= 0 &&
+              newLeft + newWidth <= window.innerWidth &&
+              newTop + newHeight <= window.innerHeight) {
+            element.style.width = newWidth + 'px';
+            element.style.height = newHeight + 'px';
+            element.style.left = newLeft + 'px';
+            element.style.top = newTop + 'px';
+            element.style.bottom = 'auto';
+            element.style.right = 'auto';
+            
+            // ✅ Don't save position during resize - only save on mouseup
+            // This prevents saving invalid positions during drag
+          } else {
+            console.warn('⚠️ Resize would place widget off-screen - clamping to valid bounds');
+            // ✅ Clamp to valid bounds instead of ignoring
+            element.style.width = Math.max(minWidth, Math.min(maxWidth, newWidth)) + 'px';
+            element.style.height = Math.max(minHeight, Math.min(maxHeight, newHeight)) + 'px';
+            element.style.left = Math.max(0, Math.min(window.innerWidth - newWidth, newLeft)) + 'px';
+            element.style.top = Math.max(0, Math.min(window.innerHeight - newHeight, newTop)) + 'px';
+            element.style.bottom = 'auto';
+            element.style.right = 'auto';
+          }
         } else if (resizeEdge === 'right') {
           const newWidth = Math.max(300, Math.min(window.innerWidth - 40, startWidth + deltaX));
           element.style.width = newWidth + 'px';
