@@ -3434,10 +3434,19 @@
     
     // 📨 Poll for new agent messages
     startPollingForAgentMessages() {
-      if (this.state.pollingInterval) return; // Already polling
+      if (this.state.pollingInterval) {
+        console.log('⚠️ Already polling for agent messages');
+        return; // Already polling
+      }
+      
+      console.log('🔄 Starting polling for agent messages...');
       
       this.state.pollingInterval = setInterval(async () => {
-        if (!this.state.conversationId) return;
+        if (!this.state.conversationId) {
+          console.log('⚠️ No conversation ID, stopping polling');
+          this.stopPollingForAgentMessages();
+          return;
+        }
         
         try {
           const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${this.state.conversationId}/messages`, {
@@ -3452,15 +3461,22 @@
               !this.state.displayedMessageIds.includes(msg.id)
             );
             
+            if (newMessages.length > 0) {
+              console.log(`📨 Found ${newMessages.length} new agent message(s)`);
+            }
+            
             newMessages.forEach(msg => {
+              console.log('📨 Displaying agent message:', msg.message_text.substring(0, 50));
               this.addBotMessage(msg.message_text, true, msg.agent_name || 'Agent');
               this.state.displayedMessageIds.push(msg.id);
             });
+          } else {
+            console.error('Failed to fetch messages:', response.status, response.statusText);
           }
         } catch (error) {
           console.error('Failed to poll for messages:', error);
         }
-      }, 5000); // Poll every 5 seconds
+      }, 3000); // Poll every 3 seconds (faster for WhatsApp)
     },
     
     // Stop polling
