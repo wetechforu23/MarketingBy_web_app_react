@@ -1884,17 +1884,31 @@
     minimizeChat() {
       const chatWindow = document.getElementById('wetechforu-chat-window');
       const badge = document.getElementById('wetechforu-badge');
+      const chatButton = document.getElementById('wetechforu-chat-button');
       
       if (!chatWindow) return;
       
       chatWindow.style.display = 'none';
-      badge.style.display = 'flex';
+      
+      // ✅ Ensure badge and button are visible and clickable
+      if (badge) {
+        badge.style.display = 'flex';
+        badge.textContent = '1'; // Reset badge
+      }
+      
+      if (chatButton) {
+        chatButton.style.display = 'flex';
+        chatButton.style.zIndex = '999999';
+        chatButton.style.pointerEvents = 'auto';
+        chatButton.style.cursor = 'pointer';
+      }
+      
       this.state.isOpen = false;
       
       // ✅ DO NOT clear conversation or localStorage - preserve state
       // ✅ DO NOT mark as closed - allow reopening by clicking badge
       // ✅ DO NOT set sessionStorage closed flag - so it can reopen
-      console.log('📦 Chat minimized - conversation state preserved, can reopen by clicking badge');
+      console.log('📦 Chat minimized - conversation state preserved, can reopen by clicking badge or button');
       
       // ✅ Stop polling when minimized (will resume on reopen with faster interval)
       this.stopPollingForAgentMessages();
