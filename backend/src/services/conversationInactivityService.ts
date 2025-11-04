@@ -34,6 +34,22 @@ export class ConversationInactivityService {
    */
   async checkInactiveConversations() {
     try {
+      // Check if activity columns exist (for graceful handling)
+      const columnCheck = await pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'widget_conversations' 
+          AND column_name IN ('last_agent_activity_at', 'last_visitor_activity_at')
+      `);
+      
+      const hasAgentActivityColumn = columnCheck.rows.some(r => r.column_name === 'last_agent_activity_at');
+      const hasVisitorActivityColumn = columnCheck.rows.some(r => r.column_name === 'last_visitor_activity_at');
+      
+      // Build SELECT clause based on available columns
+      const activitySelect = hasAgentActivityColumn && hasVisitorActivityColumn
+        ? `wc.last_agent_activity_at, wc.last_visitor_activity_at,`
+        : `wc.last_activity_at as last_agent_activity_at, wc.last_activity_at as last_visitor_activity_at,`;
+      
       // Get active conversations with agent handoff
       const conversations = await pool.query(`
         SELECT 
@@ -41,10 +57,9 @@ export class ConversationInactivityService {
           wc.widget_id,
           w.client_id,
           wc.last_activity_at,
-          COALESCE(wc.last_agent_activity_at, wc.last_activity_at) as last_agent_activity_at,
-          COALESCE(wc.last_visitor_activity_at, wc.last_activity_at) as last_visitor_activity_at,
-          wc.extension_reminders_count,
-          wc.visitor_extension_reminders_count,
+          ${activitySelect}
+          COALESCE(wc.extension_reminders_count, 0) as extension_reminders_count,
+          COALESCE(wc.visitor_extension_reminders_count, 0) as visitor_extension_reminders_count,
           wc.extension_granted_until,
           wc.handover_whatsapp_number,
           wc.visitor_email,
