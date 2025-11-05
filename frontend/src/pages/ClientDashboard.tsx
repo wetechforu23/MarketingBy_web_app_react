@@ -58,9 +58,13 @@ interface FacebookPost {
   post_impressions: number;
   post_reach: number;
   post_engaged_users: number;
+  post_clicks?: number;
+  post_type?: string;
   likes: number;
   comments: number;
+  comments_count?: number;
   shares: number;
+  shares_count?: number;
   reactions_like: number;
   reactions_love: number;
   reactions_haha: number;
@@ -88,6 +92,7 @@ const ClientDashboard: React.FC = () => {
   const [googleAnalyticsData, setGoogleAnalyticsData] = useState<GoogleAnalyticsData | null>(null);
   const [facebookData, setFacebookData] = useState<FacebookData | null>(null);
   const [facebookPosts, setFacebookPosts] = useState<FacebookPost[]>([]);
+  const [currentFacebookPosts, setCurrentFacebookPosts] = useState<FacebookPost[]>([]); // Current posts from Facebook API (same as Post Performance)
   const [reports, setReports] = useState<Report[]>([]);
   const [pageInsights, setPageInsights] = useState<any[]>([]);
   const [geographicData, setGeographicData] = useState<any[]>([]);
@@ -416,6 +421,51 @@ const ClientDashboard: React.FC = () => {
             console.error('❌ Facebook posts fetch error:', postsErr);
             setFacebookPosts([]);
             console.log('   💡 Set to empty array - no posts will be displayed');
+          }
+
+          // Step 6.6: Fetch Current Facebook Posts from API (same as Post Performance)
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.log('📝 FETCHING CURRENT FACEBOOK POSTS FROM API (Post Performance)');
+          console.log('   Endpoint: GET /facebook/posts-with-insights/' + userData.client_id + '?limit=100');
+          console.log('   Source: Facebook API (current posts only, not deleted)');
+          console.log('   Same as admin Post Performance tab');
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          
+          try {
+            const currentPostsResponse = await api.get(`/facebook/posts-with-insights/${userData.client_id}?limit=100`);
+            if (currentPostsResponse.data && currentPostsResponse.data.success) {
+              const currentPostsCount = currentPostsResponse.data.data?.length || 0;
+              // Map the API response to match our interface (same structure as fetchPostsWithInlineInsights returns)
+              const mappedPosts = (currentPostsResponse.data.data || []).map((post: any) => ({
+                post_id: post.post_id || post.id,
+                message: post.message || '',
+                created_time: post.created_time,
+                permalink_url: post.permalink_url,
+                post_impressions: post.post_impressions || 0,
+                post_reach: post.post_impressions_unique || 0, // Use post_impressions_unique as reach
+                post_engaged_users: post.post_engaged_users || 0,
+                post_clicks: post.post_clicks || 0,
+                post_type: post.post_type || 'post',
+                likes: post.likes || 0,
+                comments: post.comments_count || 0,
+                comments_count: post.comments_count || 0,
+                shares: post.shares_count || 0,
+                shares_count: post.shares_count || 0,
+                reactions_like: post.reactions_like || 0,
+                reactions_love: post.reactions_love || 0,
+                reactions_haha: post.reactions_haha || 0,
+                reactions_wow: post.reactions_wow || 0,
+                reactions_sad: post.reactions_sad || 0,
+                reactions_angry: post.reactions_angry || 0
+              }));
+              setCurrentFacebookPosts(mappedPosts);
+              console.log('✅ Current Facebook posts loaded FROM API:', currentPostsCount, 'posts');
+              console.log('   ✅ These are current posts on Facebook (not deleted)');
+            }
+          } catch (currentPostsErr: any) {
+            console.error('❌ Current Facebook posts fetch error:', currentPostsErr);
+            setCurrentFacebookPosts([]);
+            console.log('   💡 Set to empty array - will try database posts instead');
           }
         }
       } catch (err: any) {
@@ -1354,8 +1404,8 @@ const ClientDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Facebook Posts Table */}
-                {facebookPosts.length > 0 && (
+                {/* Facebook Posts Table - Post Performance (Current Posts from API) */}
+                {(currentFacebookPosts.length > 0 || facebookPosts.length > 0) && (
                   <div style={{ marginTop: '2rem' }}>
                     <div style={{
                       display: 'flex',
@@ -1364,8 +1414,21 @@ const ClientDashboard: React.FC = () => {
                       marginBottom: '1.5rem'
                     }}>
                       <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '700', color: '#2C5F77' }}>
-                        📝 All Posts ({facebookPosts.length})
+                        📝 Post Performance ({currentFacebookPosts.length > 0 ? currentFacebookPosts.length : facebookPosts.length} total)
                       </h3>
+                      {currentFacebookPosts.length > 0 && (
+                        <div style={{
+                          fontSize: '0.85rem',
+                          color: '#28a745',
+                          fontWeight: '600',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem'
+                        }}>
+                          <i className="fas fa-check-circle"></i>
+                          Current posts from Facebook (not deleted)
+                        </div>
+                      )}
                     </div>
 
                     <div style={{
@@ -1382,50 +1445,95 @@ const ClientDashboard: React.FC = () => {
                         }}>
                           <thead>
                             <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                              <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#495057', whiteSpace: 'nowrap', width: '60px' }}>#</th>
                               <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600', color: '#495057', whiteSpace: 'nowrap' }}>Post</th>
+                              <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#495057', whiteSpace: 'nowrap' }}>Date & Time</th>
                               <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#495057', whiteSpace: 'nowrap' }}>
-                                <i className="fas fa-eye" style={{ marginRight: '0.5rem', color: '#667eea' }}></i>
+                                <i className="fas fa-eye" style={{ marginRight: '0.5rem', color: '#4267B2' }}></i>
                                 Impressions
                               </th>
                               <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#495057', whiteSpace: 'nowrap' }}>
-                                <i className="fas fa-thumbs-up" style={{ marginRight: '0.5rem', color: '#f5576c' }}></i>
+                                <i className="fas fa-broadcast-tower" style={{ marginRight: '0.5rem', color: '#f5576c' }}></i>
+                                Reach
+                              </th>
+                              <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#495057', whiteSpace: 'nowrap' }}>
+                                <i className="fas fa-thumbs-up" style={{ marginRight: '0.5rem', color: '#ffc107' }}></i>
                                 Reactions
                               </th>
                               <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#495057', whiteSpace: 'nowrap' }}>
-                                <i className="fas fa-comment" style={{ marginRight: '0.5rem', color: '#00f2fe' }}></i>
+                                <i className="fas fa-comment" style={{ marginRight: '0.5rem', color: '#17a2b8' }}></i>
                                 Comments
                               </th>
                               <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#495057', whiteSpace: 'nowrap' }}>
-                                <i className="fas fa-share" style={{ marginRight: '0.5rem', color: '#38f9d7' }}></i>
+                                <i className="fas fa-share" style={{ marginRight: '0.5rem', color: '#28a745' }}></i>
                                 Shares
                               </th>
                               <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#495057', whiteSpace: 'nowrap' }}>
-                                <i className="fas fa-broadcast-tower" style={{ marginRight: '0.5rem', color: '#fee140' }}></i>
-                                Reach
+                                <i className="fas fa-mouse-pointer" style={{ marginRight: '0.5rem', color: '#6c757d' }}></i>
+                                Clicks
                               </th>
                               <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#495057', whiteSpace: 'nowrap' }}>
                                 <i className="fas fa-heart" style={{ marginRight: '0.5rem', color: '#e91e63' }}></i>
                                 Engaged
                               </th>
-                              <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#495057', whiteSpace: 'nowrap' }}>Date</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {facebookPosts.map((post, index) => {
+                            {(currentFacebookPosts.length > 0 ? currentFacebookPosts : facebookPosts).map((post, index) => {
                               const totalReactions = (post.reactions_like || 0) + (post.reactions_love || 0) + 
                                                     (post.reactions_haha || 0) + (post.reactions_wow || 0) + 
                                                     (post.reactions_sad || 0) + (post.reactions_angry || 0);
+                              const commentsCount = post.comments_count || post.comments || 0;
+                              const sharesCount = post.shares_count || post.shares || 0;
+                              const postDate = new Date(post.created_time);
+                              const reactionBreakdown = [
+                                post.reactions_like > 0 && `❤️ ${post.reactions_like}`,
+                                post.reactions_love > 0 && `😍 ${post.reactions_love}`,
+                                post.reactions_haha > 0 && `😂 ${post.reactions_haha}`,
+                                post.reactions_wow > 0 && `😮 ${post.reactions_wow}`,
+                                post.reactions_sad > 0 && `😢 ${post.reactions_sad}`,
+                                post.reactions_angry > 0 && `😠 ${post.reactions_angry}`
+                              ].filter(Boolean).join(' ');
                               
                               return (
                                 <tr key={post.post_id} style={{
                                   borderBottom: '1px solid #e9ecef',
                                   transition: 'background-color 0.2s',
-                                  cursor: 'pointer'
+                                  backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8f9fa'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e3f2fd'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = index % 2 === 0 ? '#ffffff' : '#f8f9fa'}
                                 >
+                                  <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                    <span style={{
+                                      backgroundColor: '#4267B2',
+                                      color: 'white',
+                                      padding: '4px 12px',
+                                      borderRadius: '20px',
+                                      fontSize: '12px',
+                                      fontWeight: '700',
+                                      display: 'inline-block'
+                                    }}>
+                                      #{index + 1}
+                                    </span>
+                                  </td>
                                   <td style={{ padding: '1rem', maxWidth: '300px' }}>
+                                    <div style={{ marginBottom: '4px' }}>
+                                      {post.post_type && (
+                                        <span style={{
+                                          backgroundColor: '#28a745',
+                                          color: 'white',
+                                          padding: '2px 8px',
+                                          borderRadius: '12px',
+                                          fontSize: '10px',
+                                          fontWeight: '600',
+                                          textTransform: 'uppercase',
+                                          marginRight: '8px'
+                                        }}>
+                                          {post.post_type}
+                                        </span>
+                                      )}
+                                    </div>
                                     {post.permalink_url ? (
                                       <a
                                         href={post.permalink_url}
@@ -1452,7 +1560,7 @@ const ClientDashboard: React.FC = () => {
                                           e.currentTarget.style.color = '#4267B2';
                                           e.currentTarget.style.textDecoration = 'none';
                                         }}
-                                        title="Click to view post on Facebook"
+                                        title={post.message ? post.message : 'Click to view post on Facebook'}
                                       >
                                         <i className="fab fa-facebook-f" style={{ marginRight: '0.5rem', fontSize: '0.9rem' }}></i>
                                         {post.message || 'View Facebook Post'}
@@ -1471,27 +1579,72 @@ const ClientDashboard: React.FC = () => {
                                         {post.message || 'No text'}
                                       </div>
                                     )}
+                                    {post.permalink_url && (
+                                      <div style={{ marginTop: '4px' }}>
+                                        <a
+                                          href={post.permalink_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          style={{
+                                            color: '#4267B2',
+                                            fontSize: '11px',
+                                            textDecoration: 'none',
+                                            fontWeight: '600'
+                                          }}
+                                          onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                                          onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                                        >
+                                          🔗 View on Facebook →
+                                        </a>
+                                      </div>
+                                    )}
+                                    {totalReactions > 0 && reactionBreakdown && (
+                                      <div style={{
+                                        marginTop: '6px',
+                                        fontSize: '11px',
+                                        color: '#666',
+                                        display: 'flex',
+                                        flexWrap: 'wrap',
+                                        gap: '6px'
+                                      }}
+                                      title={`Reactions: ${reactionBreakdown}`}
+                                      >
+                                        {reactionBreakdown.split(' ').map((r, i) => (
+                                          <span key={i}>{r}</span>
+                                        ))}
+                                      </div>
+                                    )}
                                   </td>
-                                  <td style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#667eea' }}>
+                                  <td style={{ padding: '1rem', textAlign: 'center', fontSize: '0.85rem', color: '#6c757d', whiteSpace: 'nowrap' }}>
+                                    <div style={{ fontWeight: '500' }}>
+                                      {postDate.toLocaleDateString()}
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: '#999' }}>
+                                      {postDate.toLocaleTimeString()}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#4267B2' }}>
                                     {(post.post_impressions || 0).toLocaleString()}
                                   </td>
                                   <td style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#f5576c' }}>
+                                    {(post.post_reach || 0).toLocaleString()}
+                                  </td>
+                                  <td style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#ffc107' }}
+                                    title={reactionBreakdown || 'Total reactions'}
+                                  >
                                     {totalReactions.toLocaleString()}
                                   </td>
-                                  <td style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#00f2fe' }}>
-                                    {(post.comments || 0).toLocaleString()}
+                                  <td style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#17a2b8' }}>
+                                    {commentsCount.toLocaleString()}
                                   </td>
-                                  <td style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#38f9d7' }}>
-                                    {(post.shares || 0).toLocaleString()}
+                                  <td style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#28a745' }}>
+                                    {sharesCount.toLocaleString()}
                                   </td>
-                                  <td style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#fee140' }}>
-                                    {(post.post_reach || 0).toLocaleString()}
+                                  <td style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#6c757d' }}>
+                                    {(post.post_clicks || 0).toLocaleString()}
                                   </td>
                                   <td style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#e91e63' }}>
                                     {(post.post_engaged_users || 0).toLocaleString()}
-                                  </td>
-                                  <td style={{ padding: '1rem', textAlign: 'center', fontSize: '0.85rem', color: '#6c757d', whiteSpace: 'nowrap' }}>
-                                    {new Date(post.created_time).toLocaleDateString()}
                                   </td>
                                 </tr>
                               );
