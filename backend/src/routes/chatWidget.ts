@@ -671,7 +671,8 @@ router.get('/public/widget/:widgetKey/config', async (req, res) => {
               ai_handoff_url, business_hours, offline_message, is_active,
               intro_flow_enabled, intro_questions,
               industry, practice_phone, emergency_disclaimer, hipaa_disclaimer,
-              show_emergency_warning, auto_detect_emergency
+              show_emergency_warning, auto_detect_emergency,
+              client_id, handover_whatsapp_number, enable_whatsapp, enable_multiple_whatsapp_chats
        FROM widget_configs
        WHERE widget_key = $1 AND is_active = true`,
       [widgetKey]
