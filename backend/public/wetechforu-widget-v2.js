@@ -1939,15 +1939,19 @@
               }
             }
             
-            // ✅ If form data doesn't exist, WAIT for user's first message before showing form
+            // ✅ NEW FLOW: Show form immediately after welcome message
             if (!formDataExists) {
-              // Set flag to wait for first user input
-              this.state.waitingForFirstInput = true;
-              this.state.pendingFormQuestions = enabledQuestions;
-              this.state.introFlow.enabled = true;
-              this.state.introFlow.questions = enabledQuestions;
-              this.state.introFlow.isActive = true;
-              console.log('✅ Waiting for user\'s first message before showing form');
+              // Show "Thanks for reaching out" message, then form immediately
+              setTimeout(() => {
+                this.addBotMessage("Thanks for reaching out to us! 😊 Before I answer further or give any other response, please fill out the information below:");
+                setTimeout(() => {
+                  this.showIntroForm(enabledQuestions);
+                  this.state.introFlow.enabled = true;
+                  this.state.introFlow.questions = enabledQuestions;
+                  this.state.introFlow.isActive = true;
+                  console.log('✅ Form shown immediately after welcome message');
+                }, 500);
+              }, 1000);
             }
         } else {
             // No questions configured - use default intro
@@ -2313,7 +2317,7 @@
         }
       }
 
-      // Show completion message - inform user that agent will connect
+      // Show completion message
       setTimeout(() => {
         this.addBotMessage("✅ We have received your response. We will connect you with the next available agent.");
       }, 500);
@@ -2359,8 +2363,105 @@
         }, 500);
       }
 
-      // ✅ Form completed - user can now ask questions naturally (no prompt needed)
-        this.state.awaitingUserQuestion = true;
+      // ✅ NEW FLOW: After form completion, check agent availability and handle handover
+      setTimeout(async () => {
+        await this.checkAgentAvailabilityAndHandover(conversationId);
+      }, 1500);
+    },
+    
+    // ✅ NEW: Check agent availability and handle handover after form completion
+    async checkAgentAvailabilityAndHandover(conversationId) {
+      try {
+        // Get widget config to check handover settings
+        const configResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/config`);
+        const widgetConfig = await configResponse.json();
+        
+        // Get conversation info to get client_id
+        const convResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/status`);
+        const convData = await convResponse.json();
+        
+        // Check if WhatsApp is configured and check agent availability
+        const whatsappConfigured = widgetConfig.handover_whatsapp_number && widgetConfig.handover_whatsapp_number.trim() !== '';
+        
+        if (whatsappConfigured) {
+          // Try to create a handover request - this will tell us if agent is busy
+          const answers = this.state.introFlow.answers || {};
+          const fullName = (answers.first_name && answers.last_name) 
+            ? `${answers.first_name} ${answers.last_name}` 
+            : (answers.first_name || answers.name || '');
+          const email = answers.email || answers.email_address || '';
+          const phone = answers.phone || answers.phone_number || answers.mobile || '';
+          
+          const handoverResponse = await fetch(`${this.config.backendUrl}/api/handover/request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              conversation_id: conversationId,
+              widget_id: widgetConfig.id,
+              client_id: widgetConfig.client_id,
+              requested_method: 'whatsapp',
+              visitor_name: fullName,
+              visitor_email: email,
+              visitor_phone: phone,
+              visitor_message: 'Form completed - ready for agent handover'
+            })
+          });
+          
+          const handoverData = await handoverResponse.json();
+          
+          if (handoverData.agent_busy) {
+            // Agent is busy - show message and ask for email
+            setTimeout(() => {
+              this.addBotMessage("⏳ All agents are currently busy. Please send us an email with your question, and our agent will get back to you as soon as possible.");
+              if (email) {
+                setTimeout(() => {
+                  this.addBotMessage(`📧 Your email (${email}) has been recorded. We'll contact you soon!`);
+                }, 1000);
+              } else {
+                setTimeout(() => {
+                  this.addBotMessage("💬 Feel free to continue chatting with me, and I'll do my best to help you!");
+                }, 1000);
+              }
+            }, 500);
+          } else if (handoverData.success) {
+            // Agent is available - handover initiated
+            setTimeout(() => {
+              this.addBotMessage("✅ We will see who is available for chat and connect you shortly.");
+              this.state.agentTookOver = true;
+              this.startPollingForAgentMessages();
+            }, 500);
+          } else {
+            // Fallback: WhatsApp not properly configured or error
+            setTimeout(() => {
+              this.addBotMessage("💬 Our agents are currently unavailable. Please send us an email with your question, and we'll get back to you as soon as possible.");
+              if (email) {
+                setTimeout(() => {
+                  this.addBotMessage(`📧 Your email (${email}) has been recorded. We'll contact you soon!`);
+                }, 1000);
+              }
+            }, 500);
+          }
+        } else {
+          // WhatsApp not configured - show message to send email
+          const answers = this.state.introFlow.answers || {};
+          const email = answers.email || answers.email_address || '';
+          
+          setTimeout(() => {
+            this.addBotMessage("💬 All agents are currently busy. Please send us an email with your question, and our agent will get back to you.");
+            if (email) {
+              setTimeout(() => {
+                this.addBotMessage(`📧 Your email (${email}) has been recorded. We'll contact you soon!`);
+              }, 1000);
+            }
+          }, 500);
+        }
+      } catch (error) {
+        console.error('Error checking agent availability:', error);
+        // Fallback message
+        setTimeout(() => {
+          this.addBotMessage("💬 Feel free to ask me any questions, and I'll do my best to help you!");
+        }, 500);
+      }
     },
     
     // 🚨 Show emergency disclaimer (HIPAA compliance for healthcare)
@@ -2623,9 +2724,8 @@
         }
       }
       
-      // ✅ THIRD: Only ask if we don't have the info
-      console.log('⚠️  No contact info found, will ask for details');
-      this.addBotMessage("Let me connect you with a live agent. To get started, I need a few details:");
+      // ✅ THIRD: Use contact info from intro form to request agent
+      console.log('✅ Using contact info from intro form for agent handover');
       
       // 📊 Track live agent request event
       this.trackEvent('live_agent_requested', {
@@ -2633,113 +2733,14 @@
         timestamp: new Date().toISOString()
       });
       
-      // Start contact info collection
+      // Submit handover request using contact info from intro form
       setTimeout(() => {
-        // Only reset if we don't have partial data
-        if (!this.state.contactInfo || !this.state.contactInfo.name) {
-          this.state.contactInfoStep = 0;
-          this.state.contactInfo = {};
-        }
-        this.askContactInfo();
-      }, 1000);
+        this.submitToLiveAgent();
+      }, 500);
     },
 
-    // Ask contact info step by step (only if not already collected in intro flow)
-    askContactInfo() {
-      // ✅ First, check if intro flow already collected this information
-      if (this.state.introFlow && this.state.introFlow.answers && Object.keys(this.state.introFlow.answers).length > 0) {
-        // Map intro flow answers to contact info
-        const introAnswers = this.state.introFlow.answers;
-        
-        // Build name from first_name and last_name, or use full name if available
-        let fullName = '';
-        if (introAnswers.first_name && introAnswers.last_name) {
-          fullName = `${introAnswers.first_name} ${introAnswers.last_name}`;
-        } else if (introAnswers.first_name) {
-          fullName = introAnswers.first_name;
-        } else if (introAnswers.name) {
-          fullName = introAnswers.name;
-        }
-        
-        // Map email and phone
-        const email = introAnswers.email || introAnswers.email_address || null;
-        const phone = introAnswers.phone || introAnswers.phone_number || introAnswers.mobile || null;
-        
-        // If we have name + (email or phone), use intro data directly
-        if (fullName && (email || phone)) {
-          this.state.contactInfo = {
-            name: fullName,
-            email: email,
-            phone: phone,
-            reason: introAnswers.reason || introAnswers.message || introAnswers.question || 'Visitor requested to speak with an agent'
-          };
-          console.log('✅ Using contact info from intro flow:', this.state.contactInfo);
-          // Skip asking - go directly to submit
-          this.submitToLiveAgent();
-          return;
-        }
-      }
-      
-      // ✅ Only ask for missing information (not already in intro flow)
-      const steps = [
-        { field: 'name', question: "What's your full name?" },
-        { field: 'email', question: "What's your email address?" },
-        { field: 'phone', question: "What's your phone number?" },
-        { field: 'reason', question: "Briefly, what can we help you with?" }
-      ];
-      
-      if (!this.state.contactInfoStep) this.state.contactInfoStep = 0;
-      if (!this.state.contactInfo) this.state.contactInfo = {};
-      
-      // Pre-populate from intro flow if available
-      if (this.state.introFlow && this.state.introFlow.answers) {
-        const introAnswers = this.state.introFlow.answers;
-        if (!this.state.contactInfo.name) {
-          if (introAnswers.first_name && introAnswers.last_name) {
-            this.state.contactInfo.name = `${introAnswers.first_name} ${introAnswers.last_name}`;
-          } else if (introAnswers.first_name) {
-            this.state.contactInfo.name = introAnswers.first_name;
-          }
-        }
-        if (!this.state.contactInfo.email) {
-          this.state.contactInfo.email = introAnswers.email || introAnswers.email_address || null;
-        }
-        if (!this.state.contactInfo.phone) {
-          this.state.contactInfo.phone = introAnswers.phone || introAnswers.phone_number || introAnswers.mobile || null;
-        }
-      }
-      
-      // Find next unanswered question
-      let nextStepIndex = this.state.contactInfoStep;
-      while (nextStepIndex < steps.length) {
-        const step = steps[nextStepIndex];
-        if (!this.state.contactInfo[step.field]) {
-          // Found unanswered question
-          this.addBotMessage(step.question);
-          this.state.currentContactField = step.field;
-          this.state.contactInfoStep = nextStepIndex;
-          return;
-        }
-        nextStepIndex++;
-      }
-      
-      // All required info collected - submit
-      if (this.state.contactInfo.name && (this.state.contactInfo.email || this.state.contactInfo.phone)) {
-        this.submitToLiveAgent();
-      } else {
-        // Missing required fields - ask for at least name + email or phone
-        if (!this.state.contactInfo.name) {
-          this.addBotMessage("What's your full name?");
-          this.state.currentContactField = 'name';
-          this.state.contactInfoStep = 0;
-        } else if (!this.state.contactInfo.email && !this.state.contactInfo.phone) {
-          this.addBotMessage("What's your email address or phone number?");
-          // Will handle in message handler
-        } else {
-          this.submitToLiveAgent();
-        }
-      }
-    },
+    // ✅ REMOVED: Hardcoded askContactInfo() - form now handles all contact collection
+    // Contact info is collected via intro form (from widget config), not hardcoded questions
 
     // Add bot message
     addBotMessage(text, isAgent = false, agentName = null) {
@@ -2852,18 +2853,8 @@
         return;
       }
 
-      // ✅ If collecting contact info for live agent
-      if (this.state.currentContactField) {
-        if (!this.state.contactInfo) this.state.contactInfo = {};
-        this.state.contactInfo[this.state.currentContactField] = message;
-        this.state.contactInfoStep++;
-        this.state.currentContactField = null;
-        
-        setTimeout(() => {
-          this.askContactInfo();
-        }, 500);
-        return;
-      }
+      // ✅ REMOVED: Contact info collection via one-by-one questions
+      // All contact info is now collected via intro form (from widget config)
       
       // ✅ FIRST: Check if we're waiting for first input - show form after first message
       if (this.state.waitingForFirstInput && this.state.pendingFormQuestions) {
