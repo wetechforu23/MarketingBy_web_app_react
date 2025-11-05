@@ -638,17 +638,34 @@ router.post('/incoming', async (req: Request, res: Response) => {
     }
     
     if (!conversationId) {
-      // Try conversation ID first (#123)
-      // Support formats: #123: message, #123 message, #123 : message, #123:message
-      const conversationIdMatch = messageBody.match(/^#\s*(\d+)\s*[:]?\s*/);
-      if (conversationIdMatch) {
-        conversationId = parseInt(conversationIdMatch[1]);
-        // Remove the conversation ID prefix (including any spaces and colon)
-        messageBody = messageBody.replace(/^#\s*\d+\s*[:]?\s*/, '').trim();
-        matchedBy = 'conversation_id';
-        messageIsValidFormat = true; // Valid format
-        console.log(`📌 Agent specified conversation ID: ${conversationId}, remaining message: "${messageBody}"`);
+      // ✅ FIRST: Check for stop/deactivate commands BEFORE extracting conversation ID
+      // Support formats: #123: stop conversation, #123: deactivate, #123 : stop conversation, etc.
+      const originalMessageBody = messageBody; // Save original for command checking
+      const stopCommandMatch = messageBody.match(/^#\s*(\d+)\s*[:]?\s*(stop|end|deactivate|deactive|close|finish)\s*(conversation)?$/i);
+      const activateCommandMatch = messageBody.match(/^#\s*(\d+)\s*[:]?\s*(active|activate)$/i);
+      
+      if (stopCommandMatch || activateCommandMatch) {
+        const targetConvId = parseInt(stopCommandMatch ? stopCommandMatch[1] : activateCommandMatch![1]);
+        const isDeactivate = !!stopCommandMatch;
+        
+        // We'll handle this later after we have clientId, but mark it as a command
+        conversationId = targetConvId;
+        messageBody = isDeactivate ? 'stop conversation' : 'activate';
+        matchedBy = 'command';
+        messageIsValidFormat = true;
+        console.log(`📌 Agent sent ${isDeactivate ? 'deactivate' : 'activate'} command for conversation ${targetConvId}`);
       } else {
+        // Try conversation ID first (#123)
+        // Support formats: #123: message, #123 message, #123 : message, #123:message
+        const conversationIdMatch = messageBody.match(/^#\s*(\d+)\s*[:]?\s*/);
+        if (conversationIdMatch) {
+          conversationId = parseInt(conversationIdMatch[1]);
+          // Remove the conversation ID prefix (including any spaces and colon)
+          messageBody = messageBody.replace(/^#\s*\d+\s*[:]?\s*/, '').trim();
+          matchedBy = 'conversation_id';
+          messageIsValidFormat = true; // Valid format
+          console.log(`📌 Agent specified conversation ID: ${conversationId}, remaining message: "${messageBody}"`);
+        } else {
         // Try user name (@John Doe or @John)
         const userNameMatch = messageBody.match(/^@([^:]+?):\s*(.+)$/);
         if (userNameMatch) {
@@ -1263,12 +1280,22 @@ router.post('/incoming', async (req: Request, res: Response) => {
     }
     
     // ✅ CHECK FOR DEACTIVATE/ACTIVATE COMMANDS
-    const deactivateMatch = messageBody.match(/^#(\d+):\s*(deactivate|deactive)$/i);
-    const activateMatch = messageBody.match(/^#(\d+):\s*(active|activate)$/i);
+    // Check both the original message format and the parsed format
+    const messageBodyLower = messageBody.toLowerCase().trim();
+    const isStopCommand = messageBodyLower === 'stop conversation' || 
+                         messageBodyLower === 'deactivate' || 
+                         messageBodyLower === 'deactive' ||
+                         messageBodyLower === 'end conversation' ||
+                         messageBodyLower === 'end' ||
+                         messageBodyLower === 'stop' ||
+                         messageBodyLower === 'close conversation' ||
+                         messageBodyLower === 'finish conversation';
+    const isActivateCommand = messageBodyLower === 'active' || messageBodyLower === 'activate';
     
-    if (deactivateMatch || activateMatch) {
-      const targetConvId = parseInt(deactivateMatch ? deactivateMatch[1] : activateMatch[1]);
-      const isDeactivate = !!deactivateMatch;
+    // Also check if conversationId was set from a command match earlier
+    if ((isStopCommand || isActivateCommand || matchedBy === 'command') && conversationId) {
+      const targetConvId = conversationId;
+      const isDeactivate = isStopCommand || matchedBy === 'command';
       
       // Verify this conversation belongs to this client
       const convCheck = await pool.query(`
@@ -1282,14 +1309,17 @@ router.post('/incoming', async (req: Request, res: Response) => {
         const newStatus = isDeactivate ? 'ended' : 'active';
         await pool.query(`
           UPDATE widget_conversations
-          SET status = $1, updated_at = NOW()
+          SET status = $1, 
+              agent_handoff = CASE WHEN $3 THEN false ELSE agent_handoff END,
+              ended_at = CASE WHEN $3 THEN NOW() ELSE ended_at END,
+              updated_at = NOW()
           WHERE id = $2
-        `, [newStatus, targetConvId]);
+        `, [newStatus, targetConvId, isDeactivate]);
         
         const { WhatsAppService } = await import('../services/whatsappService');
         const whatsappService = WhatsAppService.getInstance();
         
-        const confirmationMessage = `✅ Conversation #${targetConvId} has been ${isDeactivate ? 'deactivated' : 'activated'}.`;
+        const confirmationMessage = `✅ Conversation #${targetConvId} has been ${isDeactivate ? 'deactivated (ended)' : 'activated'}.`;
         
         await whatsappService.sendMessage({
           clientId: clientId,
@@ -1302,6 +1332,16 @@ router.post('/incoming', async (req: Request, res: Response) => {
         });
         
         console.log(`✅ Conversation ${targetConvId} ${isDeactivate ? 'deactivated' : 'activated'} by agent`);
+        
+        // If deactivated, also check for queued handovers
+        if (isDeactivate) {
+          try {
+            const { HandoverService } = await import('../services/handoverService');
+            await HandoverService.processQueuedWhatsAppHandovers(clientId);
+          } catch (queueError) {
+            console.error('Error processing queued handovers:', queueError);
+          }
+        }
         
         res.setHeader('Content-Type', 'text/plain');
         res.setHeader('Content-Length', '0');
