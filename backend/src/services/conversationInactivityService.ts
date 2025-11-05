@@ -240,39 +240,15 @@ export class ConversationInactivityService {
     
     const message = reminderNumber === 1
       ? `⏰ *Reminder: Inactive Conversation*\n\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `👤 *User:* ${visitorName}\n` +
-        `🆔 *Conversation ID: #${conversationId}*\n` +
-        `📱 *Session: \`${sessionIdDisplay}\`*\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `This conversation has been inactive for 5+ minutes.\n\n` +
-        `*HOW TO REPLY (REQUIRED):*\n\n` +
-        `1️⃣ By Conversation ID:\n` +
-        `\`#${conversationId}: your message\`\n\n` +
-        `2️⃣ By User Name:\n` +
-        `\`@${visitorName}: your message\`\n\n` +
-        `3️⃣ By Session ID:\n` +
-        `\`@${sessionIdDisplay}: your message\`\n\n` +
-        `*To end this conversation:*\n` +
-        `\`#${conversationId}: stop conversation\`\n\n` +
-        `⚠️ *Always include the conversation ID or user identifier when replying!*`
+        `Conversation #${conversationId} with ${visitorName} has been inactive for 5+ minutes.\n\n` +
+        `*HOW TO REPLY:*\n` +
+        `📎 Reply to this message (Long-press and reply)\n\n` +
+        `*To end:* Reply "stop" to this message`
       : `⏰ *Second Reminder: Inactive Conversation*\n\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `👤 *User:* ${visitorName}\n` +
-        `🆔 *Conversation ID: #${conversationId}*\n` +
-        `📱 *Session: \`${sessionIdDisplay}\`*\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `This conversation has been inactive for 10+ minutes.\n\n` +
-        `*HOW TO REPLY (REQUIRED):*\n\n` +
-        `1️⃣ By Conversation ID:\n` +
-        `\`#${conversationId}: your message\`\n\n` +
-        `2️⃣ By User Name:\n` +
-        `\`@${visitorName}: your message\`\n\n` +
-        `3️⃣ By Session ID:\n` +
-        `\`@${sessionIdDisplay}: your message\`\n\n` +
-        `*To end this conversation:*\n` +
-        `\`#${conversationId}: stop conversation\`\n\n` +
-        `⚠️ *Please respond soon or end the conversation!*`;
+        `Conversation #${conversationId} with ${visitorName} has been inactive for 10+ minutes.\n\n` +
+        `*HOW TO REPLY:*\n` +
+        `📎 Reply to this message (Long-press and reply)\n\n` +
+        `*To end:* Reply "stop" to this message`;
 
     try {
       let cleanNumber = conv.handover_whatsapp_number.replace('whatsapp:', '').trim();

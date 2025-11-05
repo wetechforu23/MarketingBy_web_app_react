@@ -20,23 +20,36 @@ async function deleteAllConversations() {
     // Start transaction
     await client.query('BEGIN');
     
-    // 1. Delete all messages first
-    console.log('1. Deleting all messages...');
+    // 1. Delete WhatsApp messages first (if table exists)
+    try {
+      console.log('1. Deleting WhatsApp messages...');
+      const whatsappMessagesResult = await client.query('DELETE FROM whatsapp_messages');
+      console.log(`   ✅ Deleted ${whatsappMessagesResult.rowCount} WhatsApp messages`);
+    } catch (e) {
+      if (e.code === '42P01') {
+        console.log('   ℹ️  whatsapp_messages table does not exist (skipped)');
+      } else {
+        throw e;
+      }
+    }
+    
+    // 2. Delete all messages
+    console.log('2. Deleting all messages...');
     const messagesResult = await client.query('DELETE FROM widget_messages');
     console.log(`   ✅ Deleted ${messagesResult.rowCount} messages`);
     
-    // 2. Delete all handover requests
-    console.log('2. Deleting all handover requests...');
+    // 3. Delete all handover requests
+    console.log('3. Deleting all handover requests...');
     const handoverResult = await client.query('DELETE FROM handover_requests');
     console.log(`   ✅ Deleted ${handoverResult.rowCount} handover requests`);
     
-    // 3. Delete all conversations
-    console.log('3. Deleting all conversations...');
+    // 4. Delete all conversations
+    console.log('4. Deleting all conversations...');
     const conversationsResult = await client.query('DELETE FROM widget_conversations');
     console.log(`   ✅ Deleted ${conversationsResult.rowCount} conversations`);
     
-    // 4. Delete all visitor session tracking data
-    console.log('4. Deleting visitor session tracking data...');
+    // 5. Delete all visitor session tracking data
+    console.log('5. Deleting visitor session tracking data...');
     const sessionsResult = await client.query('DELETE FROM widget_visitor_sessions');
     console.log(`   ✅ Deleted ${sessionsResult.rowCount} visitor sessions`);
     
@@ -46,7 +59,7 @@ async function deleteAllConversations() {
     const eventsResult = await client.query('DELETE FROM widget_visitor_events');
     console.log(`   ✅ Deleted ${eventsResult.rowCount} visitor events`);
     
-    // 5. Delete legacy visitor_sessions if it exists
+    // 6. Delete legacy visitor_sessions if it exists
     try {
       const legacyResult = await client.query('DELETE FROM visitor_sessions');
       console.log(`   ✅ Deleted ${legacyResult.rowCount} legacy visitor sessions`);
