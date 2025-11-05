@@ -1426,18 +1426,34 @@ router.post('/incoming', async (req: Request, res: Response) => {
 
     // Update conversation to mark agent response
     await pool.query(`
+      // Update conversation - use COALESCE for columns that may not exist
+      await pool.query(`
       UPDATE widget_conversations
       SET 
         last_message = $1,
         last_message_at = NOW(),
         last_activity_at = NOW(),
-        last_agent_activity_at = NOW(),
-        extension_reminders_count = 0,
+        extension_reminders_count = COALESCE(extension_reminders_count, 0),
         message_count = COALESCE(message_count, 0) + 1,
         human_response_count = COALESCE(human_response_count, 0) + 1,
         updated_at = NOW()
       WHERE id = $2
     `, [messageBody.substring(0, 500), conversationId]);
+    
+    // Try to update last_agent_activity_at if column exists (separate query to avoid errors)
+    try {
+      await pool.query(`
+        UPDATE widget_conversations
+        SET last_agent_activity_at = NOW()
+        WHERE id = $1
+      `, [conversationId]);
+    } catch (columnError: any) {
+      // Column doesn't exist - ignore (this is OK for older schema versions)
+      if (columnError.code !== '42703') {
+        // Only ignore column not found errors, re-throw others
+        throw columnError;
+      }
+    }
     
     // ✅ Update activity timestamp via service
     await inactivityService.updateActivityTimestamp(conversationId, true);
