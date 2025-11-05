@@ -547,7 +547,8 @@ export class WhatsAppService {
       
       // Track usage with actual price from Twilio, fallback to estimated if not available
       const costToTrack = actualPrice || 0.005;
-      await this.trackUsage(clientId, widgetId, false, costToTrack);
+      // Track usage - use trackAsConversation flag if this is a handover notification
+      await this.trackUsage(clientId, widgetId, trackAsConversation, costToTrack);
 
       console.log(`✅ WhatsApp message sent successfully:`, {
         messageSid: twilioData.sid,
