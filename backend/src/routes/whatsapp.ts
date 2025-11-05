@@ -671,7 +671,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
     // Only replying to bot messages (InReplyTo) is allowed
     // This ensures agents always reply to specific bot messages
     
-    // ✅ VALIDATION: If message doesn't match any valid format and multiple chats are enabled, warn user
+    // ✅ VALIDATION: If message doesn't match any valid format, check active conversations
     if (!messageIsValidFormat && !conversationId) {
       // Check if multiple chats are enabled
       const widgetCheck = await pool.query(`
@@ -686,25 +686,70 @@ router.post('/incoming', async (req: Request, res: Response) => {
       
       const enableMultipleChats = widgetCheck.rows[0]?.enable_multiple_whatsapp_chats || false;
       
-      if (enableMultipleChats) {
-        // Get active conversations to show in warning
-        const activeConversations = await pool.query(`
-          SELECT DISTINCT wconv.id, wconv.visitor_name, wconv.visitor_session_id, 
-                 wconv.last_activity_at
-          FROM widget_configs wc
-          JOIN handover_requests hr ON hr.widget_id = wc.id
-          JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
-          WHERE hr.requested_method = 'whatsapp'
-            AND hr.status IN ('pending', 'notified', 'completed')
-            AND wconv.status = 'active'
-            AND (
+      // Get active conversations
+      const activeConversations = await pool.query(`
+        SELECT DISTINCT wconv.id, wconv.visitor_name, wconv.visitor_session_id, 
+               wconv.last_activity_at
+        FROM widget_configs wc
+        JOIN handover_requests hr ON hr.widget_id = wc.id
+        JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
+        WHERE hr.requested_method = 'whatsapp'
+          AND hr.status IN ('pending', 'notified', 'completed')
+          AND wconv.status = 'active'
+          AND (
+            REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+            OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+          )
+        ORDER BY wconv.last_activity_at DESC NULLS LAST, wconv.id DESC
+        LIMIT 5
+      `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+      
+      // ✅ SPECIAL CASE: If only ONE active conversation and no InReplyTo, auto-match it
+      // This helps when agent forgets to use reply feature but there's only one conversation
+      if (activeConversations.rows.length === 1 && !InReplyTo) {
+        const singleConv = activeConversations.rows[0];
+        conversationId = singleConv.id;
+        matchedBy = 'auto_match_single';
+        messageIsValidFormat = true;
+        console.log(`💡 Auto-matched to single active conversation ${conversationId} (agent didn't use reply feature)`);
+        
+        // Still send a helpful tip to remind agent to use reply feature next time
+        const { WhatsAppService } = await import('../services/whatsappService');
+        const whatsappService = WhatsAppService.getInstance();
+        
+        try {
+          const clientIdResult = await pool.query(`
+            SELECT DISTINCT wc.client_id, wc.id as widget_id
+            FROM widget_configs wc
+            WHERE (
               REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
               OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
             )
-          ORDER BY wconv.last_activity_at DESC NULLS LAST, wconv.id DESC
-          LIMIT 5
-        `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+            LIMIT 1
+          `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+          
+          if (clientIdResult.rows.length > 0) {
+            const tipMessage = `💡 *Tip:* Your message was delivered to conversation #${conversationId}.\n\n` +
+              `*Next time:* Long-press any bot message and reply to automatically route to the correct conversation.`;
+            
+            // Send tip asynchronously (don't block message delivery)
+            whatsappService.sendMessage({
+              clientId: clientIdResult.rows[0].client_id,
+              widgetId: clientIdResult.rows[0].widget_id,
+              conversationId: conversationId,
+              toNumber: `whatsapp:${fromNumber}`,
+              message: tipMessage,
+              sentByAgentName: 'System',
+              visitorName: 'Agent'
+            }).catch(err => console.error('Error sending tip:', err));
+          }
+        } catch (tipError) {
+          console.error('Error sending tip message:', tipError);
+        }
         
+        // Continue processing the message (it will be delivered)
+      } else if (enableMultipleChats || activeConversations.rows.length > 1) {
+        // Multiple conversations - must use reply feature
         const { WhatsAppService } = await import('../services/whatsappService');
         const whatsappService = WhatsAppService.getInstance();
         
