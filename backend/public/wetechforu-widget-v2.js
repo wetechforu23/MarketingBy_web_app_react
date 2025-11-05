@@ -367,7 +367,9 @@
                 </div>
                 <div>
                   <div style="font-weight: 600; font-size: 16px;">${this.config.botName}</div>
-                  <div style="font-size: 12px; opacity: 0.9;" id="wetechforu-status">Online</div>
+                  <div style="font-size: 12px; opacity: 0.9;" id="wetechforu-status">
+                    Online <span id="wetechforu-conversation-id" style="opacity: 0.7; margin-left: 6px; font-family: monospace; font-size: 11px;"></span>
+                  </div>
                 </div>
               </div>
               <div style="display: flex; gap: 8px;">
@@ -1314,6 +1316,7 @@
               if (convData.conversation_id && statusData.status === 'active' && !statusData.is_expired) {
                 this.state.conversationId = convData.conversation_id;
                 localStorage.setItem(`wetechforu_conversation_${this.config.widgetKey}`, convData.conversation_id);
+                this.updateConversationIdDisplay(); // Update header display
                 console.log('✅ Found active conversation:', convData.conversation_id);
                 
                 // Try to load messages
@@ -3463,6 +3466,8 @@
           localStorage.setItem(`wetechforu_conversation_${this.config.widgetKey}`, data.conversation_id);
           
           console.log('✅ New conversation created & persisted:', data.conversation_id, 'for', visitorName);
+          this.state.conversationId = data.conversation_id;
+          this.updateConversationIdDisplay(); // Update header display
           return data.conversation_id;
         } else {
           console.error('Failed to create conversation');
