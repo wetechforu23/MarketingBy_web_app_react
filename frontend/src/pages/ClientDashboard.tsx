@@ -424,12 +424,7 @@ const ClientDashboard: React.FC = () => {
           }
 
           // Step 6.6: Fetch Current Facebook Posts from API (same as Post Performance)
-          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          console.log('📝 FETCHING CURRENT FACEBOOK POSTS FROM API (Post Performance)');
-          console.log('   Endpoint: GET /facebook/posts-with-insights/' + userData.client_id + '?limit=100');
-          console.log('   Source: Facebook API (current posts only, not deleted)');
-          console.log('   Same as admin Post Performance tab');
-          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.log('📝 Fetching current Facebook posts from API (Post Performance) - client:', userData.client_id);
           
           try {
             const currentPostsResponse = await api.get(`/facebook/posts-with-insights/${userData.client_id}?limit=100`);
@@ -459,13 +454,12 @@ const ClientDashboard: React.FC = () => {
                 reactions_angry: post.reactions_angry || 0
               }));
               setCurrentFacebookPosts(mappedPosts);
-              console.log('✅ Current Facebook posts loaded FROM API:', currentPostsCount, 'posts');
-              console.log('   ✅ These are current posts on Facebook (not deleted)');
+              console.log(`✅ Loaded ${currentPostsCount} current posts from Facebook API (not deleted)`);
             }
           } catch (currentPostsErr: any) {
-            console.error('❌ Current Facebook posts fetch error:', currentPostsErr);
+            console.error('❌ Current Facebook posts fetch error:', currentPostsErr.message);
             setCurrentFacebookPosts([]);
-            console.log('   💡 Set to empty array - will try database posts instead');
+            console.log('   💡 Falling back to database posts');
           }
         }
       } catch (err: any) {

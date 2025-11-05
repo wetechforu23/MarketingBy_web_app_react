@@ -5831,13 +5831,14 @@ router.get('/facebook/posts-with-insights/:clientId', requireAuth, async (req, r
     const { clientId } = req.params;
     const limit = parseInt(req.query.limit as string) || 25;
 
-    console.log(`\n📝 === API: Fetching posts with inline insights for client ${clientId} ===`);
+    console.log(`\n📝 === API: Fetching posts with inline insights for client ${clientId} (limit: ${limit}) ===`);
 
     const FacebookService = (await import('../services/facebookService')).default;
     const facebookService = new FacebookService(pool);
 
     const credentials = await facebookService.getClientCredentials(parseInt(clientId));
     if (!credentials) {
+      console.log(`⚠️ Client ${clientId}: Facebook not connected`);
       return res.status(404).json({
         success: false,
         error: 'Facebook not connected'
@@ -5850,7 +5851,7 @@ router.get('/facebook/posts-with-insights/:clientId', requireAuth, async (req, r
       limit
     );
 
-    console.log(`✅ Fetched ${posts.length} posts with inline insights`);
+    console.log(`✅ Client ${clientId}: Fetched ${posts.length} current posts from Facebook API`);
 
     res.json({
       success: true,
