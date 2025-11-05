@@ -741,6 +741,69 @@ export async function sendForApprovalWithLink(
         // Get platforms as string
         const platforms = content.target_platforms || [];
         const platformsText = platforms.length > 0 ? platforms.join(', ') : 'N/A';
+        
+        // Get media URLs and hashtags
+        const mediaUrls = Array.isArray(content.media_urls) ? content.media_urls : [];
+        const hashtags = Array.isArray(content.hashtags) ? content.hashtags : [];
+        const hasHashtags = hashtags.length > 0;
+        
+        // Build media images HTML
+        let mediaHtml = '';
+        if (mediaUrls.length > 0) {
+          mediaHtml = `
+            <div style="margin: 20px 0;">
+              <p style="font-size: 14px; font-weight: 600; color: #333; margin-bottom: 10px;">
+                Media (${mediaUrls.length}):
+              </p>
+              <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                ${mediaUrls.map((url: string, index: number) => `
+                  <div style="flex: 1; min-width: 200px; max-width: 300px; margin-bottom: 10px;">
+                    <img 
+                      src="${url}" 
+                      alt="Media ${index + 1}" 
+                      style="width: 100%; height: auto; border-radius: 8px; border: 2px solid #e0e0e0; display: block;"
+                      onerror="this.style.display='none';"
+                    />
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }
+        
+        // Build hashtags display
+        let hashtagsHtml = '';
+        if (hasHashtags) {
+          hashtagsHtml = `
+            <div style="margin: 15px 0;">
+              <p style="font-size: 14px; font-weight: 600; color: #333; margin-bottom: 8px;">Hashtags:</p>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                ${hashtags.map((tag: string) => `
+                  <span style="background: linear-gradient(135deg, #A23B72 0%, #8A2F5F 100%); color: white; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 500;">
+                    ${tag}
+                  </span>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        } else {
+          // Show prominent "HASHTAG missing" warning
+          hashtagsHtml = `
+            <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 15px; margin: 15px 0;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 24px;">⚠️</span>
+                <div>
+                  <p style="margin: 0; font-size: 16px; font-weight: 700; color: #856404;">
+                    HASHTAG MISSING
+                  </p>
+                  <p style="margin: 5px 0 0 0; font-size: 13px; color: #856404;">
+                    No hashtags have been added to this content. Consider adding relevant hashtags to improve reach and engagement.
+                  </p>
+                </div>
+              </div>
+            </div>
+          `;
+        }
 
         console.log('📧 Sending approval email to:', content.client_email);
         await emailService.sendEmail({
@@ -753,45 +816,107 @@ export async function sendForApprovalWithLink(
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1.0">
             </head>
-            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                <h1 style="color: white; margin: 0; font-size: 28px;">📱 Content Ready for Approval</h1>
-              </div>
-              
-              <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px;">
-                <p style="font-size: 16px; margin-bottom: 20px;">Hello <strong>${content.client_name}</strong>,</p>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+              <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+                <!-- Header -->
+                <div style="background: linear-gradient(135deg, #2E86AB 0%, #1a5f7a 100%); padding: 25px; text-align: center; color: white;">
+                  <div style="font-size: 32px; margin-bottom: 10px;">📱</div>
+                  <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700;">Social Media Content Review</h1>
+                  <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.9;">Please review and approve or reject this content.</p>
+                </div>
                 
-                <p style="font-size: 16px; margin-bottom: 20px;">
-                  We have a new social media content ready for your review and approval.
-                </p>
+                <!-- Expiry Notice -->
+                <div style="background: #f7fafc; padding: 12px 25px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #718096;">
+                  <span>🕐</span>
+                  <span><strong>Link Expires:</strong> ${expiryDate}</span>
+                </div>
                 
-                <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4682B4;">
-                  <h2 style="margin-top: 0; color: #333; font-size: 20px;">${content.title}</h2>
-                  <p style="color: #666; margin-bottom: 10px;">${(content.content_text || '').substring(0, 200)}${(content.content_text || '').length > 200 ? '...' : ''}</p>
-                  <div style="display: flex; gap: 20px; margin-top: 15px; font-size: 14px; flex-wrap: wrap;">
-                    <div><strong>Platforms:</strong> ${platformsText}</div>
-                    <div><strong>Type:</strong> ${content.content_type || 'Text'}</div>
+                <!-- Content Body -->
+                <div style="padding: 30px;">
+                  <p style="font-size: 16px; margin-bottom: 25px;">Hello <strong>${content.client_name}</strong>,</p>
+                  
+                  <!-- Content Title -->
+                  <h2 style="margin: 0 0 15px 0; color: #2d3748; font-size: 22px; font-weight: 700;">${content.title}</h2>
+                  
+                  <!-- Content Description -->
+                  ${content.content_text ? `
+                    <div style="background: #f7fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                      <p style="margin: 0; color: #4a5568; font-size: 15px; white-space: pre-wrap;">${content.content_text}</p>
+                    </div>
+                  ` : ''}
+                  
+                  <!-- Media Images -->
+                  ${mediaHtml}
+                  
+                  <!-- Destination URL -->
+                  ${content.destination_url ? `
+                    <div style="margin: 20px 0;">
+                      <p style="font-size: 14px; font-weight: 600; color: #333; margin-bottom: 8px;">Destination URL:</p>
+                      <a href="${content.destination_url.startsWith('http') ? content.destination_url : 'https://' + content.destination_url}" 
+                         style="color: #4682B4; text-decoration: none; word-break: break-all; font-size: 14px;">
+                        ${content.destination_url}
+                      </a>
+                    </div>
+                  ` : ''}
+                  
+                  <!-- Hashtags or Missing Warning -->
+                  ${hashtagsHtml}
+                  
+                  <!-- Platform and Type Info -->
+                  <div style="display: flex; gap: 20px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 14px; flex-wrap: wrap;">
+                    <div>
+                      <strong style="color: #666;">Platforms:</strong> 
+                      <span style="color: #333;">${platforms.map((p: string) => {
+                        const icons: { [key: string]: string } = {
+                          'facebook': '📘',
+                          'linkedin': '💼',
+                          'instagram': '📷',
+                          'twitter': '🐦',
+                          'google_business': '📍'
+                        };
+                        return `${icons[p] || ''} ${p}`;
+                      }).join(', ')}</span>
+                    </div>
+                    <div>
+                      <strong style="color: #666;">Type:</strong> 
+                      <span style="color: #333;">${content.content_type || 'Text'}</span>
+                    </div>
+                  </div>
+                
+                  <!-- Action Buttons -->
+                  <div style="text-align: center; margin: 30px 0; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                    <a href="${approvalUrl}?action=approve" 
+                       style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; text-decoration: none; padding: 14px 30px; border-radius: 8px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+                      ✅ Approve Content
+                    </a>
+                    <a href="${approvalUrl}?action=reject" 
+                       style="display: inline-block; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; text-decoration: none; padding: 14px 30px; border-radius: 8px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);">
+                      ❌ Request Changes
+                    </a>
+                  </div>
+                  
+                  <!-- Alternative Link -->
+                  <div style="background: #f7fafc; padding: 15px; border-radius: 8px; margin-top: 25px; text-align: center;">
+                    <p style="margin: 0 0 10px 0; font-size: 12px; color: #718096;">
+                      Or click the button below to review:
+                    </p>
+                    <a href="${approvalUrl}" 
+                       style="display: inline-block; background: linear-gradient(135deg, #4682B4, #5a9fd4); color: white; text-decoration: none; padding: 12px 30px; border-radius: 8px; font-weight: 600; font-size: 14px;">
+                      🔗 Open Review Page
+                    </a>
+                    <p style="margin: 15px 0 0 0; font-size: 11px; color: #a0aec0; word-break: break-all;">
+                      ${approvalUrl}
+                    </p>
                   </div>
                 </div>
                 
-                <div style="text-align: center; margin: 30px 0;">
-                  <a href="${approvalUrl}" style="display: inline-block; background: linear-gradient(135deg, #4682B4, #5a9fd4); color: white; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">
-                    ✅ Review & Approve Content
-                  </a>
-                </div>
-                
-                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
-                  <p style="margin: 0; font-size: 14px; color: #856404;">
-                    <strong>⏰ Important:</strong> This approval link will expire on <strong>${expiryDate}</strong> (48 hours from now).
+                <!-- Footer -->
+                <div style="background: #f7fafc; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0;">
+                  <p style="margin: 0; font-size: 12px; color: #718096;">
+                    This email was sent by MarketingBy - WeTechForU<br>
+                    <a href="${approvalUrl}" style="color: #4682B4; text-decoration: none;">Review Content</a>
                   </p>
                 </div>
-                
-                <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
-                
-                <p style="font-size: 12px; color: #999; text-align: center; margin: 0;">
-                  If you're unable to click the button above, copy and paste this link into your browser:<br>
-                  <a href="${approvalUrl}" style="color: #4682B4; word-break: break-all;">${approvalUrl}</a>
-                </p>
               </div>
             </body>
             </html>
@@ -801,15 +926,30 @@ Hello ${content.client_name},
 
 We have a new social media content ready for your review and approval.
 
+═══════════════════════════════════════════════════════════
 Content Title: ${content.title}
-Content Preview: ${(content.content_text || '').substring(0, 200)}${(content.content_text || '').length > 200 ? '...' : ''}
+═══════════════════════════════════════════════════════════
+
+Content:
+${content.content_text || 'N/A'}
+
+${mediaUrls.length > 0 ? `\nMedia Images (${mediaUrls.length}):\n${mediaUrls.map((url: string, i: number) => `${i + 1}. ${url}`).join('\n')}\n` : ''}
+
+${content.destination_url ? `Destination URL: ${content.destination_url}\n` : ''}
+
+${hasHashtags ? `Hashtags: ${hashtags.join(', ')}\n` : '⚠️ WARNING: HASHTAG MISSING\n   No hashtags have been added to this content. Consider adding relevant hashtags to improve reach and engagement.\n\n'}
+
 Platforms: ${platformsText}
 Type: ${content.content_type || 'Text'}
 
-To review and approve this content, please visit:
-${approvalUrl}
+Link Expires: ${expiryDate} (48 hours from now)
 
-⏰ Important: This approval link will expire on ${expiryDate} (48 hours from now).
+═══════════════════════════════════════════════════════════
+REVIEW & APPROVE CONTENT
+═══════════════════════════════════════════════════════════
+
+Click here to review and approve:
+${approvalUrl}
 
 If the link above doesn't work, copy and paste this URL into your browser:
 ${approvalUrl}
