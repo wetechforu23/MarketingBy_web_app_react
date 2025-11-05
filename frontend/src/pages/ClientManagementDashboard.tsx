@@ -4989,13 +4989,13 @@ const DetailedFacebookInsights: React.FC<{ clientId: number; refreshKey: number 
   const fetchDetailedInsights = async () => {
     setLoading(true);
     try {
-      console.log(`📊 Fetching detailed Facebook insights for client ${clientId}`);
+      console.log(`📊 Fetching detailed Facebook insights for client ${clientId} (${selectedDays} days)`);
       
       // Fetch posts
       const postsRes = await http.get(`/facebook/posts/${clientId}?limit=50`);
       if (postsRes.data.success) {
         setPosts(postsRes.data.data);
-        console.log(`✅ Fetched ${postsRes.data.data.length} posts`);
+        console.log(`✅ Fetched ${postsRes.data.data.length} posts from database`);
       }
 
       // Fetch analytics by post type (optional, may not exist)

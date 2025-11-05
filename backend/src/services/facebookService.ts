@@ -1620,42 +1620,23 @@ class FacebookService {
         
         // This loop now processes posts from every page.
         for (const post of posts) {
-          console.log('\n🔍 [POST DETAIL] Processing post:', post.id);
-          console.log('📝 [POST DETAIL] Message:', (post.message || 'No message').substring(0, 50) + '...');
-          console.log('🔑 [POST DETAIL] Post has insights?:', !!post.insights);
-          
-          if (post.insights) {
-            console.log('📊 [POST DETAIL] Insights data:', JSON.stringify(post.insights, null, 2));
-          } else {
-            console.log('⚠️ [POST DETAIL] NO INSIGHTS DATA for this post!');
-          }
-          
           // 4. Parse the insights data that is now included in the response.
           let impressions = 0;
           let uniqueImpressions = 0;
           let detailedReactions: any = {};
-  
+
           if (post.insights && post.insights.data) {
-            console.log(`✅ [POST DETAIL] Found ${post.insights.data.length} insight metrics`);
-            
             for (const insight of post.insights.data) {
-              console.log(`  - Metric: ${insight.name}, Value:`, insight.values[0]?.value);
-              
               if (insight.name === 'post_impressions') {
                 impressions = insight.values[0]?.value || 0;
-                console.log(`  ✅ Impressions set to: ${impressions}`);
               }
               if (insight.name === 'post_impressions_unique') {
                 uniqueImpressions = insight.values[0]?.value || 0;
-                console.log(`  ✅ Unique Impressions set to: ${uniqueImpressions}`);
               }
               if (insight.name === 'post_reactions_by_type_total') {
                 detailedReactions = insight.values[0]?.value || {};
-                console.log(`  ✅ Detailed Reactions:`, detailedReactions);
               }
             }
-          } else {
-            console.log('⚠️ [POST DETAIL] No insights.data array found!');
           }
           
           // 5. Build the final data object with all information.
@@ -1687,15 +1668,6 @@ class FacebookService {
             reactions_angry: detailedReactions.angry || 0,
             post_type: 'post'
           };
-          
-          console.log('💾 [POST DETAIL] Final post data:', {
-            post_id: postData.post_id,
-            impressions: postData.post_impressions,
-            unique_impressions: postData.post_impressions_unique,
-            likes: postData.likes,
-            comments: postData.comments_count,
-            total_reactions: postData.total_reactions
-          });
           
           allPostsData.push(postData);
         }
