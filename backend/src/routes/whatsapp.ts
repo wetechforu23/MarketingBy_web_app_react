@@ -630,7 +630,13 @@ router.post('/incoming', async (req: Request, res: Response) => {
     // - User name: "@John Doe: message", "@John: message"
     // - Session ID: "@visitor_abc123: message", "@visitor_abc123def456: message"
     
+    // ✅ VALIDATION: Check if message is in a valid format (reply or ID-based)
     // Only try these if we didn't match via WhatsApp reply
+    let messageIsValidFormat = false;
+    if (InReplyTo) {
+      messageIsValidFormat = true; // Replying to a message is always valid
+    }
+    
     if (!conversationId) {
       // Try conversation ID first (#123)
       const conversationIdMatch = messageBody.match(/^#(\d+)(?:\s*[:]\s*|\s+)?/);
@@ -638,6 +644,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
         conversationId = parseInt(conversationIdMatch[1]);
         messageBody = messageBody.replace(/^#\d+[\s:]*/, '').trim();
         matchedBy = 'conversation_id';
+        messageIsValidFormat = true; // Valid format
         console.log(`📌 Agent specified conversation ID: ${conversationId}, remaining message: "${messageBody}"`);
       } else {
         // Try user name (@John Doe or @John)
@@ -670,6 +677,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
           if (nameMatchResult.rows.length > 0) {
             conversationId = nameMatchResult.rows[0].conversation_id;
             matchedBy = 'user_name';
+            messageIsValidFormat = true; // Valid format
             console.log(`📌 Agent specified user name: "${userName}", matched to conversation ${conversationId}, remaining message: "${messageBody}"`);
           }
         } else {
@@ -700,9 +708,110 @@ router.post('/incoming', async (req: Request, res: Response) => {
             if (sessionMatchResult.rows.length > 0) {
               conversationId = sessionMatchResult.rows[0].conversation_id;
               matchedBy = 'session_id';
+              messageIsValidFormat = true; // Valid format
               console.log(`📌 Agent specified session ID: "${sessionIdPrefix}", matched to conversation ${conversationId}, remaining message: "${messageBody}"`);
             }
           }
+        }
+      }
+    }
+    
+    // ✅ VALIDATION: If message doesn't match any valid format and multiple chats are enabled, warn user
+    if (!messageIsValidFormat && !conversationId) {
+      // Check if multiple chats are enabled
+      const widgetCheck = await pool.query(`
+        SELECT enable_multiple_whatsapp_chats
+        FROM widget_configs wc
+        WHERE (
+          REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+          OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+        )
+        LIMIT 1
+      `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+      
+      const enableMultipleChats = widgetCheck.rows[0]?.enable_multiple_whatsapp_chats || false;
+      
+      if (enableMultipleChats) {
+        // Get active conversations to show in warning
+        const activeConversations = await pool.query(`
+          SELECT DISTINCT wconv.id, wconv.visitor_name, wconv.visitor_session_id, 
+                 wconv.last_activity_at
+          FROM widget_configs wc
+          JOIN handover_requests hr ON hr.widget_id = wc.id
+          JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
+          WHERE hr.requested_method = 'whatsapp'
+            AND hr.status IN ('pending', 'notified', 'completed')
+            AND wconv.status = 'active'
+            AND (
+              REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+              OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+            )
+          ORDER BY wconv.last_activity_at DESC NULLS LAST, wconv.id DESC
+          LIMIT 5
+        `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+        
+        const { WhatsAppService } = await import('../services/whatsappService');
+        const whatsappService = WhatsAppService.getInstance();
+        
+        let warningMessage = `⚠️ *Invalid Message Format*\n\n`;
+        
+        if (activeConversations.rows.length > 0) {
+          const firstConv = activeConversations.rows[0];
+          warningMessage += `❌ Your message was NOT delivered.\n\n`;
+          warningMessage += `✅ *HOW TO REPLY (Choose ONE):*\n\n`;
+          warningMessage += `1️⃣ *Reply to a message* (Long-press any message from chat bot)\n\n`;
+          warningMessage += `2️⃣ *By Conversation ID:*\n`;
+          warningMessage += `\`#${firstConv.id}: your message\`\n\n`;
+          warningMessage += `*Example:*\n`;
+          warningMessage += `\`#${firstConv.id}: Hi, how can I help?\`\n\n`;
+          
+          if (activeConversations.rows.length > 1) {
+            warningMessage += `*Active Conversations:*\n`;
+            activeConversations.rows.slice(0, 3).forEach((conv: any, idx: number) => {
+              const visitorName = conv.visitor_name || `Visitor ${conv.id}`;
+              warningMessage += `${idx + 1}. *${visitorName}* - Use: \`#${conv.id}: message\`\n`;
+            });
+            warningMessage += `\n`;
+          }
+        } else {
+          warningMessage += `❌ No active conversations found.\n\n`;
+          warningMessage += `Please wait for a visitor to start a chat first.`;
+        }
+        
+        try {
+          const clientIdResult = await pool.query(`
+            SELECT DISTINCT wc.client_id, wc.id as widget_id
+            FROM widget_configs wc
+            WHERE (
+              REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+              OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+            )
+            LIMIT 1
+          `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+          
+          if (clientIdResult.rows.length > 0) {
+            const clientId = clientIdResult.rows[0].client_id;
+            const widgetId = clientIdResult.rows[0].widget_id;
+            
+            await whatsappService.sendMessage({
+              clientId: clientId,
+              widgetId: widgetId,
+              conversationId: activeConversations.rows[0]?.id || null,
+              toNumber: `whatsapp:${fromNumber}`,
+              message: warningMessage,
+              sentByAgentName: 'System',
+              visitorName: 'Agent'
+            });
+            
+            console.log(`⚠️ Sent invalid format warning to agent`);
+            
+            // Return empty response - message was not processed
+            res.removeHeader('Content-Type');
+            res.setHeader('Content-Length', '0');
+            return res.status(200).end();
+          }
+        } catch (warningError) {
+          console.error('Error sending format warning:', warningError);
         }
       }
     }
