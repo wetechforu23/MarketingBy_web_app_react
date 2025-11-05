@@ -639,10 +639,12 @@ router.post('/incoming', async (req: Request, res: Response) => {
     
     if (!conversationId) {
       // Try conversation ID first (#123)
-      const conversationIdMatch = messageBody.match(/^#(\d+)(?:\s*[:]\s*|\s+)?/);
+      // Support formats: #123: message, #123 message, #123 : message, #123:message
+      const conversationIdMatch = messageBody.match(/^#\s*(\d+)\s*[:]?\s*/);
       if (conversationIdMatch) {
         conversationId = parseInt(conversationIdMatch[1]);
-        messageBody = messageBody.replace(/^#\d+[\s:]*/, '').trim();
+        // Remove the conversation ID prefix (including any spaces and colon)
+        messageBody = messageBody.replace(/^#\s*\d+\s*[:]?\s*/, '').trim();
         matchedBy = 'conversation_id';
         messageIsValidFormat = true; // Valid format
         console.log(`📌 Agent specified conversation ID: ${conversationId}, remaining message: "${messageBody}"`);

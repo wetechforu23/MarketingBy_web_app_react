@@ -101,34 +101,52 @@ export class ConversationInactivityService {
             // First reminder (5-10 minutes)
             if (remindersCount === 0) {
               await this.sendAgentReminder(conv, 1);
-              await pool.query(
-                `UPDATE widget_conversations 
-                 SET extension_reminders_count = 1, updated_at = NOW() 
-                 WHERE id = $1`,
-                [conv.conversation_id]
-              );
+              // Try to update extension_reminders_count if column exists
+              try {
+                await pool.query(
+                  `UPDATE widget_conversations 
+                   SET extension_reminders_count = 1, updated_at = NOW() 
+                   WHERE id = $1`,
+                  [conv.conversation_id]
+                );
+              } catch (error: any) {
+                // Column doesn't exist - ignore (OK for older schema)
+                if (error.code !== '42703') throw error;
+              }
             }
           } else if (agentInactiveMinutes >= 10 && agentInactiveMinutes < 12) {
             // Second reminder (10-12 minutes)
             if (remindersCount === 1) {
               await this.sendAgentReminder(conv, 2);
-              await pool.query(
-                `UPDATE widget_conversations 
-                 SET extension_reminders_count = 2, updated_at = NOW() 
-                 WHERE id = $1`,
-                [conv.conversation_id]
-              );
+              // Try to update extension_reminders_count if column exists
+              try {
+                await pool.query(
+                  `UPDATE widget_conversations 
+                   SET extension_reminders_count = 2, updated_at = NOW() 
+                   WHERE id = $1`,
+                  [conv.conversation_id]
+                );
+              } catch (error: any) {
+                // Column doesn't exist - ignore (OK for older schema)
+                if (error.code !== '42703') throw error;
+              }
             }
           } else if (agentInactiveMinutes >= 12 && agentInactiveMinutes < 15) {
             // Ask for extension (12-15 minutes)
             if (remindersCount === 2) {
               await this.askAgentForExtension(conv);
-              await pool.query(
-                `UPDATE widget_conversations 
-                 SET extension_reminders_count = 3, updated_at = NOW() 
-                 WHERE id = $1`,
-                [conv.conversation_id]
-              );
+              // Try to update extension_reminders_count if column exists
+              try {
+                await pool.query(
+                  `UPDATE widget_conversations 
+                   SET extension_reminders_count = 3, updated_at = NOW() 
+                   WHERE id = $1`,
+                  [conv.conversation_id]
+                );
+              } catch (error: any) {
+                // Column doesn't exist - ignore (OK for older schema)
+                if (error.code !== '42703') throw error;
+              }
             }
           } else if (agentInactiveMinutes >= 15 && remindersCount >= 3) {
             // Auto-end if no response (15+ minutes)
@@ -145,36 +163,54 @@ export class ConversationInactivityService {
             const visitorRemindersCount = conv.visitor_extension_reminders_count || 0;
             if (visitorRemindersCount === 0) {
               await this.sendVisitorReminder(conv, 1);
-              await pool.query(
-                `UPDATE widget_conversations 
-                 SET visitor_extension_reminders_count = 1, updated_at = NOW() 
-                 WHERE id = $1`,
-                [conv.conversation_id]
-              );
+              // Try to update visitor_extension_reminders_count if column exists
+              try {
+                await pool.query(
+                  `UPDATE widget_conversations 
+                   SET visitor_extension_reminders_count = 1, updated_at = NOW() 
+                   WHERE id = $1`,
+                  [conv.conversation_id]
+                );
+              } catch (error: any) {
+                // Column doesn't exist - ignore (OK for older schema)
+                if (error.code !== '42703') throw error;
+              }
             }
           } else if (visitorInactiveMinutes >= 10 && visitorInactiveMinutes < 12) {
             // Second reminder (10-12 minutes)
             const visitorRemindersCount = conv.visitor_extension_reminders_count || 0;
             if (visitorRemindersCount === 1) {
               await this.sendVisitorReminder(conv, 2);
-              await pool.query(
-                `UPDATE widget_conversations 
-                 SET visitor_extension_reminders_count = 2, updated_at = NOW() 
-                 WHERE id = $1`,
-                [conv.conversation_id]
-              );
+              // Try to update visitor_extension_reminders_count if column exists
+              try {
+                await pool.query(
+                  `UPDATE widget_conversations 
+                   SET visitor_extension_reminders_count = 2, updated_at = NOW() 
+                   WHERE id = $1`,
+                  [conv.conversation_id]
+                );
+              } catch (error: any) {
+                // Column doesn't exist - ignore (OK for older schema)
+                if (error.code !== '42703') throw error;
+              }
             }
           } else if (visitorInactiveMinutes >= 12 && visitorInactiveMinutes < 15) {
             // Ask for extension (12-15 minutes)
             const visitorRemindersCount = conv.visitor_extension_reminders_count || 0;
             if (visitorRemindersCount === 2) {
               await this.askVisitorForExtension(conv);
-              await pool.query(
-                `UPDATE widget_conversations 
-                 SET visitor_extension_reminders_count = 3, updated_at = NOW() 
-                 WHERE id = $1`,
-                [conv.conversation_id]
-              );
+              // Try to update visitor_extension_reminders_count if column exists
+              try {
+                await pool.query(
+                  `UPDATE widget_conversations 
+                   SET visitor_extension_reminders_count = 3, updated_at = NOW() 
+                   WHERE id = $1`,
+                  [conv.conversation_id]
+                );
+              } catch (error: any) {
+                // Column doesn't exist - ignore (OK for older schema)
+                if (error.code !== '42703') throw error;
+              }
             }
           } else if (visitorInactiveMinutes >= 15) {
             // Auto-end if no response (15+ minutes)
