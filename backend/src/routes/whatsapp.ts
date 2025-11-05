@@ -1281,6 +1281,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
     
     // ✅ CHECK FOR DEACTIVATE/ACTIVATE COMMANDS
     // Check both the original message format and the parsed format
+    // Also support commands when replying to a bot message (InReplyTo)
     const messageBodyLower = messageBody.toLowerCase().trim();
     const isStopCommand = messageBodyLower === 'stop conversation' || 
                          messageBodyLower === 'deactivate' || 
@@ -1292,10 +1293,16 @@ router.post('/incoming', async (req: Request, res: Response) => {
                          messageBodyLower === 'finish conversation';
     const isActivateCommand = messageBodyLower === 'active' || messageBodyLower === 'activate';
     
-    // Also check if conversationId was set from a command match earlier
+    // ✅ If replying to a bot message (InReplyTo), use that conversation for commands
+    // This allows agents to reply "stop" to a bot message without needing #ID format
     if ((isStopCommand || isActivateCommand || matchedBy === 'command') && conversationId) {
       const targetConvId = conversationId;
       const isDeactivate = isStopCommand || matchedBy === 'command';
+      
+      // If this was a reply to a bot message, log it
+      if (matchedBy === 'whatsapp_reply') {
+        console.log(`📎 Agent replied to bot message with ${isDeactivate ? 'deactivate' : 'activate'} command for conversation ${targetConvId}`);
+      }
       
       // Verify this conversation belongs to this client
       const convCheck = await pool.query(`
@@ -1367,13 +1374,15 @@ router.post('/incoming', async (req: Request, res: Response) => {
       }
     }
     
-    // ✅ CHECK FOR "STOP CONVERSATION" COMMAND
+    // ✅ CHECK FOR "STOP CONVERSATION" COMMAND (when replying to a bot message)
     // Support formats: "stop conversation", "#123: stop conversation", "#123 : stop conversation"
-    const stopCommands = ['stop conversation', 'end conversation', 'stop', 'end', 'close conversation', 'finish conversation'];
-    const messageBodyLower = messageBody.toLowerCase().trim();
-    const isStopCommand = stopCommands.some(cmd => messageBodyLower === cmd.toLowerCase() || messageBodyLower.endsWith(cmd.toLowerCase()));
+    // Also works when replying to a bot message (InReplyTo) - automatically uses that conversation
+    const stopCommands = ['stop conversation', 'end conversation', 'stop', 'end', 'deactivate', 'deactive', 'close conversation', 'finish conversation'];
+    const messageBodyLowerCheck = messageBody.toLowerCase().trim();
+    const isStopCommandCheck = stopCommands.some(cmd => messageBodyLowerCheck === cmd.toLowerCase() || messageBodyLowerCheck.endsWith(cmd.toLowerCase()));
     
-    if (isStopCommand) {
+    // ✅ If replying to a bot message (InReplyTo), allow stop command without conversation ID
+    if (isStopCommandCheck && conversationId && (matchedBy === 'whatsapp_reply' || matchedBy === 'conversation_id')) {
       // ✅ When conversation ends, check for queued handovers
       console.log(`🔄 Conversation ${conversationId} ended - checking for queued WhatsApp handovers`);
       try {
