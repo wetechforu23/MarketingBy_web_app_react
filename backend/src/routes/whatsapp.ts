@@ -760,9 +760,8 @@ router.post('/incoming', async (req: Request, res: Response) => {
         if (activeConversations.rows.length > 0) {
           const firstConv = activeConversations.rows[0];
           warningMessage += `❌ Your message was NOT delivered.\n\n`;
-          warningMessage += `✅ *HOW TO REPLY (Choose ONE):*\n\n`;
-          warningMessage += `1️⃣ *Reply to a message* (Long-press any message from chat bot)\n\n`;
-          warningMessage += `2️⃣ *By Conversation ID:*\n`;
+          warningMessage += `✅ *HOW TO REPLY (REQUIRED FORMAT):*\n\n`;
+          warningMessage += `*By Conversation ID:*\n`;
           warningMessage += `\`#${firstConv.id}: your message\`\n\n`;
           warningMessage += `*Example:*\n`;
           warningMessage += `\`#${firstConv.id}: Hi, how can I help?\`\n\n`;
@@ -1022,11 +1021,10 @@ router.post('/incoming', async (req: Request, res: Response) => {
           const firstName = firstConv.visitor_name || `Visitor ${firstConv.id}`;
           
           const warningMessage = `❌ *New Messages Not Allowed*\n\n` +
-            `You cannot start a new message. You must reply to individual conversations.\n\n` +
+            `You cannot start a new message. You must reply to individual conversations using the conversation ID format.\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-            `*TO REPLY TO THIS USER, use ONE of these formats:*\n\n` +
-            `1️⃣ *Reply to a message* (Long-press any message from chat bot)\n\n` +
-            `2️⃣ *By Conversation ID:*\n` +
+            `*TO REPLY TO THIS USER (REQUIRED FORMAT):*\n\n` +
+            `*By Conversation ID:*\n` +
             `\`#${firstConv.id}: your message\`\n\n` +
             `*Example:*\n` +
             `\`#${firstConv.id}: Hi, how can I help?\`\n\n` +
@@ -1035,7 +1033,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
             `👤 *${firstName}*\n` +
             `🆔 Conversation ID: #${firstConv.id}\n\n` +
             `⚠️ Your message "${messageBody}" was NOT delivered.\n` +
-            `✅ Please reply to a message or use the conversation ID format above.`;
+            `✅ Please use the conversation ID format above: \`#${firstConv.id}: your message\``;
           
           try {
             const clientIdResult = await pool.query(`
@@ -1106,11 +1104,10 @@ router.post('/incoming', async (req: Request, res: Response) => {
         `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
         
         let warningMessage = `❌ *New Messages Not Allowed*\n\n` +
-          `You cannot start a new message. You must reply to individual conversations.\n\n` +
+          `You cannot start a new message. You must reply to individual conversations using the conversation ID format.\n\n` +
           `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-          `*TO REPLY TO A USER, use ONE of these formats:*\n\n` +
-          `1️⃣ *Reply to a message* (Long-press any message from chat bot)\n\n` +
-          `2️⃣ *By Conversation ID:*\n` +
+          `*TO REPLY TO A USER (REQUIRED FORMAT):*\n\n` +
+          `*By Conversation ID:*\n` +
           `\`#<conversation_id>: your message\`\n\n`;
         
         if (activeConversations.rows.length > 0) {
@@ -1139,7 +1136,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
         
         warningMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
           `⚠️ Your message "${messageBody}" was NOT delivered.\n` +
-          `✅ Please reply to a message or use the conversation ID format above.`;
+          `✅ Please use the conversation ID format above: \`#<conversation_id>: your message\``;
         
         try {
           const clientIdResult = await pool.query(`
