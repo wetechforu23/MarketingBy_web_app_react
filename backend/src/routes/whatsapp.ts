@@ -746,8 +746,13 @@ router.post('/incoming', async (req: Request, res: Response) => {
       
       const enableMultipleChats = widgetCheck.rows[0]?.enable_multiple_whatsapp_chats || false;
       
+      // Check if message is a command (deactivate/active)
+      const messageLower = messageBody.toLowerCase().trim();
+      const isDeactivateCommand = messageLower === 'deactivate' || messageLower === 'deactive';
+      const isActivateCommand = messageLower === 'active' || messageLower === 'activate';
+      
       if (enableMultipleChats) {
-        // Multiple chats enabled but no conversation ID - send warning with list of active conversations
+        // Multiple chats enabled but no conversation ID - send informative message
         console.log(`⚠️ Multiple chats enabled but agent didn't specify conversation ID - sending active conversations list`);
         
         // Get all active WhatsApp conversations for this number
@@ -768,8 +773,63 @@ router.post('/incoming', async (req: Request, res: Response) => {
           LIMIT 10
         `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
         
-        if (activeConversations.rows.length > 1) {
-          // Multiple active conversations - send list to agent
+        // Check if this is a command (deactivate/active) without conversation ID
+        if (isDeactivateCommand || isActivateCommand) {
+          // Handle deactivate/active command - needs conversation ID
+          const { WhatsAppService } = await import('../services/whatsappService');
+          const whatsappService = WhatsAppService.getInstance();
+          
+          let conversationsList = activeConversations.rows.map((conv: any, idx: number) => {
+            const visitorName = conv.visitor_name || `Visitor ${conv.id}`;
+            return `${idx + 1}. *${visitorName}* - ID: #${conv.id}`;
+          }).join('\n');
+          
+          const infoMessage = `⚠️ *Command Received*\n\n` +
+            `To ${isDeactivateCommand ? 'deactivate' : 'activate'} a conversation, please specify the conversation ID:\n\n` +
+            `*Format:*\n` +
+            `\`#<conversation_id>: ${messageLower}\`\n\n` +
+            `*Example:*\n` +
+            `\`#${activeConversations.rows[0]?.id || 'ID'}: ${messageLower}\`\n\n` +
+            `*Active Conversations:*\n${conversationsList}`;
+          
+          try {
+            const clientIdResult = await pool.query(`
+              SELECT DISTINCT wc.client_id, wc.id as widget_id
+              FROM widget_configs wc
+              WHERE (
+                REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+                OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+              )
+              LIMIT 1
+            `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+            
+            if (clientIdResult.rows.length > 0) {
+              const clientId = clientIdResult.rows[0].client_id;
+              const widgetId = clientIdResult.rows[0].widget_id;
+              
+              await whatsappService.sendMessage({
+                clientId: clientId,
+                widgetId: widgetId,
+                conversationId: null,
+                toNumber: `whatsapp:${fromNumber}`,
+                message: infoMessage,
+                sentByAgentName: 'System',
+                visitorName: 'Agent'
+              });
+              
+              return res.status(200).json({ 
+                success: false, 
+                message: 'Command requires conversation ID',
+                info_sent: true 
+              });
+            }
+          } catch (error) {
+            console.error('Error sending command info:', error);
+          }
+        }
+        
+        if (activeConversations.rows.length > 1 || activeConversations.rows.length === 1) {
+          // Send informative message even for single conversation when no ID specified
           const { WhatsAppService } = await import('../services/whatsappService');
           const whatsappService = WhatsAppService.getInstance();
           
@@ -783,19 +843,26 @@ router.post('/incoming', async (req: Request, res: Response) => {
           const firstName = firstConv.visitor_name || `Visitor ${firstConv.id}`;
           const firstSession = firstConv.visitor_session_id ? firstConv.visitor_session_id.substring(0, 25) : 'N/A';
           
-          const warningMessage = `⚠️ *Multiple Active Conversations*\n\n` +
-            `You have ${activeConversations.rows.length} active WhatsApp conversations:\n\n` +
-            `${conversationsList}\n\n` +
+          const warningMessage = `📱 *Multiple Chat Compatible Solution*\n\n` +
+            `This WhatsApp number supports multiple simultaneous conversations. To reply to a specific user, you must specify which conversation you're responding to.\n\n` +
+            `*Active Conversations:*\n${conversationsList}\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-            `*TO REPLY, use ONE of these formats:*\n\n` +
+            `*TO REPLY TO A USER, use ONE of these formats:*\n\n` +
             `1️⃣ By Conversation ID:\n` +
             `\`#${firstConv.id}: your message\`\n\n` +
             `2️⃣ By User Name:\n` +
             `\`@${firstName}: your message\`\n\n` +
             `3️⃣ By Session ID:\n` +
             `\`@${firstSession}: your message\`\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `*CONVERSATION COMMANDS:*\n\n` +
+            `• To deactivate a conversation:\n` +
+            `\`#<conversation_id>: deactivate\`\n\n` +
+            `• To activate a conversation:\n` +
+            `\`#<conversation_id>: active\`\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
             `❌ Your message "${messageBody}" was NOT delivered.\n` +
-            `✅ Please resend using one of the formats above.`;
+            `✅ Please resend using one of the formats above to reply to a specific user.`;
           
           try {
             // Get client_id and widget_id from the first active conversation
@@ -845,7 +912,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
         SELECT DISTINCT wc.id as widget_id, wc.client_id, wc.handover_whatsapp_number,
                hr.conversation_id, hr.id as handover_request_id, hr.created_at,
                wc.enable_multiple_whatsapp_chats, wconv.visitor_name, wconv.visitor_session_id,
-               wconv.last_activity_at
+               wconv.last_activity_at, wconv.id
         FROM widget_configs wc
         JOIN handover_requests hr ON hr.widget_id = wc.id
         JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
@@ -915,6 +982,71 @@ router.post('/incoming', async (req: Request, res: Response) => {
       res.setHeader('Content-Type', 'text/plain');
       res.setHeader('Content-Length', '0');
       return res.status(200).end(); // Empty response prevents "OK" auto-replies
+    }
+    
+    // ✅ CHECK FOR DEACTIVATE/ACTIVATE COMMANDS
+    const deactivateMatch = messageBody.match(/^#(\d+):\s*(deactivate|deactive)$/i);
+    const activateMatch = messageBody.match(/^#(\d+):\s*(active|activate)$/i);
+    
+    if (deactivateMatch || activateMatch) {
+      const targetConvId = parseInt(deactivateMatch ? deactivateMatch[1] : activateMatch[1]);
+      const isDeactivate = !!deactivateMatch;
+      
+      // Verify this conversation belongs to this client
+      const convCheck = await pool.query(`
+        SELECT wconv.id, wconv.status, wc.client_id
+        FROM widget_conversations wconv
+        JOIN widget_configs wc ON wc.id = wconv.widget_id
+        WHERE wconv.id = $1 AND wc.client_id = $2
+      `, [targetConvId, clientId]);
+      
+      if (convCheck.rows.length > 0) {
+        const newStatus = isDeactivate ? 'ended' : 'active';
+        await pool.query(`
+          UPDATE widget_conversations
+          SET status = $1, updated_at = NOW()
+          WHERE id = $2
+        `, [newStatus, targetConvId]);
+        
+        const { WhatsAppService } = await import('../services/whatsappService');
+        const whatsappService = WhatsAppService.getInstance();
+        
+        const confirmationMessage = `✅ Conversation #${targetConvId} has been ${isDeactivate ? 'deactivated' : 'activated'}.`;
+        
+        await whatsappService.sendMessage({
+          clientId: clientId,
+          widgetId: widgetId,
+          conversationId: targetConvId,
+          toNumber: `whatsapp:${fromNumber}`,
+          message: confirmationMessage,
+          sentByAgentName: 'System',
+          visitorName: 'Agent'
+        });
+        
+        console.log(`✅ Conversation ${targetConvId} ${isDeactivate ? 'deactivated' : 'activated'} by agent`);
+        
+        res.setHeader('Content-Type', 'text/plain');
+        res.setHeader('Content-Length', '0');
+        return res.status(200).end();
+      } else {
+        // Conversation not found or doesn't belong to this client
+        const { WhatsAppService } = await import('../services/whatsappService');
+        const whatsappService = WhatsAppService.getInstance();
+        
+        await whatsappService.sendMessage({
+          clientId: clientId,
+          widgetId: widgetId,
+          conversationId: conversationId,
+          toNumber: `whatsapp:${fromNumber}`,
+          message: `❌ Conversation #${targetConvId} not found or doesn't belong to your client.`,
+          sentByAgentName: 'System',
+          visitorName: 'Agent'
+        });
+        
+        res.setHeader('Content-Type', 'text/plain');
+        res.setHeader('Content-Length', '0');
+        return res.status(200).end();
+      }
     }
     
     // ✅ CHECK FOR "STOP CONVERSATION" COMMAND
