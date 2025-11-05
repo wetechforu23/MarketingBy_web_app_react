@@ -828,8 +828,8 @@ router.post('/incoming', async (req: Request, res: Response) => {
           }
         }
         
-        if (activeConversations.rows.length > 1 || activeConversations.rows.length === 1) {
-          // Send informative message even for single conversation when no ID specified
+        if (activeConversations.rows.length > 1) {
+          // Multiple conversations - send warning and return early
           const { WhatsAppService } = await import('../services/whatsappService');
           const whatsappService = WhatsAppService.getInstance();
           
@@ -882,8 +882,8 @@ router.post('/incoming', async (req: Request, res: Response) => {
               
               await whatsappService.sendMessage({
                 clientId: clientId,
-                widgetId: widgetId, // Use actual widget ID, not 0
-                conversationId: activeConversations.rows[0]?.id || null, // Use first conversation ID
+                widgetId: widgetId,
+                conversationId: activeConversations.rows[0]?.id || null,
                 toNumber: `whatsapp:${fromNumber}`,
                 message: warningMessage,
                 sentByAgentName: 'System',
@@ -901,10 +901,54 @@ router.post('/incoming', async (req: Request, res: Response) => {
             console.error('Error sending conversations list warning:', warningError);
             // Continue to process as single conversation
           }
+        } else if (activeConversations.rows.length === 1) {
+          // Only one active conversation - auto-use it and deliver the message
+          // But send a helpful note about using conversation ID for future messages
+          console.log(`✅ Only 1 active conversation found - auto-delivering message to conversation ${activeConversations.rows[0].id}`);
+          conversationId = activeConversations.rows[0].id;
+          
+          // Send a helpful note (but don't block the message)
+          const { WhatsAppService } = await import('../services/whatsappService');
+          const whatsappService = WhatsAppService.getInstance();
+          
+          try {
+            const clientIdResult = await pool.query(`
+              SELECT DISTINCT wc.client_id, wc.id as widget_id
+              FROM widget_configs wc
+              WHERE (
+                REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+                OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+              )
+              LIMIT 1
+            `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+            
+            if (clientIdResult.rows.length > 0) {
+              const clientId = clientIdResult.rows[0].client_id;
+              const widgetId = clientIdResult.rows[0].widget_id;
+              const conv = activeConversations.rows[0];
+              
+              // Send helpful tip (async, don't wait)
+              whatsappService.sendMessage({
+                clientId: clientId,
+                widgetId: widgetId,
+                conversationId: conv.id,
+                toNumber: `whatsapp:${fromNumber}`,
+                message: `💡 *Tip:* For faster replies, use conversation ID: \`#${conv.id}: your message\` or reply to any message (long-press). Your message "${messageBody}" was delivered. ✅`,
+                sentByAgentName: 'System',
+                visitorName: 'Agent'
+              }).catch(err => console.warn('Could not send tip message:', err));
+            }
+          } catch (tipError) {
+            console.warn('Could not send tip message:', tipError);
+            // Continue - message will still be delivered
+          }
         }
         
-        // If only one conversation or warning failed, use most recent
-        console.log(`⚠️ Multiple chats enabled but agent didn't specify conversation ID - using most recent active conversation`);
+        // If multiple chats but only one conversation, use it
+        if (!conversationId && activeConversations.rows.length === 1) {
+          conversationId = activeConversations.rows[0].id;
+          console.log(`✅ Using the single active conversation: ${conversationId}`);
+        }
       }
       
       // No conversation ID specified - use most recent (backward compatibility)
