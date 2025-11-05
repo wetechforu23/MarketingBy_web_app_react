@@ -80,8 +80,16 @@ const ContentEditor: React.FC = () => {
         const isClient = userData.role === 'client_admin' || userData.role === 'client_user';
         setIsClientUser(isClient);
         
-        // Check if user is super_admin
-        setIsSuperAdmin(userData.role === 'super_admin');
+        // Check if user is super_admin or wtfu_* roles (all should have access to approval links)
+        const isAdminRole = userData.role === 'super_admin' || 
+                           (userData.role && userData.role.startsWith('wtfu_'));
+        setIsSuperAdmin(isAdminRole);
+        console.log('👤 User role check:', {
+          role: userData.role,
+          isAdminRole,
+          isSuperAdmin: isAdminRole,
+          roleStartsWithWtfu: userData.role?.startsWith('wtfu_')
+        });
         
         // If client user, automatically set their client_id
         if (isClient && userData.client_id) {
@@ -128,15 +136,60 @@ const ContentEditor: React.FC = () => {
     }
   }, [isEditMode, id]); // Only depend on isEditMode and id
 
+  // Fetch approval link after content is loaded and user role is confirmed
+  useEffect(() => {
+    console.log('🔍 Approval link useEffect check:', {
+      isEditMode,
+      id,
+      isSuperAdmin,
+      contentStatus,
+      contentLoading,
+      userRole: user?.role
+    });
+    
+    if (isEditMode && id && !contentLoading && (contentStatus === 'draft' || contentStatus === 'pending_client_approval')) {
+      // For Super Admin: fetch approval link
+      if (isSuperAdmin) {
+        console.log('🔗 Fetching approval link for Super Admin...', { id, contentStatus, isSuperAdmin });
+        fetchApprovalLink(parseInt(id));
+      }
+      // For Client Admin: also show approval link section if they need to approve
+      else if (isClientUser && contentStatus === 'pending_client_approval') {
+        console.log('🔗 Client user - approval link available for secure link approval');
+        // Client users can approve via secure link, but we don't fetch it here
+        // It will be shown in the approval UI if they have a token
+      }
+    }
+  }, [isEditMode, id, isSuperAdmin, isClientUser, contentStatus, contentLoading, user?.role]);
+
+  // Track formData changes to detect when content/URL is lost (only log significant changes)
+  useEffect(() => {
+    if (isEditMode && formData.contentText && formData.contentText.length > 0) {
+      // Only log when content is actually loaded, not on every keystroke
+      console.log('✅ FormData loaded successfully:', {
+        contentTextLength: formData.contentText?.length || 0,
+        hasDestinationUrl: !!formData.destinationUrl,
+        title: formData.title
+      });
+    }
+  }, [isEditMode]); // Only run when edit mode changes, not on every formData change
+
   // Initialize clientId for new content (separate effect to avoid triggering fetchContent)
+  // IMPORTANT: Only update clientId, don't touch other formData fields to prevent data loss
   useEffect(() => {
     if (!isEditMode && !contentLoading) {
       if (isClientUser && user?.client_id && !formData.clientId) {
-        // Client user: use their client_id
-        setFormData(prev => ({ ...prev, clientId: user.client_id }));
+        // Client user: use their client_id - only update clientId, preserve all other fields
+        setFormData(prev => {
+          console.log('🔧 Setting clientId for client user, preserving other fields:', prev);
+          return { ...prev, clientId: user.client_id };
+        });
       } else if (!isClientUser && clients.length > 0 && !formData.clientId) {
-        // Admin user: set first client as default
-        setFormData(prev => ({ ...prev, clientId: clients[0].id }));
+        // Admin user: set first client as default - only update clientId, preserve all other fields
+        setFormData(prev => {
+          console.log('🔧 Setting clientId for admin user, preserving other fields:', prev);
+          return { ...prev, clientId: clients[0].id };
+        });
       }
     }
   }, [isEditMode, isClientUser, user?.client_id, clients.length, formData.clientId, contentLoading]);
@@ -269,17 +322,30 @@ const ContentEditor: React.FC = () => {
       }
       
       console.log('✅ Content data:', content);
+      console.log('📝 Content text:', content.content_text);
+      console.log('🔗 Destination URL:', content.destination_url);
       
-      setFormData({
-        clientId: content.client_id,
-        title: content.title,
-        contentType: content.content_type,
+      // Ensure all fields are properly set, including empty strings
+      const newFormData = {
+        clientId: content.client_id || 0,
+        title: content.title || '',
+        contentType: content.content_type || 'text',
         contentText: content.content_text || '',
         destinationUrl: content.destination_url || '',
-        mediaUrls: content.media_urls || [],
-        hashtags: content.hashtags || [],
-        mentions: content.mentions || [],
-        targetPlatforms: content.target_platforms || [],
+        mediaUrls: Array.isArray(content.media_urls) ? content.media_urls : [],
+        hashtags: Array.isArray(content.hashtags) ? content.hashtags : [],
+        mentions: Array.isArray(content.mentions) ? content.mentions : [],
+        targetPlatforms: Array.isArray(content.target_platforms) ? content.target_platforms : [],
+      };
+      
+      console.log('📋 Setting form data:', newFormData);
+      console.log('📋 Current formData before update:', formData);
+      
+      // Use functional update to ensure we're setting the complete state
+      setFormData(prev => {
+        console.log('📋 Previous formData:', prev);
+        console.log('📋 New formData:', newFormData);
+        return newFormData;
       });
       
       // Reset image error/loading states when loading new content
@@ -295,11 +361,13 @@ const ContentEditor: React.FC = () => {
       
       // Note: selectedClient will be set automatically by the useEffect when clients load
       console.log('✅ Content loaded successfully, client_id:', content.client_id);
+      console.log('✅ Content status:', content.status);
+      console.log('✅ FormData after state update should have:', {
+        contentText: newFormData.contentText,
+        destinationUrl: newFormData.destinationUrl
+      });
       
-      // Fetch approval link if Super Admin and content is pending approval
-      if (isSuperAdmin && id && (content.status === 'pending_client_approval' || content.status === 'draft')) {
-        fetchApprovalLink(parseInt(id));
-      }
+      // Note: Approval link will be fetched in a separate useEffect after isSuperAdmin is confirmed
     } catch (error: any) {
       console.error('❌ Error fetching content:', error);
       console.error('Error details:', {
@@ -315,18 +383,28 @@ const ContentEditor: React.FC = () => {
 
   const fetchApprovalLink = async (contentId: number) => {
     try {
+      console.log('🔗 Fetching approval link for content ID:', contentId);
       const response = await http.get(`/content/${contentId}/approval-link`);
+      console.log('📦 Approval link response:', response.data);
+      
       if (response.data.success && response.data.approval_url) {
+        console.log('✅ Approval link received:', response.data.approval_url);
         setApprovalLink(response.data.approval_url);
         setApprovalTokenExpiresAt(response.data.expires_at || null);
       } else {
+        console.log('⚠️ No approval link in response, clearing state');
         setApprovalLink('');
         setApprovalTokenExpiresAt(null);
       }
     } catch (error: any) {
       console.error('❌ Error fetching approval link:', error);
-      setApprovalLink('');
-      setApprovalTokenExpiresAt(null);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      // On error, only clear if we don't have a link yet (might be a temporary network issue)
+      // Note: We don't access approvalLink here to avoid stale closure issues
     }
   };
 
@@ -1076,8 +1154,10 @@ const ContentEditor: React.FC = () => {
             </h2>
 
             <textarea
-              value={formData.contentText}
-              onChange={(e) => setFormData(prev => ({ ...prev, contentText: e.target.value }))}
+              value={formData.contentText || ''}
+              onChange={(e) => {
+                setFormData(prev => ({ ...prev, contentText: e.target.value }));
+              }}
               rows={10}
               style={{
                 width: '100%',
@@ -1096,6 +1176,12 @@ const ContentEditor: React.FC = () => {
 • Include a clear call-to-action
 • Add relevant hashtags below"
             />
+            {/* Debug: Show current formData value */}
+            {process.env.NODE_ENV === 'development' && (
+              <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+                Debug: contentText length = {formData.contentText?.length || 0}
+              </div>
+            )}
 
             <div style={{ 
               marginTop: '12px', 
@@ -1154,8 +1240,10 @@ const ContentEditor: React.FC = () => {
               </label>
               <input
                 type="url"
-                value={formData.destinationUrl}
-                onChange={(e) => setFormData(prev => ({ ...prev, destinationUrl: e.target.value }))}
+                value={formData.destinationUrl || ''}
+                onChange={(e) => {
+                  setFormData(prev => ({ ...prev, destinationUrl: e.target.value }));
+                }}
                 style={{
                   width: '100%',
                   padding: '12px 16px',
@@ -1165,6 +1253,12 @@ const ContentEditor: React.FC = () => {
                 }}
                 placeholder="https://www.example.com"
               />
+              {/* Debug: Show current formData value */}
+              {process.env.NODE_ENV === 'development' && (
+                <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+                  Debug: destinationUrl = {formData.destinationUrl || '(empty)'}
+                </div>
+              )}
               <div style={{ fontSize: '12px', color: '#718096', marginTop: '8px' }}>
                 This URL will be tracked with UTM parameters when posting to Facebook for Google Analytics.
               </div>
@@ -1782,8 +1876,25 @@ const ContentEditor: React.FC = () => {
                 </div>
               )}
 
-              {/* Approval Link (Super Admin only) */}
-              {isSuperAdmin && isEditMode && (contentStatus === 'draft' || contentStatus === 'pending_client_approval') && (
+              {/* Approval Link (Super Admin/WeTechForU team only) */}
+              {(() => {
+                // Show for admin users when content is draft or pending approval
+                const isAdminUser = isSuperAdmin || (user?.role && (user.role === 'super_admin' || user.role.startsWith('wtfu_')));
+                const shouldShow = isAdminUser && isEditMode && (contentStatus === 'draft' || contentStatus === 'pending_client_approval');
+                
+                // Log only once when component mounts or when conditions change significantly
+                if (shouldShow && !approvalLink) {
+                  console.log('🔍 Approval link section visible. Fetching link...', {
+                    isSuperAdmin,
+                    isAdminUser,
+                    contentStatus,
+                    userRole: user?.role
+                  });
+                }
+                
+                // Return true if user is admin and in edit mode
+                return isAdminUser && isEditMode;
+              })() && (
                 <div style={{
                   background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
                   border: '2px solid #0ea5e9',
