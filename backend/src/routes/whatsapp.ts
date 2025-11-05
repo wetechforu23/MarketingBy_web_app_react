@@ -1013,15 +1013,29 @@ router.post('/incoming', async (req: Request, res: Response) => {
             // Continue to process as single conversation
           }
         } else if (activeConversations.rows.length === 1) {
-          // Only one active conversation - auto-use it and deliver the message
-          // But send a helpful note about using conversation ID for future messages
-          console.log(`✅ Only 1 active conversation found - auto-delivering message to conversation ${activeConversations.rows[0].id}`);
-          conversationId = activeConversations.rows[0].id;
-          messageIsValidFormat = true; // ✅ Mark as valid format since we're auto-using the single conversation
-          
-          // Send a helpful note (async, don't wait)
+          // Only one active conversation - but still require agent to reply to specific message or use conversation ID
+          // This ensures agents always reply to individual conversations, not start new messages
           const { WhatsAppService } = await import('../services/whatsappService');
           const whatsappService = WhatsAppService.getInstance();
+          
+          const firstConv = activeConversations.rows[0];
+          const firstName = firstConv.visitor_name || `Visitor ${firstConv.id}`;
+          
+          const warningMessage = `❌ *New Messages Not Allowed*\n\n` +
+            `You cannot start a new message. You must reply to individual conversations.\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `*TO REPLY TO THIS USER, use ONE of these formats:*\n\n` +
+            `1️⃣ *Reply to a message* (Long-press any message from chat bot)\n\n` +
+            `2️⃣ *By Conversation ID:*\n` +
+            `\`#${firstConv.id}: your message\`\n\n` +
+            `*Example:*\n` +
+            `\`#${firstConv.id}: Hi, how can I help?\`\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `*Active Conversation:*\n` +
+            `👤 *${firstName}*\n` +
+            `🆔 Conversation ID: #${firstConv.id}\n\n` +
+            `⚠️ Your message "${messageBody}" was NOT delivered.\n` +
+            `✅ Please reply to a message or use the conversation ID format above.`;
           
           try {
             const clientIdResult = await pool.query(`
@@ -1037,34 +1051,144 @@ router.post('/incoming', async (req: Request, res: Response) => {
             if (clientIdResult.rows.length > 0) {
               const clientId = clientIdResult.rows[0].client_id;
               const widgetId = clientIdResult.rows[0].widget_id;
-              const conv = activeConversations.rows[0];
               
-              // Send helpful tip (async, don't wait)
-              whatsappService.sendMessage({
+              await whatsappService.sendMessage({
                 clientId: clientId,
                 widgetId: widgetId,
-                conversationId: conv.id,
+                conversationId: firstConv.id,
                 toNumber: `whatsapp:${fromNumber}`,
-                message: `💡 *Tip:* For faster replies, use conversation ID: \`#${conv.id}: your message\` or reply to any message (long-press). Your message "${messageBody}" was delivered. ✅`,
+                message: warningMessage,
                 sentByAgentName: 'System',
                 visitorName: 'Agent'
-              }).catch(err => console.warn('Could not send tip message:', err));
+              });
+              
+              console.log(`⚠️ Sent new message not allowed warning - agent must reply to individual conversation`);
+              
+              // Return empty response - message was not processed
+              res.removeHeader('Content-Type');
+              res.setHeader('Content-Length', '0');
+              return res.status(200).end();
             }
-          } catch (tipError) {
-            console.warn('Could not send tip message:', tipError);
-            // Continue - message will still be delivered
+          } catch (warningError) {
+            console.error('Error sending warning:', warningError);
+            // Still return to prevent message delivery
+            res.removeHeader('Content-Type');
+            res.setHeader('Content-Length', '0');
+            return res.status(200).end();
           }
-        }
-        
-        // If multiple chats but only one conversation, use it
-        if (!conversationId && activeConversations.rows.length === 1) {
-          conversationId = activeConversations.rows[0].id;
-          messageIsValidFormat = true; // ✅ Mark as valid format since we're auto-using the single conversation
-          console.log(`✅ Using the single active conversation: ${conversationId}`);
         }
       }
       
-      // No conversation ID specified - use most recent (backward compatibility)
+      // ✅ STRICT MODE: If no conversation ID and no valid format, block the message
+      // This ensures agents can ONLY reply to individual conversations, never start new messages
+      if (!conversationId && !messageIsValidFormat) {
+        console.log(`❌ Agent tried to send message without conversation identifier - blocking delivery`);
+        
+        const { WhatsAppService } = await import('../services/whatsappService');
+        const whatsappService = WhatsAppService.getInstance();
+        
+        // Get active conversations to show in warning
+        const activeConversations = await pool.query(`
+          SELECT DISTINCT wconv.id, wconv.visitor_name, wconv.visitor_session_id, 
+                 wconv.last_activity_at
+          FROM widget_configs wc
+          JOIN handover_requests hr ON hr.widget_id = wc.id
+          JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
+          WHERE hr.requested_method = 'whatsapp'
+            AND hr.status IN ('pending', 'notified', 'completed')
+            AND wconv.status = 'active'
+            AND (
+              REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+              OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+            )
+          ORDER BY wconv.last_activity_at DESC NULLS LAST, wconv.id DESC
+          LIMIT 5
+        `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+        
+        let warningMessage = `❌ *New Messages Not Allowed*\n\n` +
+          `You cannot start a new message. You must reply to individual conversations.\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `*TO REPLY TO A USER, use ONE of these formats:*\n\n` +
+          `1️⃣ *Reply to a message* (Long-press any message from chat bot)\n\n` +
+          `2️⃣ *By Conversation ID:*\n` +
+          `\`#<conversation_id>: your message\`\n\n`;
+        
+        if (activeConversations.rows.length > 0) {
+          const firstConv = activeConversations.rows[0];
+          const firstName = firstConv.visitor_name || `Visitor ${firstConv.id}`;
+          
+          warningMessage += `*Example:*\n` +
+            `\`#${firstConv.id}: Hi, how can I help?\`\n\n`;
+          
+          if (activeConversations.rows.length > 1) {
+            warningMessage += `*Active Conversations:*\n`;
+            activeConversations.rows.slice(0, 3).forEach((conv: any, idx: number) => {
+              const visitorName = conv.visitor_name || `Visitor ${conv.id}`;
+              warningMessage += `${idx + 1}. *${visitorName}* - Use: \`#${conv.id}: message\`\n`;
+            });
+            warningMessage += `\n`;
+          } else {
+            warningMessage += `*Active Conversation:*\n` +
+              `👤 *${firstName}*\n` +
+              `🆔 Conversation ID: #${firstConv.id}\n\n`;
+          }
+        } else {
+          warningMessage += `⚠️ No active conversations found.\n\n` +
+            `Please wait for a visitor to start a chat first.`;
+        }
+        
+        warningMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `⚠️ Your message "${messageBody}" was NOT delivered.\n` +
+          `✅ Please reply to a message or use the conversation ID format above.`;
+        
+        try {
+          const clientIdResult = await pool.query(`
+            SELECT DISTINCT wc.client_id, wc.id as widget_id
+            FROM widget_configs wc
+            WHERE (
+              REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+              OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+            )
+            LIMIT 1
+          `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+          
+          if (clientIdResult.rows.length > 0) {
+            const clientId = clientIdResult.rows[0].client_id;
+            const widgetId = clientIdResult.rows[0].widget_id;
+            
+            await whatsappService.sendMessage({
+              clientId: clientId,
+              widgetId: widgetId,
+              conversationId: activeConversations.rows[0]?.id || null,
+              toNumber: `whatsapp:${fromNumber}`,
+              message: warningMessage,
+              sentByAgentName: 'System',
+              visitorName: 'Agent'
+            });
+            
+            console.log(`⚠️ Blocked new message - agent must reply to individual conversation`);
+          }
+        } catch (warningError) {
+          console.error('Error sending warning:', warningError);
+        }
+        
+        // Return empty response - message was not processed
+        res.removeHeader('Content-Type');
+        res.setHeader('Content-Length', '0');
+        return res.status(200).end();
+      }
+      
+      // No conversation ID specified - this should not happen if validation worked correctly
+      // But if it does, we need to find the conversation
+      if (!conversationId) {
+        console.log(`⚠️ No conversation ID found but validation passed - this should not happen`);
+        // Still send 200 to prevent Twilio retries
+        res.removeHeader('Content-Type');
+        res.setHeader('Content-Length', '0');
+        return res.status(200).end();
+      }
+      
+      // Find the conversation by ID
       clientResult = await pool.query(`
         SELECT DISTINCT wc.id as widget_id, wc.client_id, wc.handover_whatsapp_number,
                hr.conversation_id, hr.id as handover_request_id, hr.created_at,
@@ -1076,13 +1200,13 @@ router.post('/incoming', async (req: Request, res: Response) => {
         WHERE hr.requested_method = 'whatsapp'
           AND hr.status IN ('pending', 'notified', 'completed')
           AND wconv.status = 'active'
+          AND wconv.id = $1
           AND (
-            REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
-            OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+            REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $2
+            OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($2, '+', '')
           )
-        ORDER BY wconv.last_activity_at DESC NULLS LAST, wconv.id DESC
         LIMIT 1
-      `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+      `, [conversationId, fromNumber.replace(/[\s\-\(\)]/g, '')]);
     }
 
     if (clientResult.rows.length === 0) {
