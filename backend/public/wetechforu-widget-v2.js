@@ -2248,6 +2248,18 @@
       console.log('✅ Intro flow marked as complete:', this.state.introFlow.isComplete);
     },
     
+    // ✅ Update conversation ID display in header
+    updateConversationIdDisplay() {
+      const conversationIdElement = document.getElementById('wetechforu-conversation-id');
+      if (conversationIdElement && this.state.conversationId) {
+        conversationIdElement.textContent = `#${this.state.conversationId}`;
+        conversationIdElement.style.display = 'inline';
+      } else if (conversationIdElement) {
+        conversationIdElement.textContent = '';
+        conversationIdElement.style.display = 'none';
+      }
+    },
+    
     // ✅ Show form summary
     showFormSummary(answers) {
       const messagesDiv = document.getElementById('wetechforu-messages');
