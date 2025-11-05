@@ -4682,15 +4682,18 @@
                 }, 800);
               }
 
-              // Clear conversation from localStorage
+              // ⚠️ IMPORTANT: Don't clear conversationId or reset intro flow when conversation expires
+              // The conversation still exists in database with intro_completed flag
+              // Only clear localStorage so it can be restored from database
               localStorage.removeItem(`wetechforu_conversation_${this.config.widgetKey}`);
 
-              // Reset state
-              this.state.conversationId = null;
-              this.state.introFlow.isComplete = false;
-              this.state.hasShownIntro = false;
+              // ✅ Keep conversationId so we can check if intro was already completed
+              // Don't reset intro flow - it will be checked when conversation is restored
+              // this.state.conversationId = null; // ❌ REMOVED - keep conversationId
+              // this.state.introFlow.isComplete = false; // ❌ REMOVED - keep state
+              this.state.hasShownIntro = false; // Allow welcome message but check intro_completed in DB
 
-              console.log('⏰ Conversation expired - reset and cleared');
+              console.log('⏰ Conversation expired - cleared localStorage but keeping conversationId for intro check');
             } else if (statusData.is_warning_threshold && !hasShownWarning) {
               // Show warning only once
               hasShownWarning = true;
