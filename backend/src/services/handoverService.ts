@@ -654,11 +654,12 @@ export class HandoverService {
           `\`#${handoverRequest.conversation_id}: your message\`\n\n` +
           `✅ *Example:*\n` +
           `\`#${handoverRequest.conversation_id}: Hello ${visitorName}!\`\n\n` +
+          `📎 *OR Reply to this message* (Long-press this message and reply - automatically uses conversation #${handoverRequest.conversation_id})\n\n` +
           `❌ *WRONG (will NOT be delivered):*\n` +
           `\`Hello, how can I help?\`\n` +
           `\`Hi\`\n` +
           `\`@${visitorName}: message\` (not supported)\n\n` +
-          `⚠️ *CRITICAL:* You may have multiple active conversations. Always use the conversation ID format!\n\n` +
+          `⚠️ *CRITICAL:* You may have multiple active conversations. Always use the conversation ID format or reply to a bot message!\n\n` +
           `Please respond as soon as possible.`
         : `🔔 *Agent Handover Request*\n\n` +
           `*Conversation ID:* #${handoverRequest.conversation_id}\n` +

@@ -1576,6 +1576,11 @@ router.post('/incoming', async (req: Request, res: Response) => {
     // Note: assigned_whatsapp_number column may not exist in all database schemas
     // widgetId already declared above - reuse it
     
+    // Log if this was a reply to a bot message
+    if (matchedBy === 'whatsapp_reply') {
+      console.log(`📎 Agent replied to bot message - message will be delivered to conversation ${conversationId}`);
+    }
+    
     await pool.query(`
       UPDATE widget_conversations
       SET agent_handoff = true,
