@@ -1205,8 +1205,10 @@ router.post('/incoming', async (req: Request, res: Response) => {
     }
     
     // ✅ CHECK FOR "STOP CONVERSATION" COMMAND
+    // Support formats: "stop conversation", "#123: stop conversation", "#123 : stop conversation"
     const stopCommands = ['stop conversation', 'end conversation', 'stop', 'end', 'close conversation', 'finish conversation'];
-    const isStopCommand = stopCommands.some(cmd => messageBody.toLowerCase().includes(cmd.toLowerCase()));
+    const messageBodyLower = messageBody.toLowerCase().trim();
+    const isStopCommand = stopCommands.some(cmd => messageBodyLower === cmd.toLowerCase() || messageBodyLower.endsWith(cmd.toLowerCase()));
     
     if (isStopCommand) {
       // ✅ When conversation ends, check for queued handovers
