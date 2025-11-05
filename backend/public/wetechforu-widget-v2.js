@@ -1216,6 +1216,9 @@
       
       this.state.isOpen = true;
       
+      // ✅ Update conversation ID display in header
+      this.updateConversationIdDisplay();
+      
       // ✅ Set responsive size based on device (Industry Standard)
       const setResponsiveSize = () => {
         const isMobile = window.innerWidth <= 768;
