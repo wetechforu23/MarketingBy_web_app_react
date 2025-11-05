@@ -4678,7 +4678,34 @@
                   `;
                   separator.textContent = '— Session Ended —';
                   messagesDiv.appendChild(separator);
-                  this.addBotMessage('🔄 Let\'s start fresh! I\'ll ask you a few questions again to help you better.');
+                  
+                  // ✅ Check if intro was already completed - don't show "start fresh" message if it was
+                  try {
+                    const statusCheckResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/status`);
+                    if (statusCheckResponse.ok) {
+                      const statusCheckData = await statusCheckResponse.json();
+                      if (statusCheckData.intro_completed) {
+                        // Intro was already completed - don't ask again
+                        this.addBotMessage('🔄 Conversation restarted. How can I help you today?');
+                        this.state.introFlow.isComplete = true;
+                        this.state.hasShownIntro = true;
+                        
+                        // Show form summary if data exists
+                        if (statusCheckData.intro_data) {
+                          this.state.introFlow.answers = statusCheckData.intro_data;
+                          setTimeout(() => {
+                            this.showFormSummary(statusCheckData.intro_data);
+                          }, 500);
+                        }
+                      } else {
+                        // Intro not completed - show start fresh message
+                        this.addBotMessage('🔄 Let\'s start fresh! I\'ll ask you a few questions again to help you better.');
+                      }
+                    }
+                  } catch (error) {
+                    console.warn('Could not check intro status after expiry:', error);
+                    this.addBotMessage('🔄 Let\'s start fresh! I\'ll ask you a few questions again to help you better.');
+                  }
                 }, 800);
               }
 
