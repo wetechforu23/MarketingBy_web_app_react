@@ -599,10 +599,13 @@ router.post('/incoming', async (req: Request, res: Response) => {
       console.log(`📎 Agent replied to message: ${InReplyTo}`);
       
       // Look up which conversation this message belongs to
+      // Try both twilio_message_sid (regular messages) and content_sid (template messages)
       const replyToResult = await pool.query(`
-        SELECT conversation_id, widget_id, client_id, message_body
+        SELECT conversation_id, widget_id, client_id, message_body, twilio_message_sid, direction
         FROM whatsapp_messages
         WHERE twilio_message_sid = $1
+           OR twilio_message_sid LIKE $1 || '%'
+           OR twilio_message_sid = 'MM' || $1
         ORDER BY sent_at DESC
         LIMIT 1
       `, [InReplyTo]);
@@ -611,7 +614,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
         conversationId = replyToResult.rows[0].conversation_id;
         matchedBy = 'whatsapp_reply';
         
-        console.log(`✅ Matched via WhatsApp reply: Conversation ${conversationId}, original message: "${replyToResult.rows[0].message_body?.substring(0, 50)}"`);
+        console.log(`✅ Matched via WhatsApp reply: Conversation ${conversationId}, original message: "${replyToResult.rows[0].message_body?.substring(0, 50)}", direction: ${replyToResult.rows[0].direction}, stored SID: ${replyToResult.rows[0].twilio_message_sid}`);
         
         // Remove reply context from message body if present (WhatsApp sometimes includes it)
         // WhatsApp replies may include: "> Original message\nYour reply"
@@ -620,7 +623,30 @@ router.post('/incoming', async (req: Request, res: Response) => {
           messageBody = lines.filter(line => !line.trim().startsWith('>')).join('\n').trim();
         }
       } else {
-        console.log(`⚠️ Could not find conversation for replied message ${InReplyTo} - will try other methods`);
+        // Try to find by content SID (for template messages)
+        const contentSidResult = await pool.query(`
+          SELECT conversation_id, widget_id, client_id, message_body
+          FROM whatsapp_messages
+          WHERE twilio_message_sid LIKE 'HX%'
+            AND conversation_id IN (
+              SELECT conversation_id 
+              FROM whatsapp_messages 
+              WHERE sent_at > NOW() - INTERVAL '1 hour'
+            )
+          ORDER BY sent_at DESC
+          LIMIT 5
+        `);
+        
+        if (contentSidResult.rows.length > 0) {
+          console.log(`⚠️ Could not find exact match for ${InReplyTo}, but found ${contentSidResult.rows.length} recent template messages`);
+          // Try to use the most recent one if only one active conversation
+          const recentConv = contentSidResult.rows[0];
+          console.log(`💡 Attempting to use conversation ${recentConv.conversation_id} from recent template message`);
+          conversationId = recentConv.conversation_id;
+          matchedBy = 'whatsapp_reply';
+        } else {
+          console.log(`⚠️ Could not find conversation for replied message ${InReplyTo} - message will be blocked`);
+        }
       }
     }
 
@@ -633,8 +659,12 @@ router.post('/incoming', async (req: Request, res: Response) => {
     // ✅ VALIDATION: Check if message is in a valid format (reply or ID-based)
     // Only try these if we didn't match via WhatsApp reply
     let messageIsValidFormat = false;
-    if (InReplyTo) {
-      messageIsValidFormat = true; // Replying to a message is always valid
+    if (InReplyTo && conversationId) {
+      // Only valid if we successfully found the conversation for the reply
+      messageIsValidFormat = true;
+    } else if (InReplyTo && !conversationId) {
+      // Reply was attempted but conversation not found - log warning
+      console.log(`⚠️ InReplyTo found (${InReplyTo}) but conversation lookup failed - message will be blocked`);
     }
     
     // ✅ REMOVED: Conversation ID, user name, and session ID formats are no longer supported
