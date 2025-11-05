@@ -2409,22 +2409,27 @@
           const email = answers.email || answers.email_address || '';
           const phone = answers.phone || answers.phone_number || answers.mobile || '';
           
+          const handoverRequestData = {
+            conversation_id: conversationId,
+            widget_id: widgetConfig.id || widgetConfig.widget_id,
+            client_id: widgetConfig.client_id,
+            requested_method: 'whatsapp',
+            visitor_name: fullName,
+            visitor_email: email,
+            visitor_phone: phone,
+            visitor_message: 'Form completed - ready for agent handover'
+          };
+          
+          console.log('📤 Sending handover request:', handoverRequestData);
+          
           const handoverResponse = await fetch(`${this.config.backendUrl}/api/handover/request`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              conversation_id: conversationId,
-              widget_id: widgetConfig.id,
-              client_id: widgetConfig.client_id,
-              requested_method: 'whatsapp',
-              visitor_name: fullName,
-              visitor_email: email,
-              visitor_phone: phone,
-              visitor_message: 'Form completed - ready for agent handover'
-            })
+            body: JSON.stringify(handoverRequestData)
           });
           
           const handoverData = await handoverResponse.json();
+          console.log('📥 Handover response:', handoverData);
           
           if (handoverData.agent_busy) {
             // Agent is busy - show message and ask for email
