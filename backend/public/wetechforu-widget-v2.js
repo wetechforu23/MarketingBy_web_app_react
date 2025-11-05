@@ -1352,22 +1352,63 @@
       }
 
       // ✅ Only show welcome message if conversation was NOT restored OR has no messages
+      // ✅ IMPORTANT: Don't show intro form again if conversation was restored and intro was already completed
       if (!conversationRestored || !hasMessages) {
-        // For new conversations, always show welcome (ignore sessionStorage)
-        console.log('🎉 New conversation or no messages - showing welcome message');
+        // Check if intro was already completed before showing form again
+        const conversationId = await this.ensureConversation();
+        let introAlreadyCompleted = false;
         
-        // Ensure conversation exists (creates new one if needed)
-        await this.ensureConversation();
+        if (conversationId) {
+          try {
+            const statusResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/status`);
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json();
+              if (statusData.intro_completed) {
+                introAlreadyCompleted = true;
+                this.state.introFlow.isComplete = true;
+                this.state.hasShownIntro = true;
+                console.log('✅ Intro already completed for this conversation - skipping form');
+                
+                // Show summary if data exists
+                if (statusData.intro_data) {
+                  this.state.introFlow.answers = statusData.intro_data;
+                  setTimeout(() => {
+                    this.showFormSummary(statusData.intro_data);
+                    setTimeout(() => {
+                      this.addBotMessage("How can I help you today? Feel free to ask me anything! 😊");
+                    }, 1000);
+                  }, 500);
+                } else {
+                  // Just show welcome message
+                  setTimeout(() => {
+                    this.startDefaultIntroFlow();
+                  }, 500);
+                }
+              }
+            }
+          } catch (error) {
+            console.warn('Could not check intro status:', error);
+          }
+        }
         
-        // Start intro flow or show welcome
-        if (this.config.enableIntroFlow) {
-          setTimeout(() => {
-            this.startIntroFlow();
-          }, 500);
-        } else {
-          setTimeout(() => {
-            this.startDefaultIntroFlow();
-          }, 500);
+        // Only show intro flow if it wasn't already completed
+        if (!introAlreadyCompleted) {
+          // For new conversations, always show welcome (ignore sessionStorage)
+          console.log('🎉 New conversation or no messages - showing welcome message');
+          
+          // Ensure conversation exists (creates new one if needed)
+          await this.ensureConversation();
+          
+          // Start intro flow or show welcome
+          if (this.config.enableIntroFlow) {
+            setTimeout(() => {
+              this.startIntroFlow();
+            }, 500);
+          } else {
+            setTimeout(() => {
+              this.startDefaultIntroFlow();
+            }, 500);
+          }
         }
       } else {
         // Conversation was restored with messages - check if we should still show something
