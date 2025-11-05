@@ -1017,8 +1017,9 @@ router.post('/incoming', async (req: Request, res: Response) => {
           // But send a helpful note about using conversation ID for future messages
           console.log(`✅ Only 1 active conversation found - auto-delivering message to conversation ${activeConversations.rows[0].id}`);
           conversationId = activeConversations.rows[0].id;
+          messageIsValidFormat = true; // ✅ Mark as valid format since we're auto-using the single conversation
           
-          // Send a helpful note (but don't block the message)
+          // Send a helpful note (async, don't wait)
           const { WhatsAppService } = await import('../services/whatsappService');
           const whatsappService = WhatsAppService.getInstance();
           
@@ -1058,6 +1059,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
         // If multiple chats but only one conversation, use it
         if (!conversationId && activeConversations.rows.length === 1) {
           conversationId = activeConversations.rows[0].id;
+          messageIsValidFormat = true; // ✅ Mark as valid format since we're auto-using the single conversation
           console.log(`✅ Using the single active conversation: ${conversationId}`);
         }
       }
