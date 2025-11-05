@@ -637,103 +637,9 @@ router.post('/incoming', async (req: Request, res: Response) => {
       messageIsValidFormat = true; // Replying to a message is always valid
     }
     
-    if (!conversationId) {
-      // ✅ FIRST: Check for stop/deactivate commands BEFORE extracting conversation ID
-      // Support formats: #123: stop conversation, #123: deactivate, #123 : stop conversation, etc.
-      const originalMessageBody = messageBody; // Save original for command checking
-      const stopCommandMatch = messageBody.match(/^#\s*(\d+)\s*[:]?\s*(stop|end|deactivate|deactive|close|finish)\s*(conversation)?$/i);
-      const activateCommandMatch = messageBody.match(/^#\s*(\d+)\s*[:]?\s*(active|activate)$/i);
-      
-      if (stopCommandMatch || activateCommandMatch) {
-        const targetConvId = parseInt(stopCommandMatch ? stopCommandMatch[1] : activateCommandMatch![1]);
-        const isDeactivate = !!stopCommandMatch;
-        
-        // We'll handle this later after we have clientId, but mark it as a command
-        conversationId = targetConvId;
-        messageBody = isDeactivate ? 'stop conversation' : 'activate';
-        matchedBy = 'command';
-        messageIsValidFormat = true;
-        console.log(`📌 Agent sent ${isDeactivate ? 'deactivate' : 'activate'} command for conversation ${targetConvId}`);
-      } else {
-        // Try conversation ID first (#123)
-        // Support formats: #123: message, #123 message, #123 : message, #123:message
-        const conversationIdMatch = messageBody.match(/^#\s*(\d+)\s*[:]?\s*/);
-        if (conversationIdMatch) {
-          conversationId = parseInt(conversationIdMatch[1]);
-          // Remove the conversation ID prefix (including any spaces and colon)
-          messageBody = messageBody.replace(/^#\s*\d+\s*[:]?\s*/, '').trim();
-          matchedBy = 'conversation_id';
-          messageIsValidFormat = true; // Valid format
-          console.log(`📌 Agent specified conversation ID: ${conversationId}, remaining message: "${messageBody}"`);
-        } else {
-        // Try user name (@John Doe or @John)
-        const userNameMatch = messageBody.match(/^@([^:]+?):\s*(.+)$/);
-        if (userNameMatch) {
-          const userName = userNameMatch[1].trim();
-          messageBody = userNameMatch[2].trim();
-          
-          // Find conversation by user name
-          const nameMatchResult = await pool.query(`
-            SELECT DISTINCT wconv.id as conversation_id, wconv.last_activity_at
-            FROM widget_configs wc
-            JOIN handover_requests hr ON hr.widget_id = wc.id
-            JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
-            WHERE hr.requested_method = 'whatsapp'
-              AND hr.status IN ('pending', 'notified', 'completed')
-              AND wconv.status = 'active'
-              AND (
-                REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
-                OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
-              )
-              AND (
-                LOWER(wconv.visitor_name) LIKE LOWER($2 || '%')
-                OR LOWER(wconv.visitor_name) LIKE LOWER('%' || $2 || '%')
-              )
-            ORDER BY wconv.last_activity_at DESC NULLS LAST, wconv.id DESC
-            LIMIT 1
-          `, [fromNumber.replace(/[\s\-\(\)]/g, ''), userName]);
-          
-          if (nameMatchResult.rows.length > 0) {
-            conversationId = nameMatchResult.rows[0].conversation_id;
-            matchedBy = 'user_name';
-            messageIsValidFormat = true; // Valid format
-            console.log(`📌 Agent specified user name: "${userName}", matched to conversation ${conversationId}, remaining message: "${messageBody}"`);
-          }
-        } else {
-          // Try session ID (@visitor_abc123)
-          const sessionIdMatch = messageBody.match(/^@(visitor_[a-z0-9]+):\s*(.+)$/i);
-          if (sessionIdMatch) {
-            const sessionIdPrefix = sessionIdMatch[1].trim();
-            messageBody = sessionIdMatch[2].trim();
-            
-            // Find conversation by session ID prefix
-            const sessionMatchResult = await pool.query(`
-              SELECT DISTINCT wconv.id as conversation_id, wconv.last_activity_at
-              FROM widget_configs wc
-              JOIN handover_requests hr ON hr.widget_id = wc.id
-              JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
-              WHERE hr.requested_method = 'whatsapp'
-                AND hr.status IN ('pending', 'notified', 'completed')
-                AND wconv.status = 'active'
-                AND (
-                  REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
-                  OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
-                )
-                AND wconv.visitor_session_id LIKE $2 || '%'
-              ORDER BY wconv.last_activity_at DESC NULLS LAST, wconv.id DESC
-              LIMIT 1
-            `, [fromNumber.replace(/[\s\-\(\)]/g, ''), sessionIdPrefix]);
-            
-            if (sessionMatchResult.rows.length > 0) {
-              conversationId = sessionMatchResult.rows[0].conversation_id;
-              matchedBy = 'session_id';
-              messageIsValidFormat = true; // Valid format
-              console.log(`📌 Agent specified session ID: "${sessionIdPrefix}", matched to conversation ${conversationId}, remaining message: "${messageBody}"`);
-            }
-          }
-        }
-      }
-    }
+    // ✅ REMOVED: Conversation ID, user name, and session ID formats are no longer supported
+    // Only replying to bot messages (InReplyTo) is allowed
+    // This ensures agents always reply to specific bot messages
     
     // ✅ VALIDATION: If message doesn't match any valid format and multiple chats are enabled, warn user
     if (!messageIsValidFormat && !conversationId) {
@@ -777,19 +683,18 @@ router.post('/incoming', async (req: Request, res: Response) => {
         if (activeConversations.rows.length > 0) {
           const firstConv = activeConversations.rows[0];
           warningMessage += `❌ Your message was NOT delivered.\n\n`;
-          warningMessage += `✅ *HOW TO REPLY (REQUIRED FORMAT):*\n\n`;
-          warningMessage += `*By Conversation ID:*\n`;
-          warningMessage += `\`#${firstConv.id}: your message\`\n\n`;
-          warningMessage += `*Example:*\n`;
-          warningMessage += `\`#${firstConv.id}: Hi, how can I help?\`\n\n`;
+          warningMessage += `✅ *HOW TO REPLY (REQUIRED):*\n\n`;
+          warningMessage += `📎 *Reply to a bot message* (Long-press any message from chat bot and reply)\n\n`;
+          warningMessage += `This automatically applies your message to the correct conversation.\n\n`;
           
           if (activeConversations.rows.length > 1) {
             warningMessage += `*Active Conversations:*\n`;
             activeConversations.rows.slice(0, 3).forEach((conv: any, idx: number) => {
               const visitorName = conv.visitor_name || `Visitor ${conv.id}`;
-              warningMessage += `${idx + 1}. *${visitorName}* - Use: \`#${conv.id}: message\`\n`;
+              warningMessage += `${idx + 1}. *${visitorName}* - Conversation #${conv.id}\n`;
             });
             warningMessage += `\n`;
+            warningMessage += `💡 *Tip:* Reply to any bot message from the conversation you want to respond to.\n\n`;
           }
         } else {
           warningMessage += `❌ No active conversations found.\n\n`;
@@ -1038,19 +943,17 @@ router.post('/incoming', async (req: Request, res: Response) => {
           const firstName = firstConv.visitor_name || `Visitor ${firstConv.id}`;
           
           const warningMessage = `❌ *New Messages Not Allowed*\n\n` +
-            `You cannot start a new message. You must reply to individual conversations using the conversation ID format.\n\n` +
+            `You cannot start a new message. You must reply to individual bot messages.\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-            `*TO REPLY TO THIS USER (REQUIRED FORMAT):*\n\n` +
-            `*By Conversation ID:*\n` +
-            `\`#${firstConv.id}: your message\`\n\n` +
-            `*Example:*\n` +
-            `\`#${firstConv.id}: Hi, how can I help?\`\n\n` +
+            `*TO REPLY TO THIS USER (REQUIRED):*\n\n` +
+            `📎 *Reply to a bot message* (Long-press any message from chat bot and reply)\n\n` +
+            `This automatically applies your message to conversation #${firstConv.id}.\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
             `*Active Conversation:*\n` +
             `👤 *${firstName}*\n` +
             `🆔 Conversation ID: #${firstConv.id}\n\n` +
             `⚠️ Your message "${messageBody}" was NOT delivered.\n` +
-            `✅ Please use the conversation ID format above: \`#${firstConv.id}: your message\``;
+            `✅ Please reply to a bot message from this conversation.`;
           
           try {
             const clientIdResult = await pool.query(`
@@ -1121,26 +1024,25 @@ router.post('/incoming', async (req: Request, res: Response) => {
         `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
         
         let warningMessage = `❌ *New Messages Not Allowed*\n\n` +
-          `You cannot start a new message. You must reply to individual conversations using the conversation ID format.\n\n` +
+          `You cannot start a new message. You must reply to individual bot messages.\n\n` +
           `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-          `*TO REPLY TO A USER (REQUIRED FORMAT):*\n\n` +
-          `*By Conversation ID:*\n` +
-          `\`#<conversation_id>: your message\`\n\n`;
+          `*TO REPLY TO A USER (REQUIRED):*\n\n` +
+          `📎 *Reply to a bot message* (Long-press any message from chat bot and reply)\n\n`;
         
         if (activeConversations.rows.length > 0) {
           const firstConv = activeConversations.rows[0];
           const firstName = firstConv.visitor_name || `Visitor ${firstConv.id}`;
           
-          warningMessage += `*Example:*\n` +
-            `\`#${firstConv.id}: Hi, how can I help?\`\n\n`;
+          warningMessage += `This automatically applies your message to the correct conversation.\n\n`;
           
           if (activeConversations.rows.length > 1) {
             warningMessage += `*Active Conversations:*\n`;
             activeConversations.rows.slice(0, 3).forEach((conv: any, idx: number) => {
               const visitorName = conv.visitor_name || `Visitor ${conv.id}`;
-              warningMessage += `${idx + 1}. *${visitorName}* - Use: \`#${conv.id}: message\`\n`;
+              warningMessage += `${idx + 1}. *${visitorName}* - Conversation #${conv.id}\n`;
             });
             warningMessage += `\n`;
+            warningMessage += `💡 *Tip:* Reply to any bot message from the conversation you want to respond to.\n\n`;
           } else {
             warningMessage += `*Active Conversation:*\n` +
               `👤 *${firstName}*\n` +
@@ -1153,7 +1055,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
         
         warningMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
           `⚠️ Your message "${messageBody}" was NOT delivered.\n` +
-          `✅ Please use the conversation ID format above: \`#<conversation_id>: your message\``;
+          `✅ Please reply to a bot message from the conversation you want to respond to.`;
         
         try {
           const clientIdResult = await pool.query(`
@@ -1375,14 +1277,13 @@ router.post('/incoming', async (req: Request, res: Response) => {
     }
     
     // ✅ CHECK FOR "STOP CONVERSATION" COMMAND (when replying to a bot message)
-    // Support formats: "stop conversation", "#123: stop conversation", "#123 : stop conversation"
-    // Also works when replying to a bot message (InReplyTo) - automatically uses that conversation
+    // Only works when replying to a bot message (InReplyTo) - automatically uses that conversation
     const stopCommands = ['stop conversation', 'end conversation', 'stop', 'end', 'deactivate', 'deactive', 'close conversation', 'finish conversation'];
     const messageBodyLowerCheck = messageBody.toLowerCase().trim();
     const isStopCommandCheck = stopCommands.some(cmd => messageBodyLowerCheck === cmd.toLowerCase() || messageBodyLowerCheck.endsWith(cmd.toLowerCase()));
     
-    // ✅ If replying to a bot message (InReplyTo), allow stop command without conversation ID
-    if (isStopCommandCheck && conversationId && (matchedBy === 'whatsapp_reply' || matchedBy === 'conversation_id')) {
+    // ✅ Only allow stop command when replying to a bot message (InReplyTo)
+    if (isStopCommandCheck && conversationId && matchedBy === 'whatsapp_reply') {
       // ✅ When conversation ends, check for queued handovers
       console.log(`🔄 Conversation ${conversationId} ended - checking for queued WhatsApp handovers`);
       try {

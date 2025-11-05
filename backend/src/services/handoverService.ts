@@ -649,17 +649,17 @@ export class HandoverService {
           `*Message:*\n${handoverRequest.visitor_message || 'Visitor requested agent support'}\n\n` +
           `*Widget:* ${widgetConfig.rows[0].widget_name || 'N/A'}\n\n` +
           `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-          `💬 *HOW TO REPLY (REQUIRED FORMAT):*\n\n` +
-          `*By Conversation ID:*\n` +
-          `\`#${handoverRequest.conversation_id}: your message\`\n\n` +
-          `✅ *Example:*\n` +
-          `\`#${handoverRequest.conversation_id}: Hello ${visitorName}!\`\n\n` +
-          `📎 *OR Reply to this message* (Long-press this message and reply - automatically uses conversation #${handoverRequest.conversation_id})\n\n` +
+          `💬 *HOW TO REPLY (REQUIRED):*\n\n` +
+          `📎 *Reply to this message* (Long-press this message and reply)\n\n` +
+          `This automatically applies your message to conversation #${handoverRequest.conversation_id}.\n\n` +
+          `✅ *Examples:*\n` +
+          `• Reply "Hi, how can I help?"\n` +
+          `• Reply "stop" to end this conversation\n` +
+          `• Reply "deactivate" to deactivate this conversation\n\n` +
           `❌ *WRONG (will NOT be delivered):*\n` +
-          `\`Hello, how can I help?\`\n` +
-          `\`Hi\`\n` +
-          `\`@${visitorName}: message\` (not supported)\n\n` +
-          `⚠️ *CRITICAL:* You may have multiple active conversations. Always use the conversation ID format or reply to a bot message!\n\n` +
+          `• Starting a new message without replying\n` +
+          `• Sending plain text without replying to a bot message\n\n` +
+          `⚠️ *CRITICAL:* You may have multiple active conversations. Always reply to bot messages!\n\n` +
           `Please respond as soon as possible.`
         : `🔔 *Agent Handover Request*\n\n` +
           `*Conversation ID:* #${handoverRequest.conversation_id}\n` +
