@@ -4663,7 +4663,7 @@
               }
 
               if (messagesDiv) {
-                setTimeout(() => {
+                setTimeout(async () => {
                   messagesDiv.innerHTML = '';
                   const separator = document.createElement('div');
                   separator.style.cssText = `
