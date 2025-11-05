@@ -1181,9 +1181,8 @@ router.post('/incoming', async (req: Request, res: Response) => {
       return res.status(200).end(); // Empty response prevents "OK" auto-replies
     }
     
-    // ✅ CHECK FOR DEACTIVATE/ACTIVATE COMMANDS
-    // Check both the original message format and the parsed format
-    // Also support commands when replying to a bot message (InReplyTo)
+    // ✅ CHECK FOR DEACTIVATE/ACTIVATE COMMANDS (only when replying to bot messages)
+    // Only works when replying to a bot message (InReplyTo) - automatically uses that conversation
     const messageBodyLower = messageBody.toLowerCase().trim();
     const isStopCommand = messageBodyLower === 'stop conversation' || 
                          messageBodyLower === 'deactivate' || 
@@ -1195,16 +1194,12 @@ router.post('/incoming', async (req: Request, res: Response) => {
                          messageBodyLower === 'finish conversation';
     const isActivateCommand = messageBodyLower === 'active' || messageBodyLower === 'activate';
     
-    // ✅ If replying to a bot message (InReplyTo), use that conversation for commands
-    // This allows agents to reply "stop" to a bot message without needing #ID format
-    if ((isStopCommand || isActivateCommand || matchedBy === 'command') && conversationId) {
+    // ✅ Only allow commands when replying to a bot message (InReplyTo)
+    if ((isStopCommand || isActivateCommand) && conversationId && matchedBy === 'whatsapp_reply') {
       const targetConvId = conversationId;
-      const isDeactivate = isStopCommand || matchedBy === 'command';
+      const isDeactivate = isStopCommand;
       
-      // If this was a reply to a bot message, log it
-      if (matchedBy === 'whatsapp_reply') {
-        console.log(`📎 Agent replied to bot message with ${isDeactivate ? 'deactivate' : 'activate'} command for conversation ${targetConvId}`);
-      }
+      console.log(`📎 Agent replied to bot message with ${isDeactivate ? 'deactivate' : 'activate'} command for conversation ${targetConvId}`);
       
       // Verify this conversation belongs to this client
       const convCheck = await pool.query(`
@@ -1276,201 +1271,11 @@ router.post('/incoming', async (req: Request, res: Response) => {
       }
     }
     
-    // ✅ CHECK FOR "STOP CONVERSATION" COMMAND (when replying to a bot message)
-    // Only works when replying to a bot message (InReplyTo) - automatically uses that conversation
-    const stopCommands = ['stop conversation', 'end conversation', 'stop', 'end', 'deactivate', 'deactive', 'close conversation', 'finish conversation'];
-    const messageBodyLowerCheck = messageBody.toLowerCase().trim();
-    const isStopCommandCheck = stopCommands.some(cmd => messageBodyLowerCheck === cmd.toLowerCase() || messageBodyLowerCheck.endsWith(cmd.toLowerCase()));
+    // ✅ REMOVED: Duplicate stop command check - already handled above
+    // Commands are now only processed when replying to bot messages in the section above
     
-    // ✅ Only allow stop command when replying to a bot message (InReplyTo)
-    if (isStopCommandCheck && conversationId && matchedBy === 'whatsapp_reply') {
-      // ✅ When conversation ends, check for queued handovers
-      console.log(`🔄 Conversation ${conversationId} ended - checking for queued WhatsApp handovers`);
-      try {
-        await HandoverService.processQueuedWhatsAppHandovers(clientId);
-      } catch (queueError) {
-        console.error('Error processing queued handovers:', queueError);
-      }
-      console.log(`🛑 Agent requested to end conversation ${conversationId}`);
-      
-      // Get conversation details for summary
-      const convDetails = await pool.query(`
-        SELECT wconv.visitor_name, wconv.visitor_email, wconv.created_at, wconv.message_count,
-               wc.widget_name, c.client_name, c.client_email
-        FROM widget_conversations wconv
-        JOIN widget_configs wc ON wc.id = wconv.widget_id
-        JOIN clients c ON c.id = wc.client_id
-        WHERE wconv.id = $1
-      `, [conversationId]);
-      
-      const conv = convDetails.rows[0];
-      
-      // Get all messages for summary
-      const messagesResult = await pool.query(`
-        SELECT message_type, message_text, agent_name, created_at
-        FROM widget_messages
-        WHERE conversation_id = $1
-        ORDER BY created_at ASC
-      `, [conversationId]);
-      
-      // Update conversation status to ended
-      await pool.query(`
-        UPDATE widget_conversations
-        SET 
-          status = 'ended',
-          agent_handoff = false,
-          ended_at = NOW(),
-          updated_at = NOW()
-        WHERE id = $1
-      `, [conversationId]);
-      
-      // Add system message
-      await pool.query(`
-        INSERT INTO widget_messages (
-          conversation_id,
-          message_type,
-          message_text,
-          created_at
-        ) VALUES ($1, 'system', $2, NOW())
-      `, [conversationId, '📞 Conversation ended by agent. A summary has been sent to your email.']);
-      
-      // Generate summary
-      const messages = messagesResult.rows;
-      const summary = {
-        conversationId,
-        visitorName: conv.visitor_name || 'Visitor',
-        visitorEmail: conv.visitor_email,
-        startedAt: conv.created_at,
-        messageCount: conv.message_count || messages.length,
-        messages: messages.map((m: any) => ({
-          type: m.message_type,
-          text: m.message_text,
-          sender: m.agent_name || (m.message_type === 'user' ? 'You' : 'Bot'),
-          time: m.created_at
-        }))
-      };
-      
-      // Send summary email to visitor
-      if (conv.visitor_email) {
-        try {
-          const { EmailService } = await import('../services/emailService');
-          const emailService = new EmailService();
-          await emailService.sendEmail({
-            to: conv.visitor_email,
-            from: '"WeTechForU Support" <info@wetechforu.com>',
-            subject: `📋 Conversation Summary - ${conv.widget_name || 'Chat Support'}`,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #2E86AB;">📋 Conversation Summary</h2>
-                <p>Hello ${conv.visitor_name || 'there'},</p>
-                <p>Your conversation with our support team has ended. Here's a summary:</p>
-                <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                  <p><strong>Conversation ID:</strong> #${conversationId}</p>
-                  <p><strong>Started:</strong> ${new Date(conv.created_at).toLocaleString()}</p>
-                  <p><strong>Total Messages:</strong> ${summary.messageCount}</p>
-                </div>
-                <h3>Messages:</h3>
-                <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 15px; border-radius: 5px;">
-                  ${summary.messages.map((m: any) => `
-                    <div style="margin-bottom: 15px; padding: 10px; background: ${m.type === 'user' ? '#e3f2fd' : '#f5f5f5'}; border-radius: 5px;">
-                      <strong>${m.sender}:</strong> ${m.text}
-                      <div style="font-size: 12px; color: #666; margin-top: 5px;">${new Date(m.time).toLocaleString()}</div>
-                    </div>
-                  `).join('')}
-                </div>
-                <p style="margin-top: 30px;">
-                  <a href="https://marketingby.wetechforu.com/review?conversation=${conversationId}" 
-                     style="background: #2E86AB; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                    ⭐ Rate Your Experience
-                  </a>
-                </p>
-                <p style="color: #666; font-size: 14px; margin-top: 20px;">
-                  Thank you for reaching out to us!
-                </p>
-              </div>
-            `,
-            text: `Conversation Summary\n\nConversation ID: #${conversationId}\nStarted: ${new Date(conv.created_at).toLocaleString()}\nTotal Messages: ${summary.messageCount}\n\nRate your experience: https://marketingby.wetechforu.com/review?conversation=${conversationId}`
-          });
-          console.log(`✅ Summary email sent to visitor: ${conv.visitor_email}`);
-        } catch (emailError) {
-          console.error('❌ Error sending summary email to visitor:', emailError);
-        }
-      }
-      
-      // Send summary email to client
-      if (conv.client_email) {
-        try {
-          const { EmailService } = await import('../services/emailService');
-          const emailService = new EmailService();
-          await emailService.sendEmail({
-            to: conv.client_email,
-            from: '"WeTechForU Support" <info@wetechforu.com>',
-            subject: `📋 Conversation Ended - ${conv.visitor_name || 'Visitor'} - ${conv.widget_name}`,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #2E86AB;">📋 Conversation Summary</h2>
-                <p>A conversation has ended on your widget "${conv.widget_name}".</p>
-                <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                  <p><strong>Visitor:</strong> ${conv.visitor_name || 'Anonymous'}</p>
-                  <p><strong>Email:</strong> ${conv.visitor_email || 'Not provided'}</p>
-                  <p><strong>Conversation ID:</strong> #${conversationId}</p>
-                  <p><strong>Started:</strong> ${new Date(conv.created_at).toLocaleString()}</p>
-                  <p><strong>Total Messages:</strong> ${summary.messageCount}</p>
-                </div>
-                <p><a href="https://marketingby.wetechforu.com/app/chat-conversations/${conversationId}" 
-                     style="background: #2E86AB; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                    View Full Conversation →
-                  </a></p>
-              </div>
-            `,
-            text: `Conversation Summary\n\nVisitor: ${conv.visitor_name || 'Anonymous'}\nEmail: ${conv.visitor_email || 'Not provided'}\nConversation ID: #${conversationId}\nTotal Messages: ${summary.messageCount}`
-          });
-          console.log(`✅ Summary email sent to client: ${conv.client_email}`);
-        } catch (emailError) {
-          console.error('❌ Error sending summary email to client:', emailError);
-        }
-      }
-      
-      // ✅ Send WhatsApp message to agent (if WhatsApp handoff was used)
-      if (match.handover_whatsapp_number) {
-        try {
-          const { WhatsAppService } = await import('../services/whatsappService');
-          const whatsappService = WhatsAppService.getInstance();
-          
-          // Get widget name
-          const widgetNameResult = await pool.query(`
-            SELECT widget_name FROM widget_configs WHERE id = $1
-          `, [widgetId]);
-          const widgetName = widgetNameResult.rows[0]?.widget_name || 'Chat Widget';
-          
-          const endMessage = `📞 *Conversation Ended*\n\n` +
-            `*Conversation ID:* #${conversationId}\n` +
-            `*Widget:* ${widgetName}\n` +
-            `*Visitor:* ${visitorName}\n` +
-            `*Reason:* Ended by agent\n\n` +
-            `A summary has been sent to the visitor (if email provided).\n` +
-            `You will receive a detailed summary via email.`;
-          
-          await whatsappService.sendMessage({
-            clientId: clientId,
-            widgetId: widgetId,
-            conversationId: conversationId,
-            toNumber: `whatsapp:${match.handover_whatsapp_number.replace(/^whatsapp:/, '')}`,
-            message: endMessage,
-            sentByAgentName: 'System',
-            visitorName: visitorName
-          });
-          
-          console.log(`✅ Sent WhatsApp end notification to agent for conversation ${conversationId}`);
-        } catch (whatsappError) {
-          console.error('❌ Error sending WhatsApp end notification:', whatsappError);
-        }
-      }
-      
-      res.setHeader('Content-Type', 'text/plain');
-      res.setHeader('Content-Length', '0');
-      return res.status(200).end(); // Empty response prevents "OK" auto-replies
-    }
+    // ✅ PROCESS REGULAR MESSAGES (when replying to bot messages)
+    // If we get here, the message is a regular message (not a command) and should be delivered
 
     // ✅ IMPORTANT: Set agent_handoff = true when first message is received
     // This ensures the conversation is marked as taken over by agent
