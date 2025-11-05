@@ -197,9 +197,46 @@ export class ConversationInactivityService {
     if (!conv.handover_whatsapp_number) return;
 
     const whatsappService = WhatsAppService.getInstance();
+    
+    const visitorName = conv.visitor_name || 'Visitor';
+    const conversationId = conv.conversation_id;
+    const sessionIdDisplay = conv.visitor_session_id ? conv.visitor_session_id.substring(0, 25) : 'N/A';
+    
     const message = reminderNumber === 1
-      ? `⏰ *Reminder:* This conversation has been inactive for 5+ minutes. Please respond soon or end the conversation by typing "stop conversation".`
-      : `⏰ *Second Reminder:* This conversation has been inactive for 10+ minutes. Please respond soon or end the conversation.`;
+      ? `⏰ *Reminder: Inactive Conversation*\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `👤 *User:* ${visitorName}\n` +
+        `🆔 *Conversation ID: #${conversationId}*\n` +
+        `📱 *Session: \`${sessionIdDisplay}\`*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `This conversation has been inactive for 5+ minutes.\n\n` +
+        `*HOW TO REPLY (REQUIRED):*\n\n` +
+        `1️⃣ By Conversation ID:\n` +
+        `\`#${conversationId}: your message\`\n\n` +
+        `2️⃣ By User Name:\n` +
+        `\`@${visitorName}: your message\`\n\n` +
+        `3️⃣ By Session ID:\n` +
+        `\`@${sessionIdDisplay}: your message\`\n\n` +
+        `*To end this conversation:*\n` +
+        `\`#${conversationId}: stop conversation\`\n\n` +
+        `⚠️ *Always include the conversation ID or user identifier when replying!*`
+      : `⏰ *Second Reminder: Inactive Conversation*\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `👤 *User:* ${visitorName}\n` +
+        `🆔 *Conversation ID: #${conversationId}*\n` +
+        `📱 *Session: \`${sessionIdDisplay}\`*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `This conversation has been inactive for 10+ minutes.\n\n` +
+        `*HOW TO REPLY (REQUIRED):*\n\n` +
+        `1️⃣ By Conversation ID:\n` +
+        `\`#${conversationId}: your message\`\n\n` +
+        `2️⃣ By User Name:\n` +
+        `\`@${visitorName}: your message\`\n\n` +
+        `3️⃣ By Session ID:\n` +
+        `\`@${sessionIdDisplay}: your message\`\n\n` +
+        `*To end this conversation:*\n` +
+        `\`#${conversationId}: stop conversation\`\n\n` +
+        `⚠️ *Please respond soon or end the conversation!*`;
 
     try {
       let cleanNumber = conv.handover_whatsapp_number.replace('whatsapp:', '').trim();
