@@ -1135,24 +1135,52 @@ router.post('/incoming', async (req: Request, res: Response) => {
       }
       
       // Find the conversation by ID
-      clientResult = await pool.query(`
-        SELECT DISTINCT wc.id as widget_id, wc.client_id, wc.handover_whatsapp_number,
-               hr.conversation_id, hr.id as handover_request_id, hr.created_at,
-               wc.enable_multiple_whatsapp_chats, wconv.visitor_name, wconv.visitor_session_id,
-               wconv.last_activity_at, wconv.id
-        FROM widget_configs wc
-        JOIN handover_requests hr ON hr.widget_id = wc.id
-        JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
-        WHERE hr.requested_method = 'whatsapp'
-          AND hr.status IN ('pending', 'notified', 'completed')
-          AND wconv.status = 'active'
-          AND wconv.id = $1
-          AND (
-            REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $2
-            OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($2, '+', '')
-          )
-        LIMIT 1
-      `, [conversationId, fromNumber.replace(/[\s\-\(\)]/g, '')]);
+      // ✅ IMPORTANT: For WhatsApp replies, also check if conversation exists even without handover_request
+      // This handles cases where agent replies to a bot message that was sent directly
+      if (matchedBy === 'whatsapp_reply' && conversationId) {
+        // Try to find conversation directly (more flexible for replies)
+        clientResult = await pool.query(`
+          SELECT DISTINCT wc.id as widget_id, wc.client_id, wc.handover_whatsapp_number,
+                 $1::integer as conversation_id, NULL::integer as handover_request_id, NOW() as created_at,
+                 wc.enable_multiple_whatsapp_chats, wconv.visitor_name, wconv.visitor_session_id,
+                 wconv.last_activity_at, wconv.id
+          FROM widget_configs wc
+          JOIN widget_conversations wconv ON wconv.widget_id = wc.id
+          WHERE wconv.id = $1
+            AND wconv.status = 'active'
+            AND (
+              REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $2
+              OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($2, '+', '')
+            )
+          LIMIT 1
+        `, [conversationId, fromNumber.replace(/[\s\-\(\)]/g, '')]);
+        
+        if (clientResult.rows.length === 0) {
+          console.log(`⚠️ Conversation ${conversationId} found via reply but not active or doesn't match WhatsApp number - trying handover_request lookup`);
+        }
+      }
+      
+      // If lookup via direct conversation failed, try via handover_request
+      if (clientResult.rows.length === 0) {
+        clientResult = await pool.query(`
+          SELECT DISTINCT wc.id as widget_id, wc.client_id, wc.handover_whatsapp_number,
+                 hr.conversation_id, hr.id as handover_request_id, hr.created_at,
+                 wc.enable_multiple_whatsapp_chats, wconv.visitor_name, wconv.visitor_session_id,
+                 wconv.last_activity_at, wconv.id
+          FROM widget_configs wc
+          JOIN handover_requests hr ON hr.widget_id = wc.id
+          JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
+          WHERE hr.requested_method = 'whatsapp'
+            AND hr.status IN ('pending', 'notified', 'completed')
+            AND wconv.status = 'active'
+            AND wconv.id = $1
+            AND (
+              REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $2
+              OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($2, '+', '')
+            )
+          LIMIT 1
+        `, [conversationId, fromNumber.replace(/[\s\-\(\)]/g, '')]);
+      }
     }
 
     if (clientResult.rows.length === 0) {
