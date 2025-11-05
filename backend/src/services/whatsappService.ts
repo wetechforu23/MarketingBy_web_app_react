@@ -376,7 +376,7 @@ export class WhatsAppService {
     }
   }
 
-  async sendMessage(params: SendMessageParams): Promise<MessageResponse> {
+  async sendMessage(params: SendMessageParams & { trackAsConversation?: boolean }): Promise<MessageResponse> {
     // Declare variables in outer scope for error handling
     let formattedTo: string = '';
     let formattedFrom: string = '';
@@ -391,7 +391,8 @@ export class WhatsAppService {
         mediaUrl,
         sentByUserId,
         sentByAgentName,
-        visitorName
+        visitorName,
+        trackAsConversation = false // Track as conversation if this is a handover notification
       } = params;
 
       // Get credentials

@@ -763,7 +763,8 @@ export class HandoverService {
             toNumber: clientWhatsAppNumber, // Keep whatsapp: prefix for freeform
             message: notificationMessage,
             sentByAgentName: 'System',
-            visitorName: handoverRequest.visitor_name || 'Anonymous Visitor'
+            visitorName: handoverRequest.visitor_name || 'Anonymous Visitor',
+            trackAsConversation: true // ✅ Track as conversation when handover notification is sent
           });
           console.log(`📱 Freeform message result:`, {
             success: result.success,
