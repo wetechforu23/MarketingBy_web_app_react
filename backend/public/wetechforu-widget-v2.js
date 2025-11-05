@@ -2372,9 +2372,20 @@
     // ✅ NEW: Check agent availability and handle handover after form completion
     async checkAgentAvailabilityAndHandover(conversationId) {
       try {
+        console.log('🔍 Checking agent availability and handover for conversation:', conversationId);
+        
         // Get widget config to check handover settings
         const configResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/config`);
         const widgetConfig = await configResponse.json();
+        
+        console.log('📋 Widget config received:', {
+          id: widgetConfig.id,
+          widget_id: widgetConfig.widget_id,
+          client_id: widgetConfig.client_id,
+          handover_whatsapp_number: widgetConfig.handover_whatsapp_number,
+          enable_whatsapp: widgetConfig.enable_whatsapp,
+          enable_multiple_whatsapp_chats: widgetConfig.enable_multiple_whatsapp_chats
+        });
         
         // Get conversation info to get client_id
         const convResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/status`);
@@ -2382,6 +2393,12 @@
         
         // Check if WhatsApp is configured and check agent availability
         const whatsappConfigured = widgetConfig.handover_whatsapp_number && widgetConfig.handover_whatsapp_number.trim() !== '';
+        
+        console.log('📱 WhatsApp configuration check:', {
+          whatsappConfigured: whatsappConfigured,
+          handover_whatsapp_number: widgetConfig.handover_whatsapp_number,
+          enable_whatsapp: widgetConfig.enable_whatsapp
+        });
         
         if (whatsappConfigured) {
           // Try to create a handover request - this will tell us if agent is busy
