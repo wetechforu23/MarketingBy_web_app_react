@@ -2062,8 +2062,8 @@ export default function ChatWidgetEditor() {
                     </div>
                     <div>
                       <span style={{ color: '#666', display: 'block', marginBottom: '4px' }}>Enabled for Handoff</span>
-                      <strong style={{ color: whatsappEnabled ? '#2e7d32' : '#666' }}>
-                        {whatsappEnabled ? '✅ Yes' : '❌ No'}
+                      <strong style={{ color: (whatsappEnabled || (whatsappConfigured && handoverWhatsAppNumber)) ? '#2e7d32' : '#666' }}>
+                        {(whatsappEnabled || (whatsappConfigured && handoverWhatsAppNumber)) ? '✅ Yes' : '❌ No'}
                       </strong>
                     </div>
                     {enableMultipleWhatsAppChats && (
