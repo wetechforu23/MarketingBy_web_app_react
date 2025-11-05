@@ -1425,9 +1425,8 @@ router.post('/incoming', async (req: Request, res: Response) => {
     ]);
 
     // Update conversation to mark agent response
+    // Update conversation - use COALESCE for columns that may not exist
     await pool.query(`
-      // Update conversation - use COALESCE for columns that may not exist
-      await pool.query(`
       UPDATE widget_conversations
       SET 
         last_message = $1,
