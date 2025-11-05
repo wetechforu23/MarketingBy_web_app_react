@@ -649,20 +649,16 @@ export class HandoverService {
           `*Message:*\n${handoverRequest.visitor_message || 'Visitor requested agent support'}\n\n` +
           `*Widget:* ${widgetConfig.rows[0].widget_name || 'N/A'}\n\n` +
           `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-          `💬 *HOW TO REPLY (REQUIRED - Choose ONE):*\n\n` +
-          `1️⃣ By Conversation ID:\n` +
+          `💬 *HOW TO REPLY (REQUIRED FORMAT):*\n\n` +
+          `*By Conversation ID:*\n` +
           `\`#${handoverRequest.conversation_id}: your message\`\n\n` +
-          `2️⃣ By User Name:\n` +
-          `\`@${visitorName}: your message\`\n\n` +
-          `3️⃣ By Session ID:\n` +
-          `\`@${sessionIdDisplay}: your message\`\n\n` +
-          `✅ *Examples:*\n` +
-          `\`#${handoverRequest.conversation_id}: Hello ${visitorName}!\`\n` +
-          `\`@${visitorName}: How can I help?\`\n` +
-          `\`@${sessionIdDisplay}: Thanks for reaching out!\`\n\n` +
-          `❌ *WRONG (will go to wrong conversation):*\n` +
-          `\`Hello, how can I help?\`\n\n` +
-          `⚠️ *CRITICAL:* You may have multiple active conversations. Always use one of the formats above!\n\n` +
+          `✅ *Example:*\n` +
+          `\`#${handoverRequest.conversation_id}: Hello ${visitorName}!\`\n\n` +
+          `❌ *WRONG (will NOT be delivered):*\n` +
+          `\`Hello, how can I help?\`\n` +
+          `\`Hi\`\n` +
+          `\`@${visitorName}: message\` (not supported)\n\n` +
+          `⚠️ *CRITICAL:* You may have multiple active conversations. Always use the conversation ID format!\n\n` +
           `Please respond as soon as possible.`
         : `🔔 *Agent Handover Request*\n\n` +
           `*Conversation ID:* #${handoverRequest.conversation_id}\n` +
