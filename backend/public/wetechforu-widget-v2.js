@@ -1952,7 +1952,7 @@
             const welcomeMsg = config.welcome_message || this.config.welcomeMessage || `👋 Welcome! I'm ${this.config.botName}.`;
             
           setTimeout(() => {
-              this.addBotMessage(welcomeMsg);
+              this.addBotMessage(welcomeMsg, false, null, false); // No auto-scroll for welcome
           }, 500);
 
             // ✅ Check if form data already exists in database (from conversation or visitor_session_id)
@@ -2015,7 +2015,7 @@
     startDefaultIntroFlow() {
       // Show single welcome message with bot name and custom greeting
       setTimeout(() => {
-        this.addBotMessage(this.config.welcomeMessage || "Hi! How can I help you today?");
+        this.addBotMessage(this.config.welcomeMessage || "Hi! 👋 Welcome to WeTechForU. How can I help you today?", false, null, false); // No auto-scroll
         this.showQuickActions();
       }, 500);
     },
