@@ -704,47 +704,86 @@ router.post('/incoming', async (req: Request, res: Response) => {
         LIMIT 5
       `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
       
-      // ✅ SPECIAL CASE: If only ONE active conversation and no InReplyTo, auto-match it
-      // This helps when agent forgets to use reply feature but there's only one conversation
-      if (activeConversations.rows.length === 1 && !InReplyTo) {
-        const singleConv = activeConversations.rows[0];
-        conversationId = singleConv.id;
-        matchedBy = 'auto_match_single';
+      // ✅ SPECIAL CASE: Auto-match to most recent conversation when InReplyTo is undefined
+      // This helps when Twilio doesn't send InReplyTo even though agent is replying
+      // Priority: Most recent handover request (most likely the one they're replying to)
+      if (!InReplyTo && activeConversations.rows.length > 0) {
+        // Use the most recent conversation (first in the list, sorted by last_activity_at DESC)
+        const mostRecentConv = activeConversations.rows[0];
+        conversationId = mostRecentConv.id;
+        matchedBy = activeConversations.rows.length === 1 ? 'auto_match_single' : 'auto_match_recent';
         messageIsValidFormat = true;
-        console.log(`💡 Auto-matched to single active conversation ${conversationId} (agent didn't use reply feature)`);
+        console.log(`💡 Auto-matched to most recent conversation ${conversationId} (InReplyTo was undefined, using most recent handover)`);
         
-        // Still send a helpful tip to remind agent to use reply feature next time
-        const { WhatsAppService } = await import('../services/whatsappService');
-        const whatsappService = WhatsAppService.getInstance();
-        
-        try {
-          const clientIdResult = await pool.query(`
-            SELECT DISTINCT wc.client_id, wc.id as widget_id
-            FROM widget_configs wc
-            WHERE (
-              REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
-              OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
-            )
-            LIMIT 1
-          `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
-          
-          if (clientIdResult.rows.length > 0) {
-            const tipMessage = `💡 *Tip:* Your message was delivered to conversation #${conversationId}.\n\n` +
-              `*Next time:* Long-press any bot message and reply to automatically route to the correct conversation.`;
+        // Only send tip if there are multiple conversations (to remind about reply feature)
+        if (activeConversations.rows.length > 1) {
+          const { WhatsAppService } = await import('../services/whatsappService');
+          const whatsappService = WhatsAppService.getInstance();
+
+          try {
+            const clientIdResult = await pool.query(`
+              SELECT DISTINCT wc.client_id, wc.id as widget_id
+              FROM widget_configs wc
+              WHERE (
+                REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+                OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+              )
+              LIMIT 1
+            `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
             
-            // Send tip asynchronously (don't block message delivery)
-            whatsappService.sendMessage({
-              clientId: clientIdResult.rows[0].client_id,
-              widgetId: clientIdResult.rows[0].widget_id,
-              conversationId: conversationId,
-              toNumber: `whatsapp:${fromNumber}`,
-              message: tipMessage,
-              sentByAgentName: 'System',
-              visitorName: 'Agent'
-            }).catch(err => console.error('Error sending tip:', err));
+            if (clientIdResult.rows.length > 0) {
+              const tipMessage = `💡 *Tip:* Your message was delivered to the most recent conversation #${conversationId}.\n\n` +
+                `*You have ${activeConversations.rows.length} active conversations.*\n\n` +
+                `*Next time:* Long-press any bot message and reply to automatically route to the correct conversation.`;
+              
+              // Send tip asynchronously (don't block message delivery)
+              whatsappService.sendMessage({
+                clientId: clientIdResult.rows[0].client_id,
+                widgetId: clientIdResult.rows[0].widget_id,
+                conversationId: conversationId,
+                toNumber: `whatsapp:${fromNumber}`,
+                message: tipMessage,
+                sentByAgentName: 'System',
+                visitorName: 'Agent'
+              }).catch(err => console.error('Error sending tip:', err));
+            }
+          } catch (tipError) {
+            console.error('Error sending tip message:', tipError);
           }
-        } catch (tipError) {
-          console.error('Error sending tip message:', tipError);
+        } else {
+          // Single conversation - send simple tip
+          const { WhatsAppService } = await import('../services/whatsappService');
+          const whatsappService = WhatsAppService.getInstance();
+
+          try {
+            const clientIdResult = await pool.query(`
+              SELECT DISTINCT wc.client_id, wc.id as widget_id
+              FROM widget_configs wc
+              WHERE (
+                REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+                OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+              )
+              LIMIT 1
+            `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+            
+            if (clientIdResult.rows.length > 0) {
+              const tipMessage = `💡 *Tip:* Your message was delivered to conversation #${conversationId}.\n\n` +
+                `*Next time:* Long-press any bot message and reply to automatically route to the correct conversation.`;
+              
+              // Send tip asynchronously (don't block message delivery)
+              whatsappService.sendMessage({
+                clientId: clientIdResult.rows[0].client_id,
+                widgetId: clientIdResult.rows[0].widget_id,
+                conversationId: conversationId,
+                toNumber: `whatsapp:${fromNumber}`,
+                message: tipMessage,
+                sentByAgentName: 'System',
+                visitorName: 'Agent'
+              }).catch(err => console.error('Error sending tip:', err));
+            }
+          } catch (tipError) {
+            console.error('Error sending tip message:', tipError);
+          }
         }
         
         // Continue processing the message (it will be delivered)
