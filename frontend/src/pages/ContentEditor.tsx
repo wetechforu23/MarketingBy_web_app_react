@@ -59,6 +59,10 @@ const ContentEditor: React.FC = () => {
   const [approvalLink, setApprovalLink] = useState<string>('');
   const [approvalTokenExpiresAt, setApprovalTokenExpiresAt] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState<string>('');
+  const [scheduleTime, setScheduleTime] = useState<string>('');
+  const [schedulePlatforms, setSchedulePlatforms] = useState<string[]>([]);
 
   const platforms = [
     { id: 'facebook', name: 'Facebook', icon: '📘', color: '#1877f2', maxLength: 63206, recommended: 500 },
@@ -841,6 +845,88 @@ const ContentEditor: React.FC = () => {
       default:
         return 'Next Step';
     }
+  };
+
+  // Generate time options in 10-minute intervals (00:00, 00:10, 00:20, ..., 23:50)
+  const generateTimeOptions = (): string[] => {
+    const options: string[] = [];
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute += 10) {
+        const hourStr = hour.toString().padStart(2, '0');
+        const minuteStr = minute.toString().padStart(2, '0');
+        options.push(`${hourStr}:${minuteStr}`);
+      }
+    }
+    return options;
+  };
+
+  const handleSchedulePost = async () => {
+    if (!id) {
+      alert('Content ID is missing');
+      return;
+    }
+
+    if (!scheduleDate || !scheduleTime) {
+      alert('Please select both date and time');
+      return;
+    }
+
+    if (schedulePlatforms.length === 0) {
+      alert('Please select at least one platform');
+      return;
+    }
+
+    // Combine date and time
+    const scheduledDateTime = new Date(`${scheduleDate}T${scheduleTime}`);
+    const now = new Date();
+    
+    if (scheduledDateTime <= now) {
+      alert('Scheduled time must be in the future');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await http.post(`/content/${id}/schedule`, {
+        platforms: schedulePlatforms,
+        scheduledTime: scheduledDateTime.toISOString()
+      });
+
+      if (response.data.success) {
+        alert(`✅ Post scheduled successfully for ${schedulePlatforms.length} platform(s)!\n\nYou can view it in the "Scheduled Posts" tab.`);
+        setShowScheduleModal(false);
+        setScheduleDate('');
+        setScheduleTime('');
+        setSchedulePlatforms([]);
+        // Refresh content to show updated status
+        if (isEditMode) {
+          await fetchContent();
+        }
+        // Optionally navigate to scheduled posts
+        // navigate('/app/content-library', { state: { activeTab: 'scheduled' } });
+      }
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to schedule post');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openScheduleModal = () => {
+    // Initialize with current target platforms
+    setSchedulePlatforms(formData.targetPlatforms);
+    // Set default date to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setScheduleDate(tomorrow.toISOString().split('T')[0]);
+    // Set default time to next 10-minute interval
+    const now = new Date();
+    const nextMinute = Math.ceil(now.getMinutes() / 10) * 10;
+    const defaultHour = nextMinute >= 60 ? (now.getHours() + 1) % 24 : now.getHours();
+    const defaultMinute = nextMinute >= 60 ? 0 : nextMinute;
+    setScheduleTime(`${defaultHour.toString().padStart(2, '0')}:${defaultMinute.toString().padStart(2, '0')}`);
+    setShowScheduleModal(true);
   };
 
   const canProgressStatus = () => {
@@ -2190,6 +2276,29 @@ const ContentEditor: React.FC = () => {
                 </button>
               )}
 
+              {/* Schedule Post (only for approved content) */}
+              {isEditMode && (contentStatus === 'approved' || (isClientUser && contentCreatedBy === user?.id && contentStatus === 'draft')) && (
+                <button
+                  onClick={openScheduleModal}
+                  disabled={loading || !formData.clientId || formData.targetPlatforms.length === 0}
+                  style={{
+                    width: '100%',
+                    background: 'linear-gradient(135deg, #2E86AB 0%, #1E6A8A 100%)',
+                    color: '#ffffff',
+                    padding: '14px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    cursor: loading || !formData.clientId || formData.targetPlatforms.length === 0 ? 'not-allowed' : 'pointer',
+                    opacity: loading || !formData.clientId || formData.targetPlatforms.length === 0 ? 0.5 : 1,
+                    marginBottom: '10px'
+                  }}
+                >
+                  📅 Schedule Post
+                </button>
+              )}
+
               <button
                 onClick={() => navigate('/app/content-library')}
                 style={{
@@ -2212,6 +2321,243 @@ const ContentEditor: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Schedule Post Modal */}
+      {showScheduleModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}
+          onClick={() => setShowScheduleModal(false)}
+        >
+          <div style={{
+            background: 'white',
+            borderRadius: '16px',
+            maxWidth: '600px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+          }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{
+              padding: '25px',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h2 style={{
+                fontSize: '24px',
+                fontWeight: '600',
+                color: '#2d3748'
+              }}>
+                📅 Schedule Post
+              </h2>
+              <button
+                onClick={() => setShowScheduleModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '28px',
+                  cursor: 'pointer',
+                  color: '#a0aec0',
+                  padding: '0',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: '25px' }}>
+              {/* Date Picker */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: '600',
+                  color: '#2d3748',
+                  fontSize: '15px'
+                }}>
+                  Select Date *
+                </label>
+                <input
+                  type="date"
+                  value={scheduleDate}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    border: '2px solid #e2e8f0',
+                    fontSize: '15px',
+                    cursor: 'pointer'
+                  }}
+                />
+              </div>
+
+              {/* Time Picker (10-minute intervals) */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: '600',
+                  color: '#2d3748',
+                  fontSize: '15px'
+                }}>
+                  Select Time (10-minute intervals) *
+                </label>
+                <select
+                  value={scheduleTime}
+                  onChange={(e) => setScheduleTime(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    border: '2px solid #e2e8f0',
+                    fontSize: '15px',
+                    cursor: 'pointer',
+                    background: 'white'
+                  }}
+                >
+                  <option value="">Select time...</option>
+                  {generateTimeOptions().map((time) => (
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
+                  ))}
+                </select>
+                <div style={{
+                  fontSize: '12px',
+                  color: '#718096',
+                  marginTop: '4px'
+                }}>
+                  Posts will be published at the selected time (e.g., 10:00, 10:10, 10:20...)
+                </div>
+              </div>
+
+              {/* Platform Selection */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: '600',
+                  color: '#2d3748',
+                  fontSize: '15px'
+                }}>
+                  Select Platforms *
+                </label>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px'
+                }}>
+                  {formData.targetPlatforms.map((platformId) => {
+                    const platform = platforms.find(p => p.id === platformId);
+                    if (!platform) return null;
+                    return (
+                      <label
+                        key={platformId}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '12px',
+                          borderRadius: '8px',
+                          border: '2px solid #e2e8f0',
+                          cursor: 'pointer',
+                          background: schedulePlatforms.includes(platformId) ? '#f0f9ff' : 'white',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={schedulePlatforms.includes(platformId)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSchedulePlatforms([...schedulePlatforms, platformId]);
+                            } else {
+                              setSchedulePlatforms(schedulePlatforms.filter(p => p !== platformId));
+                            }
+                          }}
+                          style={{
+                            width: '18px',
+                            height: '18px',
+                            cursor: 'pointer'
+                          }}
+                        />
+                        <span style={{ fontSize: '20px' }}>{platform.icon}</span>
+                        <span style={{ fontWeight: '500', color: '#2d3748' }}>{platform.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{
+                display: 'flex',
+                gap: '10px',
+                marginTop: '25px'
+              }}>
+                <button
+                  onClick={handleSchedulePost}
+                  disabled={loading || !scheduleDate || !scheduleTime || schedulePlatforms.length === 0}
+                  style={{
+                    flex: 1,
+                    background: 'linear-gradient(135deg, #2E86AB 0%, #1E6A8A 100%)',
+                    color: '#ffffff',
+                    padding: '14px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    cursor: loading || !scheduleDate || !scheduleTime || schedulePlatforms.length === 0 ? 'not-allowed' : 'pointer',
+                    opacity: loading || !scheduleDate || !scheduleTime || schedulePlatforms.length === 0 ? 0.5 : 1
+                  }}
+                >
+                  {loading ? 'Scheduling...' : '✅ Schedule Post'}
+                </button>
+                <button
+                  onClick={() => setShowScheduleModal(false)}
+                  disabled={loading}
+                  style={{
+                    flex: 1,
+                    background: 'white',
+                    color: '#4a5568',
+                    padding: '14px',
+                    borderRadius: '10px',
+                    border: '2px solid #e2e8f0',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    cursor: loading ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Preview Modal */}
       {showPreview && (

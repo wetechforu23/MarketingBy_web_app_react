@@ -307,6 +307,34 @@ if (process.env.NODE_ENV === 'production') {
   }
 })();
 
+// Initialize scheduled posts cron job (runs every 10 minutes)
+(async () => {
+  try {
+    const cron = await import('node-cron');
+    const { processScheduledPosts } = await import('./services/socialMediaPostingService');
+    
+    // Run every 10 minutes: '*/10 * * * *'
+    // Format: minute hour day month weekday
+    cron.default.schedule('*/10 * * * *', async () => {
+      try {
+        console.log('⏰ [Cron Job] Checking for scheduled posts...');
+        const result = await processScheduledPosts();
+        console.log(`✅ [Cron Job] Processed ${result.successful} posts successfully, ${result.failed} failed`);
+        
+        if (result.errors.length > 0) {
+          console.error('❌ [Cron Job] Errors:', result.errors);
+        }
+      } catch (error: any) {
+        console.error('❌ [Cron Job] Error processing scheduled posts:', error.message);
+      }
+    });
+    
+    console.log('✅ Scheduled posts cron job initialized (runs every 10 minutes)');
+  } catch (error: any) {
+    console.error('❌ Failed to initialize scheduled posts cron job:', error.message);
+  }
+})();
+
 app.listen(PORT, () => {
   console.log(`🚀 MarketingBy Backend running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);

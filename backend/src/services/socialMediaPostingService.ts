@@ -69,6 +69,13 @@ export async function schedulePost(content: PostContent) {
       throw new Error(`Content must be approved before scheduling. Current status: ${contentData.status}`);
     }
 
+    // Get created_by from content or use a default (should not be null)
+    const createdBy = contentData.created_by || null;
+    
+    if (!createdBy) {
+      console.warn(`⚠️ Content ${content.contentId} has no created_by, using null`);
+    }
+
     // Create post record
     const postResult = await client.query(
       `INSERT INTO social_media_posts (
@@ -88,11 +95,18 @@ export async function schedulePost(content: PostContent) {
         'organic',
         content.scheduledTime || new Date(),
         content.scheduledTime ? 'scheduled' : 'posting',
-        contentData.created_by
+        createdBy
       ]
     );
 
     const post = postResult.rows[0];
+    console.log(`✅ Post created in database:`, {
+      id: post.id,
+      contentId: post.content_id,
+      platform: post.platform,
+      status: post.status,
+      scheduledTime: post.scheduled_time
+    });
 
     // If no scheduled time, post immediately
     if (!content.scheduledTime) {
@@ -158,15 +172,15 @@ export async function postToPlatform(
   try {
     console.log(`📤 Posting to ${platform} for client ${clientId}...`);
 
-    // Prepare message (text + hashtags)
+    // Prepare message (text only - hashtags will be added in Facebook service after UTM URL)
     let message = contentData.content_text || '';
     
-    // Add hashtags if present
-    if (contentData.hashtags && contentData.hashtags.length > 0) {
-      message += '\n\n' + contentData.hashtags.map((tag: string) => 
-        tag.startsWith('#') ? tag : `#${tag}`
-      ).join(' ');
-    }
+    // Get hashtags separately (don't add to message yet - will be added after UTM URL)
+    const hashtags = contentData.hashtags && contentData.hashtags.length > 0 
+      ? contentData.hashtags.map((tag: string) => 
+          tag.startsWith('#') ? tag : `#${tag}`
+        ).join(' ')
+      : null;
 
     // Get contentId and destinationUrl for UTM tracking
     const contentId = contentData.content_id || contentData.id || null;
@@ -176,7 +190,7 @@ export async function postToPlatform(
 
     switch (platform.toLowerCase()) {
       case 'facebook':
-        result = await postToFacebook(clientId, message, contentData.media_urls, contentId, destinationUrl);
+        result = await postToFacebook(clientId, message, contentData.media_urls, contentId, destinationUrl, hashtags);
         break;
 
       case 'linkedin':
@@ -218,10 +232,11 @@ async function postToFacebook(
   message: string,
   mediaUrls?: string[],
   contentId?: number | null,
-  destinationUrl?: string | null
+  destinationUrl?: string | null,
+  hashtags?: string | null
 ): Promise<PostResult> {
   try {
-    const result = await facebookService.createPost(clientId, message, mediaUrls, contentId, destinationUrl);
+    const result = await facebookService.createPost(clientId, message, mediaUrls, contentId, destinationUrl, hashtags);
     
     if (!result.success) {
       return { success: false, error: result.error };
@@ -476,7 +491,7 @@ export async function getPostDetails(postId: number) {
         c.content_text,
         c.media_urls,
         c.hashtags,
-        cl.business_name as client_name,
+        cl.client_name as client_name,
         u.name as created_by_name
       FROM social_media_posts p
       JOIN social_media_content c ON p.content_id = c.id

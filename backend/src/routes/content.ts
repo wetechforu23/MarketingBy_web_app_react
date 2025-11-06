@@ -638,16 +638,21 @@ router.post('/:id/schedule', async (req: Request, res: Response) => {
     const contentId = parseInt(req.params.id);
     const { platforms, scheduledTime } = req.body;
 
+    console.log(`📅 Scheduling post for content ${contentId}`, { platforms, scheduledTime });
+
     // Get content
     const contentResult = await contentService.getContentById(contentId, req);
     if (!contentResult.success) {
+      console.error(`❌ Content ${contentId} not found`);
       return res.status(404).json({ error: 'Content not found' });
     }
 
     const content = contentResult.content;
+    console.log(`✅ Content found: ${content.title}, status: ${content.status}`);
 
     // Check if approved
     if (content.status !== 'approved') {
+      console.error(`❌ Content ${contentId} is not approved. Status: ${content.status}`);
       return res.status(400).json({ error: 'Content must be approved before scheduling' });
     }
 
@@ -655,23 +660,43 @@ router.post('/:id/schedule', async (req: Request, res: Response) => {
     const results = [];
     const platformList = platforms || content.target_platforms;
 
-    for (const platform of platformList) {
-      const result = await postingService.schedulePost({
-        contentId,
-        clientId: content.client_id,
-        platform,
-        message: content.content_text,
-        mediaUrls: content.media_urls,
-        scheduledTime: scheduledTime ? new Date(scheduledTime) : undefined
-      });
+    console.log(`📱 Scheduling for platforms:`, platformList);
 
-      results.push({ platform, ...result });
+    for (const platform of platformList) {
+      try {
+        const result = await postingService.schedulePost({
+          contentId,
+          clientId: content.client_id,
+          platform,
+          message: content.content_text,
+          mediaUrls: content.media_urls,
+          scheduledTime: scheduledTime ? new Date(scheduledTime) : undefined
+        });
+
+        console.log(`✅ Scheduled ${platform}:`, result);
+        if (result.success && result.post) {
+          console.log(`   📝 Post ID: ${result.post.id}, Status: ${result.post.status}, Scheduled Time: ${result.post.scheduled_time}`);
+        }
+        results.push({ platform, ...result });
+      } catch (platformError: any) {
+        console.error(`❌ Error scheduling for ${platform}:`, platformError);
+        results.push({ 
+          platform, 
+          success: false, 
+          error: platformError.message 
+        });
+      }
     }
 
+    console.log(`✅ Scheduling complete. Results:`, results);
     res.json({ success: true, results });
   } catch (error: any) {
-    console.error('Error scheduling posts:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('❌ Error scheduling posts:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message
+    });
   }
 });
 
