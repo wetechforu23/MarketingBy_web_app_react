@@ -236,7 +236,8 @@ async function postToFacebook(
   hashtags?: string | null
 ): Promise<PostResult> {
   try {
-    const result = await facebookService.createPost(clientId, message, mediaUrls, contentId, destinationUrl, hashtags);
+    // Note: hashtags are included in the message text, not passed separately to createPost
+    const result = await facebookService.createPost(clientId, message, mediaUrls, contentId, destinationUrl);
     
     if (!result.success) {
       return { success: false, error: result.error };
