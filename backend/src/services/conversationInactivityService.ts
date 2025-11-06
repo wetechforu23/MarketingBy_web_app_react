@@ -364,10 +364,14 @@ export class ConversationInactivityService {
     `, [`Auto-ended due to ${reason}`, conv.conversation_id]);
 
     // ✅ Add system message to chat widget (visible to user)
+    const endReasonMessage = reason === 'agent_inactivity' 
+      ? '⏰ This session has ended due to inactivity. If you need further assistance, please start a new conversation.'
+      : '⏰ This session has ended due to inactivity. If you need further assistance, please start a new conversation.';
+    
     await pool.query(`
       INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
       VALUES ($1, 'system', $2, NOW())
-    `, [conv.conversation_id, '📞 This conversation has been automatically ended due to inactivity. A summary will be sent to you (if email available) and to our agent.']);
+    `, [conv.conversation_id, endReasonMessage]);
 
     // ✅ Send WhatsApp message to agent
     if (conv.handover_whatsapp_number) {

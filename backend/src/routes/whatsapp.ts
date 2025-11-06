@@ -1338,6 +1338,14 @@ router.post('/incoming', async (req: Request, res: Response) => {
           visitorName: 'Agent'
         });
         
+        // ✅ Add message to chat widget when conversation is stopped/ended
+        if (isDeactivate) {
+          await pool.query(`
+            INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+            VALUES ($1, 'system', $2, NOW())
+          `, [targetConvId, '⚠️ We are stopping this session due to a system issue. Please start a new conversation if you need further assistance.']);
+        }
+        
         console.log(`✅ Conversation ${targetConvId} ${isDeactivate ? 'deactivated' : 'activated'} by agent`);
         
         // If deactivated, also check for queued handovers
