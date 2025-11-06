@@ -17,94 +17,74 @@ async function deleteAllConversations() {
     console.log('🗑️  Starting deletion of all conversations and related data...');
     console.log('');
     
-    // Start transaction
-    await client.query('BEGIN');
-    
-    // 1. Delete WhatsApp messages first (if table exists)
-    try {
-      console.log('1. Deleting WhatsApp messages...');
-      const whatsappMessagesResult = await client.query('DELETE FROM whatsapp_messages');
-      console.log(`   ✅ Deleted ${whatsappMessagesResult.rowCount} WhatsApp messages`);
-    } catch (e) {
-      if (e.code === '42P01') {
-        console.log('   ℹ️  whatsapp_messages table does not exist (skipped)');
-      } else {
-        throw e;
+    // Helper function to safely delete from a table
+    async function safeDelete(tableName, description) {
+      try {
+        const result = await client.query(`DELETE FROM ${tableName}`);
+        console.log(`   ✅ Deleted ${result.rowCount} ${description}`);
+        return result.rowCount;
+      } catch (e) {
+        if (e.code === '42P01') {
+          console.log(`   ℹ️  ${tableName} table does not exist (skipped)`);
+          return 0;
+        } else {
+          throw e;
+        }
       }
     }
+    
+    // Delete in order (respecting foreign keys)
+    // 1. Delete WhatsApp messages first (if table exists)
+    console.log('1. Deleting WhatsApp messages...');
+    await safeDelete('whatsapp_messages', 'WhatsApp messages');
     
     // 2. Delete all messages
     console.log('2. Deleting all messages...');
-    const messagesResult = await client.query('DELETE FROM widget_messages');
-    console.log(`   ✅ Deleted ${messagesResult.rowCount} messages`);
+    await safeDelete('widget_messages', 'messages');
     
     // 3. Delete all handover requests
     console.log('3. Deleting all handover requests...');
-    const handoverResult = await client.query('DELETE FROM handover_requests');
-    console.log(`   ✅ Deleted ${handoverResult.rowCount} handover requests`);
+    await safeDelete('handover_requests', 'handover requests');
     
     // 4. Delete all conversations
     console.log('4. Deleting all conversations...');
-    const conversationsResult = await client.query('DELETE FROM widget_conversations');
-    console.log(`   ✅ Deleted ${conversationsResult.rowCount} conversations`);
+    await safeDelete('widget_conversations', 'conversations');
     
     // 5. Delete all visitor session tracking data
     console.log('5. Deleting visitor session tracking data...');
-    const sessionsResult = await client.query('DELETE FROM widget_visitor_sessions');
-    console.log(`   ✅ Deleted ${sessionsResult.rowCount} visitor sessions`);
-    
-    const pageViewsResult = await client.query('DELETE FROM widget_page_views');
-    console.log(`   ✅ Deleted ${pageViewsResult.rowCount} page views`);
-    
-    const eventsResult = await client.query('DELETE FROM widget_visitor_events');
-    console.log(`   ✅ Deleted ${eventsResult.rowCount} visitor events`);
+    await safeDelete('widget_visitor_sessions', 'visitor sessions');
+    await safeDelete('widget_page_views', 'page views');
+    await safeDelete('widget_visitor_events', 'visitor events');
     
     // 6. Delete legacy visitor_sessions if it exists
-    try {
-      const legacyResult = await client.query('DELETE FROM visitor_sessions');
-      console.log(`   ✅ Deleted ${legacyResult.rowCount} legacy visitor sessions`);
-    } catch (e) {
-      if (e.code === '42P01') {
-        console.log('   ℹ️  Legacy visitor_sessions table does not exist (skipped)');
-      } else {
-        throw e;
-      }
-    }
-    
-    // Commit transaction
-    await client.query('COMMIT');
+    console.log('6. Deleting legacy visitor sessions...');
+    await safeDelete('visitor_sessions', 'legacy visitor sessions');
     
     console.log('');
     console.log('✅ All conversations and related data deleted successfully!');
     console.log('');
     
-    // Show summary
-    const summaryResult = await client.query(`
-      SELECT 
-        'Conversations Remaining' as action,
-        COUNT(*)::text as count
-      FROM widget_conversations
-      UNION ALL
-      SELECT 
-        'Messages Remaining' as action,
-        COUNT(*)::text as count
-      FROM widget_messages
-      UNION ALL
-      SELECT 
-        'Handover Requests Remaining' as action,
-        COUNT(*)::text as count
-      FROM handover_requests
-      UNION ALL
-      SELECT 
-        'Visitor Sessions Remaining' as action,
-        COUNT(*)::text as count
-      FROM widget_visitor_sessions
-    `);
-    
+    // Show summary (only for tables that exist)
     console.log('📊 Summary:');
-    summaryResult.rows.forEach(row => {
-      console.log(`   ${row.action}: ${row.count}`);
-    });
+    const tablesToCheck = [
+      { name: 'widget_conversations', label: 'Conversations Remaining' },
+      { name: 'widget_messages', label: 'Messages Remaining' },
+      { name: 'handover_requests', label: 'Handover Requests Remaining' },
+      { name: 'widget_visitor_sessions', label: 'Visitor Sessions Remaining' }
+    ];
+    
+    for (const table of tablesToCheck) {
+      try {
+        const result = await client.query(`SELECT COUNT(*)::text as count FROM ${table.name}`);
+        console.log(`   ${table.label}: ${result.rows[0].count}`);
+      } catch (e) {
+        if (e.code === '42P01') {
+          console.log(`   ${table.label}: 0 (table does not exist)`);
+        } else {
+          console.log(`   ${table.label}: Error checking`);
+        }
+      }
+    }
     
   } catch (error) {
     await client.query('ROLLBACK');

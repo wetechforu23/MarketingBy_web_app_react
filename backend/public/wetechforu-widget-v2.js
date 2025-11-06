@@ -1986,19 +1986,14 @@
               }
             }
             
-            // ✅ NEW FLOW: Show form immediately after welcome message
+            // ✅ NEW FLOW: Only show welcome message first, wait for user input
             if (!formDataExists) {
-              // Show "Thanks for reaching out" message, then form immediately
-              setTimeout(() => {
-                this.addBotMessage("Thanks for reaching out to us! 😊 Before I answer further or give any other response, please fill out the information below:");
-                setTimeout(() => {
-                  this.showIntroForm(enabledQuestions);
-                  this.state.introFlow.enabled = true;
-                  this.state.introFlow.questions = enabledQuestions;
-                  this.state.introFlow.isActive = true;
-                  console.log('✅ Form shown immediately after welcome message');
-                }, 500);
-              }, 1000);
+              // Set flag to show form after first user message
+              this.state.waitingForFirstInput = true;
+              this.state.pendingFormQuestions = enabledQuestions;
+              this.state.introFlow.enabled = true;
+              this.state.introFlow.questions = enabledQuestions;
+              console.log('✅ Welcome message shown - waiting for user input before showing form');
             }
         } else {
             // No questions configured - use default intro
@@ -2824,7 +2819,7 @@
     // Contact info is collected via intro form (from widget config), not hardcoded questions
 
     // Add bot message
-    addBotMessage(text, isAgent = false, agentName = null) {
+    addBotMessage(text, isAgent = false, agentName = null, autoScroll = false) {
       const messagesContainer = document.getElementById('wetechforu-messages');
       
       // Use agent avatar if it's a human response
@@ -2838,19 +2833,38 @@
       
       const senderName = isAgent ? (agentName || 'Agent') : this.config.botName;
       
+      // Add new message indicator
+      const newMessageIndicator = '<span style="display: inline-block; width: 8px; height: 8px; background: #4CAF50; border-radius: 50%; margin-right: 6px; animation: pulse 2s infinite;"></span>';
+      
       const messageHTML = `
-        <div class="wetechforu-message wetechforu-message-bot" ${isAgent ? 'data-agent="true"' : ''}>
+        <div class="wetechforu-message wetechforu-message-bot" ${isAgent ? 'data-agent="true"' : ''} data-new-message="true">
           <div class="wetechforu-message-avatar">${avatarHTML}</div>
           <div style="flex: 1;">
             ${isAgent ? `<div style="font-size: 11px; color: #666; margin-bottom: 4px; font-weight: 600;">
               ${senderName}
             </div>` : ''}
-            <div class="wetechforu-message-content">${this.escapeHTML(text)}</div>
+            <div class="wetechforu-message-content">${newMessageIndicator}${this.escapeHTML(text)}</div>
           </div>
         </div>
       `;
       messagesContainer.insertAdjacentHTML('beforeend', messageHTML);
-      this.scrollToBottom();
+      
+      // Only auto-scroll if explicitly requested (e.g., for typing indicators)
+      if (autoScroll) {
+        this.scrollToBottom();
+      }
+      
+      // Remove new message indicator after 3 seconds
+      setTimeout(() => {
+        const messageEl = messagesContainer.querySelector('[data-new-message="true"]:last-child');
+        if (messageEl) {
+          messageEl.removeAttribute('data-new-message');
+          const contentEl = messageEl.querySelector('.wetechforu-message-content');
+          if (contentEl) {
+            contentEl.innerHTML = contentEl.innerHTML.replace(/<span[^>]*>.*?<\/span>/, '');
+          }
+        }
+      }, 3000);
       
       // 🔔 Show notification if agent responded and chat is minimized
       if (isAgent && !this.state.isOpen) {
@@ -2859,16 +2873,36 @@
     },
 
     // Add user message
-    addUserMessage(text) {
+    addUserMessage(text, autoScroll = false) {
       const messagesContainer = document.getElementById('wetechforu-messages');
+      
+      // Add new message indicator
+      const newMessageIndicator = '<span style="display: inline-block; width: 8px; height: 8px; background: #2196F3; border-radius: 50%; margin-right: 6px; animation: pulse 2s infinite;"></span>';
+      
       const messageHTML = `
-        <div class="wetechforu-message wetechforu-message-user">
+        <div class="wetechforu-message wetechforu-message-user" data-new-message="true">
           <div class="wetechforu-message-avatar">👤</div>
-          <div class="wetechforu-message-content">${this.escapeHTML(text)}</div>
+          <div class="wetechforu-message-content">${newMessageIndicator}${this.escapeHTML(text)}</div>
         </div>
       `;
       messagesContainer.insertAdjacentHTML('beforeend', messageHTML);
-      this.scrollToBottom();
+      
+      // Only auto-scroll if explicitly requested
+      if (autoScroll) {
+        this.scrollToBottom();
+      }
+      
+      // Remove new message indicator after 3 seconds
+      setTimeout(() => {
+        const messageEl = messagesContainer.querySelector('[data-new-message="true"]:last-child');
+        if (messageEl) {
+          messageEl.removeAttribute('data-new-message');
+          const contentEl = messageEl.querySelector('.wetechforu-message-content');
+          if (contentEl) {
+            contentEl.innerHTML = contentEl.innerHTML.replace(/<span[^>]*>.*?<\/span>/, '');
+          }
+        }
+      }, 3000);
     },
 
     // Show typing indicator
@@ -2885,7 +2919,7 @@
         </div>
       `;
       messagesContainer.insertAdjacentHTML('beforeend', typingHTML);
-      this.scrollToBottom();
+      // Don't auto-scroll for typing indicator - let user see their message
     },
 
     // Hide typing indicator
