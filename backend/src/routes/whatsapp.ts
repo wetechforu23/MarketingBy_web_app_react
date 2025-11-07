@@ -1323,8 +1323,8 @@ router.post('/incoming', async (req: Request, res: Response) => {
       return res.status(200).end(); // Empty response prevents "OK" auto-replies
     }
     
-    // ✅ CHECK FOR DEACTIVATE/ACTIVATE COMMANDS (only when replying to bot messages)
-    // Only works when replying to a bot message (InReplyTo) - automatically uses that conversation
+    // ✅ CHECK FOR DEACTIVATE/ACTIVATE COMMANDS
+    // Works when replying to a bot message (InReplyTo) OR when conversation is auto-matched
     const messageBodyLower = messageBody.toLowerCase().trim();
     const isStopCommand = messageBodyLower === 'stop conversation' || 
                          messageBodyLower === 'deactivate' || 
@@ -1336,8 +1336,10 @@ router.post('/incoming', async (req: Request, res: Response) => {
                          messageBodyLower === 'finish conversation';
     const isActivateCommand = messageBodyLower === 'active' || messageBodyLower === 'activate';
     
-    // ✅ Only allow commands when replying to a bot message (InReplyTo)
-    if ((isStopCommand || isActivateCommand) && conversationId && matchedBy === 'whatsapp_reply') {
+    // ✅ Allow commands when replying to a bot message OR when conversation is auto-matched
+    // This ensures stop commands work even when InReplyTo is undefined
+    if ((isStopCommand || isActivateCommand) && conversationId && 
+        (matchedBy === 'whatsapp_reply' || matchedBy === 'auto_match_recent' || matchedBy === 'auto_match_single')) {
       const targetConvId = conversationId;
       const isDeactivate = isStopCommand;
       
