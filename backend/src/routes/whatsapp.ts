@@ -571,13 +571,17 @@ router.post('/incoming', async (req: Request, res: Response) => {
       InReplyTo // ✅ NEW: MessageSid of the message being replied to (when agent uses WhatsApp reply feature)
     } = req.body;
 
-    console.log('📱 Incoming WhatsApp Message:', {
+    // Log full request body for debugging
+    console.log('📱 Incoming WhatsApp Message (FULL):', JSON.stringify(req.body, null, 2));
+    
+    console.log('📱 Incoming WhatsApp Message (SUMMARY):', {
       MessageSid,
       From,
       To,
       Body: Body?.substring(0, 100),
       NumMedia,
-      InReplyTo // Log if this is a reply
+      InReplyTo, // Log if this is a reply
+      AllKeys: Object.keys(req.body) // Show all fields Twilio sends
     });
 
     // Normalize phone number (remove whatsapp: prefix if present)
@@ -595,26 +599,46 @@ router.post('/incoming', async (req: Request, res: Response) => {
     let conversationId: number | null = null;
     let matchedBy: string = 'none';
     
-    if (InReplyTo) {
-      console.log(`📎 Agent replied to message: ${InReplyTo}`);
+    // ✅ Check for InReplyTo in multiple possible field names (Twilio may use different names)
+    const inReplyToValue = InReplyTo || req.body.InReplyToMessageSid || req.body.ReferencedMessageSid || req.body.ReferencedMessage?.Sid;
+    
+    if (inReplyToValue) {
+      console.log(`📎 Agent replied to message: ${inReplyToValue} (from field: ${InReplyTo ? 'InReplyTo' : req.body.InReplyToMessageSid ? 'InReplyToMessageSid' : req.body.ReferencedMessageSid ? 'ReferencedMessageSid' : 'ReferencedMessage.Sid'})`);
       
       // Look up which conversation this message belongs to
-      // Try both twilio_message_sid (regular messages) and content_sid (template messages)
+      // Try multiple SID formats and patterns
       const replyToResult = await pool.query(`
-        SELECT conversation_id, widget_id, client_id, message_body, twilio_message_sid, direction
+        SELECT conversation_id, widget_id, client_id, message_body, twilio_message_sid, direction, sent_at
         FROM whatsapp_messages
         WHERE twilio_message_sid = $1
-           OR twilio_message_sid LIKE $1 || '%'
-           OR twilio_message_sid = 'MM' || $1
+           OR twilio_message_sid = $2
+           OR twilio_message_sid LIKE $3
+           OR twilio_message_sid LIKE $4
+           OR (twilio_message_sid LIKE 'SM%' AND twilio_message_sid LIKE '%' || $5 || '%')
         ORDER BY sent_at DESC
-        LIMIT 1
-      `, [InReplyTo]);
+        LIMIT 5
+      `, [
+        inReplyToValue, // Exact match
+        inReplyToValue.replace(/^whatsapp:/, ''), // Without whatsapp: prefix
+        inReplyToValue + '%', // Starts with
+        '%' + inReplyToValue + '%', // Contains
+        inReplyToValue.substring(inReplyToValue.length - 10) // Last 10 chars
+      ]);
+      
+      console.log(`🔍 Lookup result for ${inReplyToValue}: Found ${replyToResult.rows.length} matches`);
+      if (replyToResult.rows.length > 0) {
+        replyToResult.rows.forEach((row, idx) => {
+          console.log(`  Match ${idx + 1}: Conversation ${row.conversation_id}, SID: ${row.twilio_message_sid}, Message: "${row.message_body?.substring(0, 50)}"`);
+        });
+      }
       
       if (replyToResult.rows.length > 0) {
-        conversationId = replyToResult.rows[0].conversation_id;
+        // Use the most recent match
+        const matchedMessage = replyToResult.rows[0];
+        conversationId = matchedMessage.conversation_id;
         matchedBy = 'whatsapp_reply';
         
-        console.log(`✅ Matched via WhatsApp reply: Conversation ${conversationId}, original message: "${replyToResult.rows[0].message_body?.substring(0, 50)}", direction: ${replyToResult.rows[0].direction}, stored SID: ${replyToResult.rows[0].twilio_message_sid}`);
+        console.log(`✅ Matched via WhatsApp reply: Conversation ${conversationId}, original message: "${matchedMessage.message_body?.substring(0, 50)}", direction: ${matchedMessage.direction}, stored SID: ${matchedMessage.twilio_message_sid}`);
         
         // Remove reply context from message body if present (WhatsApp sometimes includes it)
         // WhatsApp replies may include: "> Original message\nYour reply"
@@ -623,29 +647,33 @@ router.post('/incoming', async (req: Request, res: Response) => {
           messageBody = lines.filter(line => !line.trim().startsWith('>')).join('\n').trim();
         }
       } else {
-        // Try to find by content SID (for template messages)
-        const contentSidResult = await pool.query(`
-          SELECT conversation_id, widget_id, client_id, message_body
-          FROM whatsapp_messages
-          WHERE twilio_message_sid LIKE 'HX%'
-            AND conversation_id IN (
-              SELECT conversation_id 
-              FROM whatsapp_messages 
-              WHERE sent_at > NOW() - INTERVAL '1 hour'
-            )
-          ORDER BY sent_at DESC
-          LIMIT 5
-        `);
+        // Try to find recent messages from active conversations for this WhatsApp number
+        console.log(`⚠️ Could not find exact match for ${inReplyToValue}, trying to find recent messages...`);
         
-        if (contentSidResult.rows.length > 0) {
-          console.log(`⚠️ Could not find exact match for ${InReplyTo}, but found ${contentSidResult.rows.length} recent template messages`);
-          // Try to use the most recent one if only one active conversation
-          const recentConv = contentSidResult.rows[0];
-          console.log(`💡 Attempting to use conversation ${recentConv.conversation_id} from recent template message`);
-          conversationId = recentConv.conversation_id;
+        const recentMessagesResult = await pool.query(`
+          SELECT DISTINCT wm.conversation_id, wm.widget_id, wm.client_id, wm.message_body, wm.twilio_message_sid, wm.sent_at
+          FROM whatsapp_messages wm
+          JOIN widget_configs wc ON wc.id = wm.widget_id
+          WHERE wm.direction = 'outbound'
+            AND wm.sent_at > NOW() - INTERVAL '2 hours'
+            AND (
+              REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+              OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+            )
+          ORDER BY wm.sent_at DESC
+          LIMIT 10
+        `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+        
+        console.log(`🔍 Found ${recentMessagesResult.rows.length} recent outbound messages for this WhatsApp number`);
+        
+        if (recentMessagesResult.rows.length > 0) {
+          // Use the most recent message (most likely what they're replying to)
+          const recentMessage = recentMessagesResult.rows[0];
+          conversationId = recentMessage.conversation_id;
           matchedBy = 'whatsapp_reply';
+          console.log(`💡 Using most recent message: Conversation ${conversationId}, SID: ${recentMessage.twilio_message_sid}, Message: "${recentMessage.message_body?.substring(0, 50)}"`);
         } else {
-          console.log(`⚠️ Could not find conversation for replied message ${InReplyTo} - message will be blocked`);
+          console.log(`❌ Could not find conversation for replied message ${inReplyToValue} - message will be blocked`);
         }
       }
     }
@@ -659,12 +687,15 @@ router.post('/incoming', async (req: Request, res: Response) => {
     // ✅ VALIDATION: Check if message is in a valid format (reply or ID-based)
     // Only try these if we didn't match via WhatsApp reply
     let messageIsValidFormat = false;
-    if (InReplyTo && conversationId) {
+    if (inReplyToValue && conversationId) {
       // Only valid if we successfully found the conversation for the reply
       messageIsValidFormat = true;
-    } else if (InReplyTo && !conversationId) {
+      console.log(`✅ Message format is valid: Reply detected and conversation matched`);
+    } else if (inReplyToValue && !conversationId) {
       // Reply was attempted but conversation not found - log warning
-      console.log(`⚠️ InReplyTo found (${InReplyTo}) but conversation lookup failed - message will be blocked`);
+      console.log(`⚠️ InReplyTo found (${inReplyToValue}) but conversation lookup failed - message will be blocked`);
+    } else {
+      console.log(`⚠️ No InReplyTo detected - message will be blocked if no conversation matched`);
     }
     
     // ✅ REMOVED: Conversation ID, user name, and session ID formats are no longer supported
@@ -706,7 +737,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
       
       // ✅ STRICT MODE: Only allow messages when replying (InReplyTo must be present)
       // Agents cannot type regular messages - must reply to bot messages only
-      if (!InReplyTo) {
+      if (!inReplyToValue) {
         // Multiple conversations - must use reply feature
         const { WhatsAppService } = await import('../services/whatsappService');
         const whatsappService = WhatsAppService.getInstance();
