@@ -704,115 +704,25 @@ router.post('/incoming', async (req: Request, res: Response) => {
         LIMIT 5
       `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
       
-      // ✅ SPECIAL CASE: Auto-match to most recent conversation when InReplyTo is undefined
-      // This helps when Twilio doesn't send InReplyTo even though agent is replying
-      // Priority: Most recent handover request (most likely the one they're replying to)
-      if (!InReplyTo && activeConversations.rows.length > 0) {
-        // Use the most recent conversation (first in the list, sorted by last_activity_at DESC)
-        const mostRecentConv = activeConversations.rows[0];
-        conversationId = mostRecentConv.id;
-        matchedBy = activeConversations.rows.length === 1 ? 'auto_match_single' : 'auto_match_recent';
-        messageIsValidFormat = true;
-        console.log(`💡 Auto-matched to most recent conversation ${conversationId} (InReplyTo was undefined, using most recent handover)`);
-        
-        // Only send tip if there are multiple conversations (to remind about reply feature)
-        if (activeConversations.rows.length > 1) {
-          const { WhatsAppService } = await import('../services/whatsappService');
-          const whatsappService = WhatsAppService.getInstance();
-
-          try {
-            const clientIdResult = await pool.query(`
-              SELECT DISTINCT wc.client_id, wc.id as widget_id
-              FROM widget_configs wc
-              WHERE (
-                REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
-                OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
-              )
-              LIMIT 1
-            `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
-            
-            if (clientIdResult.rows.length > 0) {
-              const tipMessage = `💡 *Tip:* Your message was delivered to the most recent conversation #${conversationId}.\n\n` +
-                `*You have ${activeConversations.rows.length} active conversations.*\n\n` +
-                `*Next time:* Long-press any bot message and reply to automatically route to the correct conversation.`;
-              
-              // Send tip asynchronously (don't block message delivery)
-              whatsappService.sendMessage({
-                clientId: clientIdResult.rows[0].client_id,
-                widgetId: clientIdResult.rows[0].widget_id,
-                conversationId: conversationId,
-                toNumber: `whatsapp:${fromNumber}`,
-                message: tipMessage,
-                sentByAgentName: 'System',
-                visitorName: 'Agent'
-              }).catch(err => console.error('Error sending tip:', err));
-            }
-          } catch (tipError) {
-            console.error('Error sending tip message:', tipError);
-          }
-        } else {
-          // Single conversation - send simple tip
-          const { WhatsAppService } = await import('../services/whatsappService');
-          const whatsappService = WhatsAppService.getInstance();
-
-          try {
-            const clientIdResult = await pool.query(`
-              SELECT DISTINCT wc.client_id, wc.id as widget_id
-              FROM widget_configs wc
-              WHERE (
-                REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
-                OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
-              )
-              LIMIT 1
-            `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
-            
-            if (clientIdResult.rows.length > 0) {
-              const tipMessage = `💡 *Tip:* Your message was delivered to conversation #${conversationId}.\n\n` +
-                `*Next time:* Long-press any bot message and reply to automatically route to the correct conversation.`;
-              
-              // Send tip asynchronously (don't block message delivery)
-              whatsappService.sendMessage({
-                clientId: clientIdResult.rows[0].client_id,
-                widgetId: clientIdResult.rows[0].widget_id,
-                conversationId: conversationId,
-                toNumber: `whatsapp:${fromNumber}`,
-                message: tipMessage,
-                sentByAgentName: 'System',
-                visitorName: 'Agent'
-              }).catch(err => console.error('Error sending tip:', err));
-            }
-          } catch (tipError) {
-            console.error('Error sending tip message:', tipError);
-          }
-        }
-        
-        // Continue processing the message (it will be delivered)
-      } else if (enableMultipleChats || activeConversations.rows.length > 1) {
+      // ✅ STRICT MODE: Only allow messages when replying (InReplyTo must be present)
+      // Agents cannot type regular messages - must reply to bot messages only
+      if (!InReplyTo) {
         // Multiple conversations - must use reply feature
         const { WhatsAppService } = await import('../services/whatsappService');
         const whatsappService = WhatsAppService.getInstance();
         
-        let warningMessage = `⚠️ *Invalid Message Format*\n\n`;
+        let warningMessage = `❌ *Agent cannot type message here*\n\n`;
+        warningMessage += `📎 *Please select a bot message and reply to it*\n\n`;
         
         if (activeConversations.rows.length > 0) {
-          const firstConv = activeConversations.rows[0];
-          warningMessage += `❌ Your message was NOT delivered.\n\n`;
-          warningMessage += `✅ *HOW TO REPLY (REQUIRED):*\n\n`;
-          warningMessage += `📎 *Reply to a bot message* (Long-press any message from chat bot and reply)\n\n`;
-          warningMessage += `This automatically applies your message to the correct conversation.\n\n`;
-          
           if (activeConversations.rows.length > 1) {
-            warningMessage += `*Active Conversations:*\n`;
-            activeConversations.rows.slice(0, 3).forEach((conv: any, idx: number) => {
-              const visitorName = conv.visitor_name || `Visitor ${conv.id}`;
-              warningMessage += `${idx + 1}. *${visitorName}* - Conversation #${conv.id}\n`;
-            });
-            warningMessage += `\n`;
-            warningMessage += `💡 *Tip:* Reply to any bot message from the conversation you want to respond to.\n\n`;
+            warningMessage += `*Active: ${activeConversations.rows.length} conversations*\n`;
+            warningMessage += `Reply to the bot message from the conversation you want to respond to.`;
+          } else {
+            warningMessage += `Reply to any bot message to continue.`;
           }
         } else {
-          warningMessage += `❌ No active conversations found.\n\n`;
-          warningMessage += `Please wait for a visitor to start a chat first.`;
+          warningMessage += `No active conversations.`;
         }
         
         try {
@@ -1336,10 +1246,8 @@ router.post('/incoming', async (req: Request, res: Response) => {
                          messageBodyLower === 'finish conversation';
     const isActivateCommand = messageBodyLower === 'active' || messageBodyLower === 'activate';
     
-    // ✅ Allow commands when replying to a bot message OR when conversation is auto-matched
-    // This ensures stop commands work even when InReplyTo is undefined
-    if ((isStopCommand || isActivateCommand) && conversationId && 
-        (matchedBy === 'whatsapp_reply' || matchedBy === 'auto_match_recent' || matchedBy === 'auto_match_single')) {
+    // ✅ Allow commands ONLY when replying to a bot message (InReplyTo must be present)
+    if ((isStopCommand || isActivateCommand) && conversationId && matchedBy === 'whatsapp_reply') {
       const targetConvId = conversationId;
       const isDeactivate = isStopCommand;
       
@@ -1367,7 +1275,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
         const { WhatsAppService } = await import('../services/whatsappService');
         const whatsappService = WhatsAppService.getInstance();
         
-        const confirmationMessage = `✅ Conversation #${targetConvId} has been ${isDeactivate ? 'deactivated (ended)' : 'activated'}.`;
+        const confirmationMessage = `✅ #${targetConvId} ${isDeactivate ? 'ended' : 'active'}`;
         
         await whatsappService.sendMessage({
           clientId: clientId,

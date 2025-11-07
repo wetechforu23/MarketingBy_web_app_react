@@ -639,36 +639,16 @@ export class HandoverService {
       
       // Improved notification format - make conversation ID, user name, and session ID prominent
       const notificationMessage = enableMultipleChats
-        ? `🔔 *Agent Handover Request*\n\n` +
-          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-          `👤 *USER: ${visitorName}*\n` +
-          `🆔 *ID: #${handoverRequest.conversation_id}*\n` +
-          `📱 *Session: \`${sessionIdDisplay}\`*\n` +
-          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-          (visitorInfo.length > 0 ? `*Contact Info:*\n${visitorInfo.map(v => `• ${v}`).join('\n')}\n\n` : '') +
-          `*Message:*\n${handoverRequest.visitor_message || 'Visitor requested agent support'}\n\n` +
-          `*Widget:* ${widgetConfig.rows[0].widget_name || 'N/A'}\n\n` +
-          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-          `💬 *HOW TO REPLY (REQUIRED):*\n\n` +
-          `📎 *Reply to this message* (Long-press this message and reply)\n\n` +
-          `This automatically applies your message to conversation #${handoverRequest.conversation_id}.\n\n` +
-          `✅ *Examples:*\n` +
-          `• Reply "Hi, how can I help?"\n` +
-          `• Reply "stop" to end this conversation\n` +
-          `• Reply "deactivate" to deactivate this conversation\n\n` +
-          `❌ *WRONG (will NOT be delivered):*\n` +
-          `• Starting a new message without replying\n` +
-          `• Sending plain text without replying to a bot message\n\n` +
-          `⚠️ *CRITICAL:* You may have multiple active conversations. Always reply to bot messages!\n\n` +
-          `Please respond as soon as possible.`
-        : `🔔 *Agent Handover Request*\n\n` +
-          `*Conversation ID:* #${handoverRequest.conversation_id}\n` +
-          `*Session ID:* \`${sessionIdDisplay}\`\n` +
-          `*Visitor:* ${visitorName}\n` +
-          (visitorInfo.length > 0 ? `*Contact Info:*\n${visitorInfo.map(v => `• ${v}`).join('\n')}\n\n` : '') +
-          `*Message:*\n${handoverRequest.visitor_message || 'Visitor requested agent support'}\n\n` +
-          `*Widget:* ${widgetConfig.rows[0].widget_name || 'N/A'}\n\n` +
-          `Please respond to the visitor at your earliest convenience.`;
+        ? `🔔 *New Chat #${handoverRequest.conversation_id}*\n\n` +
+          `👤 ${visitorName}\n` +
+          (visitorInfo.length > 0 ? `${visitorInfo.map(v => `• ${v}`).join('\n')}\n\n` : '') +
+          `${handoverRequest.visitor_message || 'Visitor needs help'}\n\n` +
+          `📎 *Reply to this message only*`
+        : `🔔 *New Chat #${handoverRequest.conversation_id}*\n\n` +
+          `👤 ${visitorName}\n` +
+          (visitorInfo.length > 0 ? `${visitorInfo.map(v => `• ${v}`).join('\n')}\n\n` : '') +
+          `${handoverRequest.visitor_message || 'Visitor needs help'}\n\n` +
+          `📎 *Reply to this message only*`;
 
       try {
         console.log(`📱 Sending WhatsApp handover notification to client:`, {

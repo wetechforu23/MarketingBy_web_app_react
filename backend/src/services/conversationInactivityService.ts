@@ -238,17 +238,9 @@ export class ConversationInactivityService {
     const conversationId = conv.conversation_id;
     const sessionIdDisplay = conv.visitor_session_id ? conv.visitor_session_id.substring(0, 25) : 'N/A';
     
-    const message = reminderNumber === 1
-      ? `⏰ *Reminder: Inactive Conversation*\n\n` +
-        `Conversation #${conversationId} with ${visitorName} has been inactive for 5+ minutes.\n\n` +
-        `*HOW TO REPLY:*\n` +
-        `📎 Reply to this message (Long-press and reply)\n\n` +
-        `*To end:* Reply "stop" to this message`
-      : `⏰ *Second Reminder: Inactive Conversation*\n\n` +
-        `Conversation #${conversationId} with ${visitorName} has been inactive for 10+ minutes.\n\n` +
-        `*HOW TO REPLY:*\n` +
-        `📎 Reply to this message (Long-press and reply)\n\n` +
-        `*To end:* Reply "stop" to this message`;
+          const message = reminderNumber === 1
+            ? `⏰ #${conversationId} inactive 5+ min\n\n📎 Reply to this message\n\nTo end: Reply "stop"`
+            : `⏰ #${conversationId} inactive 10+ min\n\n📎 Reply to this message\n\nTo end: Reply "stop"`;
 
     try {
       let cleanNumber = conv.handover_whatsapp_number.replace('whatsapp:', '').trim();
@@ -281,7 +273,7 @@ export class ConversationInactivityService {
     if (!conv.handover_whatsapp_number) return;
 
     const whatsappService = WhatsAppService.getInstance();
-    const message = `⏰ *Time Extension Request*\n\nThis conversation has been inactive for 12+ minutes. Do you need more time to respond?\n\nReply with:\n• "yes" or "yes 10" (to extend by 10 minutes)\n• "yes 5" (to extend by 5 minutes)\n• "no" or "stop conversation" (to end the conversation)`;
+    const message = `⏰ Inactive 12+ min\n\nReply: "yes" (10 min) or "no" (end)`;
 
     try {
       let cleanNumber = conv.handover_whatsapp_number.replace('whatsapp:', '').trim();
