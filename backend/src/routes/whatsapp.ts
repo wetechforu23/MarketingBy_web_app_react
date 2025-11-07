@@ -687,7 +687,31 @@ router.post('/incoming', async (req: Request, res: Response) => {
           matchedBy = 'whatsapp_reply';
           console.log(`💡 Using most recent message: Conversation ${conversationId}, SID: ${recentMessage.twilio_message_sid}, Message: "${recentMessage.message_body?.substring(0, 50)}"`);
         } else {
-          console.log(`❌ Could not find conversation for replied message ${inReplyToValue} - message will be blocked`);
+          // Last resort: Find active conversations for this WhatsApp number
+          console.log(`⚠️ No recent messages found, trying to find active conversations...`);
+          const activeConvResult = await pool.query(`
+            SELECT DISTINCT wconv.id as conversation_id, wconv.widget_id, wc.client_id
+            FROM widget_configs wc
+            JOIN handover_requests hr ON hr.widget_id = wc.id
+            JOIN widget_conversations wconv ON wconv.id = hr.conversation_id
+            WHERE hr.requested_method = 'whatsapp'
+              AND hr.status IN ('pending', 'notified', 'completed')
+              AND wconv.status = 'active'
+              AND (
+                REPLACE(REPLACE(wc.handover_whatsapp_number, 'whatsapp:', ''), ' ', '') = $1
+                OR REPLACE(REPLACE(wc.handover_whatsapp_number, '+', ''), ' ', '') = REPLACE($1, '+', '')
+              )
+            ORDER BY wconv.last_activity_at DESC NULLS LAST, wconv.id DESC
+            LIMIT 1
+          `, [fromNumber.replace(/[\s\-\(\)]/g, '')]);
+          
+          if (activeConvResult.rows.length > 0) {
+            conversationId = activeConvResult.rows[0].conversation_id;
+            matchedBy = 'whatsapp_reply';
+            console.log(`💡 Using most recent active conversation: ${conversationId}`);
+          } else {
+            console.log(`❌ Could not find conversation for replied message ${inReplyToValue} - message will be blocked`);
+          }
         }
       }
     }
