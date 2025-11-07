@@ -1006,7 +1006,22 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
     }
 
     // ✅ IF AGENT HAS TAKEN OVER, FORWARD TO WHATSAPP AND BOT DOESN'T RESPOND
-    if (isAgentHandoff && preferredMethod === 'whatsapp') {
+    // Check if there's an active WhatsApp handover request (even if preferredMethod isn't set)
+    const whatsappHandoverCheck = await pool.query(`
+      SELECT hr.id, hr.status, hr.requested_method
+      FROM handover_requests hr
+      WHERE hr.conversation_id = $1
+        AND hr.requested_method = 'whatsapp'
+        AND hr.status IN ('pending', 'notified', 'completed')
+      ORDER BY hr.created_at DESC
+      LIMIT 1
+    `, [conversation_id]);
+    
+    const hasActiveWhatsAppHandover = whatsappHandoverCheck.rows.length > 0;
+    const shouldForwardToWhatsApp = (isAgentHandoff && preferredMethod === 'whatsapp') || 
+                                    (isAgentHandoff && hasActiveWhatsAppHandover);
+    
+    if (shouldForwardToWhatsApp) {
       // Forward visitor message to WhatsApp
       try {
         const convInfo = await pool.query(`
