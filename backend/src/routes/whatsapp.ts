@@ -617,6 +617,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
       
       // Look up which conversation this message belongs to
       // Try multiple SID formats and patterns
+      // Note: OriginalRepliedMessageSid may be MM (template) or SM (message) format
       const replyToResult = await pool.query(`
         SELECT conversation_id, widget_id, client_id, message_body, twilio_message_sid, direction, sent_at
         FROM whatsapp_messages
@@ -624,7 +625,9 @@ router.post('/incoming', async (req: Request, res: Response) => {
            OR twilio_message_sid = $2
            OR twilio_message_sid LIKE $3
            OR twilio_message_sid LIKE $4
-           OR (twilio_message_sid LIKE 'SM%' AND twilio_message_sid LIKE '%' || $5 || '%')
+           OR twilio_message_sid LIKE $5
+           OR (twilio_message_sid LIKE 'SM%' AND twilio_message_sid LIKE '%' || $6 || '%')
+           OR (twilio_message_sid LIKE 'MM%' AND twilio_message_sid LIKE '%' || $6 || '%')
         ORDER BY sent_at DESC
         LIMIT 5
       `, [
@@ -632,7 +635,8 @@ router.post('/incoming', async (req: Request, res: Response) => {
         inReplyToValue.replace(/^whatsapp:/, ''), // Without whatsapp: prefix
         inReplyToValue + '%', // Starts with
         '%' + inReplyToValue + '%', // Contains
-        inReplyToValue.substring(inReplyToValue.length - 10) // Last 10 chars
+        inReplyToValue.replace(/^MM/, 'SM'), // Try SM instead of MM
+        inReplyToValue.substring(inReplyToValue.length - 10) // Last 10 chars for partial match
       ]);
       
       console.log(`🔍 Lookup result for ${inReplyToValue}: Found ${replyToResult.rows.length} matches`);
