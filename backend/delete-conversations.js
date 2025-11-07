@@ -14,7 +14,7 @@ async function deleteAllConversations() {
   const client = await pool.connect();
   
   try {
-    console.log('🗑️  Starting deletion of all conversations and related data...');
+    console.log('🗑️  Starting cleanup: Deactivating and deleting all conversations...');
     console.log('');
     
     // Helper function to safely delete from a table
@@ -33,6 +33,32 @@ async function deleteAllConversations() {
       }
     }
     
+    // Helper function to safely update
+    async function safeUpdate(tableName, description) {
+      try {
+        const result = await client.query(`
+          UPDATE ${tableName} 
+          SET status = 'ended', 
+              ended_at = NOW(), 
+              updated_at = NOW() 
+          WHERE status = 'active'
+        `);
+        console.log(`   ✅ Deactivated ${result.rowCount} ${description}`);
+        return result.rowCount;
+      } catch (e) {
+        if (e.code === '42P01') {
+          console.log(`   ℹ️  ${tableName} table does not exist (skipped)`);
+          return 0;
+        } else {
+          throw e;
+        }
+      }
+    }
+    
+    // Step 0: Deactivate all active conversations first
+    console.log('0. Deactivating all active conversations...');
+    await safeUpdate('widget_conversations', 'active conversations');
+    
     // Delete in order (respecting foreign keys)
     // 1. Delete WhatsApp messages first (if table exists)
     console.log('1. Deleting WhatsApp messages...');
@@ -46,7 +72,7 @@ async function deleteAllConversations() {
     console.log('3. Deleting all handover requests...');
     await safeDelete('handover_requests', 'handover requests');
     
-    // 4. Delete all conversations
+    // 4. Delete all conversations (including deactivated ones)
     console.log('4. Deleting all conversations...');
     await safeDelete('widget_conversations', 'conversations');
     
@@ -59,6 +85,21 @@ async function deleteAllConversations() {
     // 6. Delete legacy visitor_sessions if it exists
     console.log('6. Deleting legacy visitor sessions...');
     await safeDelete('visitor_sessions', 'legacy visitor sessions');
+    
+    // 7. Clear session IDs from any remaining tables
+    console.log('7. Clearing session IDs from widget_conversations...');
+    try {
+      const sessionIdResult = await client.query(`
+        UPDATE widget_conversations 
+        SET visitor_session_id = NULL, updated_at = NOW() 
+        WHERE visitor_session_id IS NOT NULL
+      `);
+      console.log(`   ✅ Cleared session IDs from ${sessionIdResult.rowCount} conversations`);
+    } catch (e) {
+      if (e.code !== '42P01') {
+        console.log(`   ℹ️  Could not clear session IDs: ${e.message}`);
+      }
+    }
     
     console.log('');
     console.log('✅ All conversations and related data deleted successfully!');
