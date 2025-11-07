@@ -750,22 +750,237 @@ router.post('/:id/post-now', async (req: Request, res: Response) => {
     const results = [];
     const platformList = platforms || content.target_platforms;
 
-    for (const platform of platformList) {
-      const result = await postingService.schedulePost({
-        contentId,
-        clientId: content.client_id,
-        platform,
-        message: content.content_text,
-        mediaUrls: content.media_urls
-      });
-
-      results.push({ platform, ...result });
+    if (!platformList || platformList.length === 0) {
+      return res.status(400).json({ error: 'No platforms selected. Please select at least one platform to post to.' });
     }
 
-    res.json({ success: true, results });
+    console.log(`🚀 Posting content ${contentId} to platforms:`, platformList);
+
+    for (const platform of platformList) {
+      try {
+        console.log(`📤 Posting to ${platform}...`);
+        const result = await postingService.schedulePost({
+          contentId,
+          clientId: content.client_id,
+          platform,
+          message: content.content_text,
+          mediaUrls: content.media_urls,
+          skipApprovalCheck: isContentCreator && content.status === 'draft' // Allow content creators to post from draft
+        });
+
+        if (result.success) {
+          console.log(`✅ Successfully posted to ${platform}`);
+        } else {
+          console.error(`❌ Failed to post to ${platform}:`, result.error);
+        }
+
+        results.push({ platform, ...result });
+      } catch (platformError: any) {
+        console.error(`❌ Error posting to ${platform}:`, platformError);
+        results.push({ 
+          platform, 
+          success: false, 
+          error: platformError.message || 'Unknown error' 
+        });
+      }
+    }
+
+    // Check if any posts succeeded
+    const hasSuccess = results.some(r => r.success);
+    const hasFailure = results.some(r => !r.success);
+
+    if (hasFailure && !hasSuccess) {
+      // All failed
+      return res.status(500).json({ 
+        success: false,
+        error: 'Failed to post to all platforms',
+        results 
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      results,
+      message: hasFailure 
+        ? `Posted to some platforms. Check results for details.`
+        : `Successfully posted to all ${results.length} platform(s).`
+    });
   } catch (error: any) {
-    console.error('Error posting content:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('❌ Error posting content:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message 
+    });
+  }
+});
+
+// ============================================================================
+// DEBUG & TESTING ENDPOINTS
+// ============================================================================
+
+/**
+ * DEBUG: Test file detection and uploads directory
+ * GET /api/content/debug/uploads
+ */
+router.get('/debug/uploads', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    
+    // Get uploads directory path
+    const uploadsDir = path.join(__dirname, '../../uploads');
+    const uploadsDirFromService = path.join(__dirname, '../../uploads');
+    
+    const debugInfo: any = {
+      uploadsDirectory: uploadsDir,
+      directoryExists: fs.existsSync(uploadsDir),
+      files: [],
+      fileCount: 0,
+      testImageUrl: '/uploads/test-image.png',
+      resolvedPath: null,
+      pathExists: false
+    };
+    
+    // List files in uploads directory
+    if (fs.existsSync(uploadsDir)) {
+      const files = fs.readdirSync(uploadsDir);
+      debugInfo.files = files.slice(0, 10); // First 10 files
+      debugInfo.fileCount = files.length;
+      
+      // Test with a sample file if available
+      if (files.length > 0) {
+        const testFile = files[0];
+        debugInfo.testImageUrl = `/uploads/${testFile}`;
+        const testPath = path.join(uploadsDir, testFile);
+        debugInfo.resolvedPath = testPath;
+        debugInfo.pathExists = fs.existsSync(testPath);
+        debugInfo.testFileSize = fs.statSync(testPath).size;
+      }
+    }
+    
+    // Test file path resolution (simulate what Facebook service does)
+    const testUrls = [
+      '/uploads/test.png',
+      'uploads/test.png',
+      'http://localhost:3001/uploads/test.png'
+    ];
+    
+    debugInfo.pathResolutionTests = testUrls.map((url: string) => {
+      let filename: string | null = null;
+      if (url.startsWith('/uploads/')) {
+        filename = url.substring('/uploads/'.length);
+      } else if (url.startsWith('uploads/')) {
+        filename = url.substring('uploads/'.length);
+      } else if (url.includes('localhost') || url.includes('127.0.0.1')) {
+        const urlPath = url.includes('/uploads/') 
+          ? url.substring(url.indexOf('/uploads/'))
+          : null;
+        if (urlPath) {
+          filename = urlPath.substring('/uploads/'.length);
+        }
+      }
+      
+      const filePath = filename ? path.join(uploadsDir, filename) : null;
+      return {
+        inputUrl: url,
+        extractedFilename: filename,
+        resolvedPath: filePath,
+        exists: filePath ? fs.existsSync(filePath) : false
+      };
+    });
+    
+    res.json({
+      success: true,
+      debug: debugInfo,
+      message: 'Uploads directory debug information'
+    });
+  } catch (error: any) {
+    console.error('Error in uploads debug:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+/**
+ * DEBUG: Test Facebook posting with file detection
+ * POST /api/content/debug/test-posting
+ */
+router.post('/debug/test-posting', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { imageUrl, clientId } = req.body;
+    
+    if (!imageUrl) {
+      return res.status(400).json({ error: 'imageUrl is required' });
+    }
+    
+    if (!clientId) {
+      return res.status(400).json({ error: 'clientId is required' });
+    }
+    
+    const FacebookService = require('../services/facebookService').default;
+    const pool = require('../config/database').default;
+    const facebookService = new FacebookService(pool);
+    
+    // Test file detection
+    const fs = require('fs');
+    const path = require('path');
+    const uploadsDir = path.join(__dirname, '../../uploads');
+    
+    let filename: string | null = null;
+    if (imageUrl.startsWith('/uploads/')) {
+      filename = imageUrl.substring('/uploads/'.length);
+    } else if (imageUrl.startsWith('uploads/')) {
+      filename = imageUrl.substring('uploads/'.length);
+    } else if (imageUrl.includes('localhost') || imageUrl.includes('127.0.0.1')) {
+      const urlPath = imageUrl.includes('/uploads/') 
+        ? imageUrl.substring(imageUrl.indexOf('/uploads/'))
+        : null;
+      if (urlPath) {
+        filename = urlPath.substring('/uploads/'.length);
+      }
+    }
+    
+    const filePath = filename ? path.join(uploadsDir, filename) : null;
+    const fileExists = filePath ? fs.existsSync(filePath) : false;
+    
+    const debugInfo: any = {
+      inputUrl: imageUrl,
+      extractedFilename: filename,
+      resolvedPath: filePath,
+      fileExists: fileExists,
+      uploadsDirectory: uploadsDir,
+      directoryExists: fs.existsSync(uploadsDir),
+      willUseLocalUpload: fileExists,
+      willUseUrlMethod: !fileExists
+    };
+    
+    // If file exists, show file stats
+    if (fileExists && filePath) {
+      const stats = fs.statSync(filePath);
+      debugInfo.fileStats = {
+        size: stats.size,
+        created: stats.birthtime,
+        modified: stats.mtime,
+        isFile: stats.isFile()
+      };
+    }
+    
+    res.json({
+      success: true,
+      debug: debugInfo,
+      message: 'Posting test completed (no actual post made)'
+    });
+  } catch (error: any) {
+    console.error('Error in posting test:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 

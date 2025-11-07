@@ -755,17 +755,46 @@ export async function sendForApprovalWithLink(
               <p style="font-size: 14px; font-weight: 600; color: #333; margin-bottom: 10px;">
                 Media (${mediaUrls.length}):
               </p>
-              <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                ${mediaUrls.map((url: string, index: number) => `
-                  <div style="flex: 1; min-width: 200px; max-width: 300px; margin-bottom: 10px;">
+              ${mediaUrls.map((url: string, index: number) => {
+                // Ensure URL is absolute for email clients
+                let imageUrl = url.trim();
+                if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+                  // Handle relative URLs - convert to absolute
+                  if (imageUrl.startsWith('/uploads/') || imageUrl.startsWith('/public/')) {
+                    // Backend static file URL
+                    const backendUrl = process.env.BACKEND_URL || process.env.API_URL || 'http://localhost:3001';
+                    imageUrl = `${backendUrl}${imageUrl}`;
+                  } else if (imageUrl.startsWith('uploads/') || imageUrl.startsWith('public/')) {
+                    // Relative path without leading slash
+                    const backendUrl = process.env.BACKEND_URL || process.env.API_URL || 'http://localhost:3001';
+                    imageUrl = `${backendUrl}/${imageUrl}`;
+                  } else if (imageUrl.startsWith('/')) {
+                    // Other relative paths starting with /
+                    const backendUrl = process.env.BACKEND_URL || process.env.FRONTEND_URL || 'http://localhost:3001';
+                    imageUrl = `${backendUrl}${imageUrl}`;
+                  } else {
+                    // Assume it's a domain without protocol
+                    imageUrl = `https://${imageUrl}`;
+                  }
+                }
+                
+                return `
+                  <div style="margin: 15px 0; text-align: center; background-color: #f7fafc; padding: 10px; border-radius: 8px;">
                     <img 
-                      src="${url}" 
-                      alt="Media ${index + 1}" 
-                      style="width: 100%; height: auto; border-radius: 8px; border: 2px solid #e0e0e0; display: block;"
-                      onerror="this.style.display='none';"
+                      src="${imageUrl}" 
+                      alt="Content Media ${index + 1}" 
+                      style="max-width: 100%; width: auto; height: auto; border-radius: 6px; border: 2px solid #e2e8f0; display: block; margin: 0 auto; max-height: 400px; object-fit: contain; background-color: #ffffff;"
+                      width="600"
+                      height="auto"
                     />
+                    ${mediaUrls.length > 1 ? `<p style="font-size: 12px; color: #718096; margin-top: 8px; margin-bottom: 0;">Image ${index + 1} of ${mediaUrls.length}</p>` : ''}
                   </div>
-                `).join('')}
+                `;
+              }).join('')}
+              <div style="background: #f0f9ff; padding: 12px; border-radius: 6px; margin-top: 15px; border-left: 3px solid #3b82f6;">
+                <p style="margin: 0; font-size: 12px; color: #1e40af; line-height: 1.5;">
+                  <strong>💡 Note:</strong> If images don't display, your email client may be blocking external images. Click "Show Images" or "Display Images" in your email client settings.
+                </p>
               </div>
             </div>
           `;

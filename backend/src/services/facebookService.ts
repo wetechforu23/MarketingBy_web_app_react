@@ -737,7 +737,8 @@ class FacebookService {
     clientId: number,
     message: string,
     contentId?: number | null,
-    destinationUrl?: string | null
+    destinationUrl?: string | null,
+    hashtags?: string | null
   ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
     try {
       const credentials = await this.getClientCredentials(clientId);
@@ -773,17 +774,26 @@ class FacebookService {
         }
       }
 
-      // Post to Facebook with tracked URL if available
+      // Build message in correct order: Original Text → UTM URL → Hashtags
+      let finalMessage = message;  // Start with original content text
+      
+      // Add UTM URL to message if available (NOT as link parameter)
+      if (linkUrl) {
+        finalMessage += '\n\n' + linkUrl;
+        console.log(`📎 Adding UTM URL to message: ${linkUrl}`);
+      }
+      
+      // Add hashtags at the end
+      if (hashtags) {
+        finalMessage += '\n\n' + hashtags;
+        console.log(`📝 Adding hashtags to message: ${hashtags}`);
+      }
+
+      // Post to Facebook (NO link parameter - UTM URL is in message)
       const postPayload: any = {
-        message: message,
+        message: finalMessage,
         access_token: credentials.access_token
       };
-
-      // Add link parameter if we have a tracked URL
-      if (linkUrl) {
-        postPayload.link = linkUrl;
-        console.log(`📎 Adding link to post: ${linkUrl}`);
-      }
 
       const response = await axios.post(
         `${this.baseUrl}/${credentials.page_id}/feed`,
@@ -814,7 +824,7 @@ class FacebookService {
             [
               clientId,
               postId,
-              message,
+              finalMessage,  // Store final message with UTM URL and hashtags
               postUrl,
               utmCampaign,
               'facebook',
@@ -912,6 +922,7 @@ class FacebookService {
 
   /**
    * Helper: Check if URL is local and convert to file path
+   * Improved: Better path resolution and error handling
    */
   private getLocalFilePath(imageUrl: string): string | null {
     // Check if URL is local
@@ -921,12 +932,16 @@ class FacebookService {
         ? imageUrl.substring(imageUrl.indexOf('/uploads/'))
         : imageUrl;
       
-      // Convert to absolute file system path
+      // Convert to absolute file system path using path.basename to get just the filename
+      // __dirname in compiled code will be backend/dist/services, so ../../uploads = backend/uploads
       const filePath = path.join(__dirname, '../../uploads', path.basename(urlPath));
       
       // Check if file exists
       if (fs.existsSync(filePath)) {
+        console.log(`📂 Found local file: ${filePath}`);
         return filePath;
+      } else {
+        console.log(`⚠️ Local file not found: ${filePath}`);
       }
     }
     return null;
@@ -940,7 +955,8 @@ class FacebookService {
     message: string,
     imageUrl: string,
     contentId?: number | null,
-    destinationUrl?: string | null
+    destinationUrl?: string | null,
+    hashtags?: string | null
   ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
     try {
       const credentials = await this.getClientCredentials(clientId);
@@ -951,6 +967,10 @@ class FacebookService {
 
       console.log(`📘 Creating Facebook image post for page ${credentials.page_id}...`);
       console.log(`📸 Image URL: ${imageUrl}`);
+
+      // Check if it's a local file first (before URL conversion)
+      // This is important because Facebook can't access localhost URLs
+      const localFilePath = this.getLocalFilePath(imageUrl);
 
       // UTM Tracking: Generate tracked URL if destinationUrl is provided
       let originalUrls: string[] = [];
@@ -977,9 +997,22 @@ class FacebookService {
         }
       }
 
-      // Check if it's a local file
-      const localFilePath = this.getLocalFilePath(imageUrl);
+      // Build message in correct order: Original Text → UTM URL → Hashtags
+      let finalMessage = message;  // Start with original content text
       
+      // Add UTM URL to message if available
+      if (linkUrl) {
+        finalMessage += '\n\n' + linkUrl;
+        console.log(`📎 Adding UTM URL to message: ${linkUrl}`);
+      }
+      
+      // Add hashtags at the end
+      if (hashtags) {
+        finalMessage += '\n\n' + hashtags;
+        console.log(`📝 Adding hashtags to message: ${hashtags}`);
+      }
+
+      // Use localFilePath already checked above
       if (localFilePath) {
         console.log(`📤 Uploading local file: ${localFilePath}`);
         
@@ -1008,7 +1041,7 @@ class FacebookService {
           
           // Create feed post with attached media and link
           const feedPayload: any = {
-            message: message,
+            message: finalMessage,
             attached_media: [{ media_fbid: mediaId }],
             link: linkUrl,
             access_token: credentials.access_token
@@ -1025,7 +1058,7 @@ class FacebookService {
 
           // Store UTM data in both facebook_posts and social_media_content
           if (utmCampaign && originalUrls.length > 0 && trackedUrls.length > 0 && contentId) {
-            await this.storeUTMData(clientId, postId, message, postUrl, utmCampaign, originalUrls, trackedUrls);
+            await this.storeUTMData(clientId, postId, finalMessage, postUrl, utmCampaign, originalUrls, trackedUrls);
             await this.updateContentUTMUrl(contentId, trackedUrls[0]);
           }
 
@@ -1035,9 +1068,9 @@ class FacebookService {
             postUrl: postUrl
           };
         } else {
-          // No link - simple photo upload
+          // No link - simple photo upload (matching working branch)
           const form = new FormData();
-          form.append('message', message);
+          form.append('message', finalMessage);
           form.append('source', fs.createReadStream(localFilePath));
           form.append('access_token', credentials.access_token);
 
@@ -1057,7 +1090,7 @@ class FacebookService {
 
           // Store UTM data in both facebook_posts and social_media_content
           if (utmCampaign && originalUrls.length > 0 && trackedUrls.length > 0 && contentId) {
-            await this.storeUTMData(clientId, postId, message, postUrl, utmCampaign, originalUrls, trackedUrls);
+            await this.storeUTMData(clientId, postId, finalMessage, postUrl, utmCampaign, originalUrls, trackedUrls);
             await this.updateContentUTMUrl(contentId, trackedUrls[0]);
           }
 
@@ -1069,7 +1102,29 @@ class FacebookService {
         }
       } else {
         // Use URL method for external images
-        console.log(`🔗 Using URL method for external image`);
+        // Ensure URL is absolute (Facebook requires absolute URLs)
+        let finalImageUrl = imageUrl;
+        
+        // Convert relative URLs to absolute URLs
+        if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+          const backendUrl = process.env.BACKEND_URL || process.env.API_URL || 'http://localhost:3001';
+          if (imageUrl.startsWith('/uploads/') || imageUrl.startsWith('/public/')) {
+            finalImageUrl = `${backendUrl}${imageUrl}`;
+          } else if (imageUrl.startsWith('uploads/') || imageUrl.startsWith('public/')) {
+            finalImageUrl = `${backendUrl}/${imageUrl}`;
+          } else if (imageUrl.startsWith('/')) {
+            finalImageUrl = `${backendUrl}${imageUrl}`;
+          } else {
+            finalImageUrl = `https://${imageUrl}`;
+          }
+          console.log(`🔗 Converted relative URL to absolute: ${finalImageUrl}`);
+        } else {
+          // Already absolute URL - use as-is (including localhost URLs)
+          console.log(`🔗 Using absolute URL as-is: ${imageUrl}`);
+          finalImageUrl = imageUrl;
+        }
+        
+        console.log(`🔗 Using URL method for external image: ${finalImageUrl}`);
         
         // For image posts with links, we need to use /feed endpoint instead of /photos
         // This allows us to properly include both the image and the link
@@ -1080,7 +1135,7 @@ class FacebookService {
           const photoResponse = await axios.post(
             `${this.baseUrl}/${credentials.page_id}/photos`,
             {
-              url: imageUrl,
+              url: finalImageUrl,
               published: false, // Don't publish, we'll use it in feed post
               access_token: credentials.access_token
             }
@@ -1091,7 +1146,7 @@ class FacebookService {
           
           // Create feed post with attached media and link
           const feedPayload: any = {
-            message: message,
+            message: finalMessage,
             attached_media: [{ media_fbid: mediaId }],
             link: linkUrl,
             access_token: credentials.access_token
@@ -1108,7 +1163,7 @@ class FacebookService {
 
           // Store UTM data in both facebook_posts and social_media_content
           if (utmCampaign && originalUrls.length > 0 && trackedUrls.length > 0 && contentId) {
-            await this.storeUTMData(clientId, postId, message, postUrl, utmCampaign, originalUrls, trackedUrls);
+            await this.storeUTMData(clientId, postId, finalMessage, postUrl, utmCampaign, originalUrls, trackedUrls);
             await this.updateContentUTMUrl(contentId, trackedUrls[0]);
           }
 
@@ -1118,10 +1173,10 @@ class FacebookService {
             postUrl: postUrl
           };
         } else {
-          // No link - use simple photo upload
+          // No link - use simple photo upload (matching working branch)
           const postPayload: any = {
-            message: message,
-            url: imageUrl,
+            message: finalMessage,
+            url: finalImageUrl,
             access_token: credentials.access_token
           };
           
@@ -1136,7 +1191,7 @@ class FacebookService {
 
           // Store UTM data in both facebook_posts and social_media_content
           if (utmCampaign && originalUrls.length > 0 && trackedUrls.length > 0 && contentId) {
-            await this.storeUTMData(clientId, postId, message, postUrl, utmCampaign, originalUrls, trackedUrls);
+            await this.storeUTMData(clientId, postId, finalMessage, postUrl, utmCampaign, originalUrls, trackedUrls);
             await this.updateContentUTMUrl(contentId, trackedUrls[0]);
           }
 
@@ -1146,14 +1201,33 @@ class FacebookService {
             postUrl: postUrl
           };
         }
-
       }
     } catch (error: any) {
       console.error('❌ Error creating Facebook image post:', error.response?.data || error.message);
       
+      // Extract detailed error information from Facebook API
+      const fbError = error.response?.data?.error;
+      let errorMessage = error.message;
+      
+      if (fbError) {
+        // Facebook API error - provide detailed message
+        errorMessage = fbError.message || errorMessage;
+        
+        // Add more context for common errors
+        if (fbError.code === 324 || fbError.type === 'OAuthException') {
+          if (fbError.message?.includes('image') || fbError.message?.includes('photo')) {
+            errorMessage = `Image upload failed: ${fbError.message}. The image URL may be invalid or inaccessible. Please ensure the image is uploaded to a publicly accessible server.`;
+          } else {
+            errorMessage = `Facebook API error: ${fbError.message} (Code: ${fbError.code})`;
+          }
+        } else if (fbError.code) {
+          errorMessage = `Facebook API error: ${fbError.message} (Code: ${fbError.code}, Type: ${fbError.type || 'Unknown'})`;
+        }
+      }
+      
       return {
         success: false,
-        error: error.response?.data?.error?.message || error.message
+        error: errorMessage
       };
     }
   }
@@ -1166,7 +1240,8 @@ class FacebookService {
     message: string,
     imageUrls: string[],
     contentId?: number | null,
-    destinationUrl?: string | null
+    destinationUrl?: string | null,
+    hashtags?: string | null
   ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
     try {
       const credentials = await this.getClientCredentials(clientId);
@@ -1177,6 +1252,26 @@ class FacebookService {
 
       console.log(`📘 Creating Facebook multi-image post for page ${credentials.page_id}...`);
       console.log(`📸 Number of images: ${imageUrls.length}`);
+
+      // Use imageUrls as-is (matching working branch behavior)
+      // Only convert relative URLs to absolute if needed
+      const backendUrl = process.env.BACKEND_URL || process.env.API_URL || 'http://localhost:3001';
+      const absoluteImageUrls = imageUrls.map(url => {
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+          // Handle relative URLs - convert to absolute
+          if (url.startsWith('/uploads/') || url.startsWith('/public/')) {
+            return `${backendUrl}${url}`;
+          } else if (url.startsWith('uploads/') || url.startsWith('public/')) {
+            return `${backendUrl}/${url}`;
+          } else if (url.startsWith('/')) {
+            return `${backendUrl}${url}`;
+          } else {
+            return `https://${url}`;
+          }
+        }
+        return url;
+      });
+      console.log(`🔗 Converted ${imageUrls.length} image URL(s) to absolute URLs`);
 
       // UTM Tracking: Generate tracked URL if destinationUrl is provided
       let originalUrls: string[] = [];
@@ -1205,12 +1300,14 @@ class FacebookService {
 
       // Upload each image and get media IDs
       const attached_media = [];
-      for (let i = 0; i < imageUrls.length; i++) {
-        const imageUrl = imageUrls[i];
-        console.log(`📤 Uploading image ${i + 1}/${imageUrls.length}: ${imageUrl}`);
+      for (let i = 0; i < absoluteImageUrls.length; i++) {
+        const imageUrl = absoluteImageUrls[i];
+        console.log(`📤 Uploading image ${i + 1}/${absoluteImageUrls.length}: ${imageUrl}`);
         
         try {
-          const localFilePath = this.getLocalFilePath(imageUrl);
+          // Check local file path using original URL (before conversion)
+          const originalUrl = imageUrls[i];
+          const localFilePath = this.getLocalFilePath(originalUrl);
           
           if (localFilePath) {
             // Upload local file
@@ -1235,7 +1332,7 @@ class FacebookService {
             console.log(`✅ Local image ${i + 1} uploaded successfully`);
           } else {
             // Use URL method for external images
-            console.log(`🔗 Using URL method for image ${i + 1}`);
+            console.log(`🔗 Using URL method for image ${i + 1}: ${imageUrl}`);
             
             const photoResponse = await axios.post(
               `${this.baseUrl}/${credentials.page_id}/photos`,
@@ -1254,15 +1351,22 @@ class FacebookService {
         }
       }
 
-      // Create the multi-photo post
-      // Note: Facebook doesn't support 'link' parameter with attached_media in /feed endpoint
-      // So we'll append the link to the message text for multi-image posts
-      let finalMessage = message;
+      // Build message in correct order: Original Text → UTM URL → Hashtags
+      let finalMessage = message;  // Start with original content text
+      
+      // Add UTM URL to message if available
       if (linkUrl) {
-        finalMessage = message + (message.trim().length > 0 ? '\n\n' : '') + linkUrl;
-        console.log(`📎 Adding link to message text for multi-image post: ${linkUrl}`);
+        finalMessage += '\n\n' + linkUrl;
+        console.log(`📎 Adding UTM URL to message: ${linkUrl}`);
       }
       
+      // Add hashtags at the end
+      if (hashtags) {
+        finalMessage += '\n\n' + hashtags;
+        console.log(`📝 Adding hashtags to message: ${hashtags}`);
+      }
+      
+      // Create the multi-photo post (NO call-to-action button)
       const postPayload: any = {
         message: finalMessage,
         attached_media: attached_media,
@@ -1280,7 +1384,7 @@ class FacebookService {
 
       // Store UTM data in both facebook_posts and social_media_content
       if (utmCampaign && originalUrls.length > 0 && trackedUrls.length > 0 && contentId) {
-        await this.storeUTMData(clientId, postId, message, postUrl, utmCampaign, originalUrls, trackedUrls);
+        await this.storeUTMData(clientId, postId, finalMessage, postUrl, utmCampaign, originalUrls, trackedUrls);
         await this.updateContentUTMUrl(contentId, trackedUrls[0]);
       }
 
@@ -1309,7 +1413,8 @@ class FacebookService {
     contentId?: number | null,
     destinationUrl?: string | null,
     title?: string,
-    description?: string
+    description?: string,
+    hashtags?: string | null
   ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
     try {
       const credentials = await this.getClientCredentials(clientId);
@@ -1345,9 +1450,25 @@ class FacebookService {
         }
       }
 
+      // For video posts, we can include URL in description (videos handle this differently)
+      // Build message: Original Text → UTM URL → Hashtags
+      let finalMessage = message;  // Start with original content text
+      
+      // Add UTM URL to message for video posts (videos don't create link previews the same way)
+      if (linkUrl) {
+        finalMessage += '\n\n' + linkUrl;
+        console.log(`📎 Adding UTM URL to video description: ${linkUrl}`);
+      }
+      
+      // Add hashtags at the end
+      if (hashtags) {
+        finalMessage += '\n\n' + hashtags;
+        console.log(`📝 Adding hashtags to message: ${hashtags}`);
+      }
+
       const videoData: any = {
         file_url: videoUrl,
-        description: message,
+        description: finalMessage,  // Use finalMessage with UTM URL and hashtags
         access_token: credentials.access_token
       };
 
@@ -1355,11 +1476,7 @@ class FacebookService {
         videoData.title = title;
       }
 
-      if (description) {
-        videoData.description = description;
-      }
-
-      // Add link parameter if we have a tracked URL
+      // Add "Learn More" button if we have a destination URL
       if (linkUrl) {
         videoData.call_to_action = {
           type: 'LEARN_MORE',
@@ -1367,6 +1484,7 @@ class FacebookService {
             link: linkUrl
           }
         };
+        console.log(`🔘 Adding "Learn More" button with link: ${linkUrl}`);
       }
 
       const response = await axios.post(
@@ -1380,7 +1498,7 @@ class FacebookService {
 
       // Store UTM data in both facebook_posts and social_media_content
       if (utmCampaign && originalUrls.length > 0 && trackedUrls.length > 0 && contentId) {
-        await this.storeUTMData(clientId, postId, message, postUrl, utmCampaign, originalUrls, trackedUrls);
+        await this.storeUTMData(clientId, postId, finalMessage, postUrl, utmCampaign, originalUrls, trackedUrls);
         await this.updateContentUTMUrl(contentId, trackedUrls[0]);
       }
 
@@ -1406,11 +1524,12 @@ class FacebookService {
     message: string,
     mediaUrls?: string[],
     contentId?: number | null,
-    destinationUrl?: string | null
+    destinationUrl?: string | null,
+    hashtags?: string | null
   ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
     // No media - text only
     if (!mediaUrls || mediaUrls.length === 0) {
-      return this.createTextPost(clientId, message, contentId, destinationUrl);
+      return this.createTextPost(clientId, message, contentId, destinationUrl, hashtags);
     }
 
     // Determine media types
@@ -1422,17 +1541,17 @@ class FacebookService {
       if (videos.length > 1) {
         return { success: false, error: 'Facebook only supports one video per post' };
       }
-      return this.createVideoPost(clientId, message, videos[0], contentId, destinationUrl, undefined, undefined);
+      return this.createVideoPost(clientId, message, videos[0], contentId, destinationUrl, undefined, undefined, hashtags);
     }
 
     // Single image post
     if (images.length === 1) {
-      return this.createImagePost(clientId, message, images[0], contentId, destinationUrl);
+      return this.createImagePost(clientId, message, images[0], contentId, destinationUrl, hashtags);
     }
 
     // Multiple images (carousel)
     if (images.length > 1) {
-      return this.createMultiImagePost(clientId, message, images, contentId, destinationUrl);
+      return this.createMultiImagePost(clientId, message, images, contentId, destinationUrl, hashtags);
     }
 
     return { success: false, error: 'No valid media found' };

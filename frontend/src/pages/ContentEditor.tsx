@@ -809,6 +809,31 @@ const ContentEditor: React.FC = () => {
         }
         // Refresh content to get updated status
         await fetchContent();
+      } else if (nextAction === 'post-now') {
+        // Handle posting response with detailed results
+        const results = response.data?.results || [];
+        const message = response.data?.message || successMessage;
+        
+        if (results.length > 0) {
+          const successCount = results.filter((r: any) => r.success).length;
+          const failCount = results.filter((r: any) => !r.success).length;
+          
+          let detailsMessage = message;
+          if (failCount > 0) {
+            const failedPlatforms = results
+              .filter((r: any) => !r.success)
+              .map((r: any) => `${r.platform}: ${r.error || 'Unknown error'}`)
+              .join('\n');
+            detailsMessage += `\n\n⚠️ Failed platforms:\n${failedPlatforms}`;
+          }
+          
+          alert(detailsMessage);
+        } else {
+          alert(message);
+        }
+        
+        // Refresh content to get updated status
+        await fetchContent();
       } else {
         alert(successMessage);
       }
@@ -822,7 +847,12 @@ const ContentEditor: React.FC = () => {
       }
     } catch (error: any) {
       setLoading(false);
-      alert(error.response?.data?.error || `Failed to ${nextAction}`);
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || `Failed to ${nextAction}`;
+      const errorDetails = error.response?.data?.results 
+        ? `\n\nDetails:\n${error.response.data.results.map((r: any) => `${r.platform}: ${r.error || 'Unknown error'}`).join('\n')}`
+        : '';
+      alert(`❌ Error: ${errorMessage}${errorDetails}`);
+      console.error('Posting error:', error);
     }
   };
 

@@ -19,6 +19,7 @@ export interface PostContent {
   message: string;
   mediaUrls?: string[];
   scheduledTime?: Date;
+  skipApprovalCheck?: boolean; // Allow posting without approval check (for content creators)
 }
 
 export interface PostResult {
@@ -64,8 +65,8 @@ export async function schedulePost(content: PostContent) {
 
     const contentData = contentResult.rows[0];
 
-    // Check if content is approved
-    if (contentData.status !== 'approved') {
+    // Check if content is approved (unless skipApprovalCheck is true)
+    if (!content.skipApprovalCheck && contentData.status !== 'approved') {
       throw new Error(`Content must be approved before scheduling. Current status: ${contentData.status}`);
     }
 
@@ -236,8 +237,8 @@ async function postToFacebook(
   hashtags?: string | null
 ): Promise<PostResult> {
   try {
-    // Note: hashtags are included in the message text, not passed separately to createPost
-    const result = await facebookService.createPost(clientId, message, mediaUrls, contentId, destinationUrl);
+    // Pass hashtags to createPost - it will handle adding them to the message
+    const result = await facebookService.createPost(clientId, message, mediaUrls, contentId, destinationUrl, hashtags);
     
     if (!result.success) {
       return { success: false, error: result.error };
@@ -249,6 +250,7 @@ async function postToFacebook(
       platformUrl: result.postUrl
     };
   } catch (error: any) {
+    console.error('❌ Error in postToFacebook:', error);
     return { success: false, error: error.message };
   }
 }
@@ -262,6 +264,7 @@ export async function processScheduledPosts() {
   
   try {
     // Find posts that need to be posted
+    // Handle NULL values: COALESCE(attempt_count, 0) and COALESCE(max_attempts, 3)
     const postsResult = await client.query(
       `SELECT 
         p.*,
@@ -276,13 +279,25 @@ export async function processScheduledPosts() {
       JOIN social_media_content c ON p.content_id = c.id
       WHERE p.status = 'scheduled'
         AND p.scheduled_time <= NOW()
-        AND p.attempt_count < p.max_attempts
+        AND COALESCE(p.attempt_count, 0) < COALESCE(p.max_attempts, 3)
       ORDER BY p.scheduled_time ASC
       LIMIT 100`
     );
 
     const posts = postsResult.rows;
-    console.log(`📅 Found ${posts.length} posts to process...`);
+    console.log(`📅 [Scheduled Posts] Found ${posts.length} posts to process...`);
+    
+    if (posts.length === 0) {
+      // Log why no posts were found (for debugging)
+      const debugResult = await client.query(
+        `SELECT COUNT(*) as total_scheduled,
+                COUNT(*) FILTER (WHERE scheduled_time <= NOW()) as ready_to_post,
+                COUNT(*) FILTER (WHERE COALESCE(attempt_count, 0) >= COALESCE(max_attempts, 3)) as max_attempts_reached
+         FROM social_media_posts
+         WHERE status = 'scheduled'`
+      );
+      console.log(`📊 [Scheduled Posts] Debug info:`, debugResult.rows[0]);
+    }
 
     const results = {
       total: posts.length,
@@ -296,8 +311,9 @@ export async function processScheduledPosts() {
         console.log(`📤 Processing post ${post.id} for ${post.platform}...`);
 
         // Update status to posting
+        // Handle NULL attempt_count: COALESCE(attempt_count, 0) + 1
         await client.query(
-          'UPDATE social_media_posts SET status = $1, last_attempt_at = NOW(), attempt_count = attempt_count + 1 WHERE id = $2',
+          'UPDATE social_media_posts SET status = $1, last_attempt_at = NOW(), attempt_count = COALESCE(attempt_count, 0) + 1 WHERE id = $2',
           ['posting', post.id]
         );
 
@@ -327,7 +343,10 @@ export async function processScheduledPosts() {
           console.log(`  ✅ Post ${post.id} published successfully`);
         } else {
           // Failed - mark as failed if max attempts reached
-          const newStatus = post.attempt_count + 1 >= post.max_attempts ? 'failed' : 'scheduled';
+          // Handle NULL values: COALESCE(attempt_count, 0) and COALESCE(max_attempts, 3)
+          const attemptCount = post.attempt_count || 0;
+          const maxAttempts = post.max_attempts || 3;
+          const newStatus = attemptCount >= maxAttempts ? 'failed' : 'scheduled';
           
           await client.query(
             'UPDATE social_media_posts SET status = $1, error_message = $2 WHERE id = $3',
