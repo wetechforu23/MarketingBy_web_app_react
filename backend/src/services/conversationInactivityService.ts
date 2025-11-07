@@ -579,16 +579,37 @@ export class ConversationInactivityService {
    * Update activity timestamps when message is sent
    */
   async updateActivityTimestamp(conversationId: number, isAgent: boolean) {
-    const field = isAgent ? 'last_agent_activity_at' : 'last_visitor_activity_at';
+    // Check if the specific activity column exists
+    const columnName = isAgent ? 'last_agent_activity_at' : 'last_visitor_activity_at';
+    const columnCheck = await pool.query(`
+      SELECT column_name
+      FROM information_schema.columns 
+      WHERE table_name = 'widget_conversations' 
+        AND column_name = $1
+    `, [columnName]);
     
-    await pool.query(`
-      UPDATE widget_conversations
-      SET 
-        ${field} = NOW(),
-        last_activity_at = NOW(),
-        updated_at = NOW()
-      WHERE id = $1
-    `, [conversationId]);
+    const hasColumn = columnCheck.rows.length > 0;
+    
+    // Build UPDATE query based on whether column exists
+    if (hasColumn) {
+      await pool.query(`
+        UPDATE widget_conversations
+        SET 
+          ${columnName} = NOW(),
+          last_activity_at = NOW(),
+          updated_at = NOW()
+        WHERE id = $1
+      `, [conversationId]);
+    } else {
+      // Column doesn't exist, just update last_activity_at
+      await pool.query(`
+        UPDATE widget_conversations
+        SET 
+          last_activity_at = NOW(),
+          updated_at = NOW()
+        WHERE id = $1
+      `, [conversationId]);
+    }
   }
 }
 
