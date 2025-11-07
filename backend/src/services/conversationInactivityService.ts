@@ -57,7 +57,7 @@ export class ConversationInactivityService {
         ? `wc.extension_reminders_count, wc.visitor_extension_reminders_count, wc.extension_granted_until,`
         : `0 as extension_reminders_count, 0 as visitor_extension_reminders_count, NULL::timestamp as extension_granted_until,`;
       
-      // Get active conversations with agent handoff
+      // Get active conversations with agent handoff and inactivity reminders enabled
       const conversations = await pool.query(`
         SELECT 
           wc.id as conversation_id,
@@ -70,13 +70,15 @@ export class ConversationInactivityService {
           wc.visitor_email,
           wc.visitor_name,
           w.widget_name,
-          c.client_name
+          c.client_name,
+          COALESCE(w.enable_inactivity_reminders, true) as enable_inactivity_reminders
         FROM widget_conversations wc
         JOIN widget_configs w ON w.id = wc.widget_id
         JOIN clients c ON c.id = w.client_id
         WHERE wc.status = 'active'
           AND wc.agent_handoff = true
           AND wc.last_activity_at IS NOT NULL
+          AND COALESCE(w.enable_inactivity_reminders, true) = true
       `);
 
       const now = new Date();

@@ -105,6 +105,13 @@ export default function ChatWidgetEditor() {
       trackChange(`Multiple WhatsApp Chats ${value ? 'Enabled' : 'Disabled'}`)
     }
   }
+  const [enableInactivityReminders, setEnableInactivityReminders] = useState(true)
+  const setEnableInactivityRemindersWithTracking = (value: boolean) => {
+    setEnableInactivityReminders(value)
+    if (!isInitialLoad) {
+      trackChange(`Inactivity Reminders ${value ? 'Enabled' : 'Disabled'}`)
+    }
+  }
   const [savingHandover, setSavingHandover] = useState(false)
   const [whatsappEditMode, setWhatsappEditMode] = useState(false)
   const [testingWebhook, setTestingWebhook] = useState(false)
@@ -389,6 +396,12 @@ export default function ChatWidgetEditor() {
         // Load multiple WhatsApp chats setting
         if (widget.enable_multiple_whatsapp_chats !== undefined) {
           setEnableMultipleWhatsAppChats(widget.enable_multiple_whatsapp_chats)
+        }
+        // Load inactivity reminders setting (default to true if not set)
+        if (widget.enable_inactivity_reminders !== undefined) {
+          setEnableInactivityReminders(widget.enable_inactivity_reminders)
+        } else {
+          setEnableInactivityReminders(true) // Default to true
         }
         
         // Reset edit mode when widget loads
@@ -746,6 +759,7 @@ export default function ChatWidgetEditor() {
         // WhatsApp
         enable_whatsapp: whatsappEnabled,
         enable_multiple_whatsapp_chats: enableMultipleWhatsAppChats,
+        enable_inactivity_reminders: enableInactivityReminders,
         // Handover Options
         enable_handover_choice: false, // Visitors don't choose - system uses configured default
         // ✅ SYNC: Ensure handover_options.whatsapp matches enable_whatsapp
@@ -2227,6 +2241,24 @@ export default function ChatWidgetEditor() {
                         <span style={{ fontWeight: '600', fontSize: '14px' }}>💬 Enable Multiple Simultaneous WhatsApp Chats</span>
                         <p style={{ fontSize: '12px', color: '#666', margin: '4px 0 0 0', lineHeight: '1.5' }}>
                           Allow agent to chat with multiple users simultaneously via WhatsApp. When enabled, agent must prefix replies with <strong>#conversation_id</strong> to specify which conversation. Each message will show visitor name or session ID.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* Enable Inactivity Reminders */}
+                  <div style={{ marginBottom: '1rem', padding: '12px', background: '#fff', borderRadius: '6px', border: '1px solid #ddd' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={enableInactivityReminders}
+                        onChange={(e) => setEnableInactivityRemindersWithTracking(e.target.checked)}
+                        style={{ marginRight: '8px', width: '18px', height: '18px' }}
+                      />
+                      <div>
+                        <span style={{ fontWeight: '600', fontSize: '14px' }}>⏰ Enable Inactivity Reminders for Agents</span>
+                        <p style={{ fontSize: '12px', color: '#666', margin: '4px 0 0 0', lineHeight: '1.5' }}>
+                          Send WhatsApp reminders to agents when conversations are inactive for 5+ minutes. Helps keep conversations active and reduces auto-ending.
                         </p>
                       </div>
                     </label>

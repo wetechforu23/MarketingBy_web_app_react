@@ -469,6 +469,8 @@ router.put('/widgets/:id', async (req, res) => {
       'notify_new_conversation', 'notify_agent_handoff', 'notify_daily_summary',
       // WhatsApp Integration
       'enable_whatsapp', 'whatsapp_configured', 'enable_multiple_whatsapp_chats',
+      // Inactivity Reminders
+      'enable_inactivity_reminders',
       // Agent Handover Options
       'enable_handover_choice', 'handover_options', 'default_handover_method',
       'webhook_url', 'webhook_secret',
