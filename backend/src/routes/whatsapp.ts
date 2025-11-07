@@ -600,10 +600,20 @@ router.post('/incoming', async (req: Request, res: Response) => {
     let matchedBy: string = 'none';
     
     // ✅ Check for InReplyTo in multiple possible field names (Twilio may use different names)
-    const inReplyToValue = InReplyTo || req.body.InReplyToMessageSid || req.body.ReferencedMessageSid || req.body.ReferencedMessage?.Sid;
+    // Twilio WhatsApp uses "OriginalRepliedMessageSid" when agent replies to a message
+    const inReplyToValue = InReplyTo || 
+                           req.body.OriginalRepliedMessageSid || 
+                           req.body.InReplyToMessageSid || 
+                           req.body.ReferencedMessageSid || 
+                           req.body.ReferencedMessage?.Sid;
     
     if (inReplyToValue) {
-      console.log(`📎 Agent replied to message: ${inReplyToValue} (from field: ${InReplyTo ? 'InReplyTo' : req.body.InReplyToMessageSid ? 'InReplyToMessageSid' : req.body.ReferencedMessageSid ? 'ReferencedMessageSid' : 'ReferencedMessage.Sid'})`);
+      const fieldName = InReplyTo ? 'InReplyTo' : 
+                       req.body.OriginalRepliedMessageSid ? 'OriginalRepliedMessageSid' :
+                       req.body.InReplyToMessageSid ? 'InReplyToMessageSid' : 
+                       req.body.ReferencedMessageSid ? 'ReferencedMessageSid' : 
+                       'ReferencedMessage.Sid';
+      console.log(`📎 Agent replied to message: ${inReplyToValue} (from field: ${fieldName})`);
       
       // Look up which conversation this message belongs to
       // Try multiple SID formats and patterns
