@@ -944,7 +944,6 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
        SET message_count = message_count + 1, 
            updated_at = CURRENT_TIMESTAMP, 
            last_activity_at = CURRENT_TIMESTAMP,
-           last_visitor_activity_at = CURRENT_TIMESTAMP,
            visitor_extension_reminders_count = 0,
            unread_agent_messages = unread_agent_messages + 1 
        WHERE id = $1`,
