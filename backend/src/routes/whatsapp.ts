@@ -1448,7 +1448,6 @@ router.post('/incoming', async (req: Request, res: Response) => {
         last_message = $1,
         last_message_at = NOW(),
         last_activity_at = NOW(),
-        extension_reminders_count = COALESCE(extension_reminders_count, 0),
         message_count = COALESCE(message_count, 0) + 1,
         human_response_count = COALESCE(human_response_count, 0) + 1,
         updated_at = NOW()
