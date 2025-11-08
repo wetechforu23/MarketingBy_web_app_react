@@ -514,11 +514,17 @@ router.put('/widgets/:id', async (req, res) => {
           setClause.push(`${key} = $${paramCount}`);
           values.push(encryptedValue);
           console.log(`✅ Encrypting API key for widget ${id}`);
+          paramCount++;
+        } else if (key === 'enable_inactivity_reminders' || key === 'enable_whatsapp' || key === 'enable_multiple_whatsapp_chats' || key === 'enable_handover_choice' || key === 'enable_ai_handoff' || key === 'enable_appointment_booking' || key === 'enable_email_capture' || key === 'enable_phone_capture' || key === 'is_active' || key === 'require_captcha' || key === 'enable_email_notifications' || key === 'notify_new_conversation' || key === 'notify_agent_handoff' || key === 'notify_daily_summary' || key === 'enable_hipaa' || key === 'detect_sensitive_data' || key === 'emergency_keywords' || key === 'require_disclaimer' || key === 'show_emergency_warning' || key === 'auto_detect_emergency' || key === 'llm_enabled' || key === 'fallback_to_knowledge_base') {
+          // Handle boolean values - ensure they're properly converted
+          setClause.push(`${key} = $${paramCount}`);
+          values.push(value === true || value === 'true' || value === 1 || value === '1');
+          paramCount++;
         } else {
           setClause.push(`${key} = $${paramCount}`);
           values.push(value);
+          paramCount++;
         }
-        paramCount++;
       }
     }
 
@@ -941,16 +947,34 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
     );
 
     // Update conversation message count, last_activity_at, and unread count (for notifications)
-    await pool.query(
-      `UPDATE widget_conversations 
-       SET message_count = message_count + 1, 
-           updated_at = CURRENT_TIMESTAMP, 
-           last_activity_at = CURRENT_TIMESTAMP,
-           visitor_extension_reminders_count = 0,
-           unread_agent_messages = unread_agent_messages + 1 
-       WHERE id = $1`,
-      [conversation_id]
-    );
+    // Check if visitor_extension_reminders_count column exists before updating
+    try {
+      await pool.query(
+        `UPDATE widget_conversations 
+         SET message_count = message_count + 1, 
+             updated_at = CURRENT_TIMESTAMP, 
+             last_activity_at = CURRENT_TIMESTAMP,
+             visitor_extension_reminders_count = 0,
+             unread_agent_messages = unread_agent_messages + 1 
+         WHERE id = $1`,
+        [conversation_id]
+      );
+    } catch (error: any) {
+      // If column doesn't exist, update without it
+      if (error.code === '42703') {
+        await pool.query(
+          `UPDATE widget_conversations 
+           SET message_count = message_count + 1, 
+               updated_at = CURRENT_TIMESTAMP, 
+               last_activity_at = CURRENT_TIMESTAMP,
+               unread_agent_messages = unread_agent_messages + 1 
+           WHERE id = $1`,
+          [conversation_id]
+        );
+      } else {
+        throw error;
+      }
+    }
     
     // ✅ Update activity timestamp via service
     await inactivityService.updateActivityTimestamp(conversation_id, false);
