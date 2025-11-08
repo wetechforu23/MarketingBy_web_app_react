@@ -5,9 +5,16 @@ const { Pool } = require('pg');
 const databaseUrl = process.env.DATABASE_URL || 
   `postgresql://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || 'postgres'}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'health_clinic_marketing'}`;
 
+// Determine if SSL is needed (remote databases)
+const isRemoteDatabase = databaseUrl.includes('amazonaws.com') || 
+                         databaseUrl.includes('heroku') || 
+                         databaseUrl.includes('rds.amazonaws.com') || 
+                         databaseUrl.includes('sslmode=require') ||
+                         !databaseUrl.includes('localhost') && !databaseUrl.includes('127.0.0.1');
+
 const pool = new Pool({
   connectionString: databaseUrl,
-  ssl: databaseUrl.includes('amazonaws.com') || databaseUrl.includes('heroku') ? { rejectUnauthorized: false } : false
+  ssl: isRemoteDatabase ? { rejectUnauthorized: false } : false
 });
 
 async function deleteAllConversations() {
@@ -55,10 +62,6 @@ async function deleteAllConversations() {
       }
     }
     
-    // Step 0: Deactivate all active conversations first
-    console.log('0. Deactivating all active conversations...');
-    await safeUpdate('widget_conversations', 'active conversations');
-    
     // Delete in order (respecting foreign keys)
     // 1. Delete WhatsApp messages first (if table exists)
     console.log('1. Deleting WhatsApp messages...');
@@ -72,8 +75,8 @@ async function deleteAllConversations() {
     console.log('3. Deleting all handover requests...');
     await safeDelete('handover_requests', 'handover requests');
     
-    // 4. Delete all conversations (including deactivated ones)
-    console.log('4. Deleting all conversations...');
+    // 4. Delete all conversations (active, inactive, ended - everything)
+    console.log('4. Deleting ALL conversations (active, inactive, ended)...');
     await safeDelete('widget_conversations', 'conversations');
     
     // 5. Delete all visitor session tracking data
