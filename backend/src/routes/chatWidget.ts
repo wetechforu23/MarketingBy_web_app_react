@@ -990,12 +990,21 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
                 visitorName: visitorName
               });
               
-              // Store stop request in conversation metadata
-              await pool.query(`
-                UPDATE widget_conversations
-                SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"stop_requested": true, "stop_requested_at": $1}'::jsonb
-                WHERE id = $2
-              `, [new Date().toISOString(), conversation_id]);
+              // Store stop request in conversation metadata (only if column exists)
+              try {
+                await pool.query(`
+                  UPDATE widget_conversations
+                  SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"stop_requested": true, "stop_requested_at": $1}'::jsonb
+                  WHERE id = $2
+                `, [new Date().toISOString(), conversation_id]);
+              } catch (error: any) {
+                // If metadata column doesn't exist, skip storing stop request
+                if (error.code === '42703') {
+                  console.log('⚠️ metadata column does not exist - cannot store stop request');
+                } else {
+                  throw error;
+                }
+              }
               
               console.log(`🛑 Stop confirmation sent to agent for conversation ${conversation_id}`);
             } else {
@@ -1082,14 +1091,25 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       }
       
       // Check if user is confirming stop (1 = stop, 2 = continue)
-      const convMetadata = await pool.query(`
-        SELECT metadata
-        FROM widget_conversations
-        WHERE id = $1
-      `, [conversation_id]);
-      
-      const metadata = convMetadata.rows[0]?.metadata || {};
-      const hasUserStopRequest = metadata.user_stop_requested === true;
+      let hasUserStopRequest = false;
+      try {
+        const convMetadata = await pool.query(`
+          SELECT metadata
+          FROM widget_conversations
+          WHERE id = $1
+        `, [conversation_id]);
+        
+        const metadata = convMetadata.rows[0]?.metadata || {};
+        hasUserStopRequest = metadata.user_stop_requested === true;
+      } catch (error: any) {
+        // If metadata column doesn't exist, skip stop confirmation logic
+        if (error.code === '42703') {
+          console.log('⚠️ metadata column does not exist - skipping user stop confirmation check');
+          hasUserStopRequest = false;
+        } else {
+          throw error;
+        }
+      }
       
       if (hasUserStopRequest) {
         const isStopConfirm = messageLower === '1' || messageLower === '1️⃣' || messageLower === 'stop';
@@ -1097,15 +1117,31 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
         
         if (isStopConfirm) {
           // End conversation
-          await pool.query(`
-            UPDATE widget_conversations
-            SET status = 'ended',
-                agent_handoff = false,
-                ended_at = NOW(),
-                metadata = metadata - 'user_stop_requested' - 'user_stop_requested_at',
-                updated_at = NOW()
-            WHERE id = $1
-          `, [conversation_id]);
+          try {
+            await pool.query(`
+              UPDATE widget_conversations
+              SET status = 'ended',
+                  agent_handoff = false,
+                  ended_at = NOW(),
+                  metadata = metadata - 'user_stop_requested' - 'user_stop_requested_at',
+                  updated_at = NOW()
+              WHERE id = $1
+            `, [conversation_id]);
+          } catch (error: any) {
+            // If metadata column doesn't exist, update without it
+            if (error.code === '42703') {
+              await pool.query(`
+                UPDATE widget_conversations
+                SET status = 'ended',
+                    agent_handoff = false,
+                    ended_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = $1
+              `, [conversation_id]);
+            } else {
+              throw error;
+            }
+          }
           
           await pool.query(`
             INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
@@ -1184,12 +1220,25 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
           });
         } else if (isContinueConfirm) {
           // Clear stop request and continue
-          await pool.query(`
-            UPDATE widget_conversations
-            SET metadata = metadata - 'user_stop_requested' - 'user_stop_requested_at',
-                updated_at = NOW()
-            WHERE id = $1
-          `, [conversation_id]);
+          try {
+            await pool.query(`
+              UPDATE widget_conversations
+              SET metadata = metadata - 'user_stop_requested' - 'user_stop_requested_at',
+                  updated_at = NOW()
+              WHERE id = $1
+            `, [conversation_id]);
+          } catch (error: any) {
+            // If metadata column doesn't exist, just update timestamp
+            if (error.code === '42703') {
+              await pool.query(`
+                UPDATE widget_conversations
+                SET updated_at = NOW()
+                WHERE id = $1
+              `, [conversation_id]);
+            } else {
+              throw error;
+            }
+          }
           
           await pool.query(`
             INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
