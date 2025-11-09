@@ -1472,28 +1472,38 @@ router.post('/incoming', async (req: Request, res: Response) => {
     // ✅ Update activity timestamp via service
     await inactivityService.updateActivityTimestamp(conversationId, true);
 
-    // Store in whatsapp_messages table for tracking
+    // Store in whatsapp_messages table for tracking (use correct column names)
     await pool.query(`
       INSERT INTO whatsapp_messages (
         client_id,
         widget_id,
         conversation_id,
+        direction,
+        from_number,
+        to_number,
+        message_body,
         twilio_message_sid,
-        message_type,
-        message_text,
         sent_by_agent_name,
         sent_at,
         twilio_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 'received')
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), 'received')
     `, [
       clientId,
       widgetId,
       conversationId,
-      MessageSid,
-      'incoming',
+      'inbound',
+      From,
+      To,
       Body || '',
+      MessageSid,
       'WhatsApp Agent'
     ]);
+    
+    // Also save to widget_messages so it appears in the chat widget
+    await pool.query(`
+      INSERT INTO widget_messages (conversation_id, message_type, message_text)
+      VALUES ($1, $2, $3)
+    `, [conversationId, 'agent', messageBody]);
 
     // Get visitor info for logging
     const visitorInfo = await pool.query(`

@@ -57,6 +57,21 @@ export class ConversationInactivityService {
         ? `wc.extension_reminders_count, wc.visitor_extension_reminders_count, wc.extension_granted_until,`
         : `0 as extension_reminders_count, 0 as visitor_extension_reminders_count, NULL::timestamp as extension_granted_until,`;
       
+      // Check if enable_inactivity_reminders column exists
+      const hasInactivityRemindersColumn = await pool.query(`
+        SELECT column_name
+        FROM information_schema.columns 
+        WHERE table_name = 'widget_configs' 
+          AND column_name = 'enable_inactivity_reminders'
+      `);
+      
+      const remindersColumnExists = hasInactivityRemindersColumn.rows.length > 0;
+      
+      // Build WHERE clause based on whether column exists
+      const remindersWhereClause = remindersColumnExists
+        ? `AND COALESCE(w.enable_inactivity_reminders, true) = true`
+        : ``; // If column doesn't exist, don't filter (default to true behavior)
+      
       // Get active conversations with agent handoff and inactivity reminders enabled
       const conversations = await pool.query(`
         SELECT 
@@ -70,15 +85,14 @@ export class ConversationInactivityService {
           wc.visitor_email,
           wc.visitor_name,
           w.widget_name,
-          c.client_name,
-          COALESCE(w.enable_inactivity_reminders, true) as enable_inactivity_reminders
+          c.client_name
         FROM widget_conversations wc
         JOIN widget_configs w ON w.id = wc.widget_id
         JOIN clients c ON c.id = w.client_id
         WHERE wc.status = 'active'
           AND wc.agent_handoff = true
           AND wc.last_activity_at IS NOT NULL
-          AND COALESCE(w.enable_inactivity_reminders, true) = true
+          ${remindersWhereClause}
       `);
 
       const now = new Date();
