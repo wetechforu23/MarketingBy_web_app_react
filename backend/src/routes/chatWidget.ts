@@ -992,12 +992,22 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
         }
       }
       
+      // Check if agent has already replied (if yes, don't show the message)
+      const agentMessageCheck = await pool.query(`
+        SELECT COUNT(*) as count 
+        FROM widget_messages 
+        WHERE conversation_id = $1 AND message_type IN ('agent', 'system')
+      `, [conversation_id]);
+      
+      const hasAgentReplied = parseInt(agentMessageCheck.rows[0]?.count || '0') > 0;
+      
       // Return immediately - NO bot responses
       console.log(`🤝 Agent handoff active for conversation ${conversation_id} - Bot staying silent`);
       return res.json({
         response: null,
         agent_handoff: true,
-        message: 'Your message has been sent to our team. An agent will respond shortly.',
+        // Only show message if agent hasn't replied yet (first time)
+        message: hasAgentReplied ? null : 'Your message has been sent to our team. An agent will respond shortly.',
         timestamp: new Date().toISOString()
       });
     }
