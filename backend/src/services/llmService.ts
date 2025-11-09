@@ -183,7 +183,7 @@ export class LLMService {
       const apiKey = process.env[envKey];
       
       if (apiKey) {
-        console.log(`⚠️  Using ${provider} API key from environment variable`);
+      console.log(`⚠️  Using ${provider} API key from environment variable`);
         // Cache it
         this.cachedKeys.set(cacheKey, {
           key: apiKey,

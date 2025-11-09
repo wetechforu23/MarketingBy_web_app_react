@@ -966,24 +966,58 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
               cleanNumber = '+' + cleanNumber.replace(/[^\d]/g, '');
             }
 
-            // Format message: #369: message or #369 visitor_name: message
-            const displayName = visitorName && visitorName.toLowerCase() !== 'visitor' 
-              ? visitorName 
-              : null;
+            // Check if user wants to stop conversation
+            const messageLower = message_text.toLowerCase().trim();
+            const isStopRequest = messageLower === 'stop' || messageLower === 'stop conversation' || 
+                                 messageLower === 'end' || messageLower === 'end conversation';
             
-            const whatsappMessage = displayName
-              ? `#${conversation_id} ${displayName}: ${message_text}`
-              : `#${conversation_id}: ${message_text}`;
-            
-            await whatsappService.sendMessage({
-              clientId: convInfo.rows[0].client_id,
-              widgetId: widget_id,
-              conversationId: conversation_id,
-              toNumber: `whatsapp:${cleanNumber}`,
-              message: whatsappMessage,
-              sentByAgentName: visitorName,
-              visitorName: visitorName
-            });
+            if (isStopRequest) {
+              // Send confirmation message to agent
+              const confirmationMessage = `🛑 *User wants to stop conversation #${conversation_id}*\n\n` +
+                `User: ${visitorName}\n\n` +
+                `Do you want to stop this conversation?\n\n` +
+                `Reply:\n` +
+                `1️⃣ to stop\n` +
+                `2️⃣ to continue`;
+              
+              await whatsappService.sendMessage({
+                clientId: convInfo.rows[0].client_id,
+                widgetId: widget_id,
+                conversationId: conversation_id,
+                toNumber: `whatsapp:${cleanNumber}`,
+                message: confirmationMessage,
+                sentByAgentName: 'System',
+                visitorName: visitorName
+              });
+              
+              // Store stop request in conversation metadata
+              await pool.query(`
+                UPDATE widget_conversations
+                SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"stop_requested": true, "stop_requested_at": $1}'::jsonb
+                WHERE id = $2
+              `, [new Date().toISOString(), conversation_id]);
+              
+              console.log(`🛑 Stop confirmation sent to agent for conversation ${conversation_id}`);
+            } else {
+              // Format message: #369: message or #369 visitor_name: message
+              const displayName = visitorName && visitorName.toLowerCase() !== 'visitor' 
+                ? visitorName 
+                : null;
+              
+              const whatsappMessage = displayName
+                ? `#${conversation_id} ${displayName}: ${message_text}`
+                : `#${conversation_id}: ${message_text}`;
+              
+              await whatsappService.sendMessage({
+                clientId: convInfo.rows[0].client_id,
+                widgetId: widget_id,
+                conversationId: conversation_id,
+                toNumber: `whatsapp:${cleanNumber}`,
+                message: whatsappMessage,
+                sentByAgentName: visitorName,
+                visitorName: visitorName
+              });
+            }
 
             console.log(`📱 Forwarded visitor message to WhatsApp: ${cleanNumber}`);
           }
@@ -1012,6 +1046,91 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       });
     }
 
+    // ✅ CHECK FOR STOP REQUEST FROM USER (when not in agent handoff)
+    if (!isAgentHandoff) {
+      const messageLower = message_text.toLowerCase().trim();
+      const isStopRequest = messageLower === 'stop' || messageLower === 'stop conversation' || 
+                           messageLower === 'end' || messageLower === 'end conversation';
+      
+      if (isStopRequest) {
+        // Send confirmation to user
+        await pool.query(`
+          INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+          VALUES ($1, 'bot', $2, NOW())
+        `, [conversation_id, '🛑 Do you want to stop this conversation?\n\nReply:\n1️⃣ to stop\n2️⃣ to continue']);
+        
+        // Store stop request
+        await pool.query(`
+          UPDATE widget_conversations
+          SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"user_stop_requested": true, "user_stop_requested_at": $1}'::jsonb
+          WHERE id = $2
+        `, [new Date().toISOString(), conversation_id]);
+        
+        return res.json({
+          response: '🛑 Do you want to stop this conversation?\n\nReply:\n1️⃣ to stop\n2️⃣ to continue',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Check if user is confirming stop (1 = stop, 2 = continue)
+      const convMetadata = await pool.query(`
+        SELECT metadata
+        FROM widget_conversations
+        WHERE id = $1
+      `, [conversation_id]);
+      
+      const metadata = convMetadata.rows[0]?.metadata || {};
+      const hasUserStopRequest = metadata.user_stop_requested === true;
+      
+      if (hasUserStopRequest) {
+        const isStopConfirm = messageLower === '1' || messageLower === '1️⃣' || messageLower === 'stop';
+        const isContinueConfirm = messageLower === '2' || messageLower === '2️⃣' || messageLower === 'continue';
+        
+        if (isStopConfirm) {
+          // End conversation
+          await pool.query(`
+            UPDATE widget_conversations
+            SET status = 'ended',
+                agent_handoff = false,
+                ended_at = NOW(),
+                metadata = metadata - 'user_stop_requested' - 'user_stop_requested_at',
+                updated_at = NOW()
+            WHERE id = $1
+          `, [conversation_id]);
+          
+          await pool.query(`
+            INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+            VALUES ($1, 'system', $2, NOW())
+          `, [conversation_id, '✅ This conversation has been ended. Thank you for chatting with us!']);
+          
+          return res.json({
+            response: null,
+            conversation_ended: true,
+            message: '✅ This conversation has been ended. Thank you for chatting with us!',
+            timestamp: new Date().toISOString()
+          });
+        } else if (isContinueConfirm) {
+          // Clear stop request and continue
+          await pool.query(`
+            UPDATE widget_conversations
+            SET metadata = metadata - 'user_stop_requested' - 'user_stop_requested_at',
+                updated_at = NOW()
+            WHERE id = $1
+          `, [conversation_id]);
+          
+          await pool.query(`
+            INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+            VALUES ($1, 'bot', $2, NOW())
+          `, [conversation_id, '✅ Conversation will continue. How can I help you?']);
+          
+          return res.json({
+            response: '✅ Conversation will continue. How can I help you?',
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    }
+    
     // ✅ CHECK FOR EXTENSION REQUEST (for visitor) - only if not in agent handoff
     const { ConversationInactivityService } = await import('../services/conversationInactivityService');
     const inactivityService = ConversationInactivityService.getInstance();

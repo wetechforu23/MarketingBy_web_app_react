@@ -211,22 +211,22 @@ export default function ChatWidgetFlow() {
       {/* Header */}
       <div style={{ marginBottom: '2rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <button 
-            onClick={() => navigate('/app/chat-widgets')}
-            style={{
-              padding: '8px 16px',
-              background: '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-          >
-            <i className="fas fa-arrow-left"></i> Back to Widgets
-          </button>
+        <button 
+          onClick={() => navigate('/app/chat-widgets')}
+          style={{
+            padding: '8px 16px',
+            background: '#6c757d',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <i className="fas fa-arrow-left"></i> Back to Widgets
+        </button>
 
           <button
             onClick={() => setShowConfig(!showConfig)}

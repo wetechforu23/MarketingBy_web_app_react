@@ -1302,6 +1302,91 @@ router.post('/incoming', async (req: Request, res: Response) => {
       return res.status(200).end(); // Empty response prevents "OK" auto-replies
     }
     
+    // ✅ CHECK FOR STOP CONFIRMATION REPLY (1 = stop, 2 = continue)
+    // Check if there's a pending stop request
+    const convMetadata = await pool.query(`
+      SELECT metadata, status
+      FROM widget_conversations
+      WHERE id = $1
+    `, [conversationId]);
+    
+    const metadata = convMetadata.rows[0]?.metadata || {};
+    const hasStopRequest = metadata.stop_requested === true;
+    
+    if (hasStopRequest && conversationId && matchedBy === 'whatsapp_reply') {
+      const replyLower = messageBody.toLowerCase().trim();
+      const isStopConfirm = replyLower === '1' || replyLower === '1️⃣' || replyLower === 'stop';
+      const isContinueConfirm = replyLower === '2' || replyLower === '2️⃣' || replyLower === 'continue';
+      
+      if (isStopConfirm || isContinueConfirm) {
+        const { WhatsAppService } = await import('../services/whatsappService');
+        const whatsappService = WhatsAppService.getInstance();
+        
+        if (isStopConfirm) {
+          // End conversation
+          await pool.query(`
+            UPDATE widget_conversations
+            SET status = 'ended',
+                agent_handoff = false,
+                ended_at = NOW(),
+                metadata = metadata - 'stop_requested' - 'stop_requested_at',
+                updated_at = NOW()
+            WHERE id = $1
+          `, [conversationId]);
+          
+          // Notify agent
+          await whatsappService.sendMessage({
+            clientId: clientId,
+            widgetId: widgetId,
+            conversationId: conversationId,
+            toNumber: `whatsapp:${fromNumber}`,
+            message: `✅ Conversation #${conversationId} has been stopped.`,
+            sentByAgentName: 'System',
+            visitorName: 'Agent'
+          });
+          
+          // Notify user in widget
+          const visitorInfo = await pool.query(`
+            SELECT visitor_name, visitor_email
+            FROM widget_conversations
+            WHERE id = $1
+          `, [conversationId]);
+          
+          await pool.query(`
+            INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+            VALUES ($1, 'system', $2, NOW())
+          `, [conversationId, '✅ This conversation has been ended. Thank you for chatting with us!']);
+          
+          console.log(`✅ Conversation ${conversationId} stopped by agent confirmation`);
+        } else if (isContinueConfirm) {
+          // Clear stop request and continue
+          await pool.query(`
+            UPDATE widget_conversations
+            SET metadata = metadata - 'stop_requested' - 'stop_requested_at',
+                updated_at = NOW()
+            WHERE id = $1
+          `, [conversationId]);
+          
+          // Notify agent
+          await whatsappService.sendMessage({
+            clientId: clientId,
+            widgetId: widgetId,
+            conversationId: conversationId,
+            toNumber: `whatsapp:${fromNumber}`,
+            message: `✅ Conversation #${conversationId} will continue.`,
+            sentByAgentName: 'System',
+            visitorName: 'Agent'
+          });
+          
+          console.log(`✅ Conversation ${conversationId} will continue (agent chose to continue)`);
+        }
+        
+        res.setHeader('Content-Type', 'text/plain');
+        res.setHeader('Content-Length', '0');
+        return res.status(200).end();
+      }
+    }
+    
     // ✅ CHECK FOR DEACTIVATE/ACTIVATE COMMANDS
     // Works when replying to a bot message (InReplyTo) OR when conversation is auto-matched
     const messageBodyLower = messageBody.toLowerCase().trim();
