@@ -1103,6 +1103,70 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
             VALUES ($1, 'system', $2, NOW())
           `, [conversation_id, '✅ This conversation has been ended. Thank you for chatting with us!']);
           
+          // Send email summary if visitor email exists
+          const convInfo = await pool.query(`
+            SELECT visitor_email, visitor_name, widget_id, widget_name
+            FROM widget_conversations wc
+            JOIN widget_configs w ON w.id = wc.widget_id
+            WHERE wc.id = $1
+          `, [conversation_id]);
+          
+          if (convInfo.rows[0]?.visitor_email) {
+            try {
+              // Get all messages for summary
+              const messagesResult = await pool.query(`
+                SELECT message_type, message_text, agent_name, created_at
+                FROM widget_messages
+                WHERE conversation_id = $1
+                ORDER BY created_at ASC
+              `, [conversation_id]);
+              
+              const messagesSummary = messagesResult.rows
+                .map((m: any) => {
+                  const sender = m.message_type === 'user' ? convInfo.rows[0].visitor_name || 'You' :
+                                m.message_type === 'human' || m.message_type === 'agent' ? m.agent_name || 'Agent' :
+                                'Bot';
+                  return `${sender}: ${m.message_text}`;
+                })
+                .join('\n\n');
+              
+              const clientBrandedName = convInfo.rows[0].widget_name || 'WeTechForU';
+              
+              await emailService.sendEmail({
+                to: convInfo.rows[0].visitor_email,
+                from: `"${clientBrandedName}" <info@wetechforu.com>`,
+                subject: `Conversation Summary - ${clientBrandedName}`,
+                html: `
+                  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #4682B4;">Thank You for Contacting ${clientBrandedName}!</h2>
+                    
+                    <p>Hi ${convInfo.rows[0].visitor_name || 'there'},</p>
+                    
+                    <p>Thank you for chatting with us! Here's a summary of our conversation:</p>
+                    
+                    <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                      <h3 style="margin-top: 0;">Conversation Transcript:</h3>
+                      <pre style="white-space: pre-wrap; font-size: 14px; line-height: 1.6;">${messagesSummary}</pre>
+                    </div>
+                    
+                    <p style="color: #666; font-size: 14px;">
+                      If you have any further questions, feel free to start a new chat anytime!
+                    </p>
+                    
+                    <p style="margin-top: 30px; color: #999; font-size: 12px;">
+                      This is an automated summary of your conversation with ${clientBrandedName}.
+                    </p>
+                  </div>
+                `,
+                text: `Thank you for contacting ${clientBrandedName}!\n\nConversation Summary:\n\n${messagesSummary}`
+              });
+              
+              console.log(`✅ Conversation summary email sent to ${convInfo.rows[0].visitor_email}`);
+            } catch (emailError) {
+              console.error('Failed to send conversation summary email:', emailError);
+            }
+          }
+          
           return res.json({
             response: null,
             conversation_ended: true,

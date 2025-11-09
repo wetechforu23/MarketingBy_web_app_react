@@ -1347,15 +1347,76 @@ router.post('/incoming', async (req: Request, res: Response) => {
           
           // Notify user in widget
           const visitorInfo = await pool.query(`
-            SELECT visitor_name, visitor_email
-            FROM widget_conversations
-            WHERE id = $1
+            SELECT visitor_name, visitor_email, widget_id, widget_name
+            FROM widget_conversations wc
+            JOIN widget_configs w ON w.id = wc.widget_id
+            WHERE wc.id = $1
           `, [conversationId]);
           
           await pool.query(`
             INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
             VALUES ($1, 'system', $2, NOW())
           `, [conversationId, '✅ This conversation has been ended. Thank you for chatting with us!']);
+          
+          // Send email summary if visitor email exists
+          if (visitorInfo.rows[0]?.visitor_email) {
+            try {
+              const { EmailService } = await import('../services/emailService');
+              const emailService = new EmailService();
+              
+              // Get all messages for summary
+              const messagesResult = await pool.query(`
+                SELECT message_type, message_text, agent_name, created_at
+                FROM widget_messages
+                WHERE conversation_id = $1
+                ORDER BY created_at ASC
+              `, [conversationId]);
+              
+              const messagesSummary = messagesResult.rows
+                .map((m: any) => {
+                  const sender = m.message_type === 'user' ? visitorInfo.rows[0].visitor_name || 'You' :
+                                m.message_type === 'human' || m.message_type === 'agent' ? m.agent_name || 'Agent' :
+                                'Bot';
+                  return `${sender}: ${m.message_text}`;
+                })
+                .join('\n\n');
+              
+              const clientBrandedName = visitorInfo.rows[0].widget_name || 'WeTechForU';
+              
+              await emailService.sendEmail({
+                to: visitorInfo.rows[0].visitor_email,
+                from: `"${clientBrandedName}" <info@wetechforu.com>`,
+                subject: `Conversation Summary - ${clientBrandedName}`,
+                html: `
+                  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #4682B4;">Thank You for Contacting ${clientBrandedName}!</h2>
+                    
+                    <p>Hi ${visitorInfo.rows[0].visitor_name || 'there'},</p>
+                    
+                    <p>Thank you for chatting with us! Here's a summary of our conversation:</p>
+                    
+                    <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                      <h3 style="margin-top: 0;">Conversation Transcript:</h3>
+                      <pre style="white-space: pre-wrap; font-size: 14px; line-height: 1.6;">${messagesSummary}</pre>
+                    </div>
+                    
+                    <p style="color: #666; font-size: 14px;">
+                      If you have any further questions, feel free to start a new chat anytime!
+                    </p>
+                    
+                    <p style="margin-top: 30px; color: #999; font-size: 12px;">
+                      This is an automated summary of your conversation with ${clientBrandedName}.
+                    </p>
+                  </div>
+                `,
+                text: `Thank you for contacting ${clientBrandedName}!\n\nConversation Summary:\n\n${messagesSummary}`
+              });
+              
+              console.log(`✅ Conversation summary email sent to ${visitorInfo.rows[0].visitor_email}`);
+            } catch (emailError) {
+              console.error('Failed to send conversation summary email:', emailError);
+            }
+          }
           
           console.log(`✅ Conversation ${conversationId} stopped by agent confirmation`);
         } else if (isContinueConfirm) {
