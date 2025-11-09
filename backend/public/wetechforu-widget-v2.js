@@ -3788,7 +3788,10 @@
         
         // ✅ Check if agent has taken over conversation
         if (data.agent_handoff) {
-          this.addBotMessage('👨‍💼 Your message has been sent to our team. An agent will respond shortly...');
+          // Only show message if provided (first time only, when agent hasn't replied yet)
+          if (data.message) {
+            this.addBotMessage('👨‍💼 ' + data.message);
+          }
           // Stop polling for bot, start polling for agent messages (including WhatsApp)
           this.state.agentTookOver = true;
           this.startPollingForAgentMessages(); // Start polling for agent replies (WhatsApp or portal)
