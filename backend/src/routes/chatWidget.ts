@@ -1059,12 +1059,21 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
           VALUES ($1, 'bot', $2, NOW())
         `, [conversation_id, '🛑 Do you want to stop this conversation?\n\nReply:\n1️⃣ to stop\n2️⃣ to continue']);
         
-        // Store stop request
-        await pool.query(`
-          UPDATE widget_conversations
-          SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"user_stop_requested": true, "user_stop_requested_at": $1}'::jsonb
-          WHERE id = $2
-        `, [new Date().toISOString(), conversation_id]);
+        // Store stop request (only if metadata column exists)
+        try {
+          await pool.query(`
+            UPDATE widget_conversations
+            SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"user_stop_requested": true, "user_stop_requested_at": $1}'::jsonb
+            WHERE id = $2
+          `, [new Date().toISOString(), conversation_id]);
+        } catch (error: any) {
+          // If metadata column doesn't exist, skip storing stop request
+          if (error.code === '42703') {
+            console.log('⚠️ metadata column does not exist - cannot store user stop request');
+          } else {
+            throw error;
+          }
+        }
         
         return res.json({
           response: '🛑 Do you want to stop this conversation?\n\nReply:\n1️⃣ to stop\n2️⃣ to continue',

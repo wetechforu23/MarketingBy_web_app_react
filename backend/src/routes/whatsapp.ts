@@ -1303,15 +1303,26 @@ router.post('/incoming', async (req: Request, res: Response) => {
     }
     
     // ✅ CHECK FOR STOP CONFIRMATION REPLY (1 = stop, 2 = continue)
-    // Check if there's a pending stop request
-    const convMetadata = await pool.query(`
-      SELECT metadata, status
-      FROM widget_conversations
-      WHERE id = $1
-    `, [conversationId]);
-    
-    const metadata = convMetadata.rows[0]?.metadata || {};
-    const hasStopRequest = metadata.stop_requested === true;
+    // Check if there's a pending stop request (only if metadata column exists)
+    let hasStopRequest = false;
+    try {
+      const convMetadata = await pool.query(`
+        SELECT metadata, status
+        FROM widget_conversations
+        WHERE id = $1
+      `, [conversationId]);
+      
+      const metadata = convMetadata.rows[0]?.metadata || {};
+      hasStopRequest = metadata.stop_requested === true;
+    } catch (error: any) {
+      // If metadata column doesn't exist, skip stop confirmation logic
+      if (error.code === '42703') {
+        console.log('⚠️ metadata column does not exist - skipping stop confirmation check');
+        hasStopRequest = false;
+      } else {
+        throw error;
+      }
+    }
     
     if (hasStopRequest && conversationId && matchedBy === 'whatsapp_reply') {
       const replyLower = messageBody.toLowerCase().trim();
@@ -1324,15 +1335,31 @@ router.post('/incoming', async (req: Request, res: Response) => {
         
         if (isStopConfirm) {
           // End conversation
-          await pool.query(`
-            UPDATE widget_conversations
-            SET status = 'ended',
-                agent_handoff = false,
-                ended_at = NOW(),
-                metadata = metadata - 'stop_requested' - 'stop_requested_at',
-                updated_at = NOW()
-            WHERE id = $1
-          `, [conversationId]);
+          try {
+            await pool.query(`
+              UPDATE widget_conversations
+              SET status = 'ended',
+                  agent_handoff = false,
+                  ended_at = NOW(),
+                  metadata = metadata - 'stop_requested' - 'stop_requested_at',
+                  updated_at = NOW()
+              WHERE id = $1
+            `, [conversationId]);
+          } catch (error: any) {
+            // If metadata column doesn't exist, update without it
+            if (error.code === '42703') {
+              await pool.query(`
+                UPDATE widget_conversations
+                SET status = 'ended',
+                    agent_handoff = false,
+                    ended_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = $1
+              `, [conversationId]);
+            } else {
+              throw error;
+            }
+          }
           
           // Notify agent
           await whatsappService.sendMessage({
@@ -1421,12 +1448,25 @@ router.post('/incoming', async (req: Request, res: Response) => {
           console.log(`✅ Conversation ${conversationId} stopped by agent confirmation`);
         } else if (isContinueConfirm) {
           // Clear stop request and continue
-          await pool.query(`
-            UPDATE widget_conversations
-            SET metadata = metadata - 'stop_requested' - 'stop_requested_at',
-                updated_at = NOW()
-            WHERE id = $1
-          `, [conversationId]);
+          try {
+            await pool.query(`
+              UPDATE widget_conversations
+              SET metadata = metadata - 'stop_requested' - 'stop_requested_at',
+                  updated_at = NOW()
+              WHERE id = $1
+            `, [conversationId]);
+          } catch (error: any) {
+            // If metadata column doesn't exist, just update timestamp
+            if (error.code === '42703') {
+              await pool.query(`
+                UPDATE widget_conversations
+                SET updated_at = NOW()
+                WHERE id = $1
+              `, [conversationId]);
+            } else {
+              throw error;
+            }
+          }
           
           // Notify agent
           await whatsappService.sendMessage({
