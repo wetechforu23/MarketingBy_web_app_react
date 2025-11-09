@@ -3267,7 +3267,10 @@
         return;
       }
 
-      this.addBotMessage(`⏳ Processing your request...`);
+      // ✅ Only show processing message if agent hasn't taken over yet
+      if (!this.state.agentTookOver) {
+        this.addBotMessage(`⏳ Processing your request...`);
+      }
 
       try {
         const requestBody = {
@@ -3318,19 +3321,36 @@
         }
 
         if (data.success) {
-          // Show generic confirmation only (no method details in chat)
-          setTimeout(() => {
-            // Show generic confirmation message (no method details)
-            const confirmationMessage = "✅ Your request has been submitted! We'll connect you with the next available agent.";
-            this.addBotMessage(confirmationMessage);
-            
-            // Mark as agent handoff and start polling for agent messages if WhatsApp or portal
-            this.state.agentTookOver = true;
-            if (method === 'whatsapp' || method === 'portal') {
-              console.log('🔄 Starting polling for agent messages after handover request');
-              this.startPollingForAgentMessages();
+          // Mark as agent handoff and start polling for agent messages if WhatsApp or portal
+          this.state.agentTookOver = true;
+          if (method === 'whatsapp' || method === 'portal') {
+            console.log('🔄 Starting polling for agent messages after handover request');
+            this.startPollingForAgentMessages();
+          }
+          
+          // ✅ Only show confirmation if agent hasn't replied yet (check after a short delay)
+          setTimeout(async () => {
+            // Check if agent has already replied by polling messages
+            try {
+              const messagesResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/messages`);
+              if (messagesResponse.ok) {
+                const messagesData = await messagesResponse.json();
+                const hasAgentMessage = messagesData.messages && messagesData.messages.some((m) => 
+                  m.type === 'agent' || m.type === 'human' || (m.type === 'system' && m.text && m.text.includes('connected'))
+                );
+                
+                // Only show confirmation if agent hasn't replied yet
+                if (!hasAgentMessage) {
+                  const confirmationMessage = "✅ Your request has been submitted! We'll connect you with the next available agent.";
+                  this.addBotMessage(confirmationMessage);
+                }
+              }
+            } catch (error) {
+              // If check fails, show confirmation anyway (better safe than sorry)
+              const confirmationMessage = "✅ Your request has been submitted! We'll connect you with the next available agent.";
+              this.addBotMessage(confirmationMessage);
             }
-          }, 800);
+          }, 1500); // Wait 1.5s to see if agent has replied
         } else {
           throw new Error(data.error || 'Request failed');
         }
