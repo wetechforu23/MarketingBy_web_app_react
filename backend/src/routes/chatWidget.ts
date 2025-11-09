@@ -927,6 +927,22 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
     const preferredMethod = convCheck.rows.length > 0 ? convCheck.rows[0].preferred_contact_method : null;
     
     if (isAgentHandoff) {
+      // ✅ Save user message FIRST so it appears in chat widget
+      await pool.query(
+        `INSERT INTO widget_messages (conversation_id, message_type, message_text)
+         VALUES ($1, $2, $3)`,
+        [conversation_id, 'user', message_text]
+      );
+      
+      // Update conversation activity
+      await pool.query(`
+        UPDATE widget_conversations 
+        SET message_count = message_count + 1, 
+            updated_at = CURRENT_TIMESTAMP, 
+            last_activity_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+      `, [conversation_id]);
+      
       // Check if there's an active WhatsApp handover request
       const whatsappHandoverCheck = await pool.query(`
         SELECT hr.id, hr.status, hr.requested_method
