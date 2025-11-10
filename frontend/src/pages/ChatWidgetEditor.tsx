@@ -150,6 +150,95 @@ export default function ChatWidgetEditor() {
   // 📚 Knowledge Base Quick Setup
   const [quickKbEntries, setQuickKbEntries] = useState([{ question: '', answer: '', category: 'General' }])
 
+  // ✅ Update intro questions based on industry type
+  const updateQuestionsForIndustry = (industry: string) => {
+    const industryQuestions: { [key: string]: any[] } = {
+      general: [
+        { id: 'first_name', question: 'What is your first name?', type: 'text', required: true, order: 1 },
+        { id: 'last_name', question: 'What is your last name?', type: 'text', required: true, order: 2 },
+        { id: 'email', question: 'What is your email address?', type: 'email', required: true, order: 3 },
+        { id: 'phone', question: 'What is your phone number?', type: 'tel', required: false, order: 4 },
+        { id: 'company_name', question: 'What is your company name?', type: 'text', required: false, order: 5 },
+        { id: 'inquiry_type', question: 'What can we help you with?', type: 'select', required: false, order: 6, options: ['General Inquiry', 'Product/Service Question', 'Support', 'Sales', 'Partnership', 'Other'] },
+        { id: 'preferred_contact', question: 'How would you prefer to be contacted?', type: 'select', required: false, order: 7, options: ['Email', 'Phone', 'Text Message'] }
+      ],
+      healthcare: [
+        { id: 'first_name', question: 'What is your first name?', type: 'text', required: true, order: 1 },
+        { id: 'last_name', question: 'What is your last name?', type: 'text', required: true, order: 2 },
+        { id: 'email', question: 'What is your email address?', type: 'email', required: true, order: 3 },
+        { id: 'phone', question: 'What is your phone number?', type: 'tel', required: false, order: 4 },
+        { id: 'date_of_birth', question: 'What is your date of birth?', type: 'date', required: true, order: 5 },
+        { id: 'insurance_provider', question: 'What is your insurance provider?', type: 'select', required: false, order: 6, options: ['Blue Cross Blue Shield', 'Aetna', 'Cigna', 'UnitedHealthcare', 'Medicaid', 'Medicare', 'Other', 'No Insurance'] },
+        { id: 'reason_for_visit', question: 'What is the reason for your visit?', type: 'textarea', required: false, order: 7 },
+        { id: 'preferred_contact', question: 'How would you prefer to be contacted?', type: 'select', required: false, order: 8, options: ['Email', 'Phone', 'Text Message'] }
+      ],
+      dental: [
+        { id: 'first_name', question: 'What is your first name?', type: 'text', required: true, order: 1 },
+        { id: 'last_name', question: 'What is your last name?', type: 'text', required: true, order: 2 },
+        { id: 'email', question: 'What is your email address?', type: 'email', required: true, order: 3 },
+        { id: 'phone', question: 'What is your phone number?', type: 'tel', required: false, order: 4 },
+        { id: 'date_of_birth', question: 'What is your date of birth?', type: 'date', required: true, order: 5 },
+        { id: 'insurance_provider', question: 'What is your dental insurance provider?', type: 'select', required: false, order: 6, options: ['Delta Dental', 'Cigna', 'Aetna', 'MetLife', 'Guardian', 'Other', 'No Insurance'] },
+        { id: 'last_dental_visit', question: 'When was your last dental visit?', type: 'date', required: false, order: 7 },
+        { id: 'reason_for_visit', question: 'What is the reason for your visit?', type: 'textarea', required: false, order: 8 },
+        { id: 'preferred_contact', question: 'How would you prefer to be contacted?', type: 'select', required: false, order: 9, options: ['Email', 'Phone', 'Text Message'] }
+      ],
+      legal: [
+        { id: 'first_name', question: 'What is your first name?', type: 'text', required: true, order: 1 },
+        { id: 'last_name', question: 'What is your last name?', type: 'text', required: true, order: 2 },
+        { id: 'email', question: 'What is your email address?', type: 'email', required: true, order: 3 },
+        { id: 'phone', question: 'What is your phone number?', type: 'tel', required: false, order: 4 },
+        { id: 'case_type', question: 'What type of legal matter do you need help with?', type: 'select', required: false, order: 5, options: ['Family Law', 'Criminal Defense', 'Personal Injury', 'Business Law', 'Real Estate', 'Estate Planning', 'Other'] },
+        { id: 'urgency', question: 'How urgent is your matter?', type: 'select', required: false, order: 6, options: ['Urgent (within 24 hours)', 'Soon (within a week)', 'Not urgent'] },
+        { id: 'preferred_contact', question: 'How would you prefer to be contacted?', type: 'select', required: false, order: 7, options: ['Email', 'Phone', 'Text Message'] }
+      ],
+      finance: [
+        { id: 'first_name', question: 'What is your first name?', type: 'text', required: true, order: 1 },
+        { id: 'last_name', question: 'What is your last name?', type: 'text', required: true, order: 2 },
+        { id: 'email', question: 'What is your email address?', type: 'email', required: true, order: 3 },
+        { id: 'phone', question: 'What is your phone number?', type: 'tel', required: false, order: 4 },
+        { id: 'service_interest', question: 'What service are you interested in?', type: 'select', required: false, order: 5, options: ['Investment Advisory', 'Tax Planning', 'Retirement Planning', 'Estate Planning', 'Business Financial Services', 'Other'] },
+        { id: 'current_situation', question: 'Tell us about your current financial situation', type: 'textarea', required: false, order: 6 },
+        { id: 'preferred_contact', question: 'How would you prefer to be contacted?', type: 'select', required: false, order: 7, options: ['Email', 'Phone', 'Text Message'] }
+      ],
+      real_estate: [
+        { id: 'first_name', question: 'What is your first name?', type: 'text', required: true, order: 1 },
+        { id: 'last_name', question: 'What is your last name?', type: 'text', required: true, order: 2 },
+        { id: 'email', question: 'What is your email address?', type: 'email', required: true, order: 3 },
+        { id: 'phone', question: 'What is your phone number?', type: 'tel', required: false, order: 4 },
+        { id: 'property_interest', question: 'What are you looking for?', type: 'select', required: false, order: 5, options: ['Buying', 'Selling', 'Renting', 'Investment Property', 'Other'] },
+        { id: 'budget_range', question: 'What is your budget range?', type: 'select', required: false, order: 6, options: ['Under $200k', '$200k - $500k', '$500k - $1M', '$1M - $2M', 'Over $2M', 'Prefer not to say'] },
+        { id: 'location_preference', question: 'What location are you interested in?', type: 'text', required: false, order: 7 },
+        { id: 'preferred_contact', question: 'How would you prefer to be contacted?', type: 'select', required: false, order: 8, options: ['Email', 'Phone', 'Text Message'] }
+      ],
+      ecommerce: [
+        { id: 'first_name', question: 'What is your first name?', type: 'text', required: true, order: 1 },
+        { id: 'last_name', question: 'What is your last name?', type: 'text', required: true, order: 2 },
+        { id: 'email', question: 'What is your email address?', type: 'email', required: true, order: 3 },
+        { id: 'phone', question: 'What is your phone number?', type: 'tel', required: false, order: 4 },
+        { id: 'order_number', question: 'Order number (if applicable)', type: 'text', required: false, order: 5 },
+        { id: 'inquiry_type', question: 'What is your inquiry about?', type: 'select', required: false, order: 6, options: ['Order Status', 'Product Question', 'Return/Exchange', 'Shipping', 'Payment Issue', 'Other'] },
+        { id: 'preferred_contact', question: 'How would you prefer to be contacted?', type: 'select', required: false, order: 7, options: ['Email', 'Phone', 'Text Message'] }
+      ],
+      education: [
+        { id: 'first_name', question: 'What is your first name?', type: 'text', required: true, order: 1 },
+        { id: 'last_name', question: 'What is your last name?', type: 'text', required: true, order: 2 },
+        { id: 'email', question: 'What is your email address?', type: 'email', required: true, order: 3 },
+        { id: 'phone', question: 'What is your phone number?', type: 'tel', required: false, order: 4 },
+        { id: 'program_interest', question: 'What program are you interested in?', type: 'select', required: false, order: 5, options: ['Undergraduate', 'Graduate', 'Certificate Program', 'Online Course', 'Other'] },
+        { id: 'start_date', question: 'When would you like to start?', type: 'date', required: false, order: 6 },
+        { id: 'preferred_contact', question: 'How would you prefer to be contacted?', type: 'select', required: false, order: 7, options: ['Email', 'Phone', 'Text Message'] }
+      ]
+    };
+
+    if (industryQuestions[industry]) {
+      setIntroQuestions(industryQuestions[industry]);
+      if (!isInitialLoad) {
+        trackChange(`Intro questions updated for ${industry} industry`);
+      }
+    }
+  }
+
   useEffect(() => {
     fetchUserAndClients()
     if (isEditMode) {
@@ -3269,7 +3358,14 @@ export default function ChatWidgetEditor() {
             </label>
             <select
               value={industryType}
-              onChange={(e) => setIndustryType(e.target.value)}
+              onChange={(e) => {
+                const newIndustry = e.target.value;
+                setIndustryType(newIndustry);
+                // ✅ Update intro questions based on industry
+                if (!isEditMode || window.confirm('Changing industry will update the default form questions. Continue?')) {
+                  updateQuestionsForIndustry(newIndustry);
+                }
+              }}
               style={{
                 width: '100%',
                 maxWidth: '300px',
@@ -3281,6 +3377,7 @@ export default function ChatWidgetEditor() {
             >
               <option value="general">General / Business</option>
               <option value="healthcare">Healthcare / Medical</option>
+              <option value="dental">Dental</option>
               <option value="finance">Finance / Banking</option>
               <option value="legal">Legal Services</option>
               <option value="education">Education</option>
