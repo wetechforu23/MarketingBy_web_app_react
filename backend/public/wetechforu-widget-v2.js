@@ -3883,7 +3883,22 @@
         
         // ✅ Check if conversation has ended
         if (data.conversation_ended) {
-          this.addBotMessage(data.message || '📞 This conversation has ended. A summary has been sent to your email.');
+          // Store closed conversation info for reopen prompt
+          if (conversationId) {
+            this.state.closedConversationId = conversationId;
+            // Fetch conversation data for reopen
+            try {
+              const statusResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/status`);
+              if (statusResponse.ok) {
+                this.state.closedConversationData = await statusResponse.json();
+              }
+            } catch (error) {
+              console.warn('Could not fetch conversation data for reopen:', error);
+            }
+          }
+          
+          this.addBotMessage(data.message || '📞 This conversation has been closed.');
+          this.addBotMessage('Would you like to reopen it? Reply "yes" or "y" to reopen.');
           this.state.conversationEnded = true;
           this.stopPollingForAgentMessages(); // Stop polling
           return;
