@@ -3618,6 +3618,60 @@
       }
     },
     
+    // Reopen a closed conversation
+    async reopenConversation(conversationId, conversationData) {
+      try {
+        console.log('🔄 Reopening conversation:', conversationId);
+        
+        // Call backend to reopen conversation
+        const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/reopen`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to reopen conversation');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          // Restore conversation state
+          this.state.conversationId = conversationId;
+          this.state.conversationEnded = false;
+          
+          // Restore intro flow data if available
+          if (data.intro_data || (conversationData && conversationData.intro_data)) {
+            const introData = data.intro_data || conversationData.intro_data;
+            this.state.introFlow.answers = introData;
+            this.state.introFlow.isComplete = true;
+            this.state.hasShownIntro = true;
+            console.log('✅ Restored intro flow data from previous conversation');
+          }
+          
+          // Load previous messages
+          await this.loadPreviousMessages(conversationId);
+          
+          // Clear closed conversation flag
+          sessionStorage.removeItem(`wetechforu_conversation_closed_${this.config.widgetKey}`);
+          
+          // Show success message
+          this.addBotMessage('✅ Conversation reopened! How can I help you?');
+          
+          // Resume polling if agent handoff was active
+          if (data.agent_handoff) {
+            this.state.agentTookOver = true;
+            this.startPollingForAgentMessages();
+          }
+        } else {
+          throw new Error(data.error || 'Failed to reopen conversation');
+        }
+      } catch (error) {
+        console.error('❌ Error reopening conversation:', error);
+        this.addBotMessage('❌ Sorry, there was an error reopening the conversation. Please start a new conversation.');
+      }
+    },
+    
     // ✅ Load previous messages from conversation
     async loadPreviousMessages(conversationId) {
       try {
