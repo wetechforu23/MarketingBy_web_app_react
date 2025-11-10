@@ -2,6 +2,534 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/http'
 
+// 📅 Appointment Availability Manager Component
+function AppointmentAvailabilityManager({ widgetId }: { widgetId: number }) {
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showMemberForm, setShowMemberForm] = useState(false);
+  const [editingMember, setEditingMember] = useState<any>(null);
+  const [memberForm, setMemberForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    role: '',
+    title: '',
+    calendar_type: 'manual',
+    calendar_id: '',
+    calendar_url: '',
+    timezone: 'America/New_York',
+    default_duration_minutes: 60,
+    buffer_time_minutes: 15
+  });
+
+  useEffect(() => {
+    if (widgetId) {
+      loadTeamMembers();
+    }
+  }, [widgetId]);
+
+  const loadTeamMembers = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get(`/chat-widget/widgets/${widgetId}/team-members`);
+      setTeamMembers(response.data.team_members || []);
+    } catch (error) {
+      console.error('Failed to load team members:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveMember = async () => {
+    try {
+      if (editingMember) {
+        await api.put(`/chat-widget/team-members/${editingMember.id}`, memberForm);
+      } else {
+        await api.post(`/chat-widget/widgets/${widgetId}/team-members`, memberForm);
+      }
+      await loadTeamMembers();
+      setShowMemberForm(false);
+      setEditingMember(null);
+      setMemberForm({
+        name: '', email: '', phone: '', role: '', title: '',
+        calendar_type: 'manual', calendar_id: '', calendar_url: '',
+        timezone: 'America/New_York', default_duration_minutes: 60, buffer_time_minutes: 15
+      });
+    } catch (error: any) {
+      alert(`Failed to save: ${error?.response?.data?.error || error.message}`);
+    }
+  };
+
+  const handleDeleteMember = async (memberId: number) => {
+    if (!confirm('Are you sure you want to delete this team member?')) return;
+    try {
+      await api.delete(`/chat-widget/team-members/${memberId}`);
+      await loadTeamMembers();
+    } catch (error: any) {
+      alert(`Failed to delete: ${error?.response?.data?.error || error.message}`);
+    }
+  };
+
+  const handleEditMember = (member: any) => {
+    setEditingMember(member);
+    setMemberForm({
+      name: member.name,
+      email: member.email,
+      phone: member.phone || '',
+      role: member.role || '',
+      title: member.title || '',
+      calendar_type: member.calendar_type || 'manual',
+      calendar_id: member.calendar_id || '',
+      calendar_url: member.calendar_url || '',
+      timezone: member.timezone || 'America/New_York',
+      default_duration_minutes: member.default_duration_minutes || 60,
+      buffer_time_minutes: member.buffer_time_minutes || 15
+    });
+    setShowMemberForm(true);
+  };
+
+  if (loading) {
+    return <div style={{ padding: '1rem', textAlign: 'center' }}>Loading team members...</div>;
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h5 style={{ margin: 0 }}>Team Members ({teamMembers.length})</h5>
+        <button
+          type="button"
+          onClick={() => {
+            setEditingMember(null);
+            setMemberForm({
+              name: '', email: '', phone: '', role: '', title: '',
+              calendar_type: 'manual', calendar_id: '', calendar_url: '',
+              timezone: 'America/New_York', default_duration_minutes: 60, buffer_time_minutes: 15
+            });
+            setShowMemberForm(true);
+          }}
+          style={{
+            padding: '8px 16px',
+            background: '#2E86AB',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: '600'
+          }}
+        >
+          + Add Team Member
+        </button>
+      </div>
+
+      {showMemberForm && (
+        <div style={{
+          padding: '1.5rem',
+          background: 'white',
+          borderRadius: '8px',
+          marginBottom: '1rem',
+          border: '1px solid #ddd'
+        }}>
+          <h5 style={{ marginTop: 0 }}>{editingMember ? 'Edit' : 'Add'} Team Member</h5>
+          <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: '1fr 1fr' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Name *</label>
+              <input
+                type="text"
+                value={memberForm.name}
+                onChange={(e) => setMemberForm({ ...memberForm, name: e.target.value })}
+                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                placeholder="Dr. John Smith"
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Email *</label>
+              <input
+                type="email"
+                value={memberForm.email}
+                onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })}
+                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                placeholder="john@example.com"
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Phone</label>
+              <input
+                type="tel"
+                value={memberForm.phone}
+                onChange={(e) => setMemberForm({ ...memberForm, phone: e.target.value })}
+                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                placeholder="+1234567890"
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Role</label>
+              <input
+                type="text"
+                value={memberForm.role}
+                onChange={(e) => setMemberForm({ ...memberForm, role: e.target.value })}
+                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                placeholder="doctor, dentist, lawyer, etc."
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Title</label>
+              <input
+                type="text"
+                value={memberForm.title}
+                onChange={(e) => setMemberForm({ ...memberForm, title: e.target.value })}
+                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                placeholder="Dr., Attorney, etc."
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Calendar Type</label>
+              <select
+                value={memberForm.calendar_type}
+                onChange={(e) => setMemberForm({ ...memberForm, calendar_type: e.target.value })}
+                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+              >
+                <option value="manual">Manual (No Calendar Sync)</option>
+                <option value="google">Google Calendar</option>
+                <option value="outlook">Microsoft Outlook</option>
+                <option value="ical">iCal Feed</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Default Duration (minutes)</label>
+              <input
+                type="number"
+                value={memberForm.default_duration_minutes}
+                onChange={(e) => setMemberForm({ ...memberForm, default_duration_minutes: parseInt(e.target.value) || 60 })}
+                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                min="15"
+                step="15"
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Buffer Time (minutes)</label>
+              <input
+                type="number"
+                value={memberForm.buffer_time_minutes}
+                onChange={(e) => setMemberForm({ ...memberForm, buffer_time_minutes: parseInt(e.target.value) || 15 })}
+                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                min="0"
+                step="5"
+              />
+            </div>
+          </div>
+          <div style={{ marginTop: '1rem', display: 'flex', gap: '10px' }}>
+            <button
+              type="button"
+              onClick={handleSaveMember}
+              disabled={!memberForm.name || !memberForm.email}
+              style={{
+                padding: '10px 20px',
+                background: '#2E86AB',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600'
+              }}
+            >
+              {editingMember ? 'Update' : 'Add'} Member
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowMemberForm(false);
+                setEditingMember(null);
+              }}
+              style={{
+                padding: '10px 20px',
+                background: '#ccc',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {teamMembers.length === 0 ? (
+        <div style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>
+          <p>No team members added yet. Click "Add Team Member" to get started.</p>
+          <p style={{ fontSize: '12px', marginTop: '0.5rem' }}>
+            After adding members, you can set their availability schedules and block time slots.
+          </p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: '1rem' }}>
+          {teamMembers.map((member) => (
+            <TeamMemberCard
+              key={member.id}
+              member={member}
+              widgetId={widgetId}
+              onEdit={() => handleEditMember(member)}
+              onDelete={() => handleDeleteMember(member.id)}
+              onReload={loadTeamMembers}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Team Member Card Component
+function TeamMemberCard({ member, widgetId, onEdit, onDelete, onReload }: any) {
+  const [showAvailability, setShowAvailability] = useState(false);
+  const [availability, setAvailability] = useState<any[]>([]);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+
+  const loadAvailability = async () => {
+    try {
+      setLoadingAvailability(true);
+      const response = await api.get(`/chat-widget/team-members/${member.id}/availability`);
+      setAvailability(response.data.availability || []);
+    } catch (error) {
+      console.error('Failed to load availability:', error);
+    } finally {
+      setLoadingAvailability(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showAvailability) {
+      loadAvailability();
+    }
+  }, [showAvailability]);
+
+  return (
+    <div style={{
+      padding: '1rem',
+      background: 'white',
+      borderRadius: '8px',
+      border: '1px solid #ddd'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+        <div>
+          <h5 style={{ margin: '0 0 0.5rem 0' }}>
+            {member.title ? `${member.title} ` : ''}{member.name}
+          </h5>
+          <div style={{ fontSize: '14px', color: '#666' }}>
+            <div>📧 {member.email}</div>
+            {member.phone && <div>📞 {member.phone}</div>}
+            {member.role && <div>👤 {member.role}</div>}
+            <div>⏱️ {member.default_duration_minutes} min appointments</div>
+            <div>📅 Calendar: {member.calendar_type || 'manual'}</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={() => setShowAvailability(!showAvailability)}
+            style={{
+              padding: '6px 12px',
+              background: showAvailability ? '#2E86AB' : '#f0f0f0',
+              color: showAvailability ? 'white' : '#333',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px'
+            }}
+          >
+            {showAvailability ? 'Hide' : 'Show'} Availability
+          </button>
+          <button
+            type="button"
+            onClick={onEdit}
+            style={{
+              padding: '6px 12px',
+              background: '#f0f0f0',
+              color: '#333',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px'
+            }}
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            style={{
+              padding: '6px 12px',
+              background: '#dc3545',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px'
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+
+      {showAvailability && (
+        <AvailabilityManager
+          member={member}
+          widgetId={widgetId}
+          availability={availability}
+          onReload={loadAvailability}
+        />
+      )}
+    </div>
+  );
+}
+
+// Availability Manager Component
+function AvailabilityManager({ member, widgetId, availability, onReload }: any) {
+  const [editingDay, setEditingDay] = useState<number | null>(null);
+  const [dayAvailability, setDayAvailability] = useState<any[]>([]);
+  const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  const handleSaveAvailability = async (dayOfWeek: number) => {
+    try {
+      await api.post(`/chat-widget/team-members/${member.id}/availability`, {
+        availability: dayAvailability
+      });
+      await onReload();
+      setEditingDay(null);
+      setDayAvailability([]);
+    } catch (error: any) {
+      alert(`Failed to save: ${error?.response?.data?.error || error.message}`);
+    }
+  };
+
+  const handleEditDay = (dayOfWeek: number) => {
+    const existing = availability.filter((a: any) => a.day_of_week === dayOfWeek);
+    setDayAvailability(existing.length > 0 ? existing : [{
+      day_of_week: dayOfWeek,
+      start_time: '09:00',
+      end_time: '17:00',
+      availability_type: 'available',
+      max_appointments: null
+    }]);
+    setEditingDay(dayOfWeek);
+  };
+
+  return (
+    <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #eee' }}>
+      <h6 style={{ margin: '0 0 1rem 0' }}>Weekly Availability Schedule</h6>
+      <div style={{ display: 'grid', gap: '0.5rem' }}>
+        {daysOfWeek.map((day, index) => {
+          const dayAvail = availability.filter((a: any) => a.day_of_week === index);
+          const isEditing = editingDay === index;
+
+          return (
+            <div key={index} style={{
+              padding: '0.75rem',
+              background: '#f9f9f9',
+              borderRadius: '4px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div style={{ fontWeight: '600', width: '100px' }}>{day}</div>
+              {isEditing ? (
+                <div style={{ flex: 1, display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="time"
+                    value={dayAvailability[0]?.start_time || '09:00'}
+                    onChange={(e) => setDayAvailability([{ ...dayAvailability[0], start_time: e.target.value }])}
+                    style={{ padding: '4px', border: '1px solid #ddd', borderRadius: '4px' }}
+                  />
+                  <span>to</span>
+                  <input
+                    type="time"
+                    value={dayAvailability[0]?.end_time || '17:00'}
+                    onChange={(e) => setDayAvailability([{ ...dayAvailability[0], end_time: e.target.value }])}
+                    style={{ padding: '4px', border: '1px solid #ddd', borderRadius: '4px' }}
+                  />
+                  <select
+                    value={dayAvailability[0]?.availability_type || 'available'}
+                    onChange={(e) => setDayAvailability([{ ...dayAvailability[0], availability_type: e.target.value }])}
+                    style={{ padding: '4px', border: '1px solid #ddd', borderRadius: '4px' }}
+                  >
+                    <option value="available">Available</option>
+                    <option value="unavailable">Unavailable</option>
+                    <option value="limited">Limited</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveAvailability(index)}
+                    style={{
+                      padding: '4px 12px',
+                      background: '#2E86AB',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingDay(null);
+                      setDayAvailability([]);
+                    }}
+                    style={{
+                      padding: '4px 12px',
+                      background: '#ccc',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div style={{ flex: 1, fontSize: '14px', color: '#666' }}>
+                    {dayAvail.length > 0 ? (
+                      dayAvail.map((a: any) => (
+                        <span key={a.id} style={{ marginRight: '1rem' }}>
+                          {a.start_time} - {a.end_time} ({a.availability_type})
+                        </span>
+                      ))
+                    ) : (
+                      <span style={{ color: '#999' }}>Not set</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleEditDay(index)}
+                    style={{
+                      padding: '4px 12px',
+                      background: '#f0f0f0',
+                      color: '#333',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    {dayAvail.length > 0 ? 'Edit' : 'Set'}
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function ChatWidgetEditor() {
   const navigate = useNavigate()
   const { id } = useParams()
