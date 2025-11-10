@@ -910,8 +910,8 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       [conversation_id]
     );
 
-    // ✅ If conversation is ended, don't process messages
-    if (convCheck.rows.length > 0 && convCheck.rows[0].status === 'ended') {
+    // ✅ If conversation is closed/ended, don't process messages
+    if (convCheck.rows.length > 0 && (convCheck.rows[0].status === 'closed' || convCheck.rows[0].status === 'ended')) {
       return res.json({
         response: null,
         agent_handoff: false,
@@ -1132,11 +1132,11 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
         const isContinueConfirm = messageLower === '2' || messageLower === '2️⃣' || messageLower === 'continue';
         
         if (isStopConfirm) {
-          // End conversation
+          // End conversation (use 'closed' status per database constraint)
           try {
             await pool.query(`
               UPDATE widget_conversations
-              SET status = 'ended',
+              SET status = 'closed',
                   agent_handoff = false,
                   ended_at = NOW(),
                   metadata = metadata - 'user_stop_requested' - 'user_stop_requested_at',
@@ -1148,7 +1148,7 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
             if (error.code === '42703') {
               await pool.query(`
                 UPDATE widget_conversations
-                SET status = 'ended',
+                SET status = 'closed',
                     agent_handoff = false,
                     ended_at = NOW(),
                     updated_at = NOW()

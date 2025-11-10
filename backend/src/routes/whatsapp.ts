@@ -1334,11 +1334,11 @@ router.post('/incoming', async (req: Request, res: Response) => {
         const whatsappService = WhatsAppService.getInstance();
         
         if (isStopConfirm) {
-          // End conversation
+          // End conversation (use 'closed' status per database constraint)
           try {
             await pool.query(`
               UPDATE widget_conversations
-              SET status = 'ended',
+              SET status = 'closed',
                   agent_handoff = false,
                   ended_at = NOW(),
                   metadata = metadata - 'stop_requested' - 'stop_requested_at',
@@ -1350,7 +1350,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
             if (error.code === '42703') {
               await pool.query(`
                 UPDATE widget_conversations
-                SET status = 'ended',
+                SET status = 'closed',
                     agent_handoff = false,
                     ended_at = NOW(),
                     updated_at = NOW()
@@ -1517,7 +1517,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
       `, [targetConvId, clientId]);
       
       if (convCheck.rows.length > 0) {
-        const newStatus = isDeactivate ? 'ended' : 'active';
+        const newStatus = isDeactivate ? 'closed' : 'active';
         await pool.query(`
           UPDATE widget_conversations
           SET status = $1, 
@@ -1530,7 +1530,7 @@ router.post('/incoming', async (req: Request, res: Response) => {
         const { WhatsAppService } = await import('../services/whatsappService');
         const whatsappService = WhatsAppService.getInstance();
         
-        const confirmationMessage = `✅ #${targetConvId} ${isDeactivate ? 'ended' : 'active'}`;
+        const confirmationMessage = `✅ #${targetConvId} ${isDeactivate ? 'closed' : 'active'}`;
         
         await whatsappService.sendMessage({
           clientId: clientId,
