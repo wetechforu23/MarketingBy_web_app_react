@@ -1371,8 +1371,8 @@
                 this.state.hasShownIntro = true;
                 console.log('✅ Intro already completed for this conversation - skipping form');
                 
-                // Show summary if data exists
-                if (statusData.intro_data) {
+                // Show summary if data exists (but only if no messages were loaded)
+                if (statusData.intro_data && !hasMessages) {
                   this.state.introFlow.answers = statusData.intro_data;
                   setTimeout(() => {
                     this.showFormSummary(statusData.intro_data);
@@ -1380,6 +1380,9 @@
                       this.addBotMessage("How can I help you today? Feel free to ask me anything! 😊");
                     }, 1000);
                   }, 500);
+                } else if (statusData.intro_data && hasMessages) {
+                  // Just restore the data silently, don't show summary or message
+                  this.state.introFlow.answers = statusData.intro_data;
                 } else {
                   // Just show welcome message
                   setTimeout(() => {
@@ -1419,6 +1422,24 @@
           // Even though we restored messages, if this is first time in this session, 
           // we've already shown "Welcome back!" in loadPreviousMessages()
           sessionStorage.setItem(`wetechforu_welcome_shown_${this.config.widgetKey}`, 'true');
+        }
+        
+        // ✅ If conversation was restored with messages, also restore intro data silently
+        if (conversationRestored && hasMessages) {
+          try {
+            const statusResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${this.state.conversationId}/status`);
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json();
+              if (statusData.intro_data) {
+                this.state.introFlow.answers = statusData.intro_data;
+                this.state.introFlow.isComplete = true;
+                this.state.hasShownIntro = true;
+                console.log('✅ Silently restored intro data for conversation with messages');
+              }
+            }
+          } catch (error) {
+            console.warn('Could not restore intro data:', error);
+          }
         }
       }
 
@@ -3742,8 +3763,7 @@
               }
             });
             
-              // Add continuation message
-            this.addBotMessage('How else can I help you today?');
+              // Don't add continuation message if conversation has messages - user can just continue chatting
             
               // Scroll to bottom after loading messages (newest at bottom)
               setTimeout(() => {
