@@ -2067,15 +2067,31 @@ export default function ChatWidgetEditor() {
           <label style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem', cursor: 'pointer' }}>
             <input
               type="checkbox"
-              checked={formData.enable_appointment_booking}
+              checked={formData.enable_appointment_booking || false}
               onChange={(e) => {
-                console.log('📅 Appointment booking checkbox changed:', e.target.checked);
-                handleChange('enable_appointment_booking', e.target.checked);
+                const newValue = e.target.checked;
+                console.log('📅 Appointment booking checkbox changed:', newValue);
+                console.log('📅 Current formData.enable_appointment_booking:', formData.enable_appointment_booking);
+                setFormData(prev => {
+                  const updated = { ...prev, enable_appointment_booking: newValue };
+                  console.log('📅 Updated formData:', updated);
+                  return updated;
+                });
+                trackChange('Appointment booking ' + (newValue ? 'enabled' : 'disabled'));
               }}
               style={{ marginRight: '0.5rem', width: '18px', height: '18px' }}
             />
             <span style={{ fontWeight: '600' }}>Enable Appointment Booking</span>
           </label>
+
+          {/* Debug info */}
+          {process.env.NODE_ENV === 'development' && (
+            <div style={{ fontSize: '12px', color: '#999', marginBottom: '0.5rem' }}>
+              Debug: enable_appointment_booking = {String(formData.enable_appointment_booking)}, 
+              isEditMode = {String(isEditMode)}, 
+              id = {String(id)}
+            </div>
+          )}
 
           {/* 📅 Appointment Availability Management - Only show if appointment booking is enabled */}
           {formData.enable_appointment_booking && (
