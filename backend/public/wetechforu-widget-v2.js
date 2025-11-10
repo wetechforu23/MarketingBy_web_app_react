@@ -2848,6 +2848,14 @@
       html += '<button type="button" id="wetechforu-submit-appointment" style="width: 100%; padding: 12px; background: #2E86AB; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 12px;">Submit Appointment Request</button>';
       html += '</div>';
       
+      // Add event listener for submit button after form is added to DOM
+      setTimeout(() => {
+        const submitBtn = document.getElementById('wetechforu-submit-appointment');
+        if (submitBtn) {
+          submitBtn.addEventListener('click', () => this.submitAppointment());
+        }
+      }, 100);
+      
       return html;
     },
     
@@ -2920,10 +2928,6 @@
         console.error('Appointment booking error:', error);
         this.addBotMessage('❌ Sorry, there was an error booking your appointment. Please try again or contact us directly.');
       }
-    },
-      setTimeout(() => {
-        this.requestLiveAgent();
-      }, 1500);
     },
 
     // Request live agent - Collect contact info
