@@ -2985,6 +2985,20 @@
           return;
         }
 
+      // ✅ CHECK FOR REOPEN REQUEST (before other checks)
+      if (this.state.closedConversationId && this.state.closedConversationData) {
+        const messageLower = message.toLowerCase().trim();
+        const isReopenRequest = messageLower === 'yes' || messageLower === 'y' || messageLower === 'reopen';
+        
+        if (isReopenRequest) {
+          // Reopen the closed conversation
+          await this.reopenConversation(this.state.closedConversationId, this.state.closedConversationData);
+          this.state.closedConversationId = null;
+          this.state.closedConversationData = null;
+          return;
+        }
+      }
+      
       // ✅ SECOND: Check if intro form is displayed and not completed
       if (this.state.introFlow.enabled && !this.state.introFlow.isComplete) {
         const formExists = document.getElementById('wetechforu-intro-form') !== null;
@@ -3517,9 +3531,22 @@
               }
               
               return persistedConvId;
-            } else {
+            } else if (statusData.status === 'closed') {
               console.log('⚠️ Previous conversation was closed:', statusData.status);
-              // Clear closed conversation
+              // ✅ Show reopen prompt instead of clearing
+              this.state.closedConversationId = persistedConvId;
+              this.state.closedConversationData = statusData;
+              
+              // Show reopen prompt
+              setTimeout(() => {
+                this.addBotMessage('📞 This conversation has been closed. Would you like to reopen it?');
+                this.addBotMessage('Reply "yes" or "y" to reopen, or start a new conversation.');
+              }, 500);
+              
+              // Don't clear - keep it for potential reopen
+              return null; // Return null to indicate we need user input
+            } else {
+              // Other status (inactive, etc.) - clear it
               localStorage.removeItem(`wetechforu_conversation_${this.config.widgetKey}`);
             }
           }

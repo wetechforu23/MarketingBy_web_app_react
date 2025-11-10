@@ -3028,6 +3028,68 @@ router.get('/public/widget/:widgetKey/conversations/:conversationId/status', asy
 });
 
 /**
+ * Reopen a closed conversation
+ */
+router.post('/public/widget/:widgetKey/conversations/:conversationId/reopen', async (req, res) => {
+  try {
+    const { widgetKey, conversationId } = req.params;
+    
+    // Verify widget exists
+    const widgetResult = await pool.query(
+      `SELECT id FROM widget_configs WHERE widget_key = $1 AND is_active = true`,
+      [widgetKey]
+    );
+    
+    if (widgetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+    
+    // Get conversation
+    const convResult = await pool.query(
+      `SELECT id, status, widget_id, intro_data, intro_completed, agent_handoff
+       FROM widget_conversations
+       WHERE id = $1 AND widget_id = $2`,
+      [conversationId, widgetResult.rows[0].id]
+    );
+    
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+    
+    const conversation = convResult.rows[0];
+    
+    // Only allow reopening closed conversations
+    if (conversation.status !== 'closed') {
+      return res.status(400).json({ error: 'Conversation is not closed' });
+    }
+    
+    // Reopen conversation
+    await pool.query(
+      `UPDATE widget_conversations
+       SET status = 'active',
+           agent_handoff = COALESCE(agent_handoff, false),
+           updated_at = NOW(),
+           last_activity_at = NOW()
+       WHERE id = $1`,
+      [conversationId]
+    );
+    
+    console.log(`✅ Conversation ${conversationId} reopened`);
+    
+    res.json({
+      success: true,
+      conversation_id: conversationId,
+      agent_handoff: conversation.agent_handoff || false,
+      intro_completed: conversation.intro_completed || false,
+      intro_data: conversation.intro_data
+    });
+  } catch (error) {
+    console.error('Error reopening conversation:', error);
+    res.status(500).json({ error: 'Failed to reopen conversation' });
+  }
+});
+
+/**
  * Get all messages for a conversation (for widget to restore conversation)
  */
 // REMOVED: Duplicate endpoint - using the one at line 1217 instead
