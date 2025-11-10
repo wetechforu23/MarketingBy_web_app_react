@@ -1435,6 +1435,34 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
     }
 
     // ==========================================
+    // 📅 APPOINTMENT REQUEST DETECTION (Priority 0 - Before everything)
+    // ==========================================
+    // Check if widget has appointment booking enabled
+    const widgetConfigResult = await pool.query(
+      `SELECT enable_appointment_booking, industry FROM widget_configs WHERE id = $1`,
+      [widget_id]
+    );
+    
+    const appointmentBookingEnabled = widgetConfigResult.rows[0]?.enable_appointment_booking || false;
+    const widgetIndustry = widgetConfigResult.rows[0]?.industry || 'general';
+    
+    // Detect appointment keywords
+    const appointmentKeywords = ['appointment', 'book', 'schedule', 'booking', 'available', 'meet', 'consultation', 'visit', 'see doctor', 'see dentist', 'see lawyer', 'meeting'];
+    const messageLower = message_text.toLowerCase();
+    const wantsAppointment = appointmentBookingEnabled && appointmentKeywords.some(keyword => messageLower.includes(keyword));
+    
+    if (wantsAppointment) {
+      // Return appointment questions flag
+      return res.json({
+        response: null,
+        appointment_requested: true,
+        industry: widgetIndustry,
+        message: 'I can help you book an appointment! Let me collect some information.',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // ==========================================
     // 📚 KNOWLEDGE BASE FIRST (Priority 1)
     // ==========================================
     let botResponse: string;

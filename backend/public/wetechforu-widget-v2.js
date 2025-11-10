@@ -2758,9 +2758,169 @@
       }
     },
 
-    // Handle appointment request
-    handleAppointmentRequest() {
-      this.addBotMessage("I'd be happy to help you book an appointment! Let me connect you with our scheduling team.");
+    // Handle appointment request - show appointment form
+    async handleAppointmentRequest() {
+      this.addBotMessage("I'd be happy to help you book an appointment! Let me collect some information.");
+      
+      // Get appointment questions based on industry
+      const industry = this.config.industry || 'general';
+      const appointmentQuestions = this.getAppointmentQuestions(industry);
+      
+      // Show appointment form
+      setTimeout(() => {
+        this.showAppointmentForm(appointmentQuestions);
+      }, 500);
+    },
+    
+    // Get appointment questions based on industry
+    getAppointmentQuestions(industry) {
+      const baseQuestions = [
+        { id: 'appointment_type', type: 'select', question: 'What type of appointment do you need?', required: true, order: 1, options: ['Consultation', 'Follow-up', 'Check-up', 'Other'] },
+        { id: 'preferred_date', type: 'date', question: 'What is your preferred date?', required: true, order: 2 },
+        { id: 'preferred_time', type: 'select', question: 'What time works best for you?', required: true, order: 3, options: ['Morning (9 AM - 12 PM)', 'Afternoon (12 PM - 5 PM)', 'Evening (5 PM - 8 PM)', 'Flexible'] },
+        { id: 'reason', type: 'textarea', question: 'What is the reason for your appointment?', required: false, order: 4 },
+        { id: 'location_preference', type: 'select', question: 'How would you like to meet?', required: false, order: 5, options: ['In-Person', 'Virtual/Video Call', 'Phone Call'] }
+      ];
+      
+      if (industry === 'healthcare' || industry === 'dental') {
+        return [
+          ...baseQuestions,
+          { id: 'insurance_provider', type: 'select', question: 'What is your insurance provider?', required: false, order: 6, options: ['Blue Cross Blue Shield', 'Aetna', 'Cigna', 'UnitedHealthcare', 'Medicaid', 'Medicare', 'Other', 'No Insurance'] },
+          { id: 'insurance_member_id', type: 'text', question: 'Insurance Member ID (if available)', required: false, order: 7 },
+          { id: 'symptoms', type: 'textarea', question: 'Please describe any symptoms or concerns', required: false, order: 8 },
+          { id: 'special_requirements', type: 'textarea', question: 'Any special requirements or accommodations needed?', required: false, order: 9 }
+        ];
+      }
+      
+      if (industry === 'legal') {
+        return [
+          ...baseQuestions,
+          { id: 'case_type', type: 'select', question: 'What type of legal matter?', required: false, order: 6, options: ['Family Law', 'Criminal Defense', 'Personal Injury', 'Business Law', 'Real Estate', 'Estate Planning', 'Other'] },
+          { id: 'urgency', type: 'select', question: 'How urgent is this matter?', required: false, order: 7, options: ['Urgent (within 24 hours)', 'Soon (within a week)', 'Not urgent'] },
+          { id: 'case_details', type: 'textarea', question: 'Brief description of your legal matter', required: false, order: 8 }
+        ];
+      }
+      
+      return baseQuestions;
+    },
+    
+    // Show appointment form
+    showAppointmentForm(questions) {
+      // Implementation similar to showIntroForm but for appointments
+      const formHtml = this.buildAppointmentFormHtml(questions);
+      const messagesDiv = document.getElementById('wetechforu-messages');
+      if (messagesDiv) {
+        const formDiv = document.createElement('div');
+        formDiv.id = 'wetechforu-appointment-form';
+        formDiv.innerHTML = formHtml;
+        messagesDiv.appendChild(formDiv);
+      }
+    },
+    
+    // Build appointment form HTML
+    buildAppointmentFormHtml(questions) {
+      // Similar to intro form but for appointments
+      let html = '<div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin: 12px 0;">';
+      html += '<h3 style="margin: 0 0 16px 0; color: #2E86AB;">📅 Appointment Booking</h3>';
+      
+      questions.forEach(q => {
+        html += `<div style="margin-bottom: 16px;">`;
+        html += `<label style="display: block; margin-bottom: 6px; font-weight: 600; color: #333;">${q.question}${q.required ? ' *' : ''}</label>`;
+        
+        if (q.type === 'select') {
+          html += `<select id="appointment_${q.id}" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;" ${q.required ? 'required' : ''}>`;
+          html += '<option value="">Select...</option>';
+          q.options.forEach(opt => {
+            html += `<option value="${opt}">${opt}</option>`;
+          });
+          html += '</select>';
+        } else if (q.type === 'date') {
+          html += `<input type="date" id="appointment_${q.id}" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;" ${q.required ? 'required' : ''} min="${new Date().toISOString().split('T')[0]}">`;
+        } else if (q.type === 'textarea') {
+          html += `<textarea id="appointment_${q.id}" rows="3" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px; resize: vertical;" ${q.required ? 'required' : ''}></textarea>`;
+        } else {
+          html += `<input type="${q.type}" id="appointment_${q.id}" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;" ${q.required ? 'required' : ''}>`;
+        }
+        
+        html += '</div>';
+      });
+      
+      html += '<button type="button" id="wetechforu-submit-appointment" style="width: 100%; padding: 12px; background: #2E86AB; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 12px;">Submit Appointment Request</button>';
+      html += '</div>';
+      
+      return html;
+    },
+    
+    // Submit appointment
+    async submitAppointment() {
+      const form = document.getElementById('wetechforu-appointment-form');
+      if (!form) return;
+      
+      const questions = this.getAppointmentQuestions(this.config.industry || 'general');
+      const appointmentData = {};
+      
+      questions.forEach(q => {
+        const input = document.getElementById(`appointment_${q.id}`);
+        if (input) {
+          appointmentData[q.id] = input.value;
+        }
+      });
+      
+      // Get customer info from intro data
+      const customerName = this.state.introFlow?.answers?.first_name && this.state.introFlow?.answers?.last_name
+        ? `${this.state.introFlow.answers.first_name} ${this.state.introFlow.answers.last_name}`
+        : this.state.introFlow?.answers?.first_name || 'Customer';
+      const customerEmail = this.state.introFlow?.answers?.email || '';
+      const customerPhone = this.state.introFlow?.answers?.phone || '';
+      
+      // Parse date and time
+      const preferredDate = appointmentData.preferred_date;
+      const preferredTime = appointmentData.preferred_time;
+      let appointmentTime = '10:00';
+      if (preferredTime) {
+        if (preferredTime.includes('Morning')) appointmentTime = '10:00';
+        else if (preferredTime.includes('Afternoon')) appointmentTime = '14:00';
+        else if (preferredTime.includes('Evening')) appointmentTime = '17:00';
+        else appointmentTime = '10:00';
+      }
+      
+      try {
+        const response = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/appointments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conversation_id: this.state.conversationId,
+            customer_name: customerName,
+            customer_email: customerEmail,
+            customer_phone: customerPhone,
+            appointment_type: appointmentData.appointment_type || 'consultation',
+            appointment_date: preferredDate,
+            appointment_time: appointmentTime,
+            duration_minutes: 60,
+            reason: appointmentData.reason || null,
+            notes: appointmentData.symptoms || appointmentData.case_details || null,
+            special_requirements: appointmentData.special_requirements || null,
+            location_type: appointmentData.location_preference?.toLowerCase().includes('virtual') ? 'virtual' : 
+                          appointmentData.location_preference?.toLowerCase().includes('phone') ? 'phone' : 'in-person',
+            insurance_provider: appointmentData.insurance_provider || null,
+            insurance_member_id: appointmentData.insurance_member_id || null,
+            preferred_contact_method: this.state.introFlow?.answers?.preferred_contact?.toLowerCase() || 'email'
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          this.addBotMessage(`✅ Great! Your appointment has been scheduled for ${preferredDate} at ${appointmentTime}. We'll send you a confirmation email shortly.`);
+          form.remove();
+        } else {
+          throw new Error(data.error || 'Failed to book appointment');
+        }
+      } catch (error) {
+        console.error('Appointment booking error:', error);
+        this.addBotMessage('❌ Sorry, there was an error booking your appointment. Please try again or contact us directly.');
+      }
+    },
       setTimeout(() => {
         this.requestLiveAgent();
       }, 1500);
