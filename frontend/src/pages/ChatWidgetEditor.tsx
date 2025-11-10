@@ -18,24 +18,25 @@ export default function ChatWidgetEditor() {
   const [changesSummary, setChangesSummary] = useState<string[]>([]) // Track what changed
   const [showCancelConfirm, setShowCancelConfirm] = useState(false) // Show cancel confirmation dialog
 
+  // ✅ UNIVERSAL TEMPLATE DEFAULTS (based on wtfu_464ed6cab852594fce9034020d77dee3)
   const [formData, setFormData] = useState({
     widget_name: '',
     primary_color: '#4682B4',
     secondary_color: '#2E86AB',
     position: 'bottom-right',
-    welcome_message: 'Hi! How can I help you today?',
-    bot_name: 'Assistant',
-    bot_avatar_url: '',
-    enable_appointment_booking: true,
-    enable_email_capture: true,
-    enable_phone_capture: true,
+    welcome_message: 'Hi! 👋 Welcome to WeTechForU. How can I help you today?',
+    bot_name: 'Wetechforu Assistant',
+    bot_avatar_url: 'https://cdn-icons-png.flaticon.com/512/4712/4712109.png',
+    enable_appointment_booking: false,
+    enable_email_capture: false,
+    enable_phone_capture: false,
     enable_ai_handoff: false,
     ai_handoff_url: '',
     rate_limit_messages: 10,
     rate_limit_window: 60,
     require_captcha: false,
     // 📧 Email Notification Settings
-    enable_email_notifications: true,
+    enable_email_notifications: false,
     notification_email: '',
     visitor_engagement_minutes: 5,
     notify_new_conversation: true,
@@ -43,7 +44,7 @@ export default function ChatWidgetEditor() {
     notify_daily_summary: false
   })
 
-  // 🤖 NEW: Intro Questions State
+  // 🤖 NEW: Intro Questions State (Template defaults)
   const [introFlowEnabled, setIntroFlowEnabledState] = useState(true)
   const setIntroFlowEnabled = (value: boolean) => {
     setIntroFlowEnabledState(value)
@@ -55,9 +56,7 @@ export default function ChatWidgetEditor() {
     { id: 'first_name', question: 'What is your first name?', type: 'text', required: true, order: 1 },
     { id: 'last_name', question: 'What is your last name?', type: 'text', required: true, order: 2 },
     { id: 'email', question: 'What is your email address?', type: 'email', required: true, order: 3 },
-    { id: 'phone', question: 'What is your phone number?', type: 'tel', required: false, order: 4 },
-    { id: 'contact_method', question: 'How would you like us to contact you?', type: 'select', options: ['Email', 'Phone Call', 'Text Message'], required: true, order: 5 },
-    { id: 'services', question: 'What services are you interested in?', type: 'textarea', required: false, order: 6 }
+    { id: 'phone', question: 'What is your phone number?', type: 'tel', required: false, order: 4 }
   ])
   const [editingQuestion, setEditingQuestion] = useState<any>(null)
   const [showQuestionForm, setShowQuestionForm] = useState(false)
@@ -84,28 +83,28 @@ export default function ChatWidgetEditor() {
   const [whatsappTestResult, setWhatsappTestResult] = useState<string | null>(null)
   const [savingWhatsApp, setSavingWhatsApp] = useState(false)
 
-  // 🎯 Agent Handover Choice State
-  const [enableHandoverChoice, setEnableHandoverChoice] = useState(true)
+  // 🎯 Agent Handover Choice State (Template defaults)
+  const [enableHandoverChoice, setEnableHandoverChoice] = useState(false)
   const [handoverOptions, setHandoverOptions] = useState({
-    portal: true,
+    portal: false,
     whatsapp: false,
-    email: true,
+    email: false,
     phone: false,
     webhook: false
   })
-  const [defaultHandoverMethod, setDefaultHandoverMethod] = useState('portal')
+  const [defaultHandoverMethod, setDefaultHandoverMethod] = useState('whatsapp')
   const [webhookUrl, setWebhookUrl] = useState('')
   const [webhookSecret, setWebhookSecret] = useState('')
   const [handoverWhatsAppNumber, setHandoverWhatsAppNumber] = useState('')
   const [handoverTemplateSid, setHandoverTemplateSid] = useState('')
-  const [enableMultipleWhatsAppChats, setEnableMultipleWhatsAppChats] = useState(false)
+  const [enableMultipleWhatsAppChats, setEnableMultipleWhatsAppChats] = useState(true)
   const setEnableMultipleWhatsAppChatsWithTracking = (value: boolean) => {
     setEnableMultipleWhatsAppChats(value)
     if (!isInitialLoad) {
       trackChange(`Multiple WhatsApp Chats ${value ? 'Enabled' : 'Disabled'}`)
     }
   }
-  const [enableInactivityReminders, setEnableInactivityReminders] = useState(true)
+  const [enableInactivityReminders, setEnableInactivityReminders] = useState(false)
   const setEnableInactivityRemindersWithTracking = (value: boolean) => {
     setEnableInactivityReminders(value)
     if (!isInitialLoad) {
@@ -118,8 +117,8 @@ export default function ChatWidgetEditor() {
   const [webhookTestResult, setWebhookTestResult] = useState<string | null>(null)
   const [testingHandoverWhatsApp, setTestingHandoverWhatsApp] = useState(false)
 
-  // 🤖 AI/LLM Configuration State
-  const [enableAI, setEnableAIState] = useState(false)
+  // 🤖 AI/LLM Configuration State (Template defaults)
+  const [enableAI, setEnableAIState] = useState(true)
   const setEnableAI = (value: boolean) => {
     setEnableAIState(value)
     if (!isInitialLoad) {

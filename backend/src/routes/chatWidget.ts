@@ -211,12 +211,43 @@ router.post('/widgets', async (req, res) => {
       business_hours,
       offline_message,
       intro_flow_enabled,
-      intro_questions
+      intro_questions,
+      // Additional fields from template widget
+      industry,
+      enable_handover_choice,
+      handover_options,
+      default_handover_method,
+      enable_whatsapp,
+      enable_multiple_whatsapp_chats,
+      enable_inactivity_reminders,
+      llm_enabled,
+      llm_provider,
+      llm_model,
+      llm_temperature,
+      llm_max_tokens,
+      fallback_to_knowledge_base,
+      conversation_flow
     } = req.body;
 
     // Generate unique widget key
     const widget_key = `wtfu_${crypto.randomBytes(16).toString('hex')}`;
 
+    // ✅ UNIVERSAL TEMPLATE DEFAULTS (based on wtfu_464ed6cab852594fce9034020d77dee3)
+    const defaultIntroQuestions = intro_questions || [
+      { id: 'first_name', type: 'text', order: 1, question: 'What is your first name?', required: true },
+      { id: 'last_name', type: 'text', order: 2, question: 'What is your last name?', required: true },
+      { id: 'email', type: 'email', order: 3, question: 'What is your email address?', required: true },
+      { id: 'phone', type: 'tel', order: 4, question: 'What is your phone number?', required: false }
+    ];
+
+    const defaultConversationFlow = conversation_flow || [
+      { id: 1, type: 'greeting', order: 1, locked: true, enabled: true, settings: { message: 'Hi! 👋 How can I help you today?' }, removable: false },
+      { id: 2, type: 'knowledge_base', order: 2, locked: false, enabled: true, settings: { max_results: 3, show_similar: true, min_confidence: 0.7, fallback_message: 'I couldn\'t find an exact answer, but here are some similar topics...' }, removable: false },
+      { id: 3, type: 'ai_response', order: 3, locked: false, enabled: true, settings: { max_attempts: 1, fallback_message: 'Let me connect you with our team for personalized assistance...' }, removable: true },
+      { id: 4, type: 'agent_handoff', order: 4, locked: true, enabled: true, settings: { online_message: 'Let me connect you with a live agent...', offline_message: 'Our team is currently offline. Please leave your details and we\'ll get back to you soon.', collect_contact_info: true }, removable: false }
+    ];
+
+    // Build INSERT query with all template fields
     const result = await pool.query(
       `INSERT INTO widget_configs (
         client_id, widget_key, widget_name, primary_color, secondary_color,
@@ -224,16 +255,46 @@ router.post('/widgets', async (req, res) => {
         enable_appointment_booking, enable_email_capture, enable_phone_capture,
         enable_ai_handoff, ai_handoff_url, business_hours, offline_message,
         intro_flow_enabled, intro_questions,
+        industry, enable_handover_choice, handover_options, default_handover_method,
+        enable_whatsapp, enable_multiple_whatsapp_chats, enable_inactivity_reminders,
+        llm_enabled, llm_provider, llm_model, llm_temperature, llm_max_tokens, fallback_to_knowledge_base,
+        conversation_flow,
         created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
       RETURNING *`,
       [
-        client_id, widget_key, widget_name, primary_color, secondary_color,
-        position, welcome_message, bot_name, bot_avatar_url,
-        enable_appointment_booking, enable_email_capture, enable_phone_capture,
-        enable_ai_handoff, ai_handoff_url, JSON.stringify(business_hours), offline_message,
-        intro_flow_enabled !== undefined ? intro_flow_enabled : true, // ✅ Default to true
-        intro_questions || null, // ✅ Store intro questions JSON
+        client_id,
+        widget_key,
+        widget_name || 'Chat Widget',
+        primary_color || '#4682B4',
+        secondary_color || '#2E86AB',
+        position || 'bottom-right',
+        welcome_message || 'Hi! 👋 Welcome to WeTechForU. How can I help you today?',
+        bot_name || 'Wetechforu Assistant',
+        bot_avatar_url || 'https://cdn-icons-png.flaticon.com/512/4712/4712109.png',
+        enable_appointment_booking !== undefined ? enable_appointment_booking : false,
+        enable_email_capture !== undefined ? enable_email_capture : false,
+        enable_phone_capture !== undefined ? enable_phone_capture : false,
+        enable_ai_handoff !== undefined ? enable_ai_handoff : false,
+        ai_handoff_url || null,
+        business_hours ? JSON.stringify(business_hours) : null,
+        offline_message || null,
+        intro_flow_enabled !== undefined ? intro_flow_enabled : true,
+        JSON.stringify(defaultIntroQuestions),
+        industry || 'general',
+        enable_handover_choice !== undefined ? enable_handover_choice : false,
+        handover_options ? JSON.stringify(handover_options) : JSON.stringify({ portal: false, whatsapp: false, email: false, phone: false, webhook: false }),
+        default_handover_method || 'whatsapp',
+        enable_whatsapp !== undefined ? enable_whatsapp : false,
+        enable_multiple_whatsapp_chats !== undefined ? enable_multiple_whatsapp_chats : true,
+        enable_inactivity_reminders !== undefined ? enable_inactivity_reminders : false,
+        llm_enabled !== undefined ? llm_enabled : true,
+        llm_provider || 'gemini',
+        llm_model || 'gemini-2.0-flash',
+        llm_temperature || '0.70',
+        llm_max_tokens || 1000,
+        fallback_to_knowledge_base !== undefined ? fallback_to_knowledge_base : true,
+        JSON.stringify(defaultConversationFlow),
         (req as any).session.userId
       ]
     );
