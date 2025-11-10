@@ -370,18 +370,20 @@ export class AppointmentAvailabilityService {
       try {
         // Import calendar service based on type
         if (member.calendar_type === 'google') {
-          const { GoogleCalendarService } = await import('./googleCalendarService');
-          const calendarService = new GoogleCalendarService();
-          // Sync logic here
+          // Google Calendar sync - to be implemented
+          // const { GoogleCalendarService } = await import('./googleCalendarService');
+          // const calendarService = new GoogleCalendarService();
+          console.log('Google Calendar sync not yet implemented');
           eventsSynced = 0; // Placeholder
         } else if (member.calendar_type === 'outlook') {
-          const { AzureCalendarService } = await import('./azureCalendarService');
-          const calendarService = AzureCalendarService.getInstance();
-          // Sync logic here
+          // Outlook/Exchange sync - to be implemented
+          // const { AzureCalendarService } = await import('./azureCalendarService');
+          // const calendarService = new AzureCalendarService();
+          console.log('Outlook Calendar sync not yet implemented');
           eventsSynced = 0; // Placeholder
         } else if (member.calendar_type === 'ical') {
-          // iCal feed sync
-          // Implementation here
+          // iCal feed sync - to be implemented
+          console.log('iCal feed sync not yet implemented');
           eventsSynced = 0; // Placeholder
         }
 

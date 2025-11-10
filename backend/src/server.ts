@@ -310,7 +310,15 @@ if (process.env.NODE_ENV === 'production') {
 // Initialize scheduled posts cron job (runs every 10 minutes)
 (async () => {
   try {
-    const cron = await import('node-cron');
+    // Try to import node-cron, but don't fail if it's not installed
+    let cron: any;
+    try {
+      cron = await import('node-cron');
+    } catch (err) {
+      console.warn('⚠️ node-cron not installed, scheduled posts will not run automatically');
+      return;
+    }
+    
     const { processScheduledPosts } = await import('./services/socialMediaPostingService');
     
     // Run every 10 minutes: '*/10 * * * *'

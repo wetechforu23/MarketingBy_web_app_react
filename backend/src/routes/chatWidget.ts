@@ -3656,13 +3656,13 @@ router.post('/public/widget/:widgetKey/appointments', async (req, res) => {
     
     // Check if slot is available (if member_id is provided)
     const member_id = req.body.member_id || null;
-    const duration_minutes = req.body.duration_minutes || 60;
+    const appointment_duration_minutes = req.body.duration_minutes || 60;
     
     const availabilityCheck = await availabilityService.checkSlotAvailability(
       widget_id,
       member_id,
       appointment_datetime,
-      duration_minutes
+      appointment_duration_minutes
     );
     
     if (!availabilityCheck.available) {
@@ -3688,7 +3688,7 @@ router.post('/public/widget/:widgetKey/appointments', async (req, res) => {
         widget_id, client_id, conversation_id || null,
         customer_name, customer_email, customer_phone || null,
         appointment_type || 'consultation', appointment_date, appointment_time, appointment_datetime,
-        duration_minutes || 60, reason || null, notes || null, special_requirements || null,
+        appointment_duration_minutes || 60, reason || null, notes || null, special_requirements || null,
         location_type || 'in-person', location_address || null, meeting_link || null,
         insurance_provider || null, insurance_member_id || null, preferred_contact_method || 'email',
         'scheduled', 'chat_widget'
