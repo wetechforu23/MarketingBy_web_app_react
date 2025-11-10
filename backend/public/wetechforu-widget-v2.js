@@ -3715,10 +3715,8 @@
                 console.log('🧹 Cleared existing UI messages before restoring');
             }
             
-            // Add system message about restored conversation
-            this.addBotMessage('👋 Welcome back! Here\'s your previous conversation:');
-            
-              // Display all previous messages with date separators
+            // Don't add "Welcome back" message - just restore the messages silently
+            // Display all previous messages with date separators
               let lastDate = null;
               const messagesDiv = document.getElementById('wetechforu-messages');
               
