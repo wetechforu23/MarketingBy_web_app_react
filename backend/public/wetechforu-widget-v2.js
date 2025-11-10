@@ -4063,6 +4063,12 @@
         
         this.hideTyping();
         
+        // ✅ Check if appointment was requested
+        if (data.appointment_requested) {
+          await this.handleAppointmentRequest();
+          return;
+        }
+        
         // ✅ Check if conversation has ended
         if (data.conversation_ended) {
           // Store closed conversation info for reopen prompt
