@@ -62,6 +62,8 @@
       consecutiveEmptyPolls: 0, // ✅ Track consecutive polls with no messages (for exponential backoff)
       agentTookOver: false, // ✅ NEW: Track if agent took over conversation
       conversationEnded: false, // ✅ Track if conversation has ended
+      closedConversationId: null, // ✅ Track closed conversation ID for reopen
+      closedConversationData: null, // ✅ Track closed conversation data for reopen
       clickOutsideListener: null, // ✅ Track click outside listener for cleanup
       unsuccessfulAttempts: 0, // Track failed knowledge base matches
       compatibility: {
