@@ -232,13 +232,10 @@ router.post('/widgets', async (req, res) => {
     // Generate unique widget key
     const widget_key = `wtfu_${crypto.randomBytes(16).toString('hex')}`;
 
-    // ✅ UNIVERSAL TEMPLATE DEFAULTS (based on wtfu_464ed6cab852594fce9034020d77dee3)
-    const defaultIntroQuestions = intro_questions || [
-      { id: 'first_name', type: 'text', order: 1, question: 'What is your first name?', required: true },
-      { id: 'last_name', type: 'text', order: 2, question: 'What is your last name?', required: true },
-      { id: 'email', type: 'email', order: 3, question: 'What is your email address?', required: true },
-      { id: 'phone', type: 'tel', order: 4, question: 'What is your phone number?', required: false }
-    ];
+    // ✅ INDUSTRY-BASED DEFAULT QUESTIONS
+    const { getIndustryDefaultQuestions } = await import('../utils/industryQuestions');
+    const selectedIndustry = industry || 'general';
+    const defaultIntroQuestions = intro_questions || getIndustryDefaultQuestions(selectedIndustry);
 
     const defaultConversationFlow = conversation_flow || [
       { id: 1, type: 'greeting', order: 1, locked: true, enabled: true, settings: { message: 'Hi! 👋 How can I help you today?' }, removable: false },
@@ -3572,6 +3569,225 @@ router.post('/test-ai', async (req, res) => {
       success: false,
       error: error.message || 'Failed to test AI connection'
     });
+  }
+});
+
+/**
+ * Appointment Booking Endpoints
+ */
+
+// Create appointment from chat widget
+router.post('/public/widget/:widgetKey/appointments', async (req, res) => {
+  try {
+    const { widgetKey } = req.params;
+    const {
+      conversation_id,
+      customer_name,
+      customer_email,
+      customer_phone,
+      appointment_type,
+      appointment_date,
+      appointment_time,
+      duration_minutes,
+      reason,
+      notes,
+      special_requirements,
+      location_type,
+      location_address,
+      meeting_link,
+      insurance_provider,
+      insurance_member_id,
+      preferred_contact_method
+    } = req.body;
+
+    // Get widget and client info
+    const widgetResult = await pool.query(
+      `SELECT id, client_id, widget_name, industry FROM widget_configs WHERE widget_key = $1 AND is_active = true`,
+      [widgetKey]
+    );
+
+    if (widgetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+
+    const widget = widgetResult.rows[0];
+    const widget_id = widget.id;
+    const client_id = widget.client_id;
+
+    // Validate required fields
+    if (!customer_name || !customer_email || !appointment_date || !appointment_time) {
+      return res.status(400).json({ error: 'Customer name, email, date, and time are required' });
+    }
+
+    // Combine date and time into datetime
+    const appointment_datetime = new Date(`${appointment_date}T${appointment_time}`);
+
+    // Insert appointment
+    const result = await pool.query(
+      `INSERT INTO appointments (
+        widget_id, client_id, conversation_id,
+        customer_name, customer_email, customer_phone,
+        appointment_type, appointment_date, appointment_time, appointment_datetime,
+        duration_minutes, reason, notes, special_requirements,
+        location_type, location_address, meeting_link,
+        insurance_provider, insurance_member_id, preferred_contact_method,
+        status, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+      RETURNING *`,
+      [
+        widget_id, client_id, conversation_id || null,
+        customer_name, customer_email, customer_phone || null,
+        appointment_type || 'consultation', appointment_date, appointment_time, appointment_datetime,
+        duration_minutes || 60, reason || null, notes || null, special_requirements || null,
+        location_type || 'in-person', location_address || null, meeting_link || null,
+        insurance_provider || null, insurance_member_id || null, preferred_contact_method || 'email',
+        'scheduled', 'chat_widget'
+      ]
+    );
+
+    const appointment = result.rows[0];
+
+    // Log to appointment history
+    await pool.query(
+      `INSERT INTO appointment_history (appointment_id, changed_by, change_type, new_value)
+       VALUES ($1, $2, $3, $4)`,
+      [appointment.id, 'chat_widget', 'created', JSON.stringify(appointment)]
+    );
+
+    console.log(`✅ Appointment created: ${appointment.id} for widget ${widget_id}`);
+
+    res.json({
+      success: true,
+      appointment_id: appointment.id,
+      appointment: appointment,
+      message: 'Appointment scheduled successfully'
+    });
+  } catch (error) {
+    console.error('Create appointment error:', error);
+    res.status(500).json({ error: 'Failed to create appointment' });
+  }
+});
+
+// Get appointments for a widget
+router.get('/widgets/:widgetId/appointments', async (req, res) => {
+  try {
+    const { widgetId } = req.params;
+    const { status, start_date, end_date } = req.query;
+
+    let query = `
+      SELECT a.*, w.widget_name, c.name as client_name
+      FROM appointments a
+      JOIN widget_configs w ON w.id = a.widget_id
+      JOIN clients c ON c.id = a.client_id
+      WHERE a.widget_id = $1
+    `;
+    const params: any[] = [widgetId];
+
+    if (status) {
+      query += ` AND a.status = $${params.length + 1}`;
+      params.push(status);
+    }
+
+    if (start_date) {
+      query += ` AND a.appointment_date >= $${params.length + 1}`;
+      params.push(start_date);
+    }
+
+    if (end_date) {
+      query += ` AND a.appointment_date <= $${params.length + 1}`;
+      params.push(end_date);
+    }
+
+    query += ` ORDER BY a.appointment_datetime ASC`;
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      appointments: result.rows,
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error('Get appointments error:', error);
+    res.status(500).json({ error: 'Failed to fetch appointments' });
+  }
+});
+
+// Update appointment status
+router.put('/appointments/:appointmentId', async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { status, cancellation_reason, notes } = req.body;
+
+    // Get current appointment
+    const currentResult = await pool.query(
+      `SELECT * FROM appointments WHERE id = $1`,
+      [appointmentId]
+    );
+
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    const currentAppointment = currentResult.rows[0];
+
+    // Update appointment
+    const updateFields: string[] = [];
+    const values: any[] = [];
+    let paramCount = 1;
+
+    if (status) {
+      updateFields.push(`status = $${paramCount++}`);
+      values.push(status);
+    }
+
+    if (cancellation_reason !== undefined) {
+      updateFields.push(`cancellation_reason = $${paramCount++}`);
+      values.push(cancellation_reason);
+    }
+
+    if (notes !== undefined) {
+      updateFields.push(`notes = $${paramCount++}`);
+      values.push(notes);
+    }
+
+    if (status === 'cancelled') {
+      updateFields.push(`cancelled_at = NOW()`);
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(appointmentId);
+
+    const result = await pool.query(
+      `UPDATE appointments SET ${updateFields.join(', ')}, updated_at = NOW() WHERE id = $${paramCount} RETURNING *`,
+      values
+    );
+
+    const updatedAppointment = result.rows[0];
+
+    // Log to history
+    await pool.query(
+      `INSERT INTO appointment_history (appointment_id, changed_by, change_type, old_value, new_value, change_reason)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        appointmentId,
+        (req as any).session?.username || 'admin',
+        status ? 'status_changed' : 'updated',
+        JSON.stringify(currentAppointment),
+        JSON.stringify(updatedAppointment),
+        cancellation_reason || null
+      ]
+    );
+
+    res.json({
+      success: true,
+      appointment: updatedAppointment
+    });
+  } catch (error) {
+    console.error('Update appointment error:', error);
+    res.status(500).json({ error: 'Failed to update appointment' });
   }
 });
 
