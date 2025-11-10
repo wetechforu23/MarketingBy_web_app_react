@@ -2013,10 +2013,10 @@ router.post('/public/widget/:widgetKey/conversations/:conversationId/end', async
 
     const conversation = convResult.rows[0];
 
-    // Update conversation status to 'ended'
+    // Update conversation status to 'closed' (per database constraint)
     await pool.query(
       `UPDATE widget_conversations SET
-        status = 'ended',
+        status = 'closed',
         agent_handoff = false,
         ended_at = COALESCE(ended_at, NOW()),
         updated_at = NOW()

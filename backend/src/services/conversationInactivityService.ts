@@ -363,7 +363,7 @@ export class ConversationInactivityService {
     await pool.query(`
       UPDATE widget_conversations
       SET 
-        status = 'ended',
+        status = 'closed',
         agent_handoff = false,
         ended_at = NOW(),
         close_reason = $1,
