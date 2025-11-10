@@ -1546,6 +1546,27 @@ export default function ChatWidgetEditor() {
             <span style={{ fontWeight: '600' }}>Enable Appointment Booking</span>
           </label>
 
+          {/* 📅 Appointment Availability Management - Only show if appointment booking is enabled */}
+          {formData.enable_appointment_booking && isEditMode && (
+            <div style={{
+              marginTop: '2rem',
+              padding: '1.5rem',
+              background: '#f8f9fa',
+              borderRadius: '8px',
+              border: '2px solid #2E86AB'
+            }}>
+              <h4 style={{ marginTop: 0, marginBottom: '1rem', color: '#2E86AB' }}>
+                📅 Team Members & Availability
+              </h4>
+              <p style={{ fontSize: '14px', color: '#666', marginBottom: '1.5rem' }}>
+                Configure team member availability, time slots, and calendar integration. 
+                Customers will only see available time slots when booking appointments.
+              </p>
+              
+              <AppointmentAvailabilityManager widgetId={parseInt(id || '0')} />
+            </div>
+          )}
+
           <label style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem', cursor: 'pointer' }}>
             <input
               type="checkbox"
