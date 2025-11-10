@@ -313,6 +313,7 @@ if (process.env.NODE_ENV === 'production') {
     // Try to import node-cron, but don't fail if it's not installed
     let cron: any;
     try {
+      // @ts-ignore - node-cron may not be installed
       cron = await import('node-cron');
     } catch (err) {
       console.warn('⚠️ node-cron not installed, scheduled posts will not run automatically');
