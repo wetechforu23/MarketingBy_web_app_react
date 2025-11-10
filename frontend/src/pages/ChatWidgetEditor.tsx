@@ -2068,14 +2068,17 @@ export default function ChatWidgetEditor() {
             <input
               type="checkbox"
               checked={formData.enable_appointment_booking}
-              onChange={(e) => handleChange('enable_appointment_booking', e.target.checked)}
+              onChange={(e) => {
+                console.log('📅 Appointment booking checkbox changed:', e.target.checked);
+                handleChange('enable_appointment_booking', e.target.checked);
+              }}
               style={{ marginRight: '0.5rem', width: '18px', height: '18px' }}
             />
             <span style={{ fontWeight: '600' }}>Enable Appointment Booking</span>
           </label>
 
           {/* 📅 Appointment Availability Management - Only show if appointment booking is enabled */}
-          {formData.enable_appointment_booking && isEditMode && id && (
+          {formData.enable_appointment_booking && (
             <div style={{
               marginTop: '2rem',
               padding: '1.5rem',
@@ -2091,11 +2094,24 @@ export default function ChatWidgetEditor() {
                 Customers will only see available time slots when booking appointments.
               </p>
               
-              {id ? (
+              {isEditMode && id ? (
                 <AppointmentAvailabilityManager widgetId={parseInt(id)} />
               ) : (
-                <div style={{ padding: '1rem', textAlign: 'center', color: '#666' }}>
-                  Please save the widget first to configure team members.
+                <div style={{ 
+                  padding: '1.5rem', 
+                  textAlign: 'center', 
+                  background: 'white',
+                  borderRadius: '8px',
+                  border: '1px dashed #2E86AB'
+                }}>
+                  <p style={{ color: '#666', margin: 0, marginBottom: '0.5rem' }}>
+                    {isEditMode ? '⚠️ Widget ID not found. Please refresh the page.' : '💡 Please save the widget first to configure team members.'}
+                  </p>
+                  {!isEditMode && (
+                    <p style={{ fontSize: '12px', color: '#999', margin: 0 }}>
+                      After saving, you'll be able to add team members and set their availability schedules.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
