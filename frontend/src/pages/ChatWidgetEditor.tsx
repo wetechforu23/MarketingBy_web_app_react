@@ -2075,7 +2075,7 @@ export default function ChatWidgetEditor() {
           </label>
 
           {/* 📅 Appointment Availability Management - Only show if appointment booking is enabled */}
-          {formData.enable_appointment_booking && isEditMode && (
+          {formData.enable_appointment_booking && isEditMode && id && (
             <div style={{
               marginTop: '2rem',
               padding: '1.5rem',
@@ -2091,7 +2091,13 @@ export default function ChatWidgetEditor() {
                 Customers will only see available time slots when booking appointments.
               </p>
               
-              <AppointmentAvailabilityManager widgetId={parseInt(id || '0')} />
+              {id ? (
+                <AppointmentAvailabilityManager widgetId={parseInt(id)} />
+              ) : (
+                <div style={{ padding: '1rem', textAlign: 'center', color: '#666' }}>
+                  Please save the widget first to configure team members.
+                </div>
+              )}
             </div>
           )}
 
