@@ -3647,8 +3647,30 @@ router.post('/public/widget/:widgetKey/appointments', async (req, res) => {
       return res.status(400).json({ error: 'Customer name, email, date, and time are required' });
     }
 
+    // ✅ Check availability before creating appointment
+    const { AppointmentAvailabilityService } = await import('../services/appointmentAvailabilityService');
+    const availabilityService = AppointmentAvailabilityService.getInstance();
+    
     // Combine date and time into datetime
     const appointment_datetime = new Date(`${appointment_date}T${appointment_time}`);
+    
+    // Check if slot is available (if member_id is provided)
+    const member_id = req.body.member_id || null;
+    const duration_minutes = req.body.duration_minutes || 60;
+    
+    const availabilityCheck = await availabilityService.checkSlotAvailability(
+      widget_id,
+      member_id,
+      appointment_datetime,
+      duration_minutes
+    );
+    
+    if (!availabilityCheck.available) {
+      return res.status(400).json({ 
+        error: 'Time slot is not available',
+        reason: availabilityCheck.reason 
+      });
+    }
 
     // Insert appointment
     const result = await pool.query(
@@ -3816,6 +3838,349 @@ router.put('/appointments/:appointmentId', async (req, res) => {
   } catch (error) {
     console.error('Update appointment error:', error);
     res.status(500).json({ error: 'Failed to update appointment' });
+  }
+});
+
+/**
+ * Appointment Availability Management Endpoints
+ */
+
+// Get team members for a widget
+router.get('/widgets/:widgetId/team-members', async (req, res) => {
+  try {
+    const { widgetId } = req.params;
+    
+    const result = await pool.query(
+      `SELECT id, name, email, phone, role, title, calendar_type, 
+              timezone, default_duration_minutes, buffer_time_minutes,
+              is_active, is_available_for_booking, created_at, updated_at
+       FROM team_members
+       WHERE widget_id = $1
+       ORDER BY name`,
+      [widgetId]
+    );
+
+    res.json({ team_members: result.rows });
+  } catch (error) {
+    console.error('Get team members error:', error);
+    res.status(500).json({ error: 'Failed to fetch team members' });
+  }
+});
+
+// Create team member
+router.post('/widgets/:widgetId/team-members', async (req, res) => {
+  try {
+    const { widgetId } = req.params;
+    const {
+      name, email, phone, role, title,
+      calendar_type, calendar_id, calendar_url,
+      timezone, default_duration_minutes, buffer_time_minutes
+    } = req.body;
+
+    // Get client_id from widget
+    const widgetResult = await pool.query(
+      `SELECT client_id FROM widget_configs WHERE id = $1`,
+      [widgetId]
+    );
+
+    if (widgetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+
+    const client_id = widgetResult.rows[0].client_id;
+
+    const result = await pool.query(
+      `INSERT INTO team_members (
+        widget_id, client_id, name, email, phone, role, title,
+        calendar_type, calendar_id, calendar_url,
+        timezone, default_duration_minutes, buffer_time_minutes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      RETURNING *`,
+      [
+        widgetId, client_id, name, email, phone || null, role || null, title || null,
+        calendar_type || 'manual', calendar_id || null, calendar_url || null,
+        timezone || 'America/New_York', default_duration_minutes || 60, buffer_time_minutes || 15
+      ]
+    );
+
+    res.json({ success: true, team_member: result.rows[0] });
+  } catch (error) {
+    console.error('Create team member error:', error);
+    res.status(500).json({ error: 'Failed to create team member' });
+  }
+});
+
+// Update team member
+router.put('/team-members/:memberId', async (req, res) => {
+  try {
+    const { memberId } = req.params;
+    const updates = req.body;
+
+    const allowedFields = [
+      'name', 'email', 'phone', 'role', 'title',
+      'calendar_type', 'calendar_id', 'calendar_url',
+      'timezone', 'default_duration_minutes', 'buffer_time_minutes',
+      'is_active', 'is_available_for_booking'
+    ];
+
+    const setClause: string[] = [];
+    const values: any[] = [];
+    let paramCount = 1;
+
+    for (const [key, value] of Object.entries(updates)) {
+      if (allowedFields.includes(key)) {
+        setClause.push(`${key} = $${paramCount++}`);
+        values.push(value);
+      }
+    }
+
+    if (setClause.length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    values.push(memberId);
+
+    const result = await pool.query(
+      `UPDATE team_members 
+       SET ${setClause.join(', ')}, updated_at = NOW()
+       WHERE id = $${paramCount}
+       RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Team member not found' });
+    }
+
+    res.json({ success: true, team_member: result.rows[0] });
+  } catch (error) {
+    console.error('Update team member error:', error);
+    res.status(500).json({ error: 'Failed to update team member' });
+  }
+});
+
+// Delete team member
+router.delete('/team-members/:memberId', async (req, res) => {
+  try {
+    const { memberId } = req.params;
+
+    await pool.query(`DELETE FROM team_members WHERE id = $1`, [memberId]);
+
+    res.json({ success: true, message: 'Team member deleted' });
+  } catch (error) {
+    console.error('Delete team member error:', error);
+    res.status(500).json({ error: 'Failed to delete team member' });
+  }
+});
+
+// Get availability schedule for a member
+router.get('/team-members/:memberId/availability', async (req, res) => {
+  try {
+    const { memberId } = req.params;
+
+    const result = await pool.query(
+      `SELECT id, day_of_week, start_time, end_time, availability_type,
+              max_appointments, is_recurring, valid_from, valid_until
+       FROM member_availability
+       WHERE member_id = $1
+       ORDER BY day_of_week, start_time`,
+      [memberId]
+    );
+
+    res.json({ availability: result.rows });
+  } catch (error) {
+    console.error('Get availability error:', error);
+    res.status(500).json({ error: 'Failed to fetch availability' });
+  }
+});
+
+// Set availability schedule for a member
+router.post('/team-members/:memberId/availability', async (req, res) => {
+  try {
+    const { memberId } = req.params;
+    const { availability } = req.body; // Array of availability configs
+
+    if (!Array.isArray(availability)) {
+      return res.status(400).json({ error: 'Availability must be an array' });
+    }
+
+    // Delete existing availability
+    await pool.query(`DELETE FROM member_availability WHERE member_id = $1`, [memberId]);
+
+    // Insert new availability
+    for (const config of availability) {
+      await pool.query(
+        `INSERT INTO member_availability (
+          member_id, day_of_week, start_time, end_time,
+          availability_type, max_appointments, is_recurring,
+          valid_from, valid_until
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          memberId,
+          config.day_of_week,
+          config.start_time,
+          config.end_time,
+          config.availability_type || 'available',
+          config.max_appointments || null,
+          config.is_recurring !== undefined ? config.is_recurring : true,
+          config.valid_from || null,
+          config.valid_until || null
+        ]
+      );
+    }
+
+    res.json({ success: true, message: 'Availability schedule updated' });
+  } catch (error) {
+    console.error('Set availability error:', error);
+    res.status(500).json({ error: 'Failed to set availability' });
+  }
+});
+
+// Get blocked time slots
+router.get('/widgets/:widgetId/blocked-slots', async (req, res) => {
+  try {
+    const { widgetId } = req.params;
+    const { start_date, end_date } = req.query;
+
+    let query = `
+      SELECT b.*, tm.name as member_name
+      FROM blocked_time_slots b
+      LEFT JOIN team_members tm ON tm.id = b.member_id
+      WHERE b.widget_id = $1
+    `;
+    const params: any[] = [widgetId];
+
+    if (start_date) {
+      query += ` AND DATE(b.start_datetime) >= $${params.length + 1}`;
+      params.push(start_date);
+    }
+
+    if (end_date) {
+      query += ` AND DATE(b.end_datetime) <= $${params.length + 1}`;
+      params.push(end_date);
+    }
+
+    query += ` ORDER BY b.start_datetime ASC`;
+
+    const result = await pool.query(query, params);
+
+    res.json({ blocked_slots: result.rows });
+  } catch (error) {
+    console.error('Get blocked slots error:', error);
+    res.status(500).json({ error: 'Failed to fetch blocked slots' });
+  }
+});
+
+// Create blocked time slot
+router.post('/widgets/:widgetId/blocked-slots', async (req, res) => {
+  try {
+    const { widgetId } = req.params;
+    const {
+      member_id,
+      block_type,
+      block_title,
+      block_reason,
+      start_datetime,
+      end_datetime,
+      recurrence_pattern,
+      recurrence_end_date,
+      applies_to_all_members
+    } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO blocked_time_slots (
+        widget_id, member_id, block_type, block_title, block_reason,
+        start_datetime, end_datetime, recurrence_pattern, recurrence_end_date,
+        applies_to_all_members
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *`,
+      [
+        widgetId,
+        applies_to_all_members ? null : member_id,
+        block_type || 'one_time',
+        block_title || null,
+        block_reason || null,
+        start_datetime,
+        end_datetime,
+        recurrence_pattern || null,
+        recurrence_end_date || null,
+        applies_to_all_members || false
+      ]
+    );
+
+    res.json({ success: true, blocked_slot: result.rows[0] });
+  } catch (error) {
+    console.error('Create blocked slot error:', error);
+    res.status(500).json({ error: 'Failed to create blocked slot' });
+  }
+});
+
+// Delete blocked time slot
+router.delete('/blocked-slots/:slotId', async (req, res) => {
+  try {
+    const { slotId } = req.params;
+
+    await pool.query(`DELETE FROM blocked_time_slots WHERE id = $1`, [slotId]);
+
+    res.json({ success: true, message: 'Blocked slot deleted' });
+  } catch (error) {
+    console.error('Delete blocked slot error:', error);
+    res.status(500).json({ error: 'Failed to delete blocked slot' });
+  }
+});
+
+// Get available time slots for booking
+router.get('/public/widget/:widgetKey/available-slots', async (req, res) => {
+  try {
+    const { widgetKey } = req.params;
+    const { start_date, end_date, duration_minutes } = req.query;
+
+    // Get widget ID
+    const widgetResult = await pool.query(
+      `SELECT id FROM widget_configs WHERE widget_key = $1 AND is_active = true`,
+      [widgetKey]
+    );
+
+    if (widgetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+
+    const widgetId = widgetResult.rows[0].id;
+
+    const startDate = start_date ? new Date(start_date as string) : new Date();
+    const endDate = end_date ? new Date(end_date as string) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days default
+
+    const { AppointmentAvailabilityService } = await import('../services/appointmentAvailabilityService');
+    const availabilityService = AppointmentAvailabilityService.getInstance();
+
+    const slots = await availabilityService.getAvailableSlots(
+      widgetId,
+      startDate,
+      endDate,
+      duration_minutes ? parseInt(duration_minutes as string) : 60
+    );
+
+    res.json({ available_slots: slots });
+  } catch (error) {
+    console.error('Get available slots error:', error);
+    res.status(500).json({ error: 'Failed to fetch available slots' });
+  }
+});
+
+// Sync calendar for a team member
+router.post('/team-members/:memberId/sync-calendar', async (req, res) => {
+  try {
+    const { memberId } = req.params;
+
+    const { AppointmentAvailabilityService } = await import('../services/appointmentAvailabilityService');
+    const availabilityService = AppointmentAvailabilityService.getInstance();
+
+    const result = await availabilityService.syncCalendar(parseInt(memberId));
+
+    res.json(result);
+  } catch (error) {
+    console.error('Sync calendar error:', error);
+    res.status(500).json({ error: 'Failed to sync calendar' });
   }
 });
 
