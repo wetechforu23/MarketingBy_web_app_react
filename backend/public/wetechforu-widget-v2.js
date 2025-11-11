@@ -3016,6 +3016,146 @@
     // ✅ REMOVED: Hardcoded askContactInfo() - form now handles all contact collection
     // Contact info is collected via intro form (from widget config), not hardcoded questions
 
+    // Show conversation stopped message with reactivate/close buttons (Industry Standard)
+    showConversationStoppedMessage(data) {
+      const messagesContainer = document.getElementById('wetechforu-messages');
+      
+      const statsHtml = data.duration_minutes || data.user_messages || data.bot_messages || data.agent_messages
+        ? `<div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin: 12px 0; font-size: 12px; color: #1976D2;">
+            <strong>📊 Conversation Summary:</strong><br>
+            ${data.duration_minutes ? `Duration: ${data.duration_minutes} minutes<br>` : ''}
+            ${data.user_messages ? `Your Messages: ${data.user_messages}<br>` : ''}
+            ${data.bot_messages ? `Bot Messages: ${data.bot_messages}<br>` : ''}
+            ${data.agent_messages ? `Agent Messages: ${data.agent_messages}` : ''}
+          </div>`
+        : '';
+      
+      const messageHTML = `
+        <div class="wetechforu-message wetechforu-message-bot" data-conversation-stopped="true">
+          <div class="wetechforu-message-avatar">🤖</div>
+          <div style="flex: 1;">
+            <div class="wetechforu-message-content">
+              ${this.escapeHTML(data.message || '👋 Our agent has stopped this conversation.')}
+              ${statsHtml}
+              <div style="margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <button id="wetechforu-reactivate-btn" style="
+                  padding: 10px 20px;
+                  background: #4CAF50;
+                  color: white;
+                  border: none;
+                  border-radius: 6px;
+                  cursor: pointer;
+                  font-size: 14px;
+                  font-weight: 600;
+                  transition: background 0.2s;
+                " onmouseover="this.style.background='#45a049'" onmouseout="this.style.background='#4CAF50'">
+                  ✅ Reactivate Chat
+                </button>
+                <button id="wetechforu-close-btn" style="
+                  padding: 10px 20px;
+                  background: #f44336;
+                  color: white;
+                  border: none;
+                  border-radius: 6px;
+                  cursor: pointer;
+                  font-size: 14px;
+                  font-weight: 600;
+                  transition: background 0.2s;
+                " onmouseover="this.style.background='#da190b'" onmouseout="this.style.background='#f44336'">
+                  ❌ Close Permanently
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      messagesContainer.insertAdjacentHTML('beforeend', messageHTML);
+      this.scrollToBottom();
+      
+      // Add event listeners
+      const reactivateBtn = document.getElementById('wetechforu-reactivate-btn');
+      const closeBtn = document.getElementById('wetechforu-close-btn');
+      
+      if (reactivateBtn) {
+        reactivateBtn.addEventListener('click', () => this.handleReactivateConversation(data.conversation_id));
+      }
+      
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => this.handleCloseConversation(data.conversation_id));
+      }
+      
+      // Mark conversation as ended
+      this.state.conversationEnded = true;
+      this.stopPollingForAgentMessages();
+    },
+    
+    // Handle reactivate conversation
+    async handleReactivateConversation(conversationId) {
+      try {
+        const response = await fetch(
+          `${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/reactivate-or-close`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'reactivate' })
+          }
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          this.addBotMessage('✅ Conversation reactivated! How can I help you?');
+          this.state.conversationEnded = false;
+          this.state.conversationId = conversationId;
+          // Remove buttons
+          const stoppedMsg = document.querySelector('[data-conversation-stopped="true"]');
+          if (stoppedMsg) {
+            const buttons = stoppedMsg.querySelectorAll('button');
+            buttons.forEach(btn => btn.remove());
+          }
+        } else {
+          this.addBotMessage('❌ Failed to reactivate conversation. Please try again.');
+        }
+      } catch (error) {
+        console.error('Failed to reactivate conversation:', error);
+        this.addBotMessage('❌ Sorry, there was an error. Please try again.');
+      }
+    },
+    
+    // Handle close conversation permanently
+    async handleCloseConversation(conversationId) {
+      try {
+        const response = await fetch(
+          `${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/conversations/${conversationId}/reactivate-or-close`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'close' })
+          }
+        );
+        
+        if (response.ok) {
+          this.addBotMessage('✅ Conversation closed. Thank you for chatting with us!');
+          this.state.conversationEnded = true;
+          // Remove buttons
+          const stoppedMsg = document.querySelector('[data-conversation-stopped="true"]');
+          if (stoppedMsg) {
+            const buttons = stoppedMsg.querySelectorAll('button');
+            buttons.forEach(btn => btn.remove());
+          }
+          // Optionally minimize chat after a delay
+          setTimeout(() => {
+            this.minimizeChat();
+          }, 2000);
+        } else {
+          this.addBotMessage('❌ Failed to close conversation. Please try again.');
+        }
+      } catch (error) {
+        console.error('Failed to close conversation:', error);
+        this.addBotMessage('❌ Sorry, there was an error. Please try again.');
+      }
+    },
+
     // Add bot message
     addBotMessage(text, isAgent = false, agentName = null, autoScroll = false) {
       const messagesContainer = document.getElementById('wetechforu-messages');
@@ -4471,8 +4611,16 @@
             const data = await response.json();
             const messages = Array.isArray(data) ? data : (data.messages || []);
             
+            // Check for agent messages
             const newMessages = messages.filter(msg => 
               msg.message_type === 'human' && 
+              msg.id && 
+              !this.state.displayedMessageIds.includes(msg.id)
+            );
+            
+            // Check for system messages (conversation stopped, etc.)
+            const newSystemMessages = messages.filter(msg => 
+              msg.message_type === 'system' && 
               msg.id && 
               !this.state.displayedMessageIds.includes(msg.id)
             );
@@ -4490,7 +4638,31 @@
               
               // ✅ Restart polling with faster interval when messages found
               this.restartPollingWithInterval(3000);
-            } else {
+            }
+            
+            // Handle system messages (conversation stopped, etc.)
+            if (newSystemMessages.length > 0) {
+              newSystemMessages.forEach(msg => {
+                try {
+                  // Try to parse as JSON (for conversation_stopped type)
+                  const parsed = JSON.parse(msg.message_text);
+                  if (parsed.type === 'conversation_stopped' && parsed.show_buttons) {
+                    this.showConversationStoppedMessage(parsed);
+                    this.state.displayedMessageIds.push(msg.id);
+                  } else {
+                    // Regular system message
+                    this.addBotMessage(parsed.message || msg.message_text);
+                    this.state.displayedMessageIds.push(msg.id);
+                  }
+                } catch (e) {
+                  // Not JSON, treat as regular system message
+                  this.addBotMessage(msg.message_text);
+                  this.state.displayedMessageIds.push(msg.id);
+                }
+              });
+            }
+            
+            if (newMessages.length === 0 && newSystemMessages.length === 0) {
               // ✅ No new messages - implement exponential backoff
               this.state.consecutiveEmptyPolls++;
               

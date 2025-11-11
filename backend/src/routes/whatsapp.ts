@@ -1542,12 +1542,113 @@ router.post('/incoming', async (req: Request, res: Response) => {
           visitorName: 'Agent'
         });
         
-        // ✅ Add message to chat widget when conversation is stopped/ended
+        // ✅ Add message to chat widget when conversation is stopped/ended (Industry Standard)
         if (isDeactivate) {
+          // Get conversation details for metrics
+          const convDetails = await pool.query(`
+            SELECT 
+              wconv.id, wconv.visitor_name, wconv.visitor_email, wconv.created_at, wconv.ended_at,
+              w.widget_name, w.client_id, c.client_name,
+              (SELECT COUNT(*) FROM widget_messages WHERE conversation_id = wconv.id AND message_type = 'user') as user_message_count,
+              (SELECT COUNT(*) FROM widget_messages WHERE conversation_id = wconv.id AND message_type IN ('bot', 'system')) as bot_message_count,
+              (SELECT COUNT(*) FROM widget_messages WHERE conversation_id = wconv.id AND message_type IN ('agent', 'human')) as agent_message_count
+            FROM widget_conversations wconv
+            JOIN widget_configs w ON w.id = wconv.widget_id
+            LEFT JOIN clients c ON c.id = w.client_id
+            WHERE wconv.id = $1
+          `, [targetConvId]);
+          
+          const conv = convDetails.rows[0];
+          const durationMinutes = conv.ended_at && conv.created_at 
+            ? Math.floor((new Date(conv.ended_at).getTime() - new Date(conv.created_at).getTime()) / 60000)
+            : 0;
+          
+          // Send proper message to widget with reactivate option
           await pool.query(`
             INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
             VALUES ($1, 'system', $2, NOW())
-          `, [targetConvId, '⚠️ We are stopping this session due to a system issue. Please start a new conversation if you need further assistance.']);
+          `, [targetConvId, JSON.stringify({
+            type: 'conversation_stopped',
+            message: '👋 Our agent has stopped this conversation. Would you like to reactivate it or close it permanently?',
+            conversation_id: targetConvId,
+            duration_minutes: durationMinutes,
+            user_messages: parseInt(conv.user_message_count) || 0,
+            bot_messages: parseInt(conv.bot_message_count) || 0,
+            agent_messages: parseInt(conv.agent_message_count) || 0,
+            show_buttons: true
+          })]);
+          
+          // Send email summary if email exists
+          if (conv.visitor_email) {
+            try {
+              const { EmailService } = await import('../services/emailService');
+              const emailService = new EmailService();
+              
+              // Get all messages for summary
+              const messagesResult = await pool.query(`
+                SELECT message_type, message_text, agent_name, created_at
+                FROM widget_messages
+                WHERE conversation_id = $1
+                ORDER BY created_at ASC
+              `, [targetConvId]);
+              
+              const messagesSummary = messagesResult.rows
+                .map((m: any) => {
+                  const sender = m.message_type === 'user' ? conv.visitor_name || 'You' :
+                                m.message_type === 'human' || m.message_type === 'agent' ? m.agent_name || 'Agent' :
+                                'Bot';
+                  return `${sender}: ${m.message_text}`;
+                })
+                .join('\n\n');
+              
+              const clientBrandedName = conv.widget_name || conv.client_name || 'WeTechForU';
+              
+              await emailService.sendEmail({
+                to: conv.visitor_email,
+                from: `"${clientBrandedName}" <info@wetechforu.com>`,
+                subject: `Conversation Summary - ${clientBrandedName}`,
+                html: `
+                  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #4682B4;">Thank You for Contacting ${clientBrandedName}!</h2>
+                    
+                    <p>Hi ${conv.visitor_name || 'there'},</p>
+                    
+                    <p>Our agent has ended this conversation. Here's a summary:</p>
+                    
+                    <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196f3;">
+                      <h3 style="margin-top: 0; color: #1976D2;">📊 Conversation Statistics</h3>
+                      <ul style="margin: 10px 0; padding-left: 20px;">
+                        <li><strong>Status:</strong> Closed by Agent</li>
+                        <li><strong>Duration:</strong> ${durationMinutes} minutes</li>
+                        <li><strong>Your Messages:</strong> ${conv.user_message_count || 0}</li>
+                        <li><strong>Bot Messages:</strong> ${conv.bot_message_count || 0}</li>
+                        <li><strong>Agent Messages:</strong> ${conv.agent_message_count || 0}</li>
+                        <li><strong>Total Messages:</strong> ${parseInt(conv.user_message_count || 0) + parseInt(conv.bot_message_count || 0) + parseInt(conv.agent_message_count || 0)}</li>
+                      </ul>
+                    </div>
+                    
+                    <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                      <h3 style="margin-top: 0;">Conversation Transcript:</h3>
+                      <pre style="white-space: pre-wrap; font-size: 14px; line-height: 1.6;">${messagesSummary}</pre>
+                    </div>
+                    
+                    <p style="color: #666; font-size: 14px;">
+                      If you have any further questions, feel free to start a new chat anytime!
+                    </p>
+                    
+                    <p style="margin-top: 30px; color: #999; font-size: 12px;">
+                      This is an automated summary of your conversation with ${clientBrandedName}.
+                    </p>
+                  </div>
+                `,
+                text: `Thank you for contacting ${clientBrandedName}!\n\nConversation Statistics:\n- Status: Closed by Agent\n- Duration: ${durationMinutes} minutes\n- Your Messages: ${conv.user_message_count || 0}\n- Bot Messages: ${conv.bot_message_count || 0}\n- Agent Messages: ${conv.agent_message_count || 0}\n\nConversation Summary:\n\n${messagesSummary}`
+              });
+              
+              console.log(`✅ Conversation summary email sent to ${conv.visitor_email} with metrics`);
+            } catch (emailError) {
+              console.error('Failed to send conversation summary email:', emailError);
+            }
+          }
         }
         
         console.log(`✅ Conversation ${targetConvId} ${isDeactivate ? 'deactivated' : 'activated'} by agent`);

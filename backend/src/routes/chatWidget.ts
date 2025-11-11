@@ -2246,6 +2246,79 @@ router.post('/public/widget/:widgetKey/conversations/:conversationId/end', async
 });
 
 // ==========================================
+// REACTIVATE OR CLOSE CONVERSATION (PUBLIC - Visitor can reactivate or permanently close)
+// ==========================================
+router.post('/public/widget/:widgetKey/conversations/:conversationId/reactivate-or-close', async (req, res) => {
+  try {
+    const { widgetKey, conversationId } = req.params;
+    const { action } = req.body; // 'reactivate' or 'close'
+    
+    // Get conversation details
+    const convResult = await pool.query(
+      `SELECT wc.*, w.widget_name, w.client_id, c.client_name
+       FROM widget_conversations wc
+       JOIN widget_configs w ON w.id = wc.widget_id AND w.widget_key = $1
+       LEFT JOIN clients c ON c.id = w.client_id
+       WHERE wc.id = $2`,
+      [widgetKey, conversationId]
+    );
+    
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+    
+    const conversation = convResult.rows[0];
+    
+    if (action === 'reactivate') {
+      // Reactivate conversation
+      await pool.query(
+        `UPDATE widget_conversations SET
+          status = 'active',
+          agent_handoff = false,
+          ended_at = NULL,
+          updated_at = NOW()
+        WHERE id = $1`,
+        [conversationId]
+      );
+      
+      // Add system message
+      await pool.query(
+        `INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+         VALUES ($1, 'system', $2, NOW())`,
+        [conversationId, '✅ Conversation reactivated! How can I help you?']
+      );
+      
+      res.json({ success: true, message: 'Conversation reactivated', status: 'active' });
+    } else if (action === 'close') {
+      // Permanently close conversation
+      await pool.query(
+        `UPDATE widget_conversations SET
+          status = 'closed',
+          agent_handoff = false,
+          ended_at = COALESCE(ended_at, NOW()),
+          updated_at = NOW()
+        WHERE id = $1`,
+        [conversationId]
+      );
+      
+      // Add system message
+      await pool.query(
+        `INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+         VALUES ($1, 'system', $2, NOW())`,
+        [conversationId, '✅ Conversation closed. Thank you for chatting with us!']
+      );
+      
+      res.json({ success: true, message: 'Conversation closed', status: 'closed' });
+    } else {
+      return res.status(400).json({ error: 'Invalid action. Use "reactivate" or "close"' });
+    }
+  } catch (error) {
+    console.error('❌ Reactivate/Close conversation error:', error);
+    res.status(500).json({ error: 'Failed to process request' });
+  }
+});
+
+// ==========================================
 // END CONVERSATION & SEND SUMMARY EMAIL TO CLIENT (AUTHENTICATED - Agent endpoint)
 // ==========================================
 router.post('/conversations/:conversationId/end', async (req, res) => {
