@@ -4964,22 +4964,41 @@
       quickActions.style.display = 'flex';
       quickActions.innerHTML = `
         <div style="width: 100%; font-size: 12px; color: #666; margin-bottom: 8px;">
-          💡 Did you mean one of these?
+          💡 Did you mean one of these? (Click or type the number)
         </div>
-        ${suggestions.map((sug, index) => 
-          `<button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleSuggestionClick('${sug.question.replace(/'/g, "\\'")}')">${index + 1}. ${sug.question} (${sug.similarity}% match)</button>`
-        ).join('')}
+        ${suggestions.map((sug, index) => {
+          const questionText = sug.question.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+          return `<button class="wetechforu-quick-action" onclick="WeTechForUWidget.handleSuggestionClick(${index})">${index + 1}. ${sug.question}</button>`;
+        }).join('')}
       `;
     },
 
     // Handle suggestion click
-    handleSuggestionClick(question) {
+    handleSuggestionClick(index) {
       const quickActions = document.getElementById('wetechforu-quick-actions');
       if (quickActions) quickActions.style.display = 'none';
 
-      // Send the suggested question as user message
-      this.addUserMessage(question);
-      this.sendMessageToBackend(question);
+      if (!this.state.currentSuggestions || !this.state.currentSuggestions[index]) {
+        return;
+      }
+
+      const suggestion = this.state.currentSuggestions[index];
+      
+      // Show question
+      this.addUserMessage(`${index + 1}. ${suggestion.question}`);
+      
+      // Show answer directly if available
+      if (suggestion.answer) {
+        setTimeout(() => {
+          this.addBotMessage(suggestion.answer);
+        }, 300);
+      } else {
+        // No answer available, send to backend
+        this.sendMessageToBackend(suggestion.question);
+      }
+      
+      // Clear suggestions
+      this.state.currentSuggestions = null;
     },
 
     // Scroll to bottom
