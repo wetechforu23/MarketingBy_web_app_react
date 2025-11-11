@@ -121,11 +121,15 @@ router.post('/:id/approve-client', async (req: Request, res: Response) => {
 router.post('/:id/reject-client', async (req: Request, res: Response) => {
   try {
     const contentId = parseInt(req.params.id);
-    const { notes, requestedChanges, token, approver_name, approver_email, access_method } = req.body;
+    const { notes, requestedChanges, token, approver_name, approver_email, access_method, feedback } = req.body;
     const userId = req.session?.userId;
 
-    if (!notes && !requestedChanges) {
-      return res.status(400).json({ error: 'Feedback is required when rejecting content' });
+    // Use feedback field if notes is not provided (for secure link approvals)
+    const feedbackText = notes || feedback || '';
+    const trimmedFeedback = feedbackText.trim();
+
+    if (!trimmedFeedback && !requestedChanges) {
+      return res.status(400).json({ error: 'Feedback is required when rejecting content. Please provide specific feedback about what needs to be changed.' });
     }
 
     // If using secure link, verify token first (no auth required)
@@ -138,7 +142,7 @@ router.post('/:id/reject-client', async (req: Request, res: Response) => {
       const result = await approvalService.rejectClient({
         contentId,
         approvedBy: null, // null for secure link approvals
-        notes,
+        notes: trimmedFeedback,
         requestedChanges,
         approverName: approver_name,
         approverEmail: approver_email,
@@ -163,7 +167,7 @@ router.post('/:id/reject-client', async (req: Request, res: Response) => {
       const result = await approvalService.rejectClient({
         contentId,
         approvedBy: userId,
-        notes,
+        notes: trimmedFeedback,
         requestedChanges,
         approverName: approver_name,
         approverEmail: approver_email,
@@ -650,7 +654,12 @@ router.post('/:id/schedule', async (req: Request, res: Response) => {
     const content = contentResult.content;
     console.log(`✅ Content found: ${content.title}, status: ${content.status}`);
 
-    // Check if approved
+    // Check if approved (rejected content cannot be scheduled)
+    if (content.status === 'rejected') {
+      console.error(`❌ Content ${contentId} is rejected. Cannot schedule rejected content.`);
+      return res.status(400).json({ error: 'Rejected content cannot be scheduled. Please update the content and resubmit for approval.' });
+    }
+    
     if (content.status !== 'approved') {
       console.error(`❌ Content ${contentId} is not approved. Status: ${content.status}`);
       return res.status(400).json({ error: 'Content must be approved before scheduling' });
@@ -732,8 +741,11 @@ router.post('/:id/post-now', async (req: Request, res: Response) => {
       });
     }
 
-    // For admin users: content must be approved
-    // For content creators: can post even if draft (they own it)
+    // For admin users: content must be approved (rejected content cannot be posted)
+    if (isAdminUser && content.status === 'rejected') {
+      return res.status(400).json({ error: 'Rejected content cannot be posted. Please update the content and resubmit for approval.' });
+    }
+    
     if (isAdminUser && content.status !== 'approved') {
       return res.status(400).json({ error: 'Content must be approved before posting' });
     }
@@ -1003,6 +1015,68 @@ router.get('/stats/overview', async (req: Request, res: Response) => {
     res.json(result);
   } catch (error: any) {
     console.error('Error getting content stats:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/content/:id/approval-history
+ * Get approval/feedback history for content
+ */
+router.get('/:id/approval-history', async (req: Request, res: Response) => {
+  try {
+    const contentId = parseInt(req.params.id);
+    const userId = req.session?.userId;
+    const userRole = req.session?.role;
+    const userClientId = req.session?.clientId;
+
+    // Get content to check client_id
+    const contentResult = await pool.query(
+      'SELECT client_id FROM social_media_content WHERE id = $1',
+      [contentId]
+    );
+
+    if (contentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Content not found' });
+    }
+
+    const contentClientId = contentResult.rows[0].client_id;
+
+    // Get approval history
+    const historyResult = await approvalService.getApprovalHistory(contentId);
+
+    if (!historyResult.success) {
+      return res.status(500).json({ error: historyResult.error });
+    }
+
+    let filteredHistory = historyResult.history;
+
+    // Filter out system messages that shouldn't be shown as feedback
+    filteredHistory = filteredHistory.filter((item: any) => {
+      // Don't show submission entries or system messages
+      if (item.approval_type === 'submission') return false;
+      if (item.notes && (
+        item.notes.includes('Sent for client approval via secure link') ||
+        item.notes.includes('Submitted for client approval')
+      )) return false;
+      return true;
+    });
+
+    // Filter based on user role:
+    // - Super Admin/WeTechForU: See all feedback
+    // - Client: See only their own rejections (client_rejection type)
+    const isSuperAdmin = userRole === 'super_admin' || (userRole && userRole.startsWith('wtfu_'));
+    
+    if (!isSuperAdmin && userClientId === contentClientId) {
+      // Client user - only show their own rejections
+      filteredHistory = filteredHistory.filter((item: any) => 
+        item.approval_type === 'client_rejection'
+      );
+    }
+
+    res.json({ success: true, history: filteredHistory });
+  } catch (error: any) {
+    console.error('Error fetching approval history:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

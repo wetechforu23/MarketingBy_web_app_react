@@ -32,6 +32,23 @@ const ContentApproval: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [action, setAction] = useState<'approve' | 'reject' | null>(null);
+  const [clientEmailHint, setClientEmailHint] = useState<string>('');
+
+  // Function to mask email (joXXXXX@gXXXX format)
+  const maskEmail = (email: string): string => {
+    if (!email) return '';
+    const [localPart, domain] = email.split('@');
+    if (!localPart || !domain) return email;
+    
+    const maskedLocal = localPart.length > 2 
+      ? localPart.substring(0, 2) + 'X'.repeat(Math.min(localPart.length - 2, 5))
+      : localPart;
+    const maskedDomain = domain.length > 1
+      ? 'g' + 'X'.repeat(Math.min(domain.length - 1, 4))
+      : domain;
+    
+    return `${maskedLocal}@${maskedDomain}`;
+  };
 
   useEffect(() => {
     fetchContent();
@@ -41,6 +58,10 @@ const ContentApproval: React.FC = () => {
     try {
       const response = await axios.get(`/api/content/approve/${token}`);
       setContent(response.data.content);
+      // Set masked email hint if client_email is available
+      if (response.data.content.client_email) {
+        setClientEmailHint(maskEmail(response.data.content.client_email));
+      }
       setLoading(false);
     } catch (error: any) {
       setError(error.response?.data?.error || 'Invalid or expired approval link');
@@ -48,9 +69,96 @@ const ContentApproval: React.FC = () => {
     }
   };
 
+  // Function to validate email format
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Function to show custom error modal
+  const showErrorModal = (message: string) => {
+    // Create a custom styled modal instead of alert
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      padding: 20px;
+    `;
+    
+    const content = document.createElement('div');
+    content.style.cssText = `
+      background: white;
+      borderRadius: 12px;
+      padding: 30px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      text-align: center;
+    `;
+    
+    const icon = document.createElement('div');
+    icon.style.cssText = 'font-size: 48px; margin-bottom: 16px;';
+    icon.textContent = '⚠️';
+    
+    const title = document.createElement('h2');
+    title.style.cssText = 'font-size: 20px; font-weight: 600; color: #e53e3e; margin-bottom: 12px;';
+    title.textContent = 'Validation Error';
+    
+    const msg = document.createElement('p');
+    msg.style.cssText = 'font-size: 16px; color: #4a5568; margin-bottom: 24px; line-height: 1.5;';
+    msg.textContent = message;
+    
+    const button = document.createElement('button');
+    button.style.cssText = `
+      background: #e53e3e;
+      color: white;
+      border: none;
+      padding: 12px 32px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    `;
+    button.textContent = 'OK';
+    button.onmouseover = () => button.style.background = '#c82333';
+    button.onmouseout = () => button.style.background = '#e53e3e';
+    button.onclick = () => {
+      document.body.removeChild(modal);
+    };
+    
+    content.appendChild(icon);
+    content.appendChild(title);
+    content.appendChild(msg);
+    content.appendChild(button);
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+  };
+
   const handleApprove = async () => {
     if (!approverName || !approverEmail) {
-      alert('Please enter your name and email');
+      showErrorModal('Please enter your name and email address to proceed with the approval.');
+      return;
+    }
+    
+    // Validate email format
+    if (!validateEmail(approverEmail)) {
+      showErrorModal('Invalid email address format.\n\nPlease enter a valid email address.\n\nExample: yourname@example.com');
+      return;
+    }
+    
+    // Validate email matches client account email
+    if (content?.client_email && approverEmail.toLowerCase() !== content.client_email.toLowerCase()) {
+      const maskedClientEmail = maskEmail(content.client_email);
+      showErrorModal(`The email you entered does not match your account email.\n\nPlease use: ${maskedClientEmail}\n\nOr contact support if you need to use a different email.`);
       return;
     }
     
@@ -58,7 +166,8 @@ const ContentApproval: React.FC = () => {
     try {
       await axios.post(`/api/content/${content?.id}/approve-client`, {
         token,
-        feedback,
+        feedback: feedback.trim() || null, // Send null if empty, or trimmed feedback
+        notes: feedback.trim() || null, // Also send as notes for backend compatibility
         approver_name: approverName,
         approver_email: approverEmail,
         access_method: 'secure_link'
@@ -67,7 +176,23 @@ const ContentApproval: React.FC = () => {
       setSuccess(true);
       setAction('approve');
     } catch (error: any) {
-      alert(`Error: ${error.response?.data?.error || error.message}`);
+      const errorMessage = error.response?.data?.error || error.message || 'An unexpected error occurred';
+      
+      // Provide user-friendly error messages
+      let userFriendlyMessage = errorMessage;
+      if (errorMessage.includes('null value in column "approved_by"')) {
+        userFriendlyMessage = 'Unable to process your approval. Please try again or contact support.';
+      } else if (errorMessage.includes('Invalid approval token')) {
+        userFriendlyMessage = 'This approval link has expired or is invalid.\n\nPlease request a new approval link from the content team.';
+      } else if (errorMessage.includes('email') || errorMessage.includes('Email')) {
+        // If error mentions email, show the masked client email hint
+        if (content?.client_email) {
+          const maskedClientEmail = maskEmail(content.client_email);
+          userFriendlyMessage = `The email you entered does not match your account email.\n\nPlease use: ${maskedClientEmail}`;
+        }
+      }
+      
+      showErrorModal(`Unable to approve content.\n\n${userFriendlyMessage}\n\nPlease try again or contact support if the issue persists.`);
     } finally {
       setSubmitting(false);
     }
@@ -75,12 +200,27 @@ const ContentApproval: React.FC = () => {
 
   const handleReject = async () => {
     if (!approverName || !approverEmail) {
-      alert('Please enter your name and email');
+      showErrorModal('Please enter your name and email address to proceed with the rejection.');
       return;
     }
     
-    if (!feedback) {
-      alert('Please provide feedback for rejection');
+    // Validate email format
+    if (!validateEmail(approverEmail)) {
+      showErrorModal('Invalid email address format.\n\nPlease enter a valid email address.\n\nExample: yourname@example.com');
+      return;
+    }
+    
+    // Validate email matches client account email
+    if (content?.client_email && approverEmail.toLowerCase() !== content.client_email.toLowerCase()) {
+      const maskedClientEmail = maskEmail(content.client_email);
+      showErrorModal(`The email you entered does not match your account email.\n\nPlease use: ${maskedClientEmail}\n\nOr contact support if you need to use a different email.`);
+      return;
+    }
+    
+    // Trim feedback to check if it's actually empty (not just whitespace)
+    const trimmedFeedback = feedback.trim();
+    if (!trimmedFeedback) {
+      showErrorModal('Feedback is required when rejecting content.\n\nPlease provide specific feedback about what needs to be changed so we can improve the content.');
       return;
     }
     
@@ -88,7 +228,8 @@ const ContentApproval: React.FC = () => {
     try {
       await axios.post(`/api/content/${content?.id}/reject-client`, {
         token,
-        feedback,
+        feedback: trimmedFeedback,
+        notes: trimmedFeedback, // Also send as notes for backend compatibility
         approver_name: approverName,
         approver_email: approverEmail,
         access_method: 'secure_link'
@@ -97,7 +238,25 @@ const ContentApproval: React.FC = () => {
       setSuccess(true);
       setAction('reject');
     } catch (error: any) {
-      alert(`Error: ${error.response?.data?.error || error.message}`);
+      const errorMessage = error.response?.data?.error || error.message || 'An unexpected error occurred';
+      
+      // Provide user-friendly error messages
+      let userFriendlyMessage = errorMessage;
+      if (errorMessage.includes('null value in column "approved_by"')) {
+        userFriendlyMessage = 'Unable to process your rejection. Please try again or contact support.';
+      } else if (errorMessage.includes('Feedback is required')) {
+        userFriendlyMessage = 'Feedback is required when rejecting content.\n\nPlease provide specific feedback about what needs to be changed.';
+      } else if (errorMessage.includes('Invalid approval token')) {
+        userFriendlyMessage = 'This approval link has expired or is invalid.\n\nPlease request a new approval link from the content team.';
+      } else if (errorMessage.includes('email') || errorMessage.includes('Email')) {
+        // If error mentions email, show the masked client email hint
+        if (content?.client_email) {
+          const maskedClientEmail = maskEmail(content.client_email);
+          userFriendlyMessage = `The email you entered does not match your account email.\n\nPlease use: ${maskedClientEmail}`;
+        }
+      }
+      
+      showErrorModal(`Unable to reject content.\n\n${userFriendlyMessage}\n\nPlease try again or contact support if the issue persists.`);
     } finally {
       setSubmitting(false);
     }
@@ -403,6 +562,16 @@ const ContentApproval: React.FC = () => {
                     fontSize: '16px'
                   }}
                 />
+                {clientEmailHint && (
+                  <div style={{
+                    marginTop: '6px',
+                    fontSize: '13px',
+                    color: '#666',
+                    fontStyle: 'italic'
+                  }}>
+                    💡 Hint: {clientEmailHint}
+                  </div>
+                )}
               </div>
             </div>
           </div>

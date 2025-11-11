@@ -63,6 +63,8 @@ const ContentEditor: React.FC = () => {
   const [scheduleDate, setScheduleDate] = useState<string>('');
   const [scheduleTime, setScheduleTime] = useState<string>('');
   const [schedulePlatforms, setSchedulePlatforms] = useState<string[]>([]);
+  const [feedbackHistory, setFeedbackHistory] = useState<any[]>([]);
+  const [loadingFeedback, setLoadingFeedback] = useState(false);
 
   const platforms = [
     { id: 'facebook', name: 'Facebook', icon: '📘', color: '#1877f2', maxLength: 63206, recommended: 500 },
@@ -362,6 +364,11 @@ const ContentEditor: React.FC = () => {
       
       setContentStatus(content.status || 'draft');
       setContentCreatedBy(content.created_by || null);
+      
+      // Fetch feedback history if content is loaded
+      if (id) {
+        fetchFeedbackHistory(parseInt(id));
+      }
       
       // Note: selectedClient will be set automatically by the useEffect when clients load
       console.log('✅ Content loaded successfully, client_id:', content.client_id);
@@ -788,6 +795,17 @@ const ContentEditor: React.FC = () => {
         confirmMessage = 'Post this content to social media now?';
         successMessage = 'Content posted successfully!';
         break;
+      case 'rejected':
+        // Super Admin can resubmit rejected content for approval
+        if (isSuperAdmin || (!isClientUser && !isClientCreator)) {
+          nextAction = 'submit-approval';
+          confirmMessage = 'Resubmit this content for client approval?';
+          successMessage = 'Content resubmitted for approval!';
+        } else {
+          alert('No next action available for this status');
+          return;
+        }
+        break;
       default:
         alert('No next action available for this status');
         return;
@@ -797,10 +815,40 @@ const ContentEditor: React.FC = () => {
 
     setLoading(true);
     try {
+      // If submitting for approval (including resubmitting rejected content), save content first
+      if (nextAction === 'submit-approval' && isEditMode) {
+        try {
+          // Save all content updates before submitting for approval
+          await http.put(`/content/${id}`, formData);
+          console.log('✅ Content saved before resubmission');
+          // Small delay to ensure database transaction is committed
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (updateError: any) {
+          // If update fails because content is pending approval, 
+          // still try to save destination_url separately (it's allowed even when pending)
+          if (updateError.response?.data?.error?.includes('pending approval')) {
+            if (formData.destinationUrl) {
+              try {
+                await http.put(`/content/${id}`, { destinationUrl: formData.destinationUrl });
+                console.log('✅ Saved destination_url separately');
+              } catch (urlError: any) {
+                console.error('⚠️ Could not save destination_url:', urlError.response?.data?.error);
+                // Continue anyway - destination_url might already be saved
+              }
+            }
+          } else {
+            // Re-throw if it's a different error
+            throw updateError;
+          }
+        }
+      }
+      
       const response = await http.post(`/content/${id}/${nextAction}`);
       
       // Generate approval link and send email for Super Admin if submitting for approval
       if (isSuperAdmin && nextAction === 'submit-approval') {
+        // Small delay to ensure status update is committed before generating link
+        await new Promise(resolve => setTimeout(resolve, 100));
         const link = await generateApprovalLink(parseInt(id), true); // sendEmail = true
         if (link) {
           alert(`${successMessage}\n\n✅ Approval link generated and email sent to client.\nYou can also find the link in the Actions section to share via WhatsApp.`);
@@ -870,6 +918,12 @@ const ContentEditor: React.FC = () => {
         return '✅ Approve Content';
       case 'approved':
         return '🚀 Post to Social Media';
+      case 'rejected':
+        // Super Admin can resubmit rejected content
+        if (isSuperAdmin || (!isClientUser && !isClientCreator)) {
+          return '📤 Submit for Approval';
+        }
+        return 'No Action Available';
       case 'posted':
         return '✓ Already Posted';
       default:
@@ -929,9 +983,13 @@ const ContentEditor: React.FC = () => {
         setScheduleDate('');
         setScheduleTime('');
         setSchedulePlatforms([]);
-        // Refresh content to show updated status
+        // Update status to scheduled immediately (before fetchContent)
+        setContentStatus('scheduled');
+        // Refresh content to show updated status from backend
         if (isEditMode) {
           await fetchContent();
+          // Ensure status stays as 'scheduled' after fetch (backend should return it)
+          setContentStatus('scheduled');
         }
         // Optionally navigate to scheduled posts
         // navigate('/app/content-library', { state: { activeTab: 'scheduled' } });
@@ -960,7 +1018,7 @@ const ContentEditor: React.FC = () => {
   };
 
   const canProgressStatus = () => {
-    return ['draft', 'pending_client_approval', 'approved'].includes(contentStatus);
+    return ['draft', 'pending_client_approval', 'approved', 'rejected'].includes(contentStatus);
   };
 
   const getCharacterCount = (platformId: string) => {
@@ -979,6 +1037,94 @@ const ContentEditor: React.FC = () => {
   const isPlatformAvailable = (platformId: string) => {
     if (!selectedClient) return false;
     return selectedClient.integrations[platformId as keyof typeof selectedClient.integrations];
+  };
+
+  // Function to mask email (joXXXXX@gXXXX format)
+  const maskEmail = (email: string): string => {
+    if (!email) return '';
+    const [localPart, domain] = email.split('@');
+    if (!localPart || !domain) return email;
+    
+    const maskedLocal = localPart.length > 2 
+      ? localPart.substring(0, 2) + 'X'.repeat(Math.min(localPart.length - 2, 5))
+      : localPart;
+    const maskedDomain = domain.length > 1
+      ? 'g' + 'X'.repeat(Math.min(domain.length - 1, 4))
+      : domain;
+    
+    return `${maskedLocal}@${maskedDomain}`;
+  };
+
+  // Function to parse feedback from notes field
+  const parseFeedback = (notes: string) => {
+    if (!notes) return { name: 'Unknown', email: '', feedback: '' };
+    
+    // New format: "feedback text\n\nRejected by name (email) (access_method)"
+    // Or old format: "Approved by name (email) (access_method)"
+    // Or just feedback text
+    
+    // Check if it has the new format with feedback first
+    const newFormatMatch = notes.match(/^(.+?)\n\n(?:Approved|Rejected)\s+by\s+([^(]+?)\s*\(([^)]+@[^)]+)\)/);
+    if (newFormatMatch) {
+      return {
+        name: newFormatMatch[2].trim(),
+        email: newFormatMatch[3].trim(),
+        feedback: newFormatMatch[1].trim()
+      };
+    }
+    
+    // Try to extract name and email from old format
+    // Format examples:
+    // "Approved by John (john@email.com)"
+    // "Rejected by Jane (jane@email.com)"
+    // "Approved by John (john@email.com) (portal_login)"
+    const nameMatch = notes.match(/(?:Approved|Rejected)\s+by\s+([^(]+?)\s*\(/);
+    const emailMatch = notes.match(/\(([^)]+@[^)]+)\)/);
+    
+    const name = nameMatch ? nameMatch[1].trim() : '';
+    const email = emailMatch ? emailMatch[1].trim() : '';
+    
+    // Extract feedback text (everything before "Approved by" or "Rejected by", or after the email/access method)
+    let feedbackText = notes;
+    
+    // If it starts with "Approved by" or "Rejected by", there's no feedback text
+    if (notes.match(/^(Approved|Rejected)\s+by/)) {
+      feedbackText = '';
+    } else if (emailMatch) {
+      // Extract text before the "by" part
+      const byIndex = notes.indexOf(' by ');
+      if (byIndex > 0) {
+        feedbackText = notes.substring(0, byIndex).trim();
+      } else {
+        // Fallback: remove the "by name (email)" part
+        const emailEndIndex = notes.indexOf(')', emailMatch.index || 0);
+        feedbackText = notes.substring(emailEndIndex + 1).trim();
+        // Remove access method if present
+        feedbackText = feedbackText.replace(/\([^)]+\)$/, '').trim();
+      }
+    }
+    
+    return {
+      name: name || 'Unknown',
+      email: email,
+      feedback: feedbackText
+    };
+  };
+
+  // Fetch feedback history
+  const fetchFeedbackHistory = async (contentId: number) => {
+    setLoadingFeedback(true);
+    try {
+      const response = await http.get(`/content/${contentId}/approval-history`);
+      if (response.data.success) {
+        setFeedbackHistory(response.data.history || []);
+      }
+    } catch (error: any) {
+      console.error('Error fetching feedback history:', error);
+      setFeedbackHistory([]);
+    } finally {
+      setLoadingFeedback(false);
+    }
   };
 
   return (
@@ -1972,24 +2118,88 @@ const ContentEditor: React.FC = () => {
 
               {/* Show status info when editing */}
               {isEditMode && (
-                <div style={{
-                  background: '#f7fafc',
-                  padding: '12px 16px',
-                  borderRadius: '8px',
-                  marginBottom: '10px',
-                  textAlign: 'center'
-                }}>
-                  <div style={{ fontSize: '13px', color: '#718096', marginBottom: '4px' }}>
-                    Current Status
+                <>
+                  <div style={{
+                    background: '#f7fafc',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    marginBottom: '10px',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '13px', color: '#718096', marginBottom: '4px' }}>
+                      Current Status
+                    </div>
+                    <div style={{ fontSize: '15px', fontWeight: '600', color: '#2d3748' }}>
+                      {contentStatus === 'draft' && '📝 Draft'}
+                      {contentStatus === 'pending_client_approval' && '⏳ Pending Client Approval'}
+                      {contentStatus === 'approved' && '✅ Approved'}
+                      {contentStatus === 'scheduled' && '📅 Post Scheduled'}
+                      {contentStatus === 'posted' && '🚀 Posted'}
+                      {contentStatus === 'rejected' && '❌ Rejected'}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '15px', fontWeight: '600', color: '#2d3748' }}>
-                    {contentStatus === 'draft' && '📝 Draft'}
-                    {contentStatus === 'pending_client_approval' && '⏳ Pending Client Approval'}
-                    {contentStatus === 'approved' && '✅ Approved'}
-                    {contentStatus === 'posted' && '🚀 Posted'}
-                    {contentStatus === 'rejected' && '❌ Rejected'}
-                  </div>
-                </div>
+
+                  {/* Feedback History */}
+                  {feedbackHistory.length > 0 && (
+                    <div style={{
+                      background: '#fff',
+                      padding: '16px',
+                      borderRadius: '8px',
+                      marginBottom: '10px',
+                      border: '1px solid #e2e8f0'
+                    }}>
+                      <div style={{ fontSize: '14px', fontWeight: '600', color: '#2d3748', marginBottom: '12px' }}>
+                        📝 Feedback History
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {feedbackHistory.map((item, index) => {
+                          const parsed = parseFeedback(item.notes || '');
+                          const maskedEmail = parsed.email ? maskEmail(parsed.email) : '';
+                          const displayName = item.approved_by_name || parsed.name || 'Unknown';
+                          const displayEmail = item.approved_by_email || parsed.email || '';
+                          const maskedDisplayEmail = displayEmail ? maskEmail(displayEmail) : '';
+                          
+                          return (
+                            <div key={index} style={{
+                              padding: '12px',
+                              background: '#f7fafc',
+                              borderRadius: '6px',
+                              borderLeft: '3px solid',
+                              borderLeftColor: item.approval_status === 'approved' ? '#48bb78' : 
+                                            item.approval_status === 'rejected' ? '#e53e3e' : '#4299e1'
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '8px' }}>
+                                <div>
+                                  <div style={{ fontSize: '13px', fontWeight: '600', color: '#2d3748' }}>
+                                    {displayName}
+                                  </div>
+                                  {maskedDisplayEmail && (
+                                    <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
+                                      💡 {maskedDisplayEmail}
+                                    </div>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#999' }}>
+                                  {new Date(item.created_at).toLocaleDateString()}
+                                </div>
+                              </div>
+                              {parsed.feedback && parsed.feedback.trim() && (
+                                <div style={{ fontSize: '13px', color: '#4a5568', marginTop: '6px', whiteSpace: 'pre-wrap' }}>
+                                  {parsed.feedback.trim()}
+                                </div>
+                              )}
+                              {(!parsed.feedback || !parsed.feedback.trim()) && item.notes && (
+                                <div style={{ fontSize: '13px', color: '#4a5568', marginTop: '6px', whiteSpace: 'pre-wrap' }}>
+                                  {item.notes}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Approval Link (Super Admin/WeTechForU team only) */}
