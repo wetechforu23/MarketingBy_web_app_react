@@ -27,6 +27,7 @@ export interface ContentData {
 export interface ContentFilters {
   clientId?: number;
   status?: string;
+  excludeStatus?: string;
   platform?: string;
   createdBy?: number;
   search?: string;
@@ -196,6 +197,13 @@ export async function listContent(req: Request, filters: ContentFilters = {}) {
   if (filters.status) {
     whereConditions.push(`c.status = $${paramIndex}`);
     params.push(filters.status);
+    paramIndex++;
+  }
+
+  // Add exclude status filter (e.g., exclude scheduled from Content Library)
+  if (filters.excludeStatus) {
+    whereConditions.push(`c.status != $${paramIndex}`);
+    params.push(filters.excludeStatus);
     paramIndex++;
   }
 
