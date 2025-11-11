@@ -2514,20 +2514,76 @@
       this.state.introFlow.answers[questionId] = answer;
     },
 
-    // ✅ Show intro form as a single form UI (instead of one-by-one questions)
+    // ✅ Show intro form as a single form UI (matching screenshot design)
     showIntroForm(questions) {
       const messagesDiv = document.getElementById('wetechforu-messages');
       if (!messagesDiv) return;
       
+      // Clear messages container and show form in full-screen style
+      messagesDiv.innerHTML = '';
+      
+      const formContainer = document.createElement('div');
+      formContainer.id = 'wetechforu-intro-form-container';
+      formContainer.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, ${this.config.primaryColor}, ${this.config.secondaryColor});
+        display: flex;
+        flex-direction: column;
+        z-index: 10;
+        animation: slideUp 0.3s ease-out;
+      `;
+      
+      // Header with back button and message
+      const headerHTML = `
+        <div style="
+          padding: 20px;
+          color: white;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        ">
+          <button 
+            id="wetechforu-form-back-btn"
+            style="
+              background: transparent;
+              border: none;
+              color: white;
+              font-size: 24px;
+              cursor: pointer;
+              align-self: flex-start;
+              padding: 0;
+              width: 32px;
+              height: 32px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            "
+            title="Back"
+          >←</button>
+          <p style="
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.5;
+            text-align: center;
+            opacity: 0.95;
+          ">Please fill out this form before starting the chat. It will help us connect with you more efficiently.</p>
+        </div>
+      `;
+      
+      // Form card
       const formDiv = document.createElement('div');
       formDiv.id = 'wetechforu-intro-form';
       formDiv.style.cssText = `
-        margin: 16px 0;
-        padding: 20px;
-        background: #f8f9fa;
-        border-radius: 12px;
-        border: 2px solid #e0e0e0;
-        animation: slideUp 0.3s ease-out;
+        flex: 1;
+        background: white;
+        border-radius: 20px 20px 0 0;
+        padding: 24px 20px;
+        overflow-y: auto;
+        margin-top: auto;
       `;
       
       let formHTML = '<form id="wetechforu-form-form">';
@@ -2538,82 +2594,150 @@
         const required = question.required ? '<span style="color: red;">*</span>' : '';
         const placeholder = question.placeholder || '';
         
-        formHTML += `
-          <div style="margin-bottom: 16px;">
-            <label style="display: block; margin-bottom: 6px; font-weight: 600; color: #333; font-size: 14px;">
-              ${label} ${required}
-            </label>
-        `;
-        
-        if (question.type === 'select' && question.options) {
+        // Check if this is a message/textarea field
+        if (question.type === 'textarea' || fieldName.toLowerCase().includes('message') || label.toLowerCase().includes('message')) {
           formHTML += `
-            <select 
-              name="${fieldName}" 
-              id="form_${fieldName}"
-              ${question.required ? 'required' : ''}
-              style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; background: white;"
-            >
-              <option value="">-- Select --</option>
-              ${question.options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
-            </select>
+            <div style="margin-bottom: 20px;">
+              <textarea 
+                name="${fieldName}" 
+                id="form_${fieldName}"
+                placeholder="${placeholder || 'Please Write Your Message..'}"
+                ${question.required ? 'required' : ''}
+                rows="4"
+                style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; box-sizing: border-box; font-family: inherit; resize: vertical; min-height: 100px;"
+              ></textarea>
+            </div>
           `;
-        } else if (question.type === 'email') {
+        } else if (question.type === 'tel' || question.type === 'phone' || fieldName.toLowerCase().includes('phone')) {
+          // Phone field with country code selector
           formHTML += `
-            <input 
-              type="email" 
-              name="${fieldName}" 
-              id="form_${fieldName}"
-              placeholder="${placeholder || 'your@email.com'}"
-              ${question.required ? 'required' : ''}
-              style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
-            />
+            <div style="margin-bottom: 20px;">
+              <div style="display: flex; gap: 8px; align-items: flex-start;">
+                <select 
+                  name="${fieldName}_country_code" 
+                  id="form_${fieldName}_country_code"
+                  style="
+                    padding: 12px 8px;
+                    border: 1px solid #ddd;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    background: white;
+                    width: 100px;
+                    flex-shrink: 0;
+                    display: flex;
+                    align-items: center;
+                  "
+                >
+                  <option value="+1" selected>🇺🇸 +1</option>
+                  <option value="+44">🇬🇧 +44</option>
+                  <option value="+91">🇮🇳 +91</option>
+                  <option value="+86">🇨🇳 +86</option>
+                  <option value="+81">🇯🇵 +81</option>
+                  <option value="+49">🇩🇪 +49</option>
+                  <option value="+33">🇫🇷 +33</option>
+                  <option value="+61">🇦🇺 +61</option>
+                  <option value="+7">🇷🇺 +7</option>
+                  <option value="+55">🇧🇷 +55</option>
+                </select>
+                <input 
+                  type="tel" 
+                  name="${fieldName}" 
+                  id="form_${fieldName}"
+                  placeholder="${placeholder || '+1'}"
+                  pattern="[0-9\\s\\+\\-\\(\\)]{10,}"
+                  ${question.required ? 'required' : ''}
+                  style="flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; box-sizing: border-box;"
+                />
+              </div>
+            </div>
           `;
-        } else if (question.type === 'tel' || question.type === 'phone') {
+        } else if (question.type === 'email' || fieldName.toLowerCase().includes('email')) {
           formHTML += `
-            <input 
-              type="tel" 
-              name="${fieldName}" 
-              id="form_${fieldName}"
-              placeholder="${placeholder || '+1 (555) 123-4567'}"
-              pattern="[0-9\\s\\+\\-\\(\\)]{10,}"
-              ${question.required ? 'required' : ''}
-              style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
-            />
+            <div style="margin-bottom: 20px;">
+              <input 
+                type="email" 
+                name="${fieldName}" 
+                id="form_${fieldName}"
+                placeholder="${placeholder || 'Email'}"
+                ${question.required ? 'required' : ''}
+                style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; box-sizing: border-box;"
+              />
+            </div>
+          `;
+        } else if (question.type === 'select' && question.options) {
+          formHTML += `
+            <div style="margin-bottom: 20px;">
+              <select 
+                name="${fieldName}" 
+                id="form_${fieldName}"
+                ${question.required ? 'required' : ''}
+                style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; box-sizing: border-box;"
+              >
+                <option value="">-- Select --</option>
+                ${question.options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+              </select>
+            </div>
           `;
         } else {
-          // Text input
+          // Text input (Name, etc.)
           formHTML += `
-            <input 
-              type="text" 
-              name="${fieldName}" 
-              id="form_${fieldName}"
-              placeholder="${placeholder}"
-              ${question.required ? 'required' : ''}
-              style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
-              ${question.field === 'first_name' || question.id === 'first_name' ? 'pattern="[A-Za-z\\s]{2,}" title="First name should contain only letters"' : ''}
-            />
+            <div style="margin-bottom: 20px;">
+              <input 
+                type="text" 
+                name="${fieldName}" 
+                id="form_${fieldName}"
+                placeholder="${placeholder || label}"
+                ${question.required ? 'required' : ''}
+                style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; box-sizing: border-box;"
+                ${question.field === 'first_name' || question.id === 'first_name' ? 'pattern="[A-Za-z\\s]{2,}" title="First name should contain only letters"' : ''}
+              />
+            </div>
           `;
         }
         
-        formHTML += `
-          </div>
-        `;
       });
       
       formHTML += `
         <button 
           type="submit"
-          style="width: 100%; padding: 12px; background: #2E86AB; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 10px;"
+          style="
+            width: 100%; 
+            padding: 14px 20px; 
+            background: ${this.config.primaryColor || '#2E86AB'}; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: background 0.2s;
+          "
           onmouseover="this.style.background='#1e6a8a'"
-          onmouseout="this.style.background='#2E86AB'"
+          onmouseout="this.style.background='${this.config.primaryColor || '#2E86AB'}'"
         >
-          Submit Information
+          <span style="font-size: 18px;">✈️</span>
+          <span>Start Chat</span>
         </button>
       </form>`;
       
       formDiv.innerHTML = formHTML;
-      messagesDiv.appendChild(formDiv);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      formContainer.innerHTML = headerHTML;
+      formContainer.appendChild(formDiv);
+      messagesDiv.appendChild(formContainer);
+      
+      // Add back button handler
+      const backBtn = document.getElementById('wetechforu-form-back-btn');
+      if (backBtn) {
+        backBtn.addEventListener('click', () => {
+          formContainer.remove();
+          this.showStandardizedInitialView();
+        });
+      }
       
       // Attach form submit handler
       const form = document.getElementById('wetechforu-form-form');
@@ -2668,27 +2792,31 @@
           }
         }
         
-        // Phone validation
-        if ((question.type === 'tel' || question.type === 'phone') && value) {
+        // Phone validation and country code handling
+        if ((question.type === 'tel' || question.type === 'phone' || fieldName.toLowerCase().includes('phone')) && value) {
+          // Get country code if available
+          const countryCodeField = document.getElementById(`form_${fieldName}_country_code`);
+          const countryCode = countryCodeField ? countryCodeField.value : '+1';
+          
+          // Combine country code with phone number
+          const fullPhone = countryCode + value.replace(/\s/g, '');
+          answers[fieldName] = fullPhone;
+          
           const phoneRegex = /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,9}$/;
           if (!phoneRegex.test(value.replace(/\s/g, ''))) {
             hasErrors = true;
-            errors.push('Please enter a valid phone number (e.g., +1 (555) 123-4567)');
-            return;
+            errors.push('Please enter a valid phone number');
           }
-        }
-        
-        // Email validation (HTML5 does this, but double-check)
-        if (question.type === 'email' && value) {
+        } else if (question.type === 'email' && value) {
+          // Email validation (HTML5 does this, but double-check)
           const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
           if (!emailRegex.test(value)) {
             hasErrors = true;
             errors.push('Please enter a valid email address');
-            return;
+          } else {
+            answers[fieldName] = value;
           }
-        }
-        
-        if (value) {
+        } else if (value) {
           answers[fieldName] = value;
         }
       });
@@ -2711,14 +2839,7 @@
       // Store answers
       this.state.introFlow.answers = answers;
       
-      // Remove form from DOM completely (not just hide)
-      const formDiv = document.getElementById('wetechforu-intro-form');
-      if (formDiv) {
-        formDiv.remove(); // Remove completely from DOM, not just hide
-        console.log('✅ Form removed from DOM after submission');
-      }
-      
-      // Show summary
+      // Show summary (this will remove the form container)
       this.showFormSummary(answers);
       
       // Complete intro flow
@@ -2742,39 +2863,49 @@
     
     // ✅ Show form summary
     showFormSummary(answers) {
-      const messagesDiv = document.getElementById('wetechforu-messages');
-      if (!messagesDiv) return;
+      // Remove form container
+      const formContainer = document.getElementById('wetechforu-intro-form-container');
+      if (formContainer) {
+        formContainer.remove();
+      }
       
-      const summaryDiv = document.createElement('div');
-      summaryDiv.style.cssText = `
-        margin: 16px 0;
-        padding: 16px;
-        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-        border-radius: 12px;
-        border: 2px solid #2196F3;
-        animation: slideUp 0.3s ease-out;
-      `;
+      // Build summary text in format matching screenshot
+      let summaryText = '';
+      const questions = this.state.introFlow.questions || [];
       
-      let summaryHTML = '<div style="font-weight: 600; margin-bottom: 12px; color: #1976D2; font-size: 15px;">✅ Your Information Summary</div>';
-      summaryHTML += '<div style="background: white; padding: 12px; border-radius: 8px;">';
-      
-      Object.keys(answers).forEach(key => {
-        const value = answers[key];
+      // Map answers to their question labels
+      questions.forEach(question => {
+        const fieldName = question.id || question.field;
+        const label = question.question || question.label || fieldName;
+        const value = answers[fieldName];
+        
         if (value) {
-          const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-          summaryHTML += `
-            <div style="margin-bottom: 8px; padding: 8px; border-bottom: 1px solid #eee;">
-              <strong style="color: #555; font-size: 13px;">${label}:</strong>
-              <span style="color: #333; font-size: 14px; margin-left: 8px;">${value}</span>
-            </div>
-          `;
+          // Format label to match screenshot (e.g., "Name :", "Email :")
+          const formattedLabel = label.charAt(0).toUpperCase() + label.slice(1);
+          summaryText += `${formattedLabel} : ${value}\n`;
         }
       });
       
-      summaryHTML += '</div>';
-      summaryDiv.innerHTML = summaryHTML;
-      messagesDiv.appendChild(summaryDiv);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      // If no questions mapping, use direct answers
+      if (!summaryText) {
+        Object.keys(answers).forEach(key => {
+          const value = answers[key];
+          if (value) {
+            const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            summaryText += `${label} : ${value}\n`;
+          }
+        });
+      }
+      
+      // Display as user message (matching screenshot format)
+      if (summaryText.trim()) {
+        this.addUserMessage(summaryText.trim());
+      }
+      
+      // Show bot greeting after form submission
+      setTimeout(() => {
+        this.addBotMessage("👋 Hi! How can we help?");
+      }, 500);
     },
 
     // Complete intro flow
