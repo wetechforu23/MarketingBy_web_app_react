@@ -283,6 +283,28 @@ export async function approveClient(action: ApprovalAction) {
     );
 
     // Log the approval in history
+    // For secure link approvals, approvedBy might be null, so we need to handle it
+    // Try to find user by email, or use content creator as fallback
+    let approvedByUserId = action.approvedBy;
+    if (!approvedByUserId && action.approverEmail) {
+      try {
+        const userResult = await client.query(
+          'SELECT id FROM users WHERE email = $1 LIMIT 1',
+          [action.approverEmail]
+        );
+        if (userResult.rows.length > 0) {
+          approvedByUserId = userResult.rows[0].id;
+        }
+      } catch (error) {
+        console.warn('Could not find user by email for approval:', action.approverEmail);
+      }
+    }
+    
+    // If still no user ID, use content creator as fallback
+    if (!approvedByUserId) {
+      approvedByUserId = content.created_by || 1; // Fallback to content creator or system user
+    }
+
     await client.query(
       `INSERT INTO content_approval_history (
         content_id,
@@ -296,11 +318,11 @@ export async function approveClient(action: ApprovalAction) {
       [
         action.contentId,
         'client_approval',
-        action.approvedBy,
+        approvedByUserId,
         'approved',
         'pending_client_approval',
         'approved',
-        action.notes || `Approved by ${action.approverName || 'client'} (${action.accessMethod || 'portal_login'})`
+        action.notes || `Approved by ${action.approverName || 'client'} (${action.approverEmail || 'unknown email'}) (${action.accessMethod || 'portal_login'})`
       ]
     );
 
@@ -351,18 +373,40 @@ export async function rejectClient(action: ApprovalAction) {
 
     // Update content status to rejected
     // Clear approval token if it exists (for secure link approvals)
+    // Note: rejection_reason column doesn't exist, feedback is stored in content_approval_history
     await client.query(
       `UPDATE social_media_content 
        SET status = $1, 
-           rejection_reason = $2,
            approval_token = NULL,
            approval_token_expires_at = NULL,
            updated_at = NOW() 
-       WHERE id = $3`,
-      ['rejected', action.notes || `Rejected by ${action.approverName || 'client'} (${action.accessMethod || 'portal_login'})`, action.contentId]
+       WHERE id = $2`,
+      ['rejected', action.contentId]
     );
 
     // Log the rejection in history
+    // For secure link approvals, approvedBy might be null, so we need to handle it
+    // Try to find user by email, or use a system user (ID 1) as fallback
+    let approvedByUserId = action.approvedBy;
+    if (!approvedByUserId && action.approverEmail) {
+      try {
+        const userResult = await client.query(
+          'SELECT id FROM users WHERE email = $1 LIMIT 1',
+          [action.approverEmail]
+        );
+        if (userResult.rows.length > 0) {
+          approvedByUserId = userResult.rows[0].id;
+        }
+      } catch (error) {
+        console.warn('Could not find user by email for rejection:', action.approverEmail);
+      }
+    }
+    
+    // If still no user ID, use system user (ID 1) or content creator as fallback
+    if (!approvedByUserId) {
+      approvedByUserId = content.created_by || 1; // Fallback to content creator or system user
+    }
+
     await client.query(
       `INSERT INTO content_approval_history (
         content_id,
@@ -377,11 +421,11 @@ export async function rejectClient(action: ApprovalAction) {
       [
         action.contentId,
         'client_rejection',
-        action.approvedBy,
+        approvedByUserId,
         'rejected',
         'pending_client_approval',
         'rejected',
-        action.notes || `Rejected by ${action.approverName || 'client'} (${action.accessMethod || 'portal_login'})`,
+        action.notes ? `${action.notes}\n\nRejected by ${action.approverName || 'client'} (${action.approverEmail || 'unknown email'}) (${action.accessMethod || 'portal_login'})` : `Rejected by ${action.approverName || 'client'} (${action.approverEmail || 'unknown email'}) (${action.accessMethod || 'portal_login'})`,
         action.requestedChanges ? JSON.stringify(action.requestedChanges) : null
       ]
     );
@@ -490,7 +534,7 @@ export async function getApprovalHistory(contentId: number) {
   const query = `
     SELECT 
       ah.*,
-      u.name as approved_by_name,
+      COALESCE(u.username, u.email, 'Unknown') as approved_by_name,
       u.email as approved_by_email
     FROM content_approval_history ah
     LEFT JOIN users u ON ah.approved_by = u.id
@@ -1150,7 +1194,19 @@ ${approvalUrl}
 export async function verifyApprovalToken(token: string): Promise<any | null> {
   try {
     const result = await pool.query(
-      `SELECT c.*, cl.client_name
+      `SELECT 
+         c.*, 
+         cl.client_name,
+         cl.email as client_company_email,
+         (SELECT u_admin.email 
+          FROM users u_admin 
+          WHERE u_admin.client_id = c.client_id 
+            AND u_admin.role = 'client_admin'
+            AND u_admin.is_active = true
+            AND u_admin.email IS NOT NULL 
+            AND u_admin.email != ''
+          ORDER BY u_admin.id DESC
+          LIMIT 1) as client_admin_email
        FROM social_media_content c
        LEFT JOIN clients cl ON cl.id = c.client_id
        WHERE c.approval_token = $1
@@ -1159,7 +1215,15 @@ export async function verifyApprovalToken(token: string): Promise<any | null> {
       [token]
     );
 
-    return result.rows[0] || null;
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const content = result.rows[0];
+    // Determine the best email to use (prefer client admin email, fallback to company email)
+    content.client_email = content.client_admin_email || content.client_company_email || null;
+    
+    return content;
   } catch (error: any) {
     console.error('❌ Error verifying approval token:', error);
     return null;
