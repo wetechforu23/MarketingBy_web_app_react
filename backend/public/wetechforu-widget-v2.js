@@ -2355,7 +2355,7 @@
     },
     
     // Start new conversation
-    startNewConversation() {
+    async startNewConversation() {
       // Remove initial view
       const initialView = document.getElementById('wetechforu-initial-view');
       if (initialView) {
@@ -2365,9 +2365,20 @@
       // Switch to conversation tab
       this.switchTab('conversation');
       
-      // Start intro flow or show form
+      // Ensure conversation exists
+      const conversationId = await this.ensureConversation();
+      if (!conversationId) {
+        this.addBotMessage("Sorry, I'm having trouble connecting. Please try again.");
+        return;
+      }
+      
+      // Show form immediately if intro flow is enabled
       if (this.config.enableIntroFlow && this.config.introQuestions && this.config.introQuestions.length > 0) {
-        this.startIntroFlow();
+        // Show welcome message first
+        this.addBotMessage(this.config.welcomeMessage || "Hi! 👋 Welcome! Before I assist you, please fill in the information below:");
+        setTimeout(() => {
+          this.startIntroFlow();
+        }, 500);
       } else {
         this.addBotMessage(this.config.welcomeMessage || "Hi! 👋 How can I help you today?");
       }
@@ -3338,7 +3349,7 @@
     },
 
     // Request live agent - Collect contact info
-    requestLiveAgent() {
+    async requestLiveAgent() {
       console.log('🔍 requestLiveAgent() called');
       console.log('📋 Intro flow state:', {
         isComplete: this.state.introFlow?.isComplete,
@@ -3351,11 +3362,11 @@
       if (this.state.contactInfo && this.state.contactInfo.name && (this.state.contactInfo.email || this.state.contactInfo.phone)) {
         console.log('✅ Contact info already exists, skipping questions:', this.state.contactInfo);
         this.addBotMessage("⏳ Processing your request...");
-          setTimeout(() => {
-            this.submitToLiveAgent();
-          }, 500);
-          return;
-        }
+        setTimeout(() => {
+          this.submitToLiveAgent();
+        }, 500);
+        return;
+      }
       
       // ✅ SECOND: Check if we have contact info from intro flow
       if (this.state.introFlow && this.state.introFlow.isComplete && this.state.introFlow.answers) {
@@ -3387,26 +3398,42 @@
           
           // Skip asking questions - go directly to submit
           this.addBotMessage("⏳ Processing your request...");
-        setTimeout(() => {
-          this.submitToLiveAgent();
-        }, 500);
-        return;
+          setTimeout(() => {
+            this.submitToLiveAgent();
+          }, 500);
+          return;
         }
       }
       
-      // ✅ THIRD: Use contact info from intro form to request agent
-      console.log('✅ Using contact info from intro form for agent handover');
-      
-      // 📊 Track live agent request event
-      this.trackEvent('live_agent_requested', {
-        page_url: window.location.href,
-        timestamp: new Date().toISOString()
-      });
-      
-      // Submit handover request using contact info from intro form
-      setTimeout(() => {
-        this.submitToLiveAgent();
-      }, 500);
+      // ✅ THIRD: No contact info - show form if available, otherwise proceed with minimal info
+      if (this.config.enableIntroFlow && this.config.introQuestions && this.config.introQuestions.length > 0) {
+        // Show form to collect info
+        this.addBotMessage("Before I connect you with an agent, please fill in your information:");
+        setTimeout(() => {
+          this.startIntroFlow();
+        }, 500);
+      } else {
+        // No form configured - proceed with minimal info
+        console.log('⚠️ No form configured, proceeding with minimal contact info');
+        this.state.contactInfo = {
+          name: 'Visitor',
+          email: null,
+          phone: null,
+          reason: 'Visitor requested to speak with an agent'
+        };
+        
+        // 📊 Track live agent request event
+        this.trackEvent('live_agent_requested', {
+          page_url: window.location.href,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Submit handover request
+        this.addBotMessage("⏳ Processing your request...");
+        setTimeout(() => {
+          this.submitToLiveAgent();
+        }, 500);
+      }
     },
 
     // ✅ REMOVED: Hardcoded askContactInfo() - form now handles all contact collection
@@ -4867,7 +4894,22 @@
         this.addUserMessage("❌ No, I need more help");
         setTimeout(() => {
           this.addBotMessage("No problem! Let me connect you with a live agent who can assist you better. 👨‍💼");
-          this.requestLiveAgent();
+          // Check if we have contact info, if not, show form first
+          if (!this.state.introFlow?.isComplete || !this.state.introFlow?.answers) {
+            // Show form if not completed
+            if (this.config.enableIntroFlow && this.config.introQuestions && this.config.introQuestions.length > 0) {
+              this.addBotMessage("First, please fill in your information so our agent can contact you:");
+              setTimeout(() => {
+                this.startIntroFlow();
+              }, 500);
+            } else {
+              // No form configured, proceed with handover
+              this.requestLiveAgent();
+            }
+          } else {
+            // Form already completed, proceed with handover
+            this.requestLiveAgent();
+          }
         }, 500);
       } else if (feedback === 'agent') {
         this.addUserMessage("💬 Yes, connect me with an agent");

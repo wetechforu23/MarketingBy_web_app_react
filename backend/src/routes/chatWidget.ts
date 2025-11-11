@@ -1540,10 +1540,10 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
     let kbMatchFound = false;
 
     // 🎯 STEP 1: Try Knowledge Base FIRST
-    const similarQuestions = await findSimilarQuestions(message_text, widget_id, 0.5);
+    const similarQuestions = await findSimilarQuestions(message_text, widget_id, 0.3); // Lower threshold for better matching
 
-    if (similarQuestions.length > 0 && similarQuestions[0].similarity >= 0.85) {
-      // ✅ HIGH CONFIDENCE MATCH (85%+) - Answer directly from Knowledge Base
+    if (similarQuestions.length > 0 && similarQuestions[0].similarity >= 0.70) {
+      // ✅ HIGH CONFIDENCE MATCH (70%+) - Answer directly from Knowledge Base
       const bestMatch = similarQuestions[0];
       botResponse = bestMatch.answer;
       confidence = bestMatch.similarity;
@@ -1554,26 +1554,34 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       await pool.query(
         'UPDATE widget_knowledge_base SET times_used = times_used + 1 WHERE id = $1',
         [knowledge_base_id]
-      );
+      ).catch(err => console.warn('Could not update KB usage:', err));
 
       console.log(`✅ Knowledge base answer (${Math.round(confidence * 100)}% match): "${bestMatch.question}"`);
 
     } else if (similarQuestions.length > 0) {
-      // 🤔 MEDIUM CONFIDENCE (50-85%) - Suggest similar questions
-      const suggestionText = `I'm not sure I understood that exactly. Did you mean one of these?\n\n` +
-        similarQuestions.map((q, i) => 
+      // 🤔 MEDIUM CONFIDENCE (30-70%) - Show answer but also suggest similar questions
+      const bestMatch = similarQuestions[0];
+      const suggestionText = `${bestMatch.answer}\n\n---\n\nDid you mean one of these?\n\n` +
+        similarQuestions.slice(0, 3).map((q, i) => 
           `${i + 1}. ${q.question}`
         ).join('\n') +
-        `\n\nPlease type the number or rephrase your question.`;
+        `\n\nType the number to see that answer, or ask another question.`;
       
       botResponse = suggestionText;
-      confidence = similarQuestions[0].similarity;
+      confidence = bestMatch.similarity;
       suggestions = similarQuestions.map(q => ({
         id: q.id,
-        question: q.question
+        question: q.question,
+        answer: q.answer
       }));
 
-      console.log(`🤔 Showing ${suggestions.length} similar question suggestions`);
+      // Update usage stats for best match
+      await pool.query(
+        'UPDATE widget_knowledge_base SET times_used = times_used + 1 WHERE id = $1',
+        [bestMatch.id]
+      ).catch(err => console.warn('Could not update KB usage:', err));
+
+      console.log(`🤔 Showing answer with ${suggestions.length} similar question suggestions`);
       kbMatchFound = true; // We found something, just not high confidence
     }
 
@@ -1625,17 +1633,17 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
         } else if (llmResponse.error === 'credits_exhausted') {
           // ⚠️ CREDITS EXHAUSTED
           console.log(`⚠️ LLM credits exhausted for client ${client_id}`);
-          botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Could you tell me a bit more about what you're looking for?\n\nOr would you like to speak with one of our team members who can assist you better? 😊`;
+          botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Would you like to speak with one of our team members who can assist you better? 😊`;
           confidence = 0.3;
         } else {
           // ❌ LLM FAILED
           console.log(`❌ LLM failed: ${llmResponse.error}`);
-          botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Could you tell me a bit more about what you're looking for?\n\nOr would you like to speak with one of our team members who can assist you better? 😊`;
+          botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Would you like to speak with one of our team members who can assist you better? 😊`;
           confidence = 0.3;
         }
       } catch (llmError) {
         console.error('LLM error:', llmError);
-        botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Could you tell me a bit more about what you're looking for?\n\nOr would you like to speak with one of our team members who can assist you better? 😊`;
+        botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Would you like to speak with one of our team members who can assist you better? 😊`;
         confidence = 0.3;
       }
     }
@@ -1645,7 +1653,7 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
     // ==========================================
     if (!botResponse) {
       // Final fallback - offer agent handover
-      botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Could you tell me a bit more about what you're looking for?\n\nOr would you like to speak with one of our team members who can assist you better? 😊`;
+      botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Would you like to speak with one of our team members who can assist you better? 😊`;
       confidence = 0.3;
       console.log(`❌ No response generated for: "${message_text}"`);
     }
