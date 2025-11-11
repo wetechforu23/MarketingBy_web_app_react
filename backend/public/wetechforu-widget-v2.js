@@ -1899,10 +1899,21 @@
     performClose() {
       const chatWindow = document.getElementById('wetechforu-chat-window');
       const badge = document.getElementById('wetechforu-badge');
+      const chatButton = document.getElementById('wetechforu-chat-button');
       
       chatWindow.style.display = 'none';
       badge.style.display = 'flex';
       this.state.isOpen = false;
+      
+      // ✅ Restore chat button visibility when chat is closed
+      if (chatButton) {
+        chatButton.style.display = 'flex';
+        chatButton.style.visibility = 'visible';
+        chatButton.style.opacity = '1';
+        chatButton.style.zIndex = '999999';
+        chatButton.style.pointerEvents = 'auto';
+        chatButton.style.cursor = 'pointer';
+      }
       
       // ✅ Clear conversation from localStorage (only on explicit close, not minimize)
       const conversationId = this.state.conversationId;
