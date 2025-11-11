@@ -133,7 +133,15 @@ const ContentLibrary: React.FC = () => {
         params.client_id = selectedClient;
       }
       
-      if (statusFilter !== 'all') params.status = statusFilter;
+      // Exclude scheduled status from Content Library (scheduled posts show in Scheduled Posts tab)
+      // If user selects "scheduled" in status filter, we'll still exclude it and show empty
+      if (statusFilter !== 'all' && statusFilter !== 'scheduled') {
+        params.status = statusFilter;
+      } else if (statusFilter === 'all') {
+        // When showing all, exclude scheduled status
+        params.exclude_status = 'scheduled';
+      }
+      
       if (platformFilter !== 'all') params.platform = platformFilter;
       if (searchQuery) params.search = searchQuery;
 

@@ -314,6 +314,7 @@ router.get('/', async (req: Request, res: Response) => {
     const filters = {
       clientId: req.query.client_id ? parseInt(req.query.client_id as string) : undefined,
       status: req.query.status as string,
+      excludeStatus: req.query.exclude_status as string,
       platform: req.query.platform as string,
       createdBy: req.query.createdBy ? parseInt(req.query.createdBy as string) : undefined,
       search: req.query.search as string,
