@@ -3701,6 +3701,36 @@
         return;
       }
 
+      // ✅ Check if user typed a number (1, 2, 3) to select a suggestion
+      const numberMatch = message.match(/^(\d+)$/);
+      if (numberMatch && this.state.currentSuggestions && this.state.currentSuggestions.length > 0) {
+        const selectedIndex = parseInt(numberMatch[1]) - 1;
+        if (selectedIndex >= 0 && selectedIndex < this.state.currentSuggestions.length) {
+          const selectedSuggestion = this.state.currentSuggestions[selectedIndex];
+          // Show answer directly if available
+          if (selectedSuggestion.answer) {
+            this.addUserMessage(`${selectedIndex + 1}. ${selectedSuggestion.question}`);
+            setTimeout(() => {
+              this.addBotMessage(selectedSuggestion.answer);
+            }, 300);
+            input.value = '';
+            this.state.currentSuggestions = null;
+            const quickActions = document.getElementById('wetechforu-quick-actions');
+            if (quickActions) quickActions.style.display = 'none';
+            return;
+          } else {
+            // No answer available, send question to backend
+            this.addUserMessage(`${selectedIndex + 1}. ${selectedSuggestion.question}`);
+            input.value = '';
+            this.state.currentSuggestions = null;
+            const quickActions = document.getElementById('wetechforu-quick-actions');
+            if (quickActions) quickActions.style.display = 'none';
+            this.sendMessageToBackend(selectedSuggestion.question);
+            return;
+          }
+        }
+      }
+
       this.addUserMessage(message);
       input.value = '';
       console.log('✅ User message added to UI');
@@ -4694,12 +4724,12 @@
               this.showHelpfulButtons();
             }, 1500);
           } else if (data.suggestions && data.suggestions.length > 0) {
-            // 🤔 MEDIUM CONFIDENCE (50-85%) - Show similar questions
+            // 🤔 MEDIUM CONFIDENCE (30-70%) - Show similar questions with answers
             this.state.unsuccessfulAttempts = 0; // Reset counter on suggestions
+            this.state.currentSuggestions = data.suggestions; // Store for number input handling
             setTimeout(() => {
-              this.addBotMessage("Or did you mean one of these?");
               this.showSmartSuggestions(data.suggestions);
-            }, 1000);
+            }, 500);
           } else if (confidence < 0.5) {
             // ❌ LOW CONFIDENCE - Bot is still helpful, doesn't immediately push agent
             // The backend already sent a friendly "tell me more" message
