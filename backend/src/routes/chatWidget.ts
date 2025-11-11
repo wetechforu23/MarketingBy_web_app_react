@@ -722,6 +722,73 @@ router.delete('/widgets/:widgetId/knowledge/:knowledgeId', async (req, res) => {
 });
 
 // ==========================================
+// KNOWLEDGE BASE SEARCH (PUBLIC - For widget search)
+// ==========================================
+router.get('/public/widget/:widgetKey/knowledge/search', async (req, res) => {
+  try {
+    const { widgetKey } = req.params;
+    const { query } = req.query;
+    
+    if (!query || query.toString().trim().length === 0) {
+      return res.json({ results: [] });
+    }
+    
+    // Get widget ID
+    const widgetResult = await pool.query(
+      `SELECT id FROM widget_configs WHERE widget_key = $1 AND is_active = true`,
+      [widgetKey]
+    );
+    
+    if (widgetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+    
+    const widgetId = widgetResult.rows[0].id;
+    const searchTerm = `%${query.toString().toLowerCase()}%`;
+    
+    // Wildcard search in questions, answers, and keywords
+    const result = await pool.query(
+      `SELECT id, question, answer, category, keywords
+       FROM widget_knowledge_base
+       WHERE widget_id = $1 
+         AND is_active = true
+         AND (
+           LOWER(question) LIKE $2 
+           OR LOWER(answer) LIKE $2
+           OR EXISTS (
+             SELECT 1 FROM jsonb_array_elements_text(keywords) AS keyword
+             WHERE LOWER(keyword) LIKE $2
+           )
+         )
+       ORDER BY 
+         CASE 
+           WHEN LOWER(question) LIKE $2 THEN 1
+           WHEN EXISTS (
+             SELECT 1 FROM jsonb_array_elements_text(keywords) AS keyword
+             WHERE LOWER(keyword) LIKE $2
+           ) THEN 2
+           ELSE 3
+         END,
+         priority DESC
+       LIMIT 20`,
+      [widgetId, searchTerm]
+    );
+    
+    res.json({ 
+      results: result.rows.map(row => ({
+        id: row.id,
+        question: row.question,
+        answer: row.answer,
+        category: row.category
+      }))
+    });
+  } catch (error) {
+    console.error('Knowledge base search error:', error);
+    res.status(500).json({ error: 'Failed to search knowledge base' });
+  }
+});
+
+// ==========================================
 // PUBLIC WIDGET API (No authentication required)
 // ==========================================
 
@@ -1473,10 +1540,10 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
     let kbMatchFound = false;
 
     // 🎯 STEP 1: Try Knowledge Base FIRST
-    const similarQuestions = await findSimilarQuestions(message_text, widget_id, 0.5);
+    const similarQuestions = await findSimilarQuestions(message_text, widget_id, 0.3); // Lower threshold for better matching
 
-    if (similarQuestions.length > 0 && similarQuestions[0].similarity >= 0.85) {
-      // ✅ HIGH CONFIDENCE MATCH (85%+) - Answer directly from Knowledge Base
+    if (similarQuestions.length > 0 && similarQuestions[0].similarity >= 0.70) {
+      // ✅ HIGH CONFIDENCE MATCH (70%+) - Answer directly from Knowledge Base
       const bestMatch = similarQuestions[0];
       botResponse = bestMatch.answer;
       confidence = bestMatch.similarity;
@@ -1487,26 +1554,34 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
       await pool.query(
         'UPDATE widget_knowledge_base SET times_used = times_used + 1 WHERE id = $1',
         [knowledge_base_id]
-      );
+      ).catch(err => console.warn('Could not update KB usage:', err));
 
       console.log(`✅ Knowledge base answer (${Math.round(confidence * 100)}% match): "${bestMatch.question}"`);
 
     } else if (similarQuestions.length > 0) {
-      // 🤔 MEDIUM CONFIDENCE (50-85%) - Suggest similar questions
-      const suggestionText = `I'm not sure I understood that exactly. Did you mean one of these?\n\n` +
-        similarQuestions.map((q, i) => 
+      // 🤔 MEDIUM CONFIDENCE (30-70%) - Show answer but also suggest similar questions
+      const bestMatch = similarQuestions[0];
+      const suggestionText = `${bestMatch.answer}\n\n---\n\nDid you mean one of these?\n\n` +
+        similarQuestions.slice(0, 3).map((q, i) => 
           `${i + 1}. ${q.question}`
         ).join('\n') +
-        `\n\nPlease type the number or rephrase your question.`;
+        `\n\nType the number to see that answer, or ask another question.`;
       
       botResponse = suggestionText;
-      confidence = similarQuestions[0].similarity;
+      confidence = bestMatch.similarity;
       suggestions = similarQuestions.map(q => ({
         id: q.id,
-        question: q.question
+        question: q.question,
+        answer: q.answer
       }));
 
-      console.log(`🤔 Showing ${suggestions.length} similar question suggestions`);
+      // Update usage stats for best match
+      await pool.query(
+        'UPDATE widget_knowledge_base SET times_used = times_used + 1 WHERE id = $1',
+        [bestMatch.id]
+      ).catch(err => console.warn('Could not update KB usage:', err));
+
+      console.log(`🤔 Showing answer with ${suggestions.length} similar question suggestions`);
       kbMatchFound = true; // We found something, just not high confidence
     }
 
@@ -1558,17 +1633,17 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
         } else if (llmResponse.error === 'credits_exhausted') {
           // ⚠️ CREDITS EXHAUSTED
           console.log(`⚠️ LLM credits exhausted for client ${client_id}`);
-          botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Could you tell me a bit more about what you're looking for?\n\nOr would you like to speak with one of our team members who can assist you better? 😊`;
+          botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Would you like to speak with one of our team members who can assist you better? 😊`;
           confidence = 0.3;
         } else {
           // ❌ LLM FAILED
           console.log(`❌ LLM failed: ${llmResponse.error}`);
-          botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Could you tell me a bit more about what you're looking for?\n\nOr would you like to speak with one of our team members who can assist you better? 😊`;
+          botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Would you like to speak with one of our team members who can assist you better? 😊`;
           confidence = 0.3;
         }
       } catch (llmError) {
         console.error('LLM error:', llmError);
-        botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Could you tell me a bit more about what you're looking for?\n\nOr would you like to speak with one of our team members who can assist you better? 😊`;
+        botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Would you like to speak with one of our team members who can assist you better? 😊`;
         confidence = 0.3;
       }
     }
@@ -1578,7 +1653,7 @@ router.post('/public/widget/:widgetKey/message', async (req, res) => {
     // ==========================================
     if (!botResponse) {
       // Final fallback - offer agent handover
-      botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Could you tell me a bit more about what you're looking for?\n\nOr would you like to speak with one of our team members who can assist you better? 😊`;
+      botResponse = `I'd love to help you with that! However, I'm still learning about all our services. Would you like to speak with one of our team members who can assist you better? 😊`;
       confidence = 0.3;
       console.log(`❌ No response generated for: "${message_text}"`);
     }
@@ -2242,6 +2317,79 @@ router.post('/public/widget/:widgetKey/conversations/:conversationId/end', async
   } catch (error) {
     console.error('❌ End conversation error:', error);
     res.status(500).json({ error: 'Failed to end conversation' });
+  }
+});
+
+// ==========================================
+// REACTIVATE OR CLOSE CONVERSATION (PUBLIC - Visitor can reactivate or permanently close)
+// ==========================================
+router.post('/public/widget/:widgetKey/conversations/:conversationId/reactivate-or-close', async (req, res) => {
+  try {
+    const { widgetKey, conversationId } = req.params;
+    const { action } = req.body; // 'reactivate' or 'close'
+    
+    // Get conversation details
+    const convResult = await pool.query(
+      `SELECT wc.*, w.widget_name, w.client_id, c.client_name
+       FROM widget_conversations wc
+       JOIN widget_configs w ON w.id = wc.widget_id AND w.widget_key = $1
+       LEFT JOIN clients c ON c.id = w.client_id
+       WHERE wc.id = $2`,
+      [widgetKey, conversationId]
+    );
+    
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+    
+    const conversation = convResult.rows[0];
+    
+    if (action === 'reactivate') {
+      // Reactivate conversation
+      await pool.query(
+        `UPDATE widget_conversations SET
+          status = 'active',
+          agent_handoff = false,
+          ended_at = NULL,
+          updated_at = NOW()
+        WHERE id = $1`,
+        [conversationId]
+      );
+      
+      // Add system message
+      await pool.query(
+        `INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+         VALUES ($1, 'system', $2, NOW())`,
+        [conversationId, '✅ Conversation reactivated! How can I help you?']
+      );
+      
+      res.json({ success: true, message: 'Conversation reactivated', status: 'active' });
+    } else if (action === 'close') {
+      // Permanently close conversation
+      await pool.query(
+        `UPDATE widget_conversations SET
+          status = 'closed',
+          agent_handoff = false,
+          ended_at = COALESCE(ended_at, NOW()),
+          updated_at = NOW()
+        WHERE id = $1`,
+        [conversationId]
+      );
+      
+      // Add system message
+      await pool.query(
+        `INSERT INTO widget_messages (conversation_id, message_type, message_text, created_at)
+         VALUES ($1, 'system', $2, NOW())`,
+        [conversationId, '✅ Conversation closed. Thank you for chatting with us!']
+      );
+      
+      res.json({ success: true, message: 'Conversation closed', status: 'closed' });
+    } else {
+      return res.status(400).json({ error: 'Invalid action. Use "reactivate" or "close"' });
+    }
+  } catch (error) {
+    console.error('❌ Reactivate/Close conversation error:', error);
+    res.status(500).json({ error: 'Failed to process request' });
   }
 });
 
