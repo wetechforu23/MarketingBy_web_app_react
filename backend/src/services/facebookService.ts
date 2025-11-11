@@ -940,7 +940,8 @@ class FacebookService {
     message: string,
     imageUrl: string,
     contentId?: number | null,
-    destinationUrl?: string | null
+    destinationUrl?: string | null,
+    hashtags?: string | null
   ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
     try {
       const credentials = await this.getClientCredentials(clientId);
@@ -1196,7 +1197,8 @@ class FacebookService {
     message: string,
     imageUrls: string[],
     contentId?: number | null,
-    destinationUrl?: string | null
+    destinationUrl?: string | null,
+    hashtags?: string | null
   ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
     try {
       const credentials = await this.getClientCredentials(clientId);
@@ -1472,7 +1474,8 @@ class FacebookService {
     message: string,
     mediaUrls?: string[],
     contentId?: number | null,
-    destinationUrl?: string | null
+    destinationUrl?: string | null,
+    hashtags?: string | null
   ): Promise<{success: boolean; postId?: string; postUrl?: string; error?: string}> {
     // No media - text only
     if (!mediaUrls || mediaUrls.length === 0) {
@@ -1493,12 +1496,12 @@ class FacebookService {
 
     // Single image post
     if (images.length === 1) {
-      return this.createImagePost(clientId, message, images[0], contentId, destinationUrl);
+      return this.createImagePost(clientId, message, images[0], contentId, destinationUrl, hashtags);
     }
 
     // Multiple images (carousel)
     if (images.length > 1) {
-      return this.createMultiImagePost(clientId, message, images, contentId, destinationUrl);
+      return this.createMultiImagePost(clientId, message, images, contentId, destinationUrl, hashtags);
     }
 
     return { success: false, error: 'No valid media found' };
