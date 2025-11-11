@@ -2839,14 +2839,7 @@
       // Store answers
       this.state.introFlow.answers = answers;
       
-      // Remove form from DOM completely (not just hide)
-      const formDiv = document.getElementById('wetechforu-intro-form');
-      if (formDiv) {
-        formDiv.remove(); // Remove completely from DOM, not just hide
-        console.log('✅ Form removed from DOM after submission');
-      }
-      
-      // Show summary
+      // Show summary (this will remove the form container)
       this.showFormSummary(answers);
       
       // Complete intro flow
