@@ -705,6 +705,10 @@
             border-radius: 16px;
             font-size: 14px;
             line-height: 1.5;
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            white-space: pre-wrap;
           }
 
           .wetechforu-message-bot .wetechforu-message-content {
@@ -2177,39 +2181,6 @@
               ">Start Conversation</button>
             </div>
           </div>
-          
-          <!-- Tab Navigation -->
-          <div style="
-            background: rgba(255,255,255,0.1);
-            border-top: 1px solid rgba(255,255,255,0.2);
-            padding: 12px 20px;
-            display: flex;
-            justify-content: space-around;
-            gap: 20px;
-          ">
-            <button id="wetechforu-tab-home" class="wetechforu-tab-btn active" style="
-              flex: 1;
-              background: transparent;
-              border: none;
-              color: white;
-              font-size: 20px;
-              cursor: pointer;
-              padding: 8px;
-              border-radius: 8px;
-              transition: background 0.2s;
-            " title="Home">🏠</button>
-            <button id="wetechforu-tab-conversation" class="wetechforu-tab-btn" style="
-              flex: 1;
-              background: transparent;
-              border: none;
-              color: rgba(255,255,255,0.6);
-              font-size: 20px;
-              cursor: pointer;
-              padding: 8px;
-              border-radius: 8px;
-              transition: background 0.2s;
-            " title="Conversation">💬</button>
-          </div>
         </div>
       `;
       
@@ -2218,8 +2189,6 @@
       // Add event listeners
       const searchInput = document.getElementById('wetechforu-search-input');
       const startConversationBtn = document.getElementById('wetechforu-start-conversation-btn');
-      const tabHome = document.getElementById('wetechforu-tab-home');
-      const tabConversation = document.getElementById('wetechforu-tab-conversation');
       
       // Search functionality
       let searchTimeout;
@@ -2253,19 +2222,6 @@
       if (startConversationBtn) {
         startConversationBtn.addEventListener('click', () => {
           this.startNewConversation();
-        });
-      }
-      
-      // Tab navigation
-      if (tabHome) {
-        tabHome.addEventListener('click', () => {
-          this.switchTab('home');
-        });
-      }
-      
-      if (tabConversation) {
-        tabConversation.addEventListener('click', () => {
-          this.switchTab('conversation');
         });
       }
     },
@@ -2386,8 +2342,6 @@
     
     // Switch tabs
     switchTab(tab) {
-      const tabHome = document.getElementById('wetechforu-tab-home');
-      const tabConversation = document.getElementById('wetechforu-tab-conversation');
       const tabHomeMain = document.getElementById('wetechforu-tab-home-main');
       const tabConversationMain = document.getElementById('wetechforu-tab-conversation-main');
       const inputArea = document.getElementById('wetechforu-input')?.parentElement;
@@ -2406,16 +2360,6 @@
         // Hide input area when on home tab
         if (inputArea) {
           inputArea.style.display = 'none';
-        }
-        
-        // Update tab styles (initial view tabs)
-        if (tabHome) {
-          tabHome.style.color = 'white';
-          tabHome.style.background = 'rgba(255,255,255,0.2)';
-        }
-        if (tabConversation) {
-          tabConversation.style.color = 'rgba(255,255,255,0.6)';
-          tabConversation.style.background = 'transparent';
         }
         
         // Update main tab styles
@@ -2437,16 +2381,6 @@
         // Show input area when on conversation tab
         if (inputArea) {
           inputArea.style.display = 'flex';
-        }
-        
-        // Update tab styles (initial view tabs)
-        if (tabHome) {
-          tabHome.style.color = 'rgba(255,255,255,0.6)';
-          tabHome.style.background = 'transparent';
-        }
-        if (tabConversation) {
-          tabConversation.style.color = 'white';
-          tabConversation.style.background = 'rgba(255,255,255,0.2)';
         }
         
         // Update main tab styles
