@@ -3127,7 +3127,7 @@
     },
 
     // Send message
-    sendMessage() {
+    async sendMessage() {
       const input = document.getElementById('wetechforu-input');
       const message = input.value.trim();
       
