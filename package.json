@@ -10,6 +10,10 @@
     "build:backend": "cd backend && npm ci && npm run build",
     "copy:frontend": "rm -rf backend/dist/public && mkdir -p backend/dist/public && cp -r frontend/dist/* backend/dist/public/",
     "dev": "cd backend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "start:app": "powershell -ExecutionPolicy Bypass -File start-app.ps1",
     "postinstall": "npm run build"
   },
   "engines": {

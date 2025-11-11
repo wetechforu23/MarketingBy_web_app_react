@@ -354,12 +354,11 @@ export async function rejectClient(action: ApprovalAction) {
     await client.query(
       `UPDATE social_media_content 
        SET status = $1, 
-           rejection_reason = $2,
            approval_token = NULL,
            approval_token_expires_at = NULL,
            updated_at = NOW() 
-       WHERE id = $3`,
-      ['rejected', action.notes || `Rejected by ${action.approverName || 'client'} (${action.accessMethod || 'portal_login'})`, action.contentId]
+       WHERE id = $2`,
+      ['rejected', action.contentId]
     );
 
     // Log the rejection in history
@@ -490,7 +489,7 @@ export async function getApprovalHistory(contentId: number) {
   const query = `
     SELECT 
       ah.*,
-      u.name as approved_by_name,
+      COALESCE(u.username, u.email) as approved_by_name,
       u.email as approved_by_email
     FROM content_approval_history ah
     LEFT JOIN users u ON ah.approved_by = u.id
@@ -654,6 +653,7 @@ export async function sendForApprovalWithLink(
 
     // Get content and client details
     // Prefer client admin email from users table, fallback to clients.email
+    // Also get Facebook page name if available
     const contentResult = await client.query(
       `SELECT 
          c.*, 
@@ -667,7 +667,12 @@ export async function sendForApprovalWithLink(
             AND u_admin.email IS NOT NULL 
             AND u_admin.email != ''
           ORDER BY u_admin.id DESC
-          LIMIT 1) as client_admin_email
+          LIMIT 1) as client_admin_email,
+         (SELECT credentials->>'page_name' 
+          FROM client_credentials 
+          WHERE client_id = c.client_id 
+            AND service_type = 'facebook'
+          LIMIT 1) as facebook_page_name
        FROM social_media_content c
        JOIN clients cl ON cl.id = c.client_id
        WHERE c.id = $1`,
@@ -744,8 +749,29 @@ export async function sendForApprovalWithLink(
         
         // Get media URLs and hashtags
         const mediaUrls = Array.isArray(content.media_urls) ? content.media_urls : [];
-        const hashtags = Array.isArray(content.hashtags) ? content.hashtags : [];
+        let hashtags = Array.isArray(content.hashtags) ? content.hashtags : [];
+        
+        console.log('📧 Email preparation - Content data:', {
+          contentId,
+          mediaUrlsCount: mediaUrls.length,
+          mediaUrls: mediaUrls,
+          hashtagsCount: hashtags.length,
+          hashtags: hashtags,
+          destination_url: content.destination_url,
+          backendUrl: process.env.BACKEND_URL || process.env.API_URL || 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com'
+        });
+        
+        // Extract hashtags from content_text if hashtags array is empty
+        if (hashtags.length === 0 && content.content_text) {
+          const hashtagRegex = /#[\w]+/g;
+          const extractedHashtags = content.content_text.match(hashtagRegex) || [];
+          hashtags = [...new Set(extractedHashtags)]; // Remove duplicates
+        }
+        
         const hasHashtags = hashtags.length > 0;
+        
+        // Get Facebook page name (fallback to client name if not available)
+        const pageName = content.facebook_page_name || content.client_name || 'Page Name';
         
         // Build media images HTML
         let mediaHtml = '';
@@ -758,25 +784,38 @@ export async function sendForApprovalWithLink(
               ${mediaUrls.map((url: string, index: number) => {
                 // Ensure URL is absolute for email clients
                 let imageUrl = url.trim();
-                if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
-                  // Handle relative URLs - convert to absolute
+                
+                // Get the proper backend URL (prefer production/staging, not localhost)
+                const backendUrl = process.env.BACKEND_URL || process.env.API_URL || 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com';
+                
+                // If URL is already absolute
+                if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+                  // Replace localhost URLs with production URL for emails
+                  if (imageUrl.includes('localhost') || imageUrl.includes('127.0.0.1')) {
+                    // Extract the path from localhost URL
+                    try {
+                      const urlObj = new URL(imageUrl);
+                      imageUrl = `${backendUrl}${urlObj.pathname}${urlObj.search}`;
+                      console.log('🔄 Replaced localhost URL in email media section:', url, '→', imageUrl);
+                    } catch (e) {
+                      console.error('⚠️ Error parsing URL:', imageUrl, e);
+                    }
+                  }
+                  // Otherwise use as-is (already a public URL)
+                } else {
+                  // Relative URL - convert to absolute
                   if (imageUrl.startsWith('/uploads/') || imageUrl.startsWith('/public/')) {
-                    // Backend static file URL
-                    const backendUrl = process.env.BACKEND_URL || process.env.API_URL || 'http://localhost:3001';
                     imageUrl = `${backendUrl}${imageUrl}`;
                   } else if (imageUrl.startsWith('uploads/') || imageUrl.startsWith('public/')) {
-                    // Relative path without leading slash
-                    const backendUrl = process.env.BACKEND_URL || process.env.API_URL || 'http://localhost:3001';
                     imageUrl = `${backendUrl}/${imageUrl}`;
                   } else if (imageUrl.startsWith('/')) {
-                    // Other relative paths starting with /
-                    const backendUrl = process.env.BACKEND_URL || process.env.FRONTEND_URL || 'http://localhost:3001';
                     imageUrl = `${backendUrl}${imageUrl}`;
                   } else {
-                    // Assume it's a domain without protocol
                     imageUrl = `https://${imageUrl}`;
                   }
                 }
+                
+                console.log('📧 Email media section image URL:', imageUrl);
                 
                 return `
                   <div style="margin: 15px 0; text-align: center; background-color: #f7fafc; padding: 10px; border-radius: 8px;">
@@ -786,7 +825,12 @@ export async function sendForApprovalWithLink(
                       style="max-width: 100%; width: auto; height: auto; border-radius: 6px; border: 2px solid #e2e8f0; display: block; margin: 0 auto; max-height: 400px; object-fit: contain; background-color: #ffffff;"
                       width="600"
                       height="auto"
+                      onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
                     />
+                    <div style="display: none; padding: 40px; text-align: center; background: #f7fafc; color: #718096; border-radius: 6px;">
+                      <p style="margin: 0;">Image ${index + 1} could not be loaded</p>
+                      <p style="margin: 5px 0 0 0; font-size: 12px;">View on approval page</p>
+                    </div>
                     ${mediaUrls.length > 1 ? `<p style="font-size: 12px; color: #718096; margin-top: 8px; margin-bottom: 0;">Image ${index + 1} of ${mediaUrls.length}</p>` : ''}
                   </div>
                 `;
@@ -864,32 +908,138 @@ export async function sendForApprovalWithLink(
                 <div style="padding: 30px;">
                   <p style="font-size: 16px; margin-bottom: 25px;">Hello <strong>${content.client_name}</strong>,</p>
                   
-                  <!-- Content Title -->
-                  <h2 style="margin: 0 0 15px 0; color: #2d3748; font-size: 22px; font-weight: 700;">${content.title}</h2>
+                  <p style="font-size: 14px; margin-bottom: 20px; color: #666;">Please review the content below:</p>
                   
-                  <!-- Content Description -->
-                  ${content.content_text ? `
-                    <div style="background: #f7fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                      <p style="margin: 0; color: #4a5568; font-size: 15px; white-space: pre-wrap;">${content.content_text}</p>
+                  <!-- Facebook-Style Post Preview -->
+                  <div style="background: #f0f2f5; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+                    <div style="background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                      <!-- Post Header -->
+                      <div style="padding: 12px 16px; display: flex; align-items: center; border-bottom: 1px solid #e4e6eb;">
+                        <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #2E86AB, #1a5f7a); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; margin-right: 8px;">
+                          ${pageName.charAt(0).toUpperCase()}
+                        </div>
+                        <div style="flex: 1;">
+                          <div style="font-weight: 600; font-size: 15px; color: #050505; margin-bottom: 2px;">${pageName}</div>
+                          <div style="font-size: 13px; color: #65676b;">
+                            <span>Sponsored</span>
+                            <span style="margin: 0 4px;">·</span>
+                            <span>🌐</span>
+                          </div>
+                        </div>
+                        <div style="color: #65676b; font-size: 20px; cursor: pointer;">⋯</div>
+                      </div>
+                      
+                      <!-- Post Content -->
+                      <div style="padding: 12px 16px;">
+                        ${content.content_text ? `
+                          <div style="font-size: 15px; line-height: 1.33; color: #050505; white-space: pre-wrap; margin-bottom: ${hasHashtags ? '8px' : '0'};">
+                            ${content.content_text.replace(/#[\w]+/g, '<span style="color: #1877f2;">$&</span>')}
+                          </div>
+                        ` : ''}
+                        
+                        ${hasHashtags ? `
+                          <div style="margin-top: 8px; font-size: 15px; color: #1877f2;">
+                            ${hashtags.join(' ')}
+                          </div>
+                        ` : ''}
+                      </div>
+                      
+                      <!-- Post Media -->
+                      ${mediaUrls.length > 0 ? `
+                        <div style="background: #f0f2f5;">
+                          ${mediaUrls.map((url: string, index: number) => {
+                            let imageUrl = url.trim();
+                            
+                            // Get the proper backend URL (prefer production/staging, not localhost)
+                            const backendUrl = process.env.BACKEND_URL || process.env.API_URL || 'https://marketingby-wetechforu-b67c6bd0bf6b.herokuapp.com';
+                            
+                            // If URL is already absolute
+                            if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+                              // Replace localhost URLs with production URL for emails
+                              if (imageUrl.includes('localhost') || imageUrl.includes('127.0.0.1')) {
+                                // Extract the path from localhost URL
+                                const urlObj = new URL(imageUrl);
+                                imageUrl = `${backendUrl}${urlObj.pathname}${urlObj.search}`;
+                                console.log('🔄 Replaced localhost URL in email:', url, '→', imageUrl);
+                              }
+                              // Otherwise use as-is (already a public URL)
+                            } else {
+                              // Relative URL - convert to absolute
+                              if (imageUrl.startsWith('/uploads/') || imageUrl.startsWith('/public/')) {
+                                imageUrl = `${backendUrl}${imageUrl}`;
+                              } else if (imageUrl.startsWith('uploads/') || imageUrl.startsWith('public/')) {
+                                imageUrl = `${backendUrl}/${imageUrl}`;
+                              } else if (imageUrl.startsWith('/')) {
+                                imageUrl = `${backendUrl}${imageUrl}`;
+                              } else {
+                                imageUrl = `https://${imageUrl}`;
+                              }
+                            }
+                            
+                            console.log('📧 Email image URL:', imageUrl);
+                            
+                            return `
+                              <a href="${approvalUrl}" style="display: block; text-decoration: none;">
+                                <img 
+                                  src="${imageUrl}" 
+                                  alt="Post Image ${index + 1}" 
+                                  style="width: 100%; max-width: 100%; height: auto; display: block; border: 1px solid #e2e8f0;"
+                                  onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
+                                />
+                                <div style="display: none; padding: 40px; text-align: center; background: #f7fafc; color: #718096;">
+                                  <p style="margin: 0;">Image ${index + 1} could not be loaded</p>
+                                  <p style="margin: 5px 0 0 0; font-size: 12px;">Click to view on approval page</p>
+                                </div>
+                              </a>
+                            `;
+                          }).join('')}
+                          <div style="background: #f0f9ff; padding: 12px; border-radius: 6px; margin-top: 15px; border-left: 3px solid #3b82f6;">
+                            <p style="margin: 0; font-size: 12px; color: #1e40af; line-height: 1.5;">
+                              <strong>💡 Note:</strong> If images don't display above, your email client may be blocking external images. Click "Show Images" or "Display Images" in your email client, or click the "Open Review Page" button below to view the full content with images.
+                            </p>
+                          </div>
+                        </div>
+                      ` : ''}
+                      
+                      <!-- Link Preview (if destination_url exists) -->
+                      ${content.destination_url ? `
+                        <div style="border-top: 1px solid #e4e6eb; padding: 12px 16px; background: #f0f2f5;">
+                          <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="flex: 1;">
+                              <div style="font-size: 12px; color: #65676b; text-transform: uppercase; margin-bottom: 4px;">
+                                ${new URL(content.destination_url.startsWith('http') ? content.destination_url : 'https://' + content.destination_url).hostname.replace('www.', '')}
+                              </div>
+                              <div style="font-size: 15px; font-weight: 600; color: #050505; margin-bottom: 4px;">
+                                ${content.title}
+                              </div>
+                            </div>
+                            <a href="${content.destination_url.startsWith('http') ? content.destination_url : 'https://' + content.destination_url}" 
+                               style="background: #e4e6eb; color: #050505; padding: 6px 16px; border-radius: 6px; text-decoration: none; font-size: 15px; font-weight: 600;">
+                              Learn More
+                            </a>
+                          </div>
+                        </div>
+                      ` : ''}
+                      
+                      <!-- Post Actions (Like, Comment, Share) -->
+                      <div style="border-top: 1px solid #e4e6eb; padding: 4px 0;">
+                        <div style="display: flex; justify-content: space-around; padding: 8px 0;">
+                          <div style="display: flex; align-items: center; gap: 8px; color: #65676b; font-size: 15px; font-weight: 600; cursor: pointer;">
+                            <span>👍</span>
+                            <span>Like</span>
+                          </div>
+                          <div style="display: flex; align-items: center; gap: 8px; color: #65676b; font-size: 15px; font-weight: 600; cursor: pointer;">
+                            <span>💬</span>
+                            <span>Comment</span>
+                          </div>
+                          <div style="display: flex; align-items: center; gap: 8px; color: #65676b; font-size: 15px; font-weight: 600; cursor: pointer;">
+                            <span>↗️</span>
+                            <span>Share</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  ` : ''}
-                  
-                  <!-- Media Images -->
-                  ${mediaHtml}
-                  
-                  <!-- Destination URL -->
-                  ${content.destination_url ? `
-                    <div style="margin: 20px 0;">
-                      <p style="font-size: 14px; font-weight: 600; color: #333; margin-bottom: 8px;">Destination URL:</p>
-                      <a href="${content.destination_url.startsWith('http') ? content.destination_url : 'https://' + content.destination_url}" 
-                         style="color: #4682B4; text-decoration: none; word-break: break-all; font-size: 14px;">
-                        ${content.destination_url}
-                      </a>
-                    </div>
-                  ` : ''}
-                  
-                  <!-- Hashtags or Missing Warning -->
-                  ${hashtagsHtml}
+                  </div>
                   
                   <!-- Platform and Type Info -->
                   <div style="display: flex; gap: 20px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 14px; flex-wrap: wrap;">
@@ -1150,7 +1300,35 @@ ${approvalUrl}
 export async function verifyApprovalToken(token: string): Promise<any | null> {
   try {
     const result = await pool.query(
-      `SELECT c.*, cl.client_name
+      `SELECT 
+         c.id,
+         c.client_id,
+         c.title,
+         c.content_type,
+         c.content_text,
+         c.media_urls,
+         c.hashtags,
+         c.target_platforms,
+         c.destination_url,
+         c.status,
+         c.created_at,
+         c.updated_at,
+         cl.client_name,
+         cl.email as client_company_email,
+         (SELECT u_admin.email 
+          FROM users u_admin 
+          WHERE u_admin.client_id = c.client_id 
+            AND u_admin.role = 'client_admin'
+            AND u_admin.is_active = true
+            AND u_admin.email IS NOT NULL 
+            AND u_admin.email != ''
+          ORDER BY u_admin.id DESC
+          LIMIT 1) as client_admin_email,
+         (SELECT credentials->>'page_name' 
+          FROM client_credentials 
+          WHERE client_id = c.client_id 
+            AND service_type = 'facebook'
+          LIMIT 1) as facebook_page_name
        FROM social_media_content c
        LEFT JOIN clients cl ON cl.id = c.client_id
        WHERE c.approval_token = $1
@@ -1159,7 +1337,49 @@ export async function verifyApprovalToken(token: string): Promise<any | null> {
       [token]
     );
 
-    return result.rows[0] || null;
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const content = result.rows[0];
+    // Determine the best email to use (prefer client admin email, fallback to company email)
+    content.client_email = content.client_admin_email || content.client_company_email || null;
+    
+    // Ensure hashtags is an array (PostgreSQL arrays are returned as arrays, but ensure it's not null)
+    if (content.hashtags && !Array.isArray(content.hashtags)) {
+      content.hashtags = [];
+    }
+    if (!content.hashtags) {
+      content.hashtags = [];
+    }
+    
+    // Ensure media_urls is an array
+    if (content.media_urls && !Array.isArray(content.media_urls)) {
+      content.media_urls = [];
+    }
+    if (!content.media_urls) {
+      content.media_urls = [];
+    }
+    
+    // Ensure target_platforms is an array
+    if (content.target_platforms && !Array.isArray(content.target_platforms)) {
+      content.target_platforms = [];
+    }
+    if (!content.target_platforms) {
+      content.target_platforms = [];
+    }
+    
+    // Log for debugging
+    console.log('📋 Approval token content:', {
+      id: content.id,
+      title: content.title,
+      destination_url: content.destination_url,
+      hashtags: content.hashtags,
+      hashtags_type: typeof content.hashtags,
+      hashtags_is_array: Array.isArray(content.hashtags)
+    });
+    
+    return content;
   } catch (error: any) {
     console.error('❌ Error verifying approval token:', error);
     return null;

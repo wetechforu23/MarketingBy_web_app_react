@@ -253,15 +253,30 @@ const ApprovalQueue: React.FC = () => {
                 </div>
               </div>
 
-              {/* Recent History */}
+              {/* Recent History / Feedback */}
               {content.recent_history && content.recent_history.length > 0 && (
                 <div className="mt-4 pt-4 border-t">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Recent Activity:</p>
-                  <div className="space-y-1">
-                    {content.recent_history.slice(0, 2).map((item: any, idx: number) => (
-                      <p key={idx} className="text-sm text-gray-600">
-                        • {item.approved_by_name}: {item.notes || item.approval_type} ({new Date(item.created_at).toLocaleDateString()})
-                      </p>
+                  <p className="text-sm font-medium text-gray-700 mb-2">📝 Feedback & Comments:</p>
+                  <div className="space-y-2">
+                    {content.recent_history.slice(0, 3).map((item: any, idx: number) => (
+                      <div key={idx} className="bg-gray-50 p-3 rounded-lg">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-sm font-semibold text-gray-800">
+                            {item.approved_by_name || 'Unknown'}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {new Date(item.created_at).toLocaleDateString()} {new Date(item.created_at).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        {item.notes && (
+                          <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">
+                            {item.notes}
+                          </p>
+                        )}
+                        <span className="text-xs text-gray-500 mt-1 block">
+                          Type: {item.approval_type?.replace('_', ' ') || 'N/A'}
+                        </span>
+                      </div>
                     ))}
                   </div>
                 </div>

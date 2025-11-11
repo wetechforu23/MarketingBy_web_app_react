@@ -63,6 +63,8 @@ const ContentEditor: React.FC = () => {
   const [scheduleDate, setScheduleDate] = useState<string>('');
   const [scheduleTime, setScheduleTime] = useState<string>('');
   const [schedulePlatforms, setSchedulePlatforms] = useState<string[]>([]);
+  const [feedbackHistory, setFeedbackHistory] = useState<any[]>([]);
+  const [loadingFeedbackHistory, setLoadingFeedbackHistory] = useState(false);
 
   const platforms = [
     { id: 'facebook', name: 'Facebook', icon: '📘', color: '#1877f2', maxLength: 63206, recommended: 500 },
@@ -310,6 +312,64 @@ const ContentEditor: React.FC = () => {
     }
   };
 
+  const fetchFeedbackHistory = async (contentId: number) => {
+    if (!contentId) return;
+    setLoadingFeedbackHistory(true);
+    try {
+      const response = await http.get(`/content/${contentId}/approval-history`);
+      if (response.data && response.data.history) {
+        // Filter out submission entries and system messages
+        const filteredHistory = response.data.history.filter((item: any) => {
+          if (item.action_type === 'submission') return false;
+          if (item.notes && (
+            item.notes.includes('Submitted for client approval') ||
+            item.notes.includes('Sent for client approval via secure link')
+          )) return false;
+          return true;
+        });
+        setFeedbackHistory(filteredHistory);
+      }
+    } catch (error: any) {
+      console.error('Error fetching feedback history:', error);
+      setFeedbackHistory([]);
+    } finally {
+      setLoadingFeedbackHistory(false);
+    }
+  };
+
+  const maskEmail = (email: string): string => {
+    if (!email) return '';
+    const [local, domain] = email.split('@');
+    if (!local || !domain) return email;
+    const maskedLocal = local.length > 2 
+      ? `${local.substring(0, 2)}${'X'.repeat(Math.min(local.length - 2, 5))}`
+      : 'XX';
+    const maskedDomain = domain.length > 1
+      ? `${domain.substring(0, 1)}${'X'.repeat(Math.min(domain.length - 1, 4))}`
+      : 'X';
+    return `${maskedLocal}@${maskedDomain}`;
+  };
+
+  const parseFeedback = (notes: string): string => {
+    if (!notes) return '';
+    // Extract feedback text before system messages
+    const systemMessagePatterns = [
+      /Submitted for client approval/i,
+      /Sent for client approval via secure link/i,
+      /Approved by:/i,
+      /Rejected by:/i
+    ];
+    
+    for (const pattern of systemMessagePatterns) {
+      const match = notes.search(pattern);
+      if (match !== -1) {
+        return notes.substring(0, match).trim();
+      }
+    }
+    
+    return notes.trim();
+  };
+
   const fetchContent = async () => {
     setContentLoading(true);
     try {
@@ -362,6 +422,14 @@ const ContentEditor: React.FC = () => {
       
       setContentStatus(content.status || 'draft');
       setContentCreatedBy(content.created_by || null);
+      
+      // Fetch feedback history
+      if (id) {
+        const contentId = parseInt(id);
+        if (!isNaN(contentId)) {
+          await fetchFeedbackHistory(contentId);
+        }
+      }
       
       // Note: selectedClient will be set automatically by the useEffect when clients load
       console.log('✅ Content loaded successfully, client_id:', content.client_id);
@@ -688,24 +756,45 @@ const ContentEditor: React.FC = () => {
       let contentId: number | undefined = id ? parseInt(id) : undefined;
 
       if (!isEditMode) {
-        // New content: save everything including destination_url
+        // New content: save everything including destination_url and hashtags
         const saveResponse = await http.post('/content', formData);
         contentId = saveResponse.data.content.id;
       } else {
-        // Edit mode: Try to save all fields first
+        // Edit mode: Save all fields including destination_url and hashtags
+        // This works for rejected content (rejected status allows updates)
         try {
-          await http.put(`/content/${id}`, formData);
+          // Ensure we're sending destinationUrl and hashtags
+          const updateData = {
+            ...formData,
+            destinationUrl: formData.destinationUrl || '',
+            hashtags: formData.hashtags || []
+          };
+          console.log('📋 Updating content before submission:', {
+            contentId: id,
+            destinationUrl: updateData.destinationUrl,
+            hashtags: updateData.hashtags,
+            status: contentStatus
+          });
+          await http.put(`/content/${id}`, updateData);
+          console.log('✅ Content updated successfully with destination_url and hashtags');
         } catch (updateError: any) {
           // If update fails because content is pending approval, 
-          // still try to save destination_url separately (it's allowed even when pending)
+          // still try to save destination_url and hashtags separately (they're allowed even when pending)
           if (updateError.response?.data?.error?.includes('pending approval')) {
+            const partialUpdates: any = {};
             if (formData.destinationUrl) {
+              partialUpdates.destinationUrl = formData.destinationUrl;
+            }
+            if (formData.hashtags && formData.hashtags.length > 0) {
+              partialUpdates.hashtags = formData.hashtags;
+            }
+            if (Object.keys(partialUpdates).length > 0) {
               try {
-                await http.put(`/content/${id}`, { destinationUrl: formData.destinationUrl });
-                console.log('✅ Saved destination_url separately');
+                await http.put(`/content/${id}`, partialUpdates);
+                console.log('✅ Saved destination_url and hashtags separately');
               } catch (urlError: any) {
-                console.error('⚠️ Could not save destination_url:', urlError.response?.data?.error);
-                // Continue anyway - destination_url might already be saved
+                console.error('⚠️ Could not save destination_url/hashtags:', urlError.response?.data?.error);
+                // Continue anyway - they might already be saved
               }
             }
           } else {
@@ -1992,6 +2081,101 @@ const ContentEditor: React.FC = () => {
                 </div>
               )}
 
+              {/* Feedback History Section */}
+              {isEditMode && (
+                <div style={{
+                  background: 'white',
+                  borderRadius: '16px',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+                  padding: '25px',
+                  marginBottom: '20px'
+                }}>
+                  <h2 style={{ 
+                    fontSize: '18px', 
+                    fontWeight: '600', 
+                    marginBottom: '20px',
+                    color: '#2d3748',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    📝 Feedback History
+                  </h2>
+
+                  {loadingFeedbackHistory ? (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#718096' }}>
+                      <i className="fas fa-spinner fa-spin" style={{ fontSize: '24px', marginBottom: '10px', display: 'block' }}></i>
+                      Loading feedback history...
+                    </div>
+                  ) : feedbackHistory.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#a0aec0' }}>
+                      <i className="fas fa-comments" style={{ fontSize: '48px', marginBottom: '10px', display: 'block' }}></i>
+                      No feedback yet
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {feedbackHistory.map((item: any, idx: number) => {
+                        const isRejected = item.approval_status === 'rejected' || item.approval_type === 'client_rejection';
+                        const borderColor = isRejected ? '#ef4444' : '#3b82f6';
+                        
+                        return (
+                          <div 
+                            key={idx} 
+                            style={{
+                              background: '#f8f9fa',
+                              borderRadius: '10px',
+                              padding: '16px',
+                              borderLeft: `4px solid ${borderColor}`,
+                              position: 'relative'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                              <div>
+                                <div style={{ fontWeight: '600', fontSize: '14px', color: '#2d3748', marginBottom: '4px' }}>
+                                  {item.approver_name || item.approved_by_name || 'Unknown'}
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#718096' }}>
+                                  {item.approver_email ? maskEmail(item.approver_email) : (item.approved_by_email ? maskEmail(item.approved_by_email) : 'N/A')}
+                                </div>
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#718096', textAlign: 'right' }}>
+                                {new Date(item.created_at).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit'
+                                })}
+                              </div>
+                            </div>
+                            {item.notes && (
+                              <div style={{
+                                marginTop: '8px',
+                                padding: '10px',
+                                background: 'white',
+                                borderRadius: '6px',
+                                fontSize: '14px',
+                                color: '#2d3748',
+                                whiteSpace: 'pre-wrap',
+                                border: '1px solid #e2e8f0'
+                              }}>
+                                {item.notes}
+                              </div>
+                            )}
+                            <div style={{ 
+                              marginTop: '8px', 
+                              fontSize: '11px', 
+                              color: '#a0aec0',
+                              textTransform: 'capitalize'
+                            }}>
+                              Type: {item.approval_type?.replace(/_/g, ' ') || item.approval_status || 'N/A'}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Approval Link (Super Admin/WeTechForU team only) */}
               {(() => {
                 // Show for admin users when content is draft or pending approval
@@ -2284,8 +2468,8 @@ const ContentEditor: React.FC = () => {
                 </button>
               )}
 
-              {/* Submit for Approval (only for new content) */}
-              {!isEditMode && (
+              {/* Submit for Approval (for new content OR rejected content) */}
+              {(!isEditMode || contentStatus === 'rejected') && (
                 <button
                   onClick={handleSubmitForApproval}
                   disabled={loading || !formData.clientId}

@@ -62,9 +62,37 @@ router.post('/:id/approve-client', async (req: Request, res: Response) => {
         }
       }
 
+      // If user not found by email, get client admin user ID from content's client_id
+      if (!approverUserId && verifiedContent.client_id) {
+        try {
+          const clientAdminResult = await pool.query(
+            `SELECT id FROM users 
+             WHERE client_id = $1 
+             AND role = 'client_admin' 
+             AND is_active = true 
+             ORDER BY id DESC 
+             LIMIT 1`,
+            [verifiedContent.client_id]
+          );
+          if (clientAdminResult.rows.length > 0) {
+            approverUserId = clientAdminResult.rows[0].id;
+            console.log('📋 Using client admin user ID for secure link approval:', approverUserId);
+          }
+        } catch (error) {
+          console.warn('Could not find client admin user for secure link approval:', error);
+        }
+      }
+
+      // If still no user found, this is an error - we need a user ID
+      if (!approverUserId) {
+        return res.status(400).json({ 
+          error: 'Unable to determine approver. Please ensure you are using the correct email address.' 
+        });
+      }
+
       const result = await approvalService.approveClient({
         contentId,
-        approvedBy: approverUserId, // Use user ID if found, otherwise null
+        approvedBy: approverUserId,
         notes,
         approverName: approver_name,
         approverEmail: approver_email,
@@ -124,9 +152,7 @@ router.post('/:id/reject-client', async (req: Request, res: Response) => {
     const { notes, requestedChanges, token, approver_name, approver_email, access_method } = req.body;
     const userId = req.session?.userId;
 
-    if (!notes && !requestedChanges) {
-      return res.status(400).json({ error: 'Feedback is required when rejecting content' });
-    }
+    // Notes/feedback is optional for rejection
 
     // If using secure link, verify token first (no auth required)
     if (access_method === 'secure_link' && token) {
@@ -135,9 +161,53 @@ router.post('/:id/reject-client', async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'Invalid approval token' });
       }
 
+      // Try to find user by email for secure link approvals
+      let approverUserId = null;
+      if (approver_email) {
+        try {
+          const userResult = await pool.query(
+            'SELECT id FROM users WHERE email = $1 LIMIT 1',
+            [approver_email]
+          );
+          if (userResult.rows.length > 0) {
+            approverUserId = userResult.rows[0].id;
+          }
+        } catch (error) {
+          console.warn('Could not find user by email for secure link rejection:', approver_email);
+        }
+      }
+
+      // If user not found by email, get client admin user ID from content's client_id
+      if (!approverUserId && verifiedContent.client_id) {
+        try {
+          const clientAdminResult = await pool.query(
+            `SELECT id FROM users 
+             WHERE client_id = $1 
+             AND role = 'client_admin' 
+             AND is_active = true 
+             ORDER BY id DESC 
+             LIMIT 1`,
+            [verifiedContent.client_id]
+          );
+          if (clientAdminResult.rows.length > 0) {
+            approverUserId = clientAdminResult.rows[0].id;
+            console.log('📋 Using client admin user ID for secure link rejection:', approverUserId);
+          }
+        } catch (error) {
+          console.warn('Could not find client admin user for secure link rejection:', error);
+        }
+      }
+
+      // If still no user found, this is an error - we need a user ID
+      if (!approverUserId) {
+        return res.status(400).json({ 
+          error: 'Unable to determine approver. Please ensure you are using the correct email address.' 
+        });
+      }
+
       const result = await approvalService.rejectClient({
         contentId,
-        approvedBy: null, // null for secure link approvals
+        approvedBy: approverUserId,
         notes,
         requestedChanges,
         approverName: approver_name,

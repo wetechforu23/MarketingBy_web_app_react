@@ -396,7 +396,8 @@ export async function updateContent(contentId: number, data: Partial<ContentData
 
   if (data.destinationUrl !== undefined) {
     updateFields.push(`destination_url = $${paramIndex}`);
-    values.push(data.destinationUrl);
+    values.push(data.destinationUrl || null); // Allow empty string to be saved as null
+    console.log('📋 Updating destination_url:', data.destinationUrl || null);
     paramIndex++;
   }
 
@@ -414,7 +415,8 @@ export async function updateContent(contentId: number, data: Partial<ContentData
 
   if (data.hashtags !== undefined) {
     updateFields.push(`hashtags = $${paramIndex}`);
-    values.push(data.hashtags);
+    values.push(data.hashtags || []); // Ensure it's always an array
+    console.log('📋 Updating hashtags:', data.hashtags || []);
     paramIndex++;
   }
 
