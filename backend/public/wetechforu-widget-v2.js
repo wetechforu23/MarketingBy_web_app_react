@@ -434,6 +434,39 @@
             
             <!-- ✅ REMOVED: Resize handle - Widget is fixed size (Industry Standard) -->
 
+            <!-- Tab Navigation (Always visible at bottom) -->
+            <div id="wetechforu-tab-navigation" style="
+              background: white;
+              border-top: 1px solid #e0e0e0;
+              padding: 12px 20px;
+              display: flex;
+              justify-content: space-around;
+              gap: 20px;
+            ">
+              <button id="wetechforu-tab-home-main" class="wetechforu-tab-btn" style="
+                flex: 1;
+                background: transparent;
+                border: none;
+                color: #666;
+                font-size: 20px;
+                cursor: pointer;
+                padding: 8px;
+                border-radius: 8px;
+                transition: all 0.2s;
+              " title="Home">🏠</button>
+              <button id="wetechforu-tab-conversation-main" class="wetechforu-tab-btn active" style="
+                flex: 1;
+                background: #f5f5f5;
+                border: none;
+                color: ${this.config.primaryColor};
+                font-size: 20px;
+                cursor: pointer;
+                padding: 8px;
+                border-radius: 8px;
+                transition: all 0.2s;
+              " title="Conversation">💬</button>
+            </div>
+
             <!-- Input Area -->
             <div style="
               padding: 16px 20px;
@@ -883,6 +916,18 @@
       input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') this.sendMessage();
       });
+      
+      // Tab navigation listeners
+      const tabHomeMain = document.getElementById('wetechforu-tab-home-main');
+      const tabConversationMain = document.getElementById('wetechforu-tab-conversation-main');
+      
+      if (tabHomeMain) {
+        tabHomeMain.addEventListener('click', () => this.switchTab('home'));
+      }
+      
+      if (tabConversationMain) {
+        tabConversationMain.addEventListener('click', () => this.switchTab('conversation'));
+      }
       
       // ✅ REMOVED: Drag and resize functionality (Industry Standard - Fixed Position)
       // Widget stays in fixed position, responsive sizing only
@@ -1398,22 +1443,13 @@
         
         // Only show intro flow if it wasn't already completed
         if (!introAlreadyCompleted) {
-          // For new conversations, always show welcome (ignore sessionStorage)
-          console.log('🎉 New conversation or no messages - showing welcome message');
+          // For new conversations, show standardized initial view
+          console.log('🎉 New conversation or no messages - showing standardized initial view');
           
-          // Ensure conversation exists (creates new one if needed)
-          await this.ensureConversation();
-          
-          // Start intro flow or show welcome
-          if (this.config.enableIntroFlow) {
-            setTimeout(() => {
-              this.startIntroFlow();
-            }, 500);
-          } else {
-            setTimeout(() => {
-              this.startDefaultIntroFlow();
-            }, 500);
-          }
+          // Show standardized initial view (with search and new conversation)
+          setTimeout(() => {
+            this.showStandardizedInitialView();
+          }, 300);
         }
       } else {
         // Conversation was restored with messages - check if we should still show something
@@ -2045,13 +2081,373 @@
       }
     },
 
-    // Default intro flow (no questions)
+    // Default intro flow (no questions) - Show standardized initial view
     startDefaultIntroFlow() {
-      // Show single welcome message with bot name and custom greeting
+      // Show standardized initial view with search and new conversation
+      this.showStandardizedInitialView();
+    },
+    
+    // Show standardized initial view (Industry Standard)
+    showStandardizedInitialView() {
+      const messagesContainer = document.getElementById('wetechforu-messages');
+      messagesContainer.innerHTML = ''; // Clear any existing messages
+      
+      const initialViewHTML = `
+        <div id="wetechforu-initial-view" style="
+          padding: 0;
+          background: linear-gradient(135deg, ${this.config.primaryColor}, ${this.config.secondaryColor});
+          color: white;
+          min-height: 100%;
+          display: flex;
+          flex-direction: column;
+        ">
+          <!-- Header -->
+          <div style="padding: 24px 20px 20px 20px;">
+            <h2 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 600;">Hi there 👋</h2>
+            <p style="margin: 0; font-size: 14px; opacity: 0.9;">Need help? Search our knowledge base for answers or start a conversation:</p>
+          </div>
+          
+          <!-- Content Cards -->
+          <div style="flex: 1; padding: 0 20px 20px 20px; overflow-y: auto;">
+            <!-- Search Section -->
+            <div style="
+              background: white;
+              border-radius: 12px;
+              padding: 20px;
+              margin-bottom: 16px;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            ">
+              <h3 style="margin: 0 0 16px 0; color: #333; font-size: 18px; font-weight: 600;">Search Knowledge Base</h3>
+              <div style="position: relative;">
+                <input 
+                  type="text" 
+                  id="wetechforu-search-input" 
+                  placeholder="Search for answers"
+                  style="
+                    width: 100%;
+                    padding: 12px 16px 12px 40px;
+                    border: 2px solid #e0e0e0;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    outline: none;
+                    transition: border-color 0.2s;
+                    box-sizing: border-box;
+                  "
+                />
+                <span style="
+                  position: absolute;
+                  left: 12px;
+                  top: 50%;
+                  transform: translateY(-50%);
+                  color: #999;
+                  font-size: 18px;
+                ">🔍</span>
+              </div>
+              <div id="wetechforu-search-results" style="
+                margin-top: 16px;
+                max-height: 300px;
+                overflow-y: auto;
+                display: none;
+              "></div>
+            </div>
+            
+            <!-- New Conversation Section -->
+            <div style="
+              background: white;
+              border-radius: 12px;
+              padding: 20px;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            ">
+              <h3 style="margin: 0 0 12px 0; color: #333; font-size: 18px; font-weight: 600;">New Conversation</h3>
+              <p style="margin: 0 0 16px 0; color: #666; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+                <span>We typically reply in a few minutes</span>
+                <span style="font-size: 16px;">✈️</span>
+              </p>
+              <button id="wetechforu-start-conversation-btn" style="
+                width: 100%;
+                padding: 12px;
+                background: ${this.config.primaryColor};
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: background 0.2s;
+              ">Start Conversation</button>
+            </div>
+          </div>
+          
+          <!-- Tab Navigation -->
+          <div style="
+            background: rgba(255,255,255,0.1);
+            border-top: 1px solid rgba(255,255,255,0.2);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-around;
+            gap: 20px;
+          ">
+            <button id="wetechforu-tab-home" class="wetechforu-tab-btn active" style="
+              flex: 1;
+              background: transparent;
+              border: none;
+              color: white;
+              font-size: 20px;
+              cursor: pointer;
+              padding: 8px;
+              border-radius: 8px;
+              transition: background 0.2s;
+            " title="Home">🏠</button>
+            <button id="wetechforu-tab-conversation" class="wetechforu-tab-btn" style="
+              flex: 1;
+              background: transparent;
+              border: none;
+              color: rgba(255,255,255,0.6);
+              font-size: 20px;
+              cursor: pointer;
+              padding: 8px;
+              border-radius: 8px;
+              transition: background 0.2s;
+            " title="Conversation">💬</button>
+          </div>
+        </div>
+      `;
+      
+      messagesContainer.insertAdjacentHTML('beforeend', initialViewHTML);
+      
+      // Add event listeners
+      const searchInput = document.getElementById('wetechforu-search-input');
+      const startConversationBtn = document.getElementById('wetechforu-start-conversation-btn');
+      const tabHome = document.getElementById('wetechforu-tab-home');
+      const tabConversation = document.getElementById('wetechforu-tab-conversation');
+      
+      // Search functionality
+      let searchTimeout;
+      if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+          clearTimeout(searchTimeout);
+          const query = e.target.value.trim();
+          
+          if (query.length === 0) {
+            document.getElementById('wetechforu-search-results').style.display = 'none';
+            return;
+          }
+          
+          searchTimeout = setTimeout(() => {
+            this.searchKnowledgeBase(query);
+          }, 300);
+        });
+        
+        searchInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            const query = e.target.value.trim();
+            if (query.length > 0) {
+              this.searchKnowledgeBase(query);
+            }
+          }
+        });
+      }
+      
+      // Start conversation button
+      if (startConversationBtn) {
+        startConversationBtn.addEventListener('click', () => {
+          this.startNewConversation();
+        });
+      }
+      
+      // Tab navigation
+      if (tabHome) {
+        tabHome.addEventListener('click', () => {
+          this.switchTab('home');
+        });
+      }
+      
+      if (tabConversation) {
+        tabConversation.addEventListener('click', () => {
+          this.switchTab('conversation');
+        });
+      }
+    },
+    
+    // Search knowledge base
+    async searchKnowledgeBase(query) {
+      const resultsContainer = document.getElementById('wetechforu-search-results');
+      if (!resultsContainer) return;
+      
+      resultsContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: #666;">Searching...</div>';
+      resultsContainer.style.display = 'block';
+      
+      try {
+        const response = await fetch(
+          `${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/knowledge/search?query=${encodeURIComponent(query)}`
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          const results = data.results || [];
+          
+          if (results.length === 0) {
+            resultsContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: #666; font-size: 13px;">No results found. Try different keywords.</div>';
+          } else {
+            resultsContainer.innerHTML = results.map((item, index) => `
+              <div class="wetechforu-search-result-item" data-result-id="${item.id}" style="
+                padding: 12px;
+                border-bottom: 1px solid #f0f0f0;
+                cursor: pointer;
+                transition: background 0.2s;
+                border-radius: 4px;
+                margin-bottom: 4px;
+              " onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='white'">
+                <div style="font-weight: 600; color: #333; font-size: 14px; margin-bottom: 4px;">${this.escapeHTML(item.question)}</div>
+                ${item.category ? `<div style="font-size: 11px; color: #999;">${this.escapeHTML(item.category)}</div>` : ''}
+              </div>
+            `).join('');
+            
+            // Add click handlers
+            resultsContainer.querySelectorAll('.wetechforu-search-result-item').forEach(item => {
+              item.addEventListener('click', () => {
+                const resultId = item.getAttribute('data-result-id');
+                const result = results.find(r => r.id == resultId);
+                if (result) {
+                  this.showSearchResultAnswer(result);
+                }
+              });
+            });
+          }
+        } else {
+          resultsContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: #f44336; font-size: 13px;">Error searching. Please try again.</div>';
+        }
+      } catch (error) {
+        console.error('Search error:', error);
+        resultsContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: #f44336; font-size: 13px;">Error searching. Please try again.</div>';
+      }
+    },
+    
+    // Show search result answer
+    showSearchResultAnswer(result) {
+      // Remove initial view and show answer
+      const initialView = document.getElementById('wetechforu-initial-view');
+      if (initialView) {
+        initialView.remove();
+      }
+      
+      // Show question and answer in conversation format
+      const questionText = `**${result.question}**`;
+      this.addBotMessage(questionText);
+      
+      // Show answer after a brief delay
       setTimeout(() => {
-        this.addBotMessage(this.config.welcomeMessage || "Hi! 👋 Welcome to WeTechForU. How can I help you today?", false, null, false); // No auto-scroll
-        this.showQuickActions();
-      }, 500);
+        this.addBotMessage(result.answer);
+      }, 300);
+      
+      // Switch to conversation tab
+      this.switchTab('conversation');
+      
+      // Update knowledge base usage stats
+      if (result.id) {
+        fetch(`${this.config.backendUrl}/api/chat-widget/widgets/${this.config.widgetId || 'unknown'}/knowledge/${result.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ times_used: 'increment' })
+        }).catch(err => console.warn('Could not update KB usage:', err));
+      }
+    },
+    
+    // Start new conversation
+    startNewConversation() {
+      // Remove initial view
+      const initialView = document.getElementById('wetechforu-initial-view');
+      if (initialView) {
+        initialView.remove();
+      }
+      
+      // Switch to conversation tab
+      this.switchTab('conversation');
+      
+      // Start intro flow or show form
+      if (this.config.enableIntroFlow && this.config.introQuestions && this.config.introQuestions.length > 0) {
+        this.startIntroFlow();
+      } else {
+        this.addBotMessage(this.config.welcomeMessage || "Hi! 👋 How can I help you today?");
+      }
+    },
+    
+    // Switch tabs
+    switchTab(tab) {
+      const tabHome = document.getElementById('wetechforu-tab-home');
+      const tabConversation = document.getElementById('wetechforu-tab-conversation');
+      const tabHomeMain = document.getElementById('wetechforu-tab-home-main');
+      const tabConversationMain = document.getElementById('wetechforu-tab-conversation-main');
+      const inputArea = document.getElementById('wetechforu-input')?.parentElement;
+      
+      if (tab === 'home') {
+        // Show initial view
+        if (!document.getElementById('wetechforu-initial-view')) {
+          this.showStandardizedInitialView();
+        } else {
+          const initialView = document.getElementById('wetechforu-initial-view');
+          if (initialView) {
+            initialView.style.display = 'flex';
+          }
+        }
+        
+        // Hide input area when on home tab
+        if (inputArea) {
+          inputArea.style.display = 'none';
+        }
+        
+        // Update tab styles (initial view tabs)
+        if (tabHome) {
+          tabHome.style.color = 'white';
+          tabHome.style.background = 'rgba(255,255,255,0.2)';
+        }
+        if (tabConversation) {
+          tabConversation.style.color = 'rgba(255,255,255,0.6)';
+          tabConversation.style.background = 'transparent';
+        }
+        
+        // Update main tab styles
+        if (tabHomeMain) {
+          tabHomeMain.style.color = this.config.primaryColor;
+          tabHomeMain.style.background = '#f5f5f5';
+        }
+        if (tabConversationMain) {
+          tabConversationMain.style.color = '#666';
+          tabConversationMain.style.background = 'transparent';
+        }
+      } else if (tab === 'conversation') {
+        // Hide initial view, show messages
+        const initialView = document.getElementById('wetechforu-initial-view');
+        if (initialView) {
+          initialView.style.display = 'none';
+        }
+        
+        // Show input area when on conversation tab
+        if (inputArea) {
+          inputArea.style.display = 'flex';
+        }
+        
+        // Update tab styles (initial view tabs)
+        if (tabHome) {
+          tabHome.style.color = 'rgba(255,255,255,0.6)';
+          tabHome.style.background = 'transparent';
+        }
+        if (tabConversation) {
+          tabConversation.style.color = 'white';
+          tabConversation.style.background = 'rgba(255,255,255,0.2)';
+        }
+        
+        // Update main tab styles
+        if (tabHomeMain) {
+          tabHomeMain.style.color = '#666';
+          tabHomeMain.style.background = 'transparent';
+        }
+        if (tabConversationMain) {
+          tabConversationMain.style.color = this.config.primaryColor;
+          tabConversationMain.style.background = '#f5f5f5';
+        }
+      }
     },
 
     // Ask current intro question

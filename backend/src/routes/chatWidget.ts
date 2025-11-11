@@ -722,6 +722,73 @@ router.delete('/widgets/:widgetId/knowledge/:knowledgeId', async (req, res) => {
 });
 
 // ==========================================
+// KNOWLEDGE BASE SEARCH (PUBLIC - For widget search)
+// ==========================================
+router.get('/public/widget/:widgetKey/knowledge/search', async (req, res) => {
+  try {
+    const { widgetKey } = req.params;
+    const { query } = req.query;
+    
+    if (!query || query.toString().trim().length === 0) {
+      return res.json({ results: [] });
+    }
+    
+    // Get widget ID
+    const widgetResult = await pool.query(
+      `SELECT id FROM widget_configs WHERE widget_key = $1 AND is_active = true`,
+      [widgetKey]
+    );
+    
+    if (widgetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+    
+    const widgetId = widgetResult.rows[0].id;
+    const searchTerm = `%${query.toString().toLowerCase()}%`;
+    
+    // Wildcard search in questions, answers, and keywords
+    const result = await pool.query(
+      `SELECT id, question, answer, category, keywords
+       FROM widget_knowledge_base
+       WHERE widget_id = $1 
+         AND is_active = true
+         AND (
+           LOWER(question) LIKE $2 
+           OR LOWER(answer) LIKE $2
+           OR EXISTS (
+             SELECT 1 FROM jsonb_array_elements_text(keywords) AS keyword
+             WHERE LOWER(keyword) LIKE $2
+           )
+         )
+       ORDER BY 
+         CASE 
+           WHEN LOWER(question) LIKE $2 THEN 1
+           WHEN EXISTS (
+             SELECT 1 FROM jsonb_array_elements_text(keywords) AS keyword
+             WHERE LOWER(keyword) LIKE $2
+           ) THEN 2
+           ELSE 3
+         END,
+         priority DESC
+       LIMIT 20`,
+      [widgetId, searchTerm]
+    );
+    
+    res.json({ 
+      results: result.rows.map(row => ({
+        id: row.id,
+        question: row.question,
+        answer: row.answer,
+        category: row.category
+      }))
+    });
+  } catch (error) {
+    console.error('Knowledge base search error:', error);
+    res.status(500).json({ error: 'Failed to search knowledge base' });
+  }
+});
+
+// ==========================================
 // PUBLIC WIDGET API (No authentication required)
 // ==========================================
 
