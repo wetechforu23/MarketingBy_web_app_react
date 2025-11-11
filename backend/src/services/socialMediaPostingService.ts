@@ -66,6 +66,11 @@ export async function schedulePost(content: PostContent) {
     const contentData = contentResult.rows[0];
 
     // Check if content is approved (unless skipApprovalCheck is true)
+    // Rejected content cannot be scheduled
+    if (!content.skipApprovalCheck && contentData.status === 'rejected') {
+      throw new Error(`Rejected content cannot be scheduled. Please update the content and resubmit for approval.`);
+    }
+    
     if (!content.skipApprovalCheck && contentData.status !== 'approved') {
       throw new Error(`Content must be approved before scheduling. Current status: ${contentData.status}`);
     }
@@ -108,6 +113,15 @@ export async function schedulePost(content: PostContent) {
       status: post.status,
       scheduledTime: post.scheduled_time
     });
+
+    // Update content status to 'scheduled' if we scheduled a post
+    if (content.scheduledTime) {
+      await client.query(
+        'UPDATE social_media_content SET status = $1 WHERE id = $2',
+        ['scheduled', content.contentId]
+      );
+      console.log(`✅ Content ${content.contentId} status updated to 'scheduled'`);
+    }
 
     // If no scheduled time, post immediately
     if (!content.scheduledTime) {
