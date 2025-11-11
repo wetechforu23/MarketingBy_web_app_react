@@ -3863,12 +3863,18 @@ router.get('/widgets/:widgetId/team-members', async (req, res) => {
     res.json({ team_members: result.rows });
   } catch (error: any) {
     console.error('Get team members error:', error);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
     // If table doesn't exist, return empty array instead of error
-    if (error.code === '42P01' || error.message?.includes('does not exist')) {
+    if (error.code === '42P01' || 
+        error.message?.includes('does not exist') || 
+        error.message?.includes('relation') && error.message?.includes('team_members')) {
       console.warn('⚠️ team_members table does not exist, returning empty array');
       return res.json({ team_members: [] });
     }
-    res.status(500).json({ error: 'Failed to fetch team members' });
+    // For any other error, still return empty array to prevent UI breakage
+    console.warn('⚠️ Error fetching team members, returning empty array:', error.message);
+    return res.json({ team_members: [] });
   }
 });
 
@@ -3911,8 +3917,12 @@ router.post('/widgets/:widgetId/team-members', async (req, res) => {
     res.json({ success: true, team_member: result.rows[0] });
   } catch (error: any) {
     console.error('Create team member error:', error);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
     // If table doesn't exist, return helpful error
-    if (error.code === '42P01' || error.message?.includes('does not exist')) {
+    if (error.code === '42P01' || 
+        error.message?.includes('does not exist') || 
+        (error.message?.includes('relation') && error.message?.includes('team_members'))) {
       return res.status(503).json({ 
         error: 'Team members feature not available. Please run database migration: add_appointment_availability.sql' 
       });
@@ -3999,8 +4009,15 @@ router.get('/team-members/:memberId/availability', async (req, res) => {
     );
 
     res.json({ availability: result.rows });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get availability error:', error);
+    // If table doesn't exist, return empty array
+    if (error.code === '42P01' || 
+        error.message?.includes('does not exist') || 
+        (error.message?.includes('relation') && error.message?.includes('member_availability'))) {
+      console.warn('⚠️ member_availability table does not exist, returning empty array');
+      return res.json({ availability: [] });
+    }
     res.status(500).json({ error: 'Failed to fetch availability' });
   }
 });
