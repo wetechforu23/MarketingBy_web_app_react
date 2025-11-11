@@ -3850,20 +3850,6 @@ router.get('/widgets/:widgetId/team-members', async (req, res) => {
   try {
     const { widgetId } = req.params;
     
-    // Check if table exists first
-    const tableCheck = await pool.query(
-      `SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'team_members'
-      )`
-    );
-    
-    if (!tableCheck.rows[0].exists) {
-      console.warn('⚠️ team_members table does not exist, returning empty array');
-      return res.json({ team_members: [] });
-    }
-    
     const result = await pool.query(
       `SELECT id, name, email, phone, role, title, calendar_type, 
               timezone, default_duration_minutes, buffer_time_minutes,
@@ -3895,21 +3881,6 @@ router.post('/widgets/:widgetId/team-members', async (req, res) => {
       calendar_type, calendar_id, calendar_url,
       timezone, default_duration_minutes, buffer_time_minutes
     } = req.body;
-
-    // Check if table exists first
-    const tableCheck = await pool.query(
-      `SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'team_members'
-      )`
-    );
-    
-    if (!tableCheck.rows[0].exists) {
-      return res.status(503).json({ 
-        error: 'Team members feature not available. Please run database migration: add_appointment_availability.sql' 
-      });
-    }
 
     // Get client_id from widget
     const widgetResult = await pool.query(
