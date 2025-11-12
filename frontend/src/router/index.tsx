@@ -51,6 +51,10 @@ import BlogAnalytics from "../pages/BlogAnalytics";
 import ContentApproval from "../pages/ContentApproval";
 // Email Preferences & Unsubscribe
 import Unsubscribe from "../pages/Unsubscribe";
+// Client Twilio Settings & Contacts
+import ClientTwilioSettings from "../pages/ClientTwilioSettings";
+import ClientContacts from "../pages/ClientContacts";
+import ClientCallPage from "../pages/ClientCallPage";
 
 export const router = createBrowserRouter([
   { path: "/", element: <HomePage /> }, // Public home page
@@ -88,6 +92,10 @@ export const router = createBrowserRouter([
       { path: "system-architecture", element: <ProtectedRoute requireSuperAdmin={true}><SystemArchitecture /></ProtectedRoute> }, // System architecture & ERD page (Super Admin only)
       { path: "settings", element: <Settings /> }, // System settings page
       { path: "settings/clients", element: <Clients /> }, // Clients management in settings
+      { path: "admin/twilio-settings", element: <ProtectedRoute requireSuperAdmin={true}><ClientTwilioSettings /></ProtectedRoute> }, // Super Admin: Client Twilio Settings
+      { path: "admin/twilio-settings/:clientId", element: <ProtectedRoute requireSuperAdmin={true}><ClientTwilioSettings /></ProtectedRoute> }, // Super Admin: Client Twilio Settings (with client ID)
+      { path: "contacts", element: <ClientContacts /> }, // Client: Contacts Directory
+      { path: "call", element: <ClientCallPage /> }, // Client: Call/Text Page
       // Social Media Content Management routes
       { path: "content-library", element: <ContentLibrary /> },
       { path: "content-library/create", element: <ContentEditor /> },
