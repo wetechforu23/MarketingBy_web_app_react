@@ -2053,14 +2053,15 @@
               }
             }
             
-            // ✅ NEW FLOW: Only show welcome message first, wait for user input
+            // ✅ NEW FLOW: Show form directly (no welcome message, no waiting)
             if (!formDataExists) {
-              // Set flag to show form after first user message
-              this.state.waitingForFirstInput = true;
-              this.state.pendingFormQuestions = enabledQuestions;
+              // Show form immediately
               this.state.introFlow.enabled = true;
               this.state.introFlow.questions = enabledQuestions;
-              console.log('✅ Welcome message shown - waiting for user input before showing form');
+              console.log('✅ Showing form directly');
+              setTimeout(() => {
+                this.showIntroForm(enabledQuestions);
+              }, 300);
             }
         } else {
             // No questions configured - use default intro
