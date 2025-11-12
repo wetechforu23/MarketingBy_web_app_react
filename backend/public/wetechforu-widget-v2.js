@@ -576,39 +576,6 @@
             
             <!-- ✅ REMOVED: Resize handle - Widget is fixed size (Industry Standard) -->
 
-            <!-- Tab Navigation (Always visible at bottom) -->
-            <div id="wetechforu-tab-navigation" style="
-              background: white;
-              border-top: 1px solid #e0e0e0;
-              padding: 12px 20px;
-              display: flex;
-              justify-content: space-around;
-              gap: 20px;
-            ">
-              <button id="wetechforu-tab-home-main" class="wetechforu-tab-btn" style="
-                flex: 1;
-                background: transparent;
-                border: none;
-                color: #666;
-                font-size: 20px;
-                cursor: pointer;
-                padding: 8px;
-                border-radius: 8px;
-                transition: all 0.2s;
-              " title="Home">🏠</button>
-              <button id="wetechforu-tab-conversation-main" class="wetechforu-tab-btn active" style="
-                flex: 1;
-                background: #f5f5f5;
-                border: none;
-                color: ${this.config.primaryColor};
-                font-size: 20px;
-                cursor: pointer;
-                padding: 8px;
-                border-radius: 8px;
-                transition: all 0.2s;
-              " title="Conversation">💬</button>
-            </div>
-
             <!-- Input Area -->
             <div style="
               padding: 16px 20px;
@@ -664,6 +631,39 @@
                   <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
                 </svg>
               </button>
+            </div>
+
+            <!-- Tab Navigation (Below input box) -->
+            <div id="wetechforu-tab-navigation" style="
+              background: white;
+              border-top: 1px solid #e0e0e0;
+              padding: 12px 20px;
+              display: flex;
+              justify-content: space-around;
+              gap: 20px;
+            ">
+              <button id="wetechforu-tab-home-main" class="wetechforu-tab-btn" style="
+                flex: 1;
+                background: transparent;
+                border: none;
+                color: #666;
+                font-size: 20px;
+                cursor: pointer;
+                padding: 8px;
+                border-radius: 8px;
+                transition: all 0.2s;
+              " title="Home">🏠</button>
+              <button id="wetechforu-tab-conversation-main" class="wetechforu-tab-btn active" style="
+                flex: 1;
+                background: #f5f5f5;
+                border: none;
+                color: ${this.config.primaryColor};
+                font-size: 20px;
+                cursor: pointer;
+                padding: 8px;
+                border-radius: 8px;
+                transition: all 0.2s;
+              " title="Conversation">💬</button>
             </div>
 
             <!-- Powered by WeTechForU -->
@@ -2204,6 +2204,10 @@
                     // Show summary of existing data
           setTimeout(() => {
                       this.showFormSummary(statusData.intro_data);
+                      // Scroll to top to show first messages
+                      setTimeout(() => {
+                        this.scrollToTop();
+                      }, 100);
                       // Show ready message since form is already complete
                       setTimeout(() => {
                         this.addBotMessage("How can I help you today? Feel free to ask me anything! 😊");
@@ -2972,6 +2976,11 @@
       if (formContainer) {
         formContainer.remove();
       }
+      
+      // Scroll to top to show first messages
+      setTimeout(() => {
+        this.scrollToTop();
+      }, 100);
       
       // Build summary text in format matching screenshot
       let summaryText = '';
@@ -5240,6 +5249,12 @@
     scrollToBottom() {
       const messagesContainer = document.getElementById('wetechforu-messages');
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    },
+    
+    // Scroll to top (for showing first messages when conversation starts)
+    scrollToTop() {
+      const messagesContainer = document.getElementById('wetechforu-messages');
+      messagesContainer.scrollTop = 0;
     },
     
     // 🔔 Show notification when agent responds
