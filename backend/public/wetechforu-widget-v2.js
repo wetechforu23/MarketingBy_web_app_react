@@ -2511,6 +2511,10 @@
         this.startIntroFlow();
       } else {
         this.addBotMessage(this.config.welcomeMessage || "Hi! 👋 How can I help you today?");
+        // Scroll to top to show first message
+        setTimeout(() => {
+          this.scrollToTop();
+        }, 100);
       }
     },
     
