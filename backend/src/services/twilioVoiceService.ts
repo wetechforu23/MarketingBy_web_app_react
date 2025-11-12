@@ -172,24 +172,29 @@ export class TwilioVoiceService {
       const url = `https://api.twilio.com/2010-04-01/Accounts/${creds.accountSid}/Calls.json`;
       const auth = Buffer.from(`${creds.accountSid}:${creds.authToken}`).toString('base64');
 
+      // Build TwiML URL for connecting the call
+      const connectUrl = `${baseUrl}/api/twilio/voice/connect?from=${encodeURIComponent(formattedFrom)}&to=${encodeURIComponent(formattedTo)}&callerName=${encodeURIComponent(callerName || 'Customer')}`;
+
       const body = new URLSearchParams({
         From: formattedTwilioPhone,
         To: formattedTo, // Agent or destination number
-        Url: `${baseUrl}/api/twilio/voice/connect?from=${encodeURIComponent(formattedFrom)}&to=${encodeURIComponent(formattedTo)}&callerName=${encodeURIComponent(callerName || 'Customer')}`,
-        Method: 'POST',
+        Url: connectUrl,
+        Method: 'GET',
         StatusCallback: statusCallback,
         StatusCallbackEvent: 'initiated,ringing,answered,completed',
-        StatusCallbackMethod: 'POST',
-        Record: recordingEnabled ? 'true' : 'false',
-        RecordingStatusCallback: recordingEnabled ? `${baseUrl}/api/twilio/voice/recording-callback` : undefined,
-        Transcribe: transcriptionEnabled ? 'true' : 'false',
-        TranscribeCallback: transcriptionEnabled ? `${baseUrl}/api/twilio/voice/transcription-callback` : undefined
+        StatusCallbackMethod: 'POST'
       });
 
-      // Remove undefined values
-      Array.from(body.entries()).forEach(([key, value]) => {
-        if (value === undefined) body.delete(key);
-      });
+      // Add optional parameters
+      if (recordingEnabled) {
+        body.append('Record', 'true');
+        body.append('RecordingStatusCallback', `${baseUrl}/api/twilio/voice/recording-callback`);
+      }
+
+      if (transcriptionEnabled) {
+        body.append('Transcribe', 'true');
+        body.append('TranscribeCallback', `${baseUrl}/api/twilio/voice/transcription-callback`);
+      }
 
       console.log(`📞 Initiating Twilio call:`, {
         from: formattedFrom,
