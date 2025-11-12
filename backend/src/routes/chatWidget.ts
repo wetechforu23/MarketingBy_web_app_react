@@ -747,6 +747,7 @@ router.get('/public/widget/:widgetKey/knowledge/search', async (req, res) => {
     const searchTerm = `%${query.toString().toLowerCase()}%`;
     
     // Wildcard search in questions, answers, and keywords
+    // Handle case where keywords might be null or not a JSONB array
     const result = await pool.query(
       `SELECT id, question, answer, category, keywords
        FROM widget_knowledge_base
@@ -755,24 +756,26 @@ router.get('/public/widget/:widgetKey/knowledge/search', async (req, res) => {
          AND (
            LOWER(question) LIKE $2 
            OR LOWER(answer) LIKE $2
-           OR EXISTS (
+           OR (keywords IS NOT NULL AND keywords::text != 'null' AND EXISTS (
              SELECT 1 FROM jsonb_array_elements_text(keywords) AS keyword
              WHERE LOWER(keyword) LIKE $2
-           )
+           ))
          )
        ORDER BY 
          CASE 
            WHEN LOWER(question) LIKE $2 THEN 1
-           WHEN EXISTS (
+           WHEN (keywords IS NOT NULL AND keywords::text != 'null' AND EXISTS (
              SELECT 1 FROM jsonb_array_elements_text(keywords) AS keyword
              WHERE LOWER(keyword) LIKE $2
-           ) THEN 2
+           )) THEN 2
            ELSE 3
          END,
          priority DESC
        LIMIT 20`,
       [widgetId, searchTerm]
     );
+    
+    console.log(`🔍 Knowledge base search for "${query}": Found ${result.rows.length} results`);
     
     res.json({ 
       results: result.rows.map(row => ({

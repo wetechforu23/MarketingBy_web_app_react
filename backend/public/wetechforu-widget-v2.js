@@ -2106,22 +2106,22 @@
           flex-direction: column;
         ">
           <!-- Header -->
-          <div style="padding: 24px 20px 20px 20px;">
-            <h2 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 600;">Hi there 👋</h2>
-            <p style="margin: 0; font-size: 14px; opacity: 0.9;">Need help? Search our knowledge base for answers or start a conversation:</p>
+          <div style="padding: 16px 16px 12px 16px;">
+            <h2 style="margin: 0 0 6px 0; font-size: 20px; font-weight: 600;">Hi there 👋</h2>
+            <p style="margin: 0; font-size: 12px; opacity: 0.9; line-height: 1.4;">Need help? Search our knowledge base for answers or start a conversation:</p>
           </div>
           
           <!-- Content Cards -->
-          <div style="flex: 1; padding: 0 20px 20px 20px; overflow-y: auto;">
+          <div style="flex: 1; padding: 0 16px 12px 16px; overflow-y: auto; min-height: 0;">
             <!-- Search Section -->
             <div style="
               background: white;
               border-radius: 12px;
-              padding: 20px;
-              margin-bottom: 16px;
+              padding: 14px;
+              margin-bottom: 12px;
               box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             ">
-              <h3 style="margin: 0 0 16px 0; color: #333; font-size: 18px; font-weight: 600;">Search Knowledge Base</h3>
+              <h3 style="margin: 0 0 12px 0; color: #333; font-size: 16px; font-weight: 600;">Search Knowledge Base</h3>
               <div style="position: relative;">
                 <input 
                   type="text" 
@@ -2159,17 +2159,17 @@
             <div style="
               background: white;
               border-radius: 12px;
-              padding: 20px;
+              padding: 14px;
               box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             ">
-              <h3 style="margin: 0 0 12px 0; color: #333; font-size: 18px; font-weight: 600;">New Conversation</h3>
-              <p style="margin: 0 0 16px 0; color: #666; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+              <h3 style="margin: 0 0 10px 0; color: #333; font-size: 16px; font-weight: 600;">New Conversation</h3>
+              <p style="margin: 0 0 12px 0; color: #666; font-size: 12px; display: flex; align-items: center; gap: 6px;">
                 <span>We typically reply in a few minutes</span>
-                <span style="font-size: 16px;">✈️</span>
+                <span style="font-size: 14px;">✈️</span>
               </p>
               <button id="wetechforu-start-conversation-btn" style="
                 width: 100%;
-                padding: 12px;
+                padding: 10px;
                 background: ${this.config.primaryColor};
                 color: white;
                 border: none;
@@ -2328,13 +2328,10 @@
         return;
       }
       
-      // Show form immediately if intro flow is enabled
+      // Show form immediately if intro flow is enabled (no welcome message)
       if (this.config.enableIntroFlow && this.config.introQuestions && this.config.introQuestions.length > 0) {
-        // Show welcome message first
-        this.addBotMessage(this.config.welcomeMessage || "Hi! 👋 Welcome! Before I assist you, please fill in the information below:");
-        setTimeout(() => {
-          this.startIntroFlow();
-        }, 500);
+        // Show form directly without welcome message
+        this.startIntroFlow();
       } else {
         this.addBotMessage(this.config.welcomeMessage || "Hi! 👋 How can I help you today?");
       }
