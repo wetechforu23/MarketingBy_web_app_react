@@ -44,6 +44,8 @@ import conversationFlowRoutes from './routes/conversationFlow';
 import whatsappRoutes from './routes/whatsapp';
 // Handover Preferences routes
 import handoverRoutes from './routes/handover';
+// Twilio Voice Calling routes
+import twilioVoiceRoutes from './routes/twilioVoice';
 // Facebook Connect routes (2-Way Integration)
 import facebookConnectRoutes from './routes/facebookConnect';
 // System routes (Schema, Architecture)
@@ -243,6 +245,8 @@ app.use('/api', conversationFlowRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 // Handover Preferences routes (authenticated + public request endpoint)
 app.use('/api/handover', handoverRoutes);
+// Twilio Voice Calling routes
+app.use('/api/twilio/voice', twilioVoiceRoutes);
 // Facebook Connect routes (2-Way Integration)
 app.use('/api', facebookConnectRoutes);
 

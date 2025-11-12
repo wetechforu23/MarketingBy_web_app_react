@@ -97,6 +97,10 @@
       conversationExpired: false,
       // 📝 Form flow control
       shouldShowFormAfterInput: false,
+      // 📞 Voice calling state
+      voiceCallingEnabled: false,
+      callSettings: null,
+      activeCallSid: null,
       pendingFormQuestions: null
     },
 
@@ -212,9 +216,147 @@
         }
         
         console.log('✅ Widget config loaded from database:', config);
+        
+        // Check if voice calling is enabled and show/hide call button
+        this.checkVoiceCallingEnabled();
       } catch (error) {
         console.error('Failed to load widget config:', error);
         // Continue with default config
+      }
+    },
+    
+    // Check if voice calling is enabled for this widget
+    async checkVoiceCallingEnabled() {
+      try {
+        // Get widget ID from config
+        let widgetId = this.config.widgetId;
+        if (!widgetId) {
+          try {
+            const configResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/config`);
+            if (configResponse.ok) {
+              const widgetConfig = await configResponse.json();
+              widgetId = widgetConfig.id || widgetConfig.widget_id;
+              this.config.widgetId = widgetId;
+            }
+          } catch (error) {
+            console.warn('Could not get widget ID for voice calling check:', error);
+            return;
+          }
+        }
+        
+        if (!widgetId) return;
+        
+        const response = await fetch(`${this.config.backendUrl}/api/twilio/voice/widgets/${widgetId}/settings`);
+        if (response.ok) {
+          const settings = await response.json();
+          if (settings.enable_voice_calling) {
+            const callButton = document.getElementById('wetechforu-call-button');
+            if (callButton) {
+              callButton.style.display = 'flex';
+              this.state.voiceCallingEnabled = true;
+              this.state.callSettings = settings;
+              console.log('✅ Voice calling enabled - call button shown');
+            }
+          }
+        }
+      } catch (error) {
+        // Voice calling not configured or not available - hide button
+        const callButton = document.getElementById('wetechforu-call-button');
+        if (callButton) {
+          callButton.style.display = 'none';
+        }
+        console.log('ℹ️ Voice calling not available for this widget');
+      }
+    },
+    
+    // Initiate a voice call
+    async initiateCall() {
+      try {
+        const callButton = document.getElementById('wetechforu-call-button');
+        if (callButton) {
+          callButton.disabled = true;
+          callButton.style.opacity = '0.6';
+        }
+        
+        // Get visitor phone number from form data
+        const phone = this.state.introFlow?.answers?.phone || 
+                     this.state.introFlow?.answers?.phone_number ||
+                     this.state.contactInfo?.phone;
+        
+        if (!phone) {
+          this.addBotMessage('📞 Please provide your phone number in the form to make a call.');
+          if (callButton) {
+            callButton.disabled = false;
+            callButton.style.opacity = '1';
+          }
+          return;
+        }
+        
+        // Get agent phone from call settings
+        const agentPhone = this.state.callSettings?.default_agent_phone;
+        if (!agentPhone) {
+          this.addBotMessage('📞 Sorry, no agent is available to take your call right now.');
+          if (callButton) {
+            callButton.disabled = false;
+            callButton.style.opacity = '1';
+          }
+          return;
+        }
+        
+        this.addBotMessage('📞 Initiating call... Please wait.');
+        
+        // Get widget ID
+        let widgetId = this.config.widgetId;
+        if (!widgetId) {
+          try {
+            const configResponse = await fetch(`${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/config`);
+            if (configResponse.ok) {
+              const widgetConfig = await configResponse.json();
+              widgetId = widgetConfig.id || widgetConfig.widget_id;
+            }
+          } catch (error) {
+            console.error('Failed to get widget ID:', error);
+          }
+        }
+        
+        // Initiate call via API
+        const response = await fetch(`${this.config.backendUrl}/api/twilio/voice/initiate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            widgetId: widgetId,
+            conversationId: this.state.conversationId,
+            fromNumber: phone.replace(/\D/g, ''), // Remove non-digits
+            toNumber: agentPhone.replace(/\D/g, ''),
+            callerName: this.state.introFlow?.answers?.name || 
+                       this.state.introFlow?.answers?.first_name ||
+                       'Customer',
+            recordingEnabled: this.state.callSettings?.enable_call_recording || false,
+            transcriptionEnabled: this.state.callSettings?.enable_call_transcription || false
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.callSid) {
+          this.addBotMessage(`📞 Call initiated! You should receive a call shortly. Call ID: ${result.callSid.substring(0, 12)}...`);
+          this.state.activeCallSid = result.callSid;
+        } else {
+          this.addBotMessage(`📞 Failed to initiate call: ${result.error || 'Unknown error'}`);
+        }
+        
+        if (callButton) {
+          callButton.disabled = false;
+          callButton.style.opacity = '1';
+        }
+      } catch (error) {
+        console.error('Error initiating call:', error);
+        this.addBotMessage('📞 Sorry, there was an error initiating the call. Please try again later.');
+        const callButton = document.getElementById('wetechforu-call-button');
+        if (callButton) {
+          callButton.disabled = false;
+          callButton.style.opacity = '1';
+        }
       }
     },
 
@@ -490,6 +632,21 @@
                   transition: border-color 0.2s;
                 "
               />
+              <!-- Call Button (if voice calling is enabled) -->
+              <button id="wetechforu-call-button" style="
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                background: #25D366;
+                border: none;
+                color: white;
+                cursor: pointer;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.2s;
+                font-size: 18px;
+              " title="Call us">📞</button>
               <button id="wetechforu-send-button" style="
                 width: 40px;
                 height: 40px;
@@ -920,6 +1077,12 @@
       input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') this.sendMessage();
       });
+      
+      // Call button event listener
+      const callButton = document.getElementById('wetechforu-call-button');
+      if (callButton) {
+        callButton.addEventListener('click', () => this.initiateCall());
+      }
       
       // Tab navigation listeners
       const tabHomeMain = document.getElementById('wetechforu-tab-home-main');
