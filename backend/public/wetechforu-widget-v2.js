@@ -2022,13 +2022,6 @@
             this.state.introFlow.questions = enabledQuestions; // ✅ Only use widget config questions
           this.state.introFlow.isActive = true;
 
-            // ✅ Use database welcome_message instead of hardcoded messages
-            const welcomeMsg = config.welcome_message || this.config.welcomeMessage || `👋 Welcome! I'm ${this.config.botName}.`;
-            
-          setTimeout(() => {
-              this.addBotMessage(welcomeMsg, false, null, false); // No auto-scroll for welcome
-          }, 500);
-
             // ✅ Check if form data already exists in database (from conversation or visitor_session_id)
             const conversationId = await this.ensureConversation();
             let formDataExists = false;
