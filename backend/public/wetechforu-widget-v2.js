@@ -2235,13 +2235,27 @@
       resultsContainer.style.display = 'block';
       
       try {
-        const response = await fetch(
-          `${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/knowledge/search?query=${encodeURIComponent(query)}`
-        );
+        const searchUrl = `${this.config.backendUrl}/api/chat-widget/public/widget/${this.config.widgetKey}/knowledge/search?query=${encodeURIComponent(query)}`;
+        console.log('🔍 Searching knowledge base:', searchUrl);
+        
+        const response = await fetch(searchUrl);
+        const responseText = await response.text();
+        
+        console.log('📥 Search response status:', response.status);
+        console.log('📥 Search response:', responseText);
         
         if (response.ok) {
-          const data = await response.json();
+          let data;
+          try {
+            data = JSON.parse(responseText);
+          } catch (parseError) {
+            console.error('Failed to parse search response:', parseError, responseText);
+            resultsContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: #f44336; font-size: 13px;">Error parsing search results. Please try again.</div>';
+            return;
+          }
+          
           const results = data.results || [];
+          console.log('📊 Search results:', results.length, 'found');
           
           if (results.length === 0) {
             resultsContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: #666; font-size: 13px;">No results found. Try different keywords.</div>';
@@ -2272,10 +2286,12 @@
             });
           }
         } else {
-          resultsContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: #f44336; font-size: 13px;">Error searching. Please try again.</div>';
+          console.error('❌ Search failed:', response.status, responseText);
+          const errorData = responseText ? (responseText.startsWith('{') ? JSON.parse(responseText) : { error: responseText }) : { error: 'Unknown error' };
+          resultsContainer.innerHTML = `<div style="padding: 12px; text-align: center; color: #f44336; font-size: 13px;">Error: ${errorData.error || 'Search failed'}. Please try again.</div>`;
         }
       } catch (error) {
-        console.error('Search error:', error);
+        console.error('❌ Search error:', error);
         resultsContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: #f44336; font-size: 13px;">Error searching. Please try again.</div>';
       }
     },
