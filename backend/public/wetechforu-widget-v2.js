@@ -2630,6 +2630,11 @@
       // Clear messages container and show form in full-screen style
       messagesDiv.innerHTML = '';
       
+      // Scroll to top to ensure form is visible
+      setTimeout(() => {
+        this.scrollToTop();
+      }, 50);
+      
       const formContainer = document.createElement('div');
       formContainer.id = 'wetechforu-intro-form-container';
       formContainer.style.cssText = `
