@@ -49,6 +49,7 @@ const ContentEditor: React.FC = () => {
   const [mediaUrlInput, setMediaUrlInput] = useState('');
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const [imageLoading, setImageLoading] = useState<Set<string>>(new Set());
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [contentLoading, setContentLoading] = useState(false);
@@ -2773,7 +2774,7 @@ const ContentEditor: React.FC = () => {
         </div>
       )}
 
-      {/* Preview Modal */}
+      {/* Preview Modal - Facebook Style */}
       {showPreview && (
         <div style={{
           position: 'fixed',
@@ -2791,9 +2792,9 @@ const ContentEditor: React.FC = () => {
           onClick={() => setShowPreview(false)}
         >
           <div style={{
-            background: 'white',
-            borderRadius: '16px',
-            maxWidth: '800px',
+            background: '#f0f2f5',
+            borderRadius: '8px',
+            maxWidth: '680px',
             width: '100%',
             maxHeight: '90vh',
             overflow: 'auto',
@@ -2803,16 +2804,20 @@ const ContentEditor: React.FC = () => {
           >
             {/* Header */}
             <div style={{
-              padding: '25px',
-              borderBottom: '1px solid #e2e8f0',
+              background: 'white',
+              borderRadius: '8px 8px 0 0',
+              padding: '1.5rem',
+              marginBottom: '1rem',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center'
             }}>
               <h2 style={{
                 fontSize: '24px',
-                fontWeight: '600',
-                color: '#2d3748'
+                fontWeight: '700',
+                color: '#050505',
+                margin: 0
               }}>
                 👁️ Content Preview
               </h2>
@@ -2823,70 +2828,117 @@ const ContentEditor: React.FC = () => {
                   border: 'none',
                   fontSize: '28px',
                   cursor: 'pointer',
-                  color: '#a0aec0',
+                  color: '#65676b',
                   padding: '0',
                   width: '32px',
                   height: '32px',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  borderRadius: '50%',
+                  transition: 'background 0.2s'
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#f0f2f5'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
               >
                 ×
               </button>
             </div>
 
-            {/* Content */}
-            <div style={{ padding: '25px' }}>
-              {/* Client Info */}
+            {/* Facebook-Style Post Preview */}
+            <div style={{
+              background: 'white',
+              borderRadius: '8px',
+              overflow: 'hidden',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+              marginBottom: '1rem'
+            }}>
+              {/* Post Header */}
               <div style={{
-                background: '#f7fafc',
-                padding: '15px',
-                borderRadius: '10px',
-                marginBottom: '20px'
+                padding: '12px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                borderBottom: '1px solid #e4e6eb'
               }}>
-                <p style={{ fontSize: '13px', color: '#718096', marginBottom: '5px' }}>
-                  <strong>Client:</strong> {selectedClient?.client_name || 'Not selected'}
-                </p>
-                <p style={{ fontSize: '13px', color: '#718096' }}>
-                  <strong>Platforms:</strong> {formData.targetPlatforms.map(p => platforms.find(pl => pl.id === p)?.icon).join(' ') || 'None selected'}
-                </p>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #2E86AB, #1a5f7a)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontWeight: 'bold',
+                  marginRight: '8px',
+                  fontSize: '18px'
+                }}>
+                  {(selectedClient?.client_name || selectedClient?.business_name || selectedClient?.name || 'C').charAt(0).toUpperCase()}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: '600', fontSize: '15px', color: '#050505', marginBottom: '2px' }}>
+                    {selectedClient?.client_name || selectedClient?.business_name || selectedClient?.name || 'Client Name'}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#65676b' }}>
+                    <span>Sponsored</span>
+                    <span style={{ margin: '0 4px' }}>·</span>
+                    <span>🌐</span>
+                    {formData.targetPlatforms.length > 0 && (
+                      <>
+                        <span style={{ margin: '0 4px' }}>·</span>
+                        <span>{formData.targetPlatforms.map(p => platforms.find(pl => pl.id === p)?.icon).join(' ')}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div style={{ color: '#65676b', fontSize: '20px', cursor: 'pointer' }}>⋯</div>
               </div>
 
-              {/* Title */}
-              <h3 style={{
-                fontSize: '20px',
-                fontWeight: '600',
-                color: '#2d3748',
-                marginBottom: '15px'
-              }}>
-                {formData.title}
-              </h3>
+              {/* Post Content */}
+              <div style={{ padding: '12px 16px' }}>
+                {formData.contentText && (
+                  <div style={{
+                    fontSize: '15px',
+                    lineHeight: '1.33',
+                    color: '#050505',
+                    whiteSpace: 'pre-wrap',
+                    marginBottom: formData.hashtags && formData.hashtags.length > 0 ? '8px' : '0'
+                  }}>
+                    {formData.contentText.split(/(#[\w]+)/g).map((part, idx) => {
+                      if (part.match(/#[\w]+/)) {
+                        return <span key={idx} style={{ color: '#1877f2' }}>{part}</span>;
+                      }
+                      return <span key={idx}>{part}</span>;
+                    })}
+                  </div>
+                )}
+                
+                {formData.hashtags && formData.hashtags.length > 0 && (
+                  <div style={{ marginTop: '8px', fontSize: '15px', color: '#1877f2' }}>
+                    {formData.hashtags.join(' ')}
+                  </div>
+                )}
+              </div>
 
-              {/* Media Preview */}
+              {/* Post Media */}
               {formData.mediaUrls && formData.mediaUrls.length > 0 && (
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: formData.mediaUrls.length === 1 ? '1fr' : 'repeat(2, 1fr)',
-                  gap: '15px',
-                  marginBottom: '20px'
-                }}>
-                  {formData.mediaUrls.map((url, index) => {
+                <div style={{ background: '#f0f2f5' }}>
+                  {formData.mediaUrls.map((url, idx) => {
                     const isError = imageErrors.has(url);
                     const isLoading = imageLoading.has(url);
                     
                     return (
-                      <div key={index} style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', border: '2px solid #e2e8f0' }}>
+                      <div key={idx} style={{ position: 'relative' }}>
                         {isLoading && !isError && (
                           <div style={{
                             width: '100%',
-                            height: '250px',
+                            minHeight: '300px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            background: '#f7fafc'
+                            background: '#f0f2f5'
                           }}>
-                            <div style={{ textAlign: 'center', color: '#718096' }}>
+                            <div style={{ textAlign: 'center', color: '#65676b' }}>
                               <div style={{ fontSize: '32px', marginBottom: '8px' }}>⏳</div>
                               <div style={{ fontSize: '14px' }}>Loading image...</div>
                             </div>
@@ -2895,35 +2947,32 @@ const ContentEditor: React.FC = () => {
                         {isError ? (
                           <div style={{
                             width: '100%',
-                            height: '250px',
+                            minHeight: '300px',
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
                             justifyContent: 'center',
                             background: '#fee',
                             color: '#c53030',
-                            padding: '20px',
-                            borderRadius: '10px'
+                            padding: '20px'
                           }}>
                             <div style={{ fontSize: '48px', marginBottom: '12px' }}>❌</div>
                             <div style={{ fontSize: '16px', fontWeight: '600', textAlign: 'center', marginBottom: '8px' }}>Image Failed to Load</div>
-                            <div style={{ fontSize: '12px', textAlign: 'center', wordBreak: 'break-all', color: '#9b2c2c', marginBottom: '8px' }}>
+                            <div style={{ fontSize: '12px', textAlign: 'center', wordBreak: 'break-all', color: '#9b2c2c' }}>
                               {url.length > 50 ? `${url.substring(0, 50)}...` : url}
-                            </div>
-                            <div style={{ fontSize: '11px', color: '#9b2c2c', textAlign: 'center' }}>
-                              Check URL validity or CORS settings
                             </div>
                           </div>
                         ) : (
                           <img
                             src={url}
-                            alt={`Media ${index + 1}`}
+                            alt={`Post Image ${idx + 1}`}
+                            onClick={() => setSelectedImage(url)}
                             style={{
                               width: '100%',
-                              height: '250px',
-                              objectFit: 'cover',
-                              borderRadius: '10px',
-                              display: isLoading ? 'none' : 'block'
+                              maxWidth: '100%',
+                              height: 'auto',
+                              display: isLoading ? 'none' : 'block',
+                              cursor: 'pointer'
                             }}
                             onLoad={() => {
                               setImageLoading(prev => {
@@ -2956,57 +3005,123 @@ const ContentEditor: React.FC = () => {
                 </div>
               )}
 
-              {/* Content Text */}
-              <div style={{
-                background: '#f7fafc',
-                padding: '20px',
-                borderRadius: '10px',
-                marginBottom: '20px',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                lineHeight: '1.6',
-                fontSize: '15px',
-                color: '#2d3748'
-              }}>
-                {formData.contentText}
-              </div>
-
-              {/* Hashtags */}
-              {formData.hashtags && formData.hashtags.length > 0 && (
+              {/* Link Preview (if destination_url exists) */}
+              {formData.destinationUrl && (
                 <div style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: '8px',
-                  marginBottom: '20px'
+                  borderTop: '1px solid #e4e6eb',
+                  padding: '12px 16px',
+                  background: '#f0f2f5'
                 }}>
-                  {formData.hashtags.map((tag, index) => (
-                    <span
-                      key={index}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#65676b',
+                        textTransform: 'uppercase',
+                        marginBottom: '4px'
+                      }}>
+                        {(() => {
+                          try {
+                            const url = new URL(formData.destinationUrl.startsWith('http') ? formData.destinationUrl : 'https://' + formData.destinationUrl);
+                            return url.hostname.replace('www.', '');
+                          } catch {
+                            return 'WEBSITENAME.COM';
+                          }
+                        })()}
+                      </div>
+                      <div style={{
+                        fontSize: '15px',
+                        fontWeight: '600',
+                        color: '#050505',
+                        marginBottom: '4px'
+                      }}>
+                        {formData.title}
+                      </div>
+                    </div>
+                    <a
+                      href={formData.destinationUrl.startsWith('http') ? formData.destinationUrl : 'https://' + formData.destinationUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       style={{
-                        background: 'linear-gradient(135deg, #A23B72 0%, #8A2F5F 100%)',
-                        color: '#ffffff',
-                        padding: '6px 12px',
-                        borderRadius: '15px',
-                        fontSize: '13px',
-                        fontWeight: '500'
+                        background: '#e4e6eb',
+                        color: '#050505',
+                        padding: '6px 16px',
+                        borderRadius: '6px',
+                        textDecoration: 'none',
+                        fontSize: '15px',
+                        fontWeight: '600'
                       }}
                     >
-                      {tag}
-                    </span>
-                  ))}
+                      Learn More
+                    </a>
+                  </div>
                 </div>
               )}
 
-              {/* Platform-specific previews */}
+              {/* Post Actions (Like, Comment, Share) */}
               <div style={{
-                borderTop: '1px solid #e2e8f0',
-                paddingTop: '20px'
+                borderTop: '1px solid #e4e6eb',
+                padding: '4px 0'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-around',
+                  padding: '8px 0'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: '#65676b',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}>
+                    <span>👍</span>
+                    <span>Like</span>
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: '#65676b',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}>
+                    <span>💬</span>
+                    <span>Comment</span>
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: '#65676b',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}>
+                    <span>↗️</span>
+                    <span>Share</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Platform Character Counts */}
+            {formData.targetPlatforms.length > 0 && (
+              <div style={{
+                background: 'white',
+                borderRadius: '8px',
+                padding: '1.5rem',
+                marginBottom: '1rem',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
               }}>
                 <h4 style={{
-                  fontSize: '16px',
+                  fontSize: '18px',
                   fontWeight: '600',
-                  color: '#2d3748',
-                  marginBottom: '15px'
+                  marginBottom: '1rem',
+                  color: '#050505'
                 }}>
                   Platform Character Counts:
                 </h4>
@@ -3020,19 +3135,20 @@ const ContentEditor: React.FC = () => {
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        padding: '10px 15px',
-                        background: '#f7fafc',
-                        borderRadius: '8px',
+                        padding: '12px 16px',
+                        background: '#f0f2f5',
+                        borderRadius: '6px',
                         marginBottom: '8px'
                       }}
                     >
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px' }}>
                         <span style={{ fontSize: '20px' }}>{platform?.icon}</span>
-                        <span style={{ fontWeight: '500', color: '#2d3748' }}>{platform?.name}</span>
+                        <span style={{ fontWeight: '500', color: '#050505' }}>{platform?.name}</span>
                       </span>
                       <span style={{
                         fontWeight: '600',
-                        color: charCount.current > charCount.max ? '#e53e3e' : '#48bb78'
+                        color: charCount.current > charCount.max ? '#dc3545' : '#10b981',
+                        fontSize: '15px'
                       }}>
                         {charCount.current} / {charCount.max}
                       </span>
@@ -3040,27 +3156,89 @@ const ContentEditor: React.FC = () => {
                   );
                 })}
               </div>
+            )}
 
-              {/* Close Button */}
+            {/* Close Button */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              padding: '0 1rem 1rem'
+            }}>
               <button
                 onClick={() => setShowPreview(false)}
                 style={{
-                  width: '100%',
-                  background: '#667eea',
+                  minWidth: '200px',
+                  background: '#1877f2',
                   color: 'white',
-                  padding: '14px',
-                  borderRadius: '10px',
+                  padding: '12px 24px',
+                  borderRadius: '8px',
                   border: 'none',
                   fontSize: '15px',
                   fontWeight: '600',
                   cursor: 'pointer',
-                  marginTop: '20px'
+                  transition: 'background 0.2s'
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#166fe5'}
+                onMouseLeave={(e) => e.currentTarget.style.background = '#1877f2'}
               >
                 Close Preview
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Image Lightbox Modal */}
+      {selectedImage && (
+        <div
+          onClick={() => setSelectedImage(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '2rem',
+            cursor: 'pointer'
+          }}
+        >
+          <img
+            src={selectedImage}
+            alt="Full size"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+              borderRadius: '8px'
+            }}
+          />
+          <button
+            onClick={() => setSelectedImage(null)}
+            style={{
+              position: 'absolute',
+              top: '20px',
+              right: '20px',
+              background: 'rgba(255, 255, 255, 0.2)',
+              border: 'none',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              color: 'white',
+              fontSize: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            ×
+          </button>
         </div>
       )}
     </div>

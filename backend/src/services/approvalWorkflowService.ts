@@ -1066,11 +1066,11 @@ export async function sendForApprovalWithLink(
                   <div style="text-align: center; margin: 30px 0; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
                     <a href="${approvalUrl}?action=approve" 
                        style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; text-decoration: none; padding: 14px 30px; border-radius: 8px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
-                      ✅ Approve Content
+                      ✅ Approve
                     </a>
                     <a href="${approvalUrl}?action=reject" 
                        style="display: inline-block; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; text-decoration: none; padding: 14px 30px; border-radius: 8px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);">
-                      ❌ Request Changes
+                      ❌ Reject
                     </a>
                   </div>
                   

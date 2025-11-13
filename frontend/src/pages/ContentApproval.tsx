@@ -39,8 +39,8 @@ const ContentApproval: React.FC = () => {
   
   // Interactive features
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [liked, setLiked] = useState(false);
-  const [disliked, setDisliked] = useState(false);
+  const [approved, setApproved] = useState(false);
+  const [rejected, setRejected] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [hashtags, setHashtags] = useState<string[]>([]);
 
@@ -59,12 +59,12 @@ const ContentApproval: React.FC = () => {
       }
       setHashtags(tags);
       
-      // If disliked, show comments section
-      if (disliked) {
+      // If rejected, show comments section (feedback required)
+      if (rejected) {
         setShowComments(true);
       }
     }
-  }, [content, disliked]);
+  }, [content, rejected]);
 
   const fetchContent = async () => {
     try {
@@ -112,20 +112,19 @@ const ContentApproval: React.FC = () => {
     alert(message);
   };
 
-  const handleLike = () => {
-    setLiked(true);
-    setDisliked(false);
-    setShowComments(true); // Open comments section on like
+  const handleApprove = () => {
+    setApproved(true);
+    setRejected(false);
+    setShowComments(true); // Open comments section on approve (optional feedback)
   };
 
-  const handleDislike = () => {
-    setDisliked(true);
-    setLiked(false);
-    setShowComments(true); // Required to show comments on dislike
-    // Dislike means reject - so we'll show a submit rejection button
+  const handleReject = () => {
+    setRejected(true);
+    setApproved(false);
+    setShowComments(true); // Required to show comments on reject (mandatory feedback)
   };
 
-  const handleApprove = async () => {
+  const handleSubmitApprove = async () => {
     if (!approverName || !approverEmail) {
       showErrorModal('Please enter your name and email address to proceed with the approval.');
       return;
@@ -144,6 +143,7 @@ const ContentApproval: React.FC = () => {
       return;
     }
     
+    // Feedback is optional for approval
     setSubmitting(true);
     try {
       await axios.post(`/api/content/${content?.id}/approve-client`, {
@@ -165,7 +165,7 @@ const ContentApproval: React.FC = () => {
     }
   };
 
-  const handleReject = async () => {
+  const handleSubmitReject = async () => {
     if (!approverName || !approverEmail) {
       showErrorModal('Please enter your name and email address to proceed.');
       return;
@@ -184,12 +184,18 @@ const ContentApproval: React.FC = () => {
       return;
     }
     
+    // Feedback is MANDATORY for rejection
+    if (!feedback.trim()) {
+      showErrorModal('Feedback is required when rejecting content. Please provide your feedback in the comments section.');
+      return;
+    }
+    
     setSubmitting(true);
     try {
       await axios.post(`/api/content/${content?.id}/reject-client`, {
         token,
-        feedback: feedback.trim() || null,
-        notes: feedback.trim() || null,
+        feedback: feedback.trim(),
+        notes: feedback.trim(),
         approver_name: approverName,
         approver_email: approverEmail,
         access_method: 'secure_link'
@@ -505,7 +511,7 @@ const ContentApproval: React.FC = () => {
             </div>
           )}
 
-          {/* Like/Dislike Buttons */}
+          {/* Approve/Reject Buttons */}
           <div style={{
             borderTop: '1px solid #e4e6eb',
             padding: '8px 16px',
@@ -514,12 +520,12 @@ const ContentApproval: React.FC = () => {
             justifyContent: 'center'
           }}>
             <button
-              onClick={handleLike}
+              onClick={handleApprove}
               style={{
                 flex: 1,
                 padding: '8px 16px',
-                background: liked ? '#1877f2' : 'transparent',
-                color: liked ? 'white' : '#65676b',
+                background: approved ? '#10b981' : 'transparent',
+                color: approved ? 'white' : '#65676b',
                 border: '1px solid #e4e6eb',
                 borderRadius: '6px',
                 fontSize: '15px',
@@ -532,16 +538,16 @@ const ContentApproval: React.FC = () => {
                 transition: 'all 0.2s'
               }}
             >
-              <span>👍</span>
-              <span>Like</span>
+              <span>✅</span>
+              <span>Approve</span>
             </button>
             <button
-              onClick={handleDislike}
+              onClick={handleReject}
               style={{
                 flex: 1,
                 padding: '8px 16px',
-                background: disliked ? '#dc3545' : 'transparent',
-                color: disliked ? 'white' : '#65676b',
+                background: rejected ? '#dc3545' : 'transparent',
+                color: rejected ? 'white' : '#65676b',
                 border: '1px solid #e4e6eb',
                 borderRadius: '6px',
                 fontSize: '15px',
@@ -554,8 +560,8 @@ const ContentApproval: React.FC = () => {
                 transition: 'all 0.2s'
               }}
             >
-              <span>👎</span>
-              <span>Dislike</span>
+              <span>❌</span>
+              <span>Reject</span>
             </button>
           </div>
 
@@ -577,19 +583,30 @@ const ContentApproval: React.FC = () => {
               <textarea
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
-                placeholder="Enter your comments or feedback (optional)..."
+                placeholder={rejected ? "Enter your comments or feedback (required)..." : "Enter your comments or feedback (optional)..."}
                 rows={4}
+                required={rejected}
                 style={{
                   width: '100%',
                   padding: '12px',
                   borderRadius: '6px',
-                  border: '1px solid #e4e6eb',
+                  border: rejected && !feedback.trim() ? '2px solid #dc3545' : '1px solid #e4e6eb',
                   fontSize: '15px',
                   fontFamily: 'inherit',
                   resize: 'vertical',
                   boxSizing: 'border-box'
                 }}
               />
+              {rejected && !feedback.trim() && (
+                <div style={{
+                  marginTop: '8px',
+                  fontSize: '13px',
+                  color: '#dc3545',
+                  fontWeight: '500'
+                }}>
+                  ⚠️ Feedback is required when rejecting content
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -680,14 +697,14 @@ const ContentApproval: React.FC = () => {
           justifyContent: 'center'
         }}>
           <button
-            onClick={liked ? handleApprove : handleReject}
-            disabled={submitting || !approverName || !approverEmail}
+            onClick={approved ? handleSubmitApprove : handleSubmitReject}
+            disabled={submitting || !approverName || !approverEmail || (rejected && !feedback.trim())}
             style={{
               minWidth: '300px',
               padding: '14px 32px',
-              background: submitting || !approverName || !approverEmail
+              background: submitting || !approverName || !approverEmail || (rejected && !feedback.trim())
                 ? '#e4e6eb'
-                : liked 
+                : approved 
                   ? 'linear-gradient(135deg, #10b981, #059669)'
                   : 'linear-gradient(135deg, #ef4444, #dc2626)',
               color: 'white',
@@ -695,7 +712,7 @@ const ContentApproval: React.FC = () => {
               borderRadius: '8px',
               fontSize: '16px',
               fontWeight: '600',
-              cursor: submitting || !approverName || !approverEmail ? 'not-allowed' : 'pointer',
+              cursor: submitting || !approverName || !approverEmail || (rejected && !feedback.trim()) ? 'not-allowed' : 'pointer',
               boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
               transition: 'all 0.2s'
             }}
@@ -706,7 +723,7 @@ const ContentApproval: React.FC = () => {
                 Processing...
               </>
             ) : (
-              <>📝 Submit</>
+              <>📝 Submit {approved ? 'Approval' : 'Rejection'}</>
             )}
           </button>
         </div>
