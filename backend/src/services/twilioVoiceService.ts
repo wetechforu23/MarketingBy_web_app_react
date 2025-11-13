@@ -1,7 +1,6 @@
 import axios from 'axios';
 import crypto from 'crypto';
 import pool from '../config/database';
-import { CredentialManagementService } from './credentialManagementService';
 
 // ==========================================
 // TWILIO VOICE SERVICE
@@ -38,14 +37,37 @@ interface CallResponse {
 
 export class TwilioVoiceService {
   private static instance: TwilioVoiceService;
+  private ENCRYPTION_KEY: string;
 
-  private constructor() {}
+  private constructor() {
+    this.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key!!';
+  }
 
   static getInstance(): TwilioVoiceService {
     if (!TwilioVoiceService.instance) {
       TwilioVoiceService.instance = new TwilioVoiceService();
     }
     return TwilioVoiceService.instance;
+  }
+
+  // ==========================================
+  // CREDENTIAL MANAGEMENT
+  // ==========================================
+
+  private decrypt(encryptedValue: string): string {
+    const key = Buffer.from(this.ENCRYPTION_KEY.padEnd(32, '0').substring(0, 32));
+    try {
+      const parts = encryptedValue.split(':');
+      const iv = Buffer.from(parts[0], 'hex');
+      const encrypted = parts[1];
+      const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+      let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return decrypted;
+    } catch (error) {
+      console.error('Decryption error:', error);
+      throw new Error('Failed to decrypt Twilio credentials');
+    }
   }
 
   /**
@@ -55,58 +77,49 @@ export class TwilioVoiceService {
   async getCredentials(clientId: number): Promise<TwilioVoiceCredentials | null> {
     try {
       // Try to get client-specific credentials first
-      const credentialService = new CredentialManagementService();
-      const creds = await credentialService.getDecryptedCredential(
-        clientId,
-        'twilio_voice',
-        'account_sid'
+      const clientService = `twilio_voice_client_${clientId}`;
+      
+      let result = await pool.query(
+        `SELECT key_name, encrypted_value 
+         FROM encrypted_credentials 
+         WHERE service = $1`,
+        [clientService]
       );
 
-      if (creds) {
-        const authToken = await credentialService.getDecryptedCredential(
-          clientId,
-          'twilio_voice',
-          'auth_token'
-        );
-        const phoneNumber = await credentialService.getDecryptedCredential(
-          clientId,
-          'twilio_voice',
-          'phone_number'
-        );
+      if (result.rows.length > 0) {
+        const creds: any = {};
+        for (const row of result.rows) {
+          creds[row.key_name] = this.decrypt(row.encrypted_value);
+        }
 
-        if (authToken && phoneNumber) {
+        if (creds.account_sid && creds.auth_token && creds.phone_number) {
           return {
-            accountSid: creds.value,
-            authToken: authToken.value,
-            phoneNumber: phoneNumber.value
+            accountSid: creds.account_sid,
+            authToken: creds.auth_token,
+            phoneNumber: creds.phone_number
           };
         }
       }
 
       // Fallback to shared/system credentials
-      const sharedCreds = await credentialService.getDecryptedCredential(
-        null, // System-level
-        'twilio_voice',
-        'account_sid'
+      result = await pool.query(
+        `SELECT key_name, encrypted_value 
+         FROM encrypted_credentials 
+         WHERE service = 'twilio_voice'`,
+        []
       );
 
-      if (sharedCreds) {
-        const authToken = await credentialService.getDecryptedCredential(
-          null,
-          'twilio_voice',
-          'auth_token'
-        );
-        const phoneNumber = await credentialService.getDecryptedCredential(
-          null,
-          'twilio_voice',
-          'phone_number'
-        );
+      if (result.rows.length > 0) {
+        const creds: any = {};
+        for (const row of result.rows) {
+          creds[row.key_name] = this.decrypt(row.encrypted_value);
+        }
 
-        if (authToken && phoneNumber) {
+        if (creds.account_sid && creds.auth_token && creds.phone_number) {
           return {
-            accountSid: sharedCreds.value,
-            authToken: authToken.value,
-            phoneNumber: phoneNumber.value
+            accountSid: creds.account_sid,
+            authToken: creds.auth_token,
+            phoneNumber: creds.phone_number
           };
         }
       }
