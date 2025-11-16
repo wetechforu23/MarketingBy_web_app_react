@@ -1,13 +1,20 @@
 # 🚀 Dev/Prod Setup Guide - Cost-Effective Solution
 
-## 💰 **Cost Breakdown (Best Option)**
+## 💰 **Cost Breakdown (Updated 2025)**
 
-### **Option 1: Free Dev + Paid Prod (RECOMMENDED)**
+### **Option 1: Paid Dev + Paid Prod (RECOMMENDED)**
 - **Dev Server**: Free Heroku dyno (hobby) = **$0/month**
-- **Dev Database**: Free PostgreSQL (hobby-dev) = **$0/month**
-- **Prod Server**: Basic dyno = **$7/month** (or free if you can use hobby)
+- **Dev Database**: Essential-0 PostgreSQL = **$5/month** ⚠️ (Heroku removed free tier)
+- **Prod Server**: Free Heroku dyno (hobby) = **$0/month**
 - **Prod Database**: Essential-0 PostgreSQL = **$5/month**
-- **Total**: **$5-12/month** (same or slightly more than current)
+- **Total**: **$10/month** (two databases)
+
+### **Option 1B: Free External DB for Dev (MOST COST-EFFECTIVE)**
+- **Dev Server**: Free Heroku dyno = **$0/month**
+- **Dev Database**: Free Supabase/Neon PostgreSQL = **$0/month** ✅
+- **Prod Server**: Free Heroku dyno = **$0/month**
+- **Prod Database**: Essential-0 PostgreSQL = **$5/month**
+- **Total**: **$5/month** (same as current!)
 
 ### **Option 2: Both Paid (More Reliable)**
 - **Dev Server**: Basic dyno = **$7/month**

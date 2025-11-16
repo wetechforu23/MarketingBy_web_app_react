@@ -34,14 +34,22 @@ else
     echo "   ✅ Dev app created: marketingby-wetechforu-dev"
 fi
 
-# Step 2: Add Free PostgreSQL to Dev
+# Step 2: Add PostgreSQL to Dev
 echo ""
 echo "🗄️  Step 2: Adding PostgreSQL to DEV app..."
 if heroku addons:info heroku-postgresql --app marketingby-wetechforu-dev &> /dev/null; then
     echo "   ✅ PostgreSQL already added to dev app"
 else
-    heroku addons:create heroku-postgresql:hobby-dev --app marketingby-wetechforu-dev
-    echo "   ✅ Free PostgreSQL added to dev app"
+    echo "   ⚠️  Note: Heroku no longer offers free PostgreSQL. Using Essential-0 ($5/month)"
+    echo "   💡 Alternative: Use free external PostgreSQL (Supabase/Neon) for dev - see guide"
+    read -p "   Add Essential-0 PostgreSQL to dev? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        heroku addons:create heroku-postgresql:essential-0 --app marketingby-wetechforu-dev
+        echo "   ✅ PostgreSQL Essential-0 added to dev app ($5/month)"
+    else
+        echo "   ⚠️  Skipping database setup. You can add it later or use external free DB"
+    fi
 fi
 
 # Step 3: Set Dev Environment Variables
