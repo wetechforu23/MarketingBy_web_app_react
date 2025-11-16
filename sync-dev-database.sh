@@ -26,17 +26,8 @@ if [ -z "$PROD_DB_URL" ] || [ -z "$DEV_DB_URL" ]; then
     exit 1
 fi
 
-echo "📋 Step 1: Getting production schema..."
-
-# Export schema from production (structure only, no data)
-heroku pg:psql --app "$PROD_APP" <<EOF > /tmp/prod-schema.sql
--- Export schema only (no data)
-\dt
-\ds
-\df
-EOF
-
-echo "📋 Step 2: Running migrations on dev database..."
+echo "📋 Step 1: Running migrations on dev database..."
+echo "   (Skipping schema export - running migrations directly)"
 
 # Run main setup-database.sql first (creates core tables)
 if [ -f "backend/setup-database.sql" ]; then
