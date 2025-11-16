@@ -32,7 +32,7 @@ echo "   (Skipping schema export - running migrations directly)"
 # Run main setup-database.sql first (creates core tables)
 if [ -f "backend/setup-database.sql" ]; then
     echo "   → Running setup-database.sql (core schema)..."
-    heroku pg:psql --app marketingby-wetechforu-dev < backend/setup-database.sql 2>&1 | grep -v "already exists" || true
+    cat backend/setup-database.sql | heroku pg:psql --app marketingby-wetechforu-dev 2>&1 | grep -v "already exists\|duplicate\|ERROR\|Unknown database" || true
 fi
 
 # Run all migration files from backend/database directory
@@ -43,7 +43,7 @@ cd backend/database
 for migration in *.sql; do
     if [ -f "$migration" ]; then
         echo "   → Running $migration..."
-        heroku pg:psql --app marketingby-wetechforu-dev < "$migration" 2>&1 | grep -v "already exists\|duplicate\|ERROR" || true
+        cat "$migration" | heroku pg:psql --app marketingby-wetechforu-dev 2>&1 | grep -v "already exists\|duplicate\|ERROR\|Unknown database" || true
     fi
 done
 
