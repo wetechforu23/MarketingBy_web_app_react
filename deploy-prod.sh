@@ -14,7 +14,12 @@ echo "🚀 Deploying to PRODUCTION server..."
 # Check if prod remote exists
 if ! git remote | grep -q "^prod$"; then
     echo "❌ Prod remote not found. Setting up..."
-    heroku git:remote -a marketingby-wetechforu-b67c6bd0bf6b -r prod
+    # Detect production app name
+    PROD_APP=$(heroku apps 2>&1 | grep -i marketing | grep -v dev | head -1 | awk '{print $1}')
+    if [ -z "$PROD_APP" ]; then
+        PROD_APP="marketingby-wetechforu"  # Default fallback
+    fi
+    heroku git:remote -a "$PROD_APP" -r prod
 fi
 
 # Ensure we're on main branch

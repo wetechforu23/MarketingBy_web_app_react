@@ -11,8 +11,14 @@ set -e  # Exit on error
 
 echo "🔄 Syncing dev database schema from production..."
 
+# Detect production app name
+PROD_APP=$(heroku apps 2>&1 | grep -i marketing | grep -v dev | head -1 | awk '{print $1}')
+if [ -z "$PROD_APP" ]; then
+    PROD_APP="marketingby-wetechforu"  # Default fallback
+fi
+
 # Get database URLs
-PROD_DB_URL=$(heroku config:get DATABASE_URL --app marketingby-wetechforu-b67c6bd0bf6b)
+PROD_DB_URL=$(heroku config:get DATABASE_URL --app "$PROD_APP")
 DEV_DB_URL=$(heroku config:get DATABASE_URL --app marketingby-wetechforu-dev)
 
 if [ -z "$PROD_DB_URL" ] || [ -z "$DEV_DB_URL" ]; then
@@ -23,7 +29,7 @@ fi
 echo "📋 Step 1: Getting production schema..."
 
 # Export schema from production (structure only, no data)
-heroku pg:psql --app marketingby-wetechforu-b67c6bd0bf6b <<EOF > /tmp/prod-schema.sql
+heroku pg:psql --app "$PROD_APP" <<EOF > /tmp/prod-schema.sql
 -- Export schema only (no data)
 \dt
 \ds

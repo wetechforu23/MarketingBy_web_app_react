@@ -54,12 +54,21 @@ echo "   ✅ Dev environment variables set"
 # Step 4: Create Heroku Pipeline
 echo ""
 echo "🔗 Step 4: Creating Heroku Pipeline..."
+
+# Detect production app name
+PROD_APP=$(heroku apps 2>&1 | grep -i marketing | grep -v dev | head -1 | awk '{print $1}')
+if [ -z "$PROD_APP" ]; then
+    PROD_APP="marketingby-wetechforu"  # Default fallback
+fi
+
+echo "   Detected production app: $PROD_APP"
+
 if heroku pipelines:info marketingby-wetechforu &> /dev/null; then
     echo "   ✅ Pipeline already exists: marketingby-wetechforu"
 else
     heroku pipelines:create marketingby-wetechforu \
         --stage production \
-        --app marketingby-wetechforu-b67c6bd0bf6b
+        --app "$PROD_APP"
     echo "   ✅ Pipeline created: marketingby-wetechforu"
 fi
 
@@ -83,8 +92,13 @@ fi
 if git remote | grep -q "^prod$"; then
     echo "   ✅ Prod remote already exists"
 else
-    heroku git:remote -a marketingby-wetechforu-b67c6bd0bf6b -r prod
-    echo "   ✅ Prod remote added"
+    # Detect production app name
+    PROD_APP=$(heroku apps 2>&1 | grep -i marketing | grep -v dev | head -1 | awk '{print $1}')
+    if [ -z "$PROD_APP" ]; then
+        PROD_APP="marketingby-wetechforu"  # Default fallback
+    fi
+    heroku git:remote -a "$PROD_APP" -r prod
+    echo "   ✅ Prod remote added for app: $PROD_APP"
 fi
 
 # Step 7: Create Dev Branch
@@ -103,8 +117,14 @@ echo ""
 echo "📋 Step 8: Copying production config to dev (same integrations)..."
 echo "   Copying all environment variables from production to dev..."
 
+# Detect production app name
+PROD_APP=$(heroku apps 2>&1 | grep -i marketing | grep -v dev | head -1 | awk '{print $1}')
+if [ -z "$PROD_APP" ]; then
+    PROD_APP="marketingby-wetechforu"  # Default fallback
+fi
+
 # Get production config
-heroku config --app marketingby-wetechforu-b67c6bd0bf6b --shell > /tmp/prod-config.txt
+heroku config --app "$PROD_APP" --shell > /tmp/prod-config.txt
 
 # Copy all configs except DATABASE_URL and NODE_ENV (which are dev-specific)
 echo "   Copying environment variables..."
