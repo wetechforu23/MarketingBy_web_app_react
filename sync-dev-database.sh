@@ -32,22 +32,19 @@ echo "   (Skipping schema export - running migrations directly)"
 # Run main setup-database.sql first (creates core tables)
 if [ -f "backend/setup-database.sql" ]; then
     echo "   → Running setup-database.sql (core schema)..."
-    cat backend/setup-database.sql | heroku pg:psql --app marketingby-wetechforu-dev 2>&1 | grep -v "already exists\|duplicate\|ERROR\|Unknown database" || true
+    heroku pg:psql --app marketingby-wetechforu-dev -f backend/setup-database.sql 2>&1 | grep -v "already exists\|duplicate\|ERROR\|Unknown database" || true
 fi
 
 # Run all migration files from backend/database directory
 echo "   → Running all migration files..."
-cd backend/database
 
 # Run all .sql files in order (alphabetical order should work for most)
-for migration in *.sql; do
+for migration in backend/database/*.sql; do
     if [ -f "$migration" ]; then
-        echo "   → Running $migration..."
-        cat "$migration" | heroku pg:psql --app marketingby-wetechforu-dev 2>&1 | grep -v "already exists\|duplicate\|ERROR\|Unknown database" || true
+        echo "   → Running $(basename $migration)..."
+        heroku pg:psql --app marketingby-wetechforu-dev -f "$migration" 2>&1 | grep -v "already exists\|duplicate\|ERROR\|Unknown database" || true
     fi
 done
-
-cd ../..
 
 echo "   ✅ All migrations completed (errors about existing objects are normal)"
 
