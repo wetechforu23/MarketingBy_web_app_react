@@ -1,7 +1,6 @@
 import express, { Request, Response } from 'express';
 import pool from '../config/database';
 import { TwilioVoiceService } from '../services/twilioVoiceService';
-import { CallRoutingService } from '../services/callRoutingService';
 
 const router = express.Router();
 
@@ -63,15 +62,15 @@ router.post('/initiate', async (req: Request, res: Response) => {
   }
 });
 
-// Twilio webhook: Handle incoming call (uses new routing service)
+// Twilio webhook: Handle incoming call
 router.post('/incoming', async (req: Request, res: Response) => {
   try {
     const { CallSid, From, To, CallStatus } = req.body;
 
     console.log('📞 Incoming call:', { CallSid, From, To, CallStatus });
 
-    const routingService = CallRoutingService.getInstance();
-    const twiml = await routingService.handleIncomingCall(CallSid, From, To);
+    const voiceService = TwilioVoiceService.getInstance();
+    const twiml = await voiceService.handleIncomingCall(CallSid, From, To);
 
     res.type('text/xml');
     res.send(twiml);
@@ -331,238 +330,6 @@ router.get('/widgets/:widgetId/calls', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Get call history error:', error);
     res.status(500).json({ error: 'Failed to get call history' });
-  }
-});
-
-// ==========================================
-// NEW CALL ROUTING ENDPOINTS
-// ==========================================
-
-// Process IVR digit selection
-router.post('/ivr-gather', async (req: Request, res: Response) => {
-  try {
-    const { Digits, CallSid } = req.body;
-    const { callSid, clientId } = req.query;
-
-    const actualCallSid = CallSid || callSid;
-    const digit = Digits || req.query.digit;
-
-    if (!actualCallSid || !digit) {
-      return res.type('text/xml').send(
-        '<?xml version="1.0" encoding="UTF-8"?><Response><Say>Invalid input. Please try again.</Say><Hangup/></Response>'
-      );
-    }
-
-    // Get call settings to find settings ID
-    const callResult = await pool.query(
-      `SELECT client_id, widget_id FROM calls WHERE call_sid = $1 LIMIT 1`,
-      [actualCallSid]
-    );
-
-    if (callResult.rows.length === 0) {
-      return res.type('text/xml').send(
-        '<?xml version="1.0" encoding="UTF-8"?><Response><Say>Call not found.</Say><Hangup/></Response>'
-      );
-    }
-
-    const call = callResult.rows[0];
-    const actualClientId = parseInt(clientId as string) || call.client_id;
-
-    const settingsResult = await pool.query(
-      `SELECT id FROM call_settings WHERE widget_id = $1 AND is_active = true LIMIT 1`,
-      [call.widget_id]
-    );
-
-    const settingsId = settingsResult.rows[0]?.id;
-
-    const routingService = CallRoutingService.getInstance();
-    const twiml = await routingService.processIVRDigit(actualCallSid, digit, actualClientId, settingsId);
-
-    res.type('text/xml');
-    res.send(twiml);
-  } catch (error: any) {
-    console.error('IVR gather error:', error);
-    res.type('text/xml').send(
-      '<?xml version="1.0" encoding="UTF-8"?><Response><Say>Error processing your selection.</Say><Hangup/></Response>'
-    );
-  }
-});
-
-// Route to staff (fallback or direct routing)
-router.get('/route-to-staff', async (req: Request, res: Response) => {
-  try {
-    const { callSid, clientId, staffId } = req.query;
-
-    if (!callSid || !clientId) {
-      return res.type('text/xml').send(
-        '<?xml version="1.0" encoding="UTF-8"?><Response><Say>Invalid request.</Say><Hangup/></Response>'
-      );
-    }
-
-    const routingService = CallRoutingService.getInstance();
-    const twiml = await routingService.routeToStaffByClient(
-      callSid as string,
-      parseInt(clientId as string),
-      staffId ? parseInt(staffId as string) : null
-    );
-
-    res.type('text/xml');
-    res.send(twiml);
-  } catch (error: any) {
-    console.error('Route to staff error:', error);
-    res.type('text/xml').send(
-      '<?xml version="1.0" encoding="UTF-8"?><Response><Say>Error routing your call.</Say><Hangup/></Response>'
-    );
-  }
-});
-
-// Handle AI speech input
-router.post('/ai-gather', async (req: Request, res: Response) => {
-  try {
-    const { SpeechResult, CallSid } = req.body;
-    const { callSid, clientId, optionId } = req.query;
-
-    const actualCallSid = CallSid || callSid;
-    const speechInput = SpeechResult || '';
-
-    if (!actualCallSid) {
-      return res.type('text/xml').send(
-        '<?xml version="1.0" encoding="UTF-8"?><Response><Say>Call not found.</Say><Hangup/></Response>'
-      );
-    }
-
-    // TODO: Integrate with AI service (similar to chat widget AI)
-    // For now, if AI can't answer, route to staff
-    const callResult = await pool.query(
-      `SELECT client_id FROM calls WHERE call_sid = $1 LIMIT 1`,
-      [actualCallSid]
-    );
-
-    if (callResult.rows.length === 0) {
-      return res.type('text/xml').send(
-        '<?xml version="1.0" encoding="UTF-8"?><Response><Say>Call not found.</Say><Hangup/></Response>'
-      );
-    }
-
-    const actualClientId = parseInt(clientId as string) || callResult.rows[0].client_id;
-
-    // Check if AI can handle this (simplified - integrate with actual AI service)
-    const aiCanAnswer = false; // TODO: Call AI service to check
-
-    if (!aiCanAnswer) {
-      // Route to staff
-      const routingService = CallRoutingService.getInstance();
-      const twiml = await routingService.routeToStaffByClient(actualCallSid, actualClientId, null);
-      res.type('text/xml');
-      res.send(twiml);
-    } else {
-      // AI can answer - provide response
-      res.type('text/xml').send(
-        `<?xml version="1.0" encoding="UTF-8"?><Response><Say>${speechInput}</Say><Gather input="speech" action="/api/twilio/voice/ai-gather?callSid=${actualCallSid}&clientId=${actualClientId}" method="POST" speechTimeout="auto" timeout="10"><Say>Is there anything else I can help you with?</Say></Gather><Say>Thank you for calling. Goodbye.</Say></Response>`
-      );
-    }
-  } catch (error: any) {
-    console.error('AI gather error:', error);
-    res.type('text/xml').send(
-      '<?xml version="1.0" encoding="UTF-8"?><Response><Say>Let me connect you with a staff member.</Say><Redirect>/api/twilio/voice/route-to-staff?callSid=${req.query.callSid}&clientId=${req.query.clientId}</Redirect></Response>'
-    );
-  }
-});
-
-// Handle voicemail recording
-router.post('/voicemail', async (req: Request, res: Response) => {
-  try {
-    const { CallSid, RecordingUrl, RecordingDuration, TranscriptionText } = req.body;
-    const { callSid, clientId, ivrOptionId } = req.query;
-
-    const actualCallSid = CallSid || callSid;
-
-    if (!actualCallSid) {
-      return res.status(400).json({ error: 'Call SID required' });
-    }
-
-    // Get call info
-    const callResult = await pool.query(
-      `SELECT id, from_number, caller_name FROM calls WHERE call_sid = $1 LIMIT 1`,
-      [actualCallSid]
-    );
-
-    if (callResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Call not found' });
-    }
-
-    const call = callResult.rows[0];
-    const actualClientId = parseInt(clientId as string) || null;
-
-    // Store voicemail
-    await pool.query(
-      `INSERT INTO voicemail_messages (
-        call_id, call_sid, caller_phone, caller_name,
-        recording_url, recording_duration_seconds, transcription_text,
-        ivr_option_id, department, received_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL, NOW())`,
-      [
-        call.id,
-        actualCallSid,
-        call.from_number,
-        call.caller_name,
-        RecordingUrl,
-        RecordingDuration ? parseInt(RecordingDuration) : null,
-        TranscriptionText,
-        ivrOptionId ? parseInt(ivrOptionId as string) : null
-      ]
-    );
-
-    // Send email notification if configured
-    if (actualClientId) {
-      const settingsResult = await pool.query(
-        `SELECT voicemail_email FROM call_settings WHERE client_id = $1 AND is_active = true LIMIT 1`,
-        [actualClientId]
-      );
-
-      if (settingsResult.rows.length > 0 && settingsResult.rows[0].voicemail_email) {
-        // TODO: Send email notification
-        console.log('📧 Voicemail notification should be sent to:', settingsResult.rows[0].voicemail_email);
-      }
-    }
-
-    res.status(200).send('OK');
-  } catch (error: any) {
-    console.error('Voicemail error:', error);
-    res.status(200).send('OK'); // Always return OK to Twilio
-  }
-});
-
-// Call status update (for routing fallbacks)
-router.get('/call-status', async (req: Request, res: Response) => {
-  try {
-    const { callSid, DialCallStatus, DialCallDuration } = req.query;
-
-    if (DialCallStatus === 'no-answer' || DialCallStatus === 'busy' || DialCallStatus === 'failed') {
-      // Call didn't connect, try next staff or voicemail
-      const callResult = await pool.query(
-        `SELECT client_id FROM calls WHERE call_sid = $1 LIMIT 1`,
-        [callSid]
-      );
-
-      if (callResult.rows.length > 0) {
-        const routingService = CallRoutingService.getInstance();
-        const twiml = await routingService.routeToStaffByClient(
-          callSid as string,
-          callResult.rows[0].client_id,
-          null
-        );
-        res.type('text/xml');
-        res.send(twiml);
-        return;
-      }
-    }
-
-    // Call connected successfully
-    res.type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
-  } catch (error: any) {
-    console.error('Call status error:', error);
-    res.type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
   }
 });
 
