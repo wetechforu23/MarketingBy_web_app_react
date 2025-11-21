@@ -15,9 +15,23 @@ const isRemoteDb = dbUrl && (
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: isRemoteDb ? { rejectUnauthorized: false } : false,
-  max: 20, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
+  max: 15, // Maximum number of clients in the pool (leave headroom for Heroku's 20 limit)
+  idleTimeoutMillis: 10000, // Close idle clients after 10 seconds (faster cleanup)
   connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection cannot be established
+  allowExitOnIdle: true, // Allow process to exit when pool is idle
+});
+
+// Log pool events for monitoring
+pool.on('error', (err) => {
+  console.error('❌ Unexpected database pool error:', err);
+});
+
+pool.on('connect', (client) => {
+  console.log(`📊 Database connection established. Total: ${pool.totalCount}, Idle: ${pool.idleCount}, Waiting: ${pool.waitingCount}`);
+});
+
+pool.on('remove', (client) => {
+  console.log(`📊 Database connection removed. Total: ${pool.totalCount}, Idle: ${pool.idleCount}, Waiting: ${pool.waitingCount}`);
 });
 
 export default pool;
