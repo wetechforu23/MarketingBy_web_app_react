@@ -734,13 +734,22 @@
           }
           
           /* ✅ Ensure button is always fully visible - prevent clipping */
+          /* ✅ CRITICAL: Always allow body/html scrolling - never disable it */
           body, html {
             overflow-x: visible !important;
+            overflow-y: auto !important;
           }
           
           /* ✅ Prevent parent containers from clipping the button */
           * {
             overflow-x: visible !important;
+          }
+          
+          /* ✅ Ensure body scrolling is never disabled when chat is open */
+          body.wetechforu-chat-open,
+          html.wetechforu-chat-open {
+            overflow-y: auto !important;
+            position: relative !important;
           }
           
           @media (max-width: 768px) {
@@ -1345,6 +1354,12 @@
       
       if (!chatWindow) return;
       
+      // ✅ CRITICAL: Ensure body/html scrolling remains enabled
+      document.body.style.overflowY = 'auto';
+      document.documentElement.style.overflowY = 'auto';
+      document.body.classList.remove('wetechforu-chat-open');
+      document.documentElement.classList.remove('wetechforu-chat-open');
+      
       chatWindow.style.display = 'none';
       
       // ✅ Ensure badge and button are visible and clickable when minimized
@@ -1395,6 +1410,12 @@
         console.error('❌ Chat window not found');
         return;
       }
+      
+      // ✅ CRITICAL: Ensure body/html scrolling is always enabled
+      document.body.style.overflowY = 'auto';
+      document.documentElement.style.overflowY = 'auto';
+      document.body.classList.add('wetechforu-chat-open');
+      document.documentElement.classList.add('wetechforu-chat-open');
       
       // ✅ Hide chat button when chat is open (only show when minimized)
       if (chatButton) {
@@ -2103,6 +2124,12 @@
       const chatWindow = document.getElementById('wetechforu-chat-window');
       const badge = document.getElementById('wetechforu-badge');
       const chatButton = document.getElementById('wetechforu-chat-button');
+      
+      // ✅ CRITICAL: Ensure body/html scrolling remains enabled
+      document.body.style.overflowY = 'auto';
+      document.documentElement.style.overflowY = 'auto';
+      document.body.classList.remove('wetechforu-chat-open');
+      document.documentElement.classList.remove('wetechforu-chat-open');
       
       chatWindow.style.display = 'none';
       badge.style.display = 'flex';

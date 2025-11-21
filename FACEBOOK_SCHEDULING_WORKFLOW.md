@@ -194,3 +194,4 @@
 - ✅ `social_media_posts.error_message` → Error details
 - ✅ Content status stays `approved` (can retry)
 
+
